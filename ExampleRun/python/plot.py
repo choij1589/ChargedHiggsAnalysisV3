@@ -23,14 +23,15 @@ with open("configs/histkeys.json") as f:
 config["era"] = args.era
 
 #### Configurations
-DATASTREAM = "Muon"
-
-W  = ["WJets_MG"]
-DY = ["DYJets"]
-TT = ["TTLL_powheg", "TTLJ_powheg"]
-VV = ["WWto2L2Nu", "WZto2L2Q"]
-ST = ["ST_sch_top_Lep", "ST_sch_antitop_Lep", "ST_tW_antitop_Semilep", "ST_tW_top_Semilep"]
-MCList = W + DY + TT + VV + ST
+if args.era in ["2016preVFP", "2016postVFP", "2017", "2018"]:
+    DATASTREAM = "SingleMuon"
+    DY = ["DYJets"]
+    TT = ["TTLL_powheg"]
+    VV = ["WW_pythia", "WZ_pythia", "ZZ_pythia"]
+    ST = ["SingleTop_sch_Lep", "SingleTop_tch_antitop_Incl", "SingleTop_tch_top_Incl", "SingleTop_tW_antitop_NoFullyHad", "SingleTop_tW_top_NoFullyHad"]
+elif args.era in ["2022", "2022EE", "2023", "2023BPix"]:
+    DATASTREAM = "Muon"
+MCList = DY + TT + VV + ST
 
 output_path = f"{WORKDIR}/ExampleRun/plots/{args.era}/{args.histkey.replace('/', '_')}.png"
 
@@ -54,7 +55,7 @@ if not os.path.exists(file_path):
     else:
         raise ValueError("invalid response")
 
-assert os.path.exists(file_path)
+assert os.path.exists(file_path), f"file {file_path} does not exist"
 f = ROOT.TFile.Open(file_path)
 data = f.Get(args.histkey); data.SetDirectory(0)
 f.Close()
@@ -62,7 +63,7 @@ f.Close()
 for sample in MCList:
     file_path = f"{WORKDIR}/SKNanoOutput/ExampleRun/{args.era}/{sample}.root"
     logging.debug(f"file_path: {file_path}")
-    assert os.path.exists(file_path)
+    assert os.path.exists(file_path), f"file {file_path} does not exist"
     f = ROOT.TFile.Open(file_path)
     h = f.Get(args.histkey); h.SetDirectory(0)
     f.Close()
@@ -78,15 +79,11 @@ def add_hist(name, hist, histDict):
         histDict[name].Add(hist)
 
 temp_dict = {}
-temp_dict["W"]  = None
 temp_dict["DY"] = None
 temp_dict["TT"] = None
 temp_dict["VV"] = None
 temp_dict["ST"] = None
 
-for sample in W:
-    if not sample in HISTs.keys(): continue
-    add_hist("W", HISTs[sample], temp_dict)
 for sample in DY:
     if not sample in HISTs.keys(): continue
     add_hist("DY", HISTs[sample], temp_dict)
@@ -107,7 +104,6 @@ for key, value in temp_dict.items():
     BKGs[key] = value
 
 COLORs["data"] = ROOT.kBlack
-COLORs["W"]  = ROOT.kMagenta
 COLORs["DY"] = ROOT.kGray
 COLORs["TT"] = ROOT.kViolet
 COLORs["VV"] = ROOT.kGreen
