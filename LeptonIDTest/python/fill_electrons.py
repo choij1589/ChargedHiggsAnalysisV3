@@ -69,11 +69,11 @@ def get_cuts(region):
         c_sip3d = 8.
         c_miniIso = 0.4
         if region == "InnerBarrel":
-            c_mva = 0.5
+            c_mva = 0.8
         elif region == "OuterBarrel":
-            c_mva = -0.8
+            c_mva = 0.5
         else:
-            c_mva = -0.5
+            c_mva = 0.2
     
     return c_sieie, c_dEta, c_dPhi, c_hoe, ecalEA, hcalEA, c_miniIso, c_sip3d, c_mva
 
@@ -153,7 +153,7 @@ for i, evt in enumerate(tree):
     nElectrons = evt.nElectrons
 
     for i in range(nElectrons):
-        if not evt.isTrigMatched[i]: continue
+        if not evt.isIsoElTrigMatched[i]: continue
         region = check_region(evt.scEta[i])
         c_sieie, c_dEta, c_dPhi, c_hoe, ecalEA, hcalEA, c_miniIso, c_sip3d, c_mva = get_cuts(region)
         
@@ -213,5 +213,4 @@ for i, evt in enumerate(tree):
 # Save the histograms - they will be automatically saved in their respective directories
 out.Write()
 out.Close()
-
 print(f"Finished filling histograms for {args.era}!")

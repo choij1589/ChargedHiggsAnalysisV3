@@ -12,6 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--channel", required=True, type=str, help="channel")
 parser.add_argument("--histkey", required=True, type=str, help="histkey")
+parser.add_argument("--exclude", default=None, type=str, help="exclude weight")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 
@@ -27,56 +28,38 @@ config["maxDigits"] = 3
 #### Configurations
 if args.era in ["2016preVFP", "2016postVFP", "2017", "2018"]:
     RUN = "Run2"
+    config["CoM"] = 13
 elif args.era in ["2022", "2022EE", "2023", "2023BPix"]:
     RUN = "Run3"
+    config["CoM"] = 13.6
 else:
     raise ValueError(f"Invalid era: {args.era}")
 
-PeriodInfo = {
-    "2016preVFP": ["B", "C", "D", "E", "F"],
-    "2016postVFP": ["F", "G", "H"],
-    "2017": ["B", "C", "D", "E", "F"],
-    "2018": ["A", "B", "C", "D"]
-}
-
-if args.channel == "DiMu":
-    DATASTREAM = "DoubleMuon"
-    SYSTs = [("L1PrefireUp", "L1PrefireDown"),
-             ("PileupReweightUp", "PileupReweightDown"),
-             ("PileupJetIDSFUp", "PileupJetIDSFDown"),
-             ("MuonIDSFUp", "MuonIDSFDown"),
-             ("DblMuTrigSFUp", "DblMuTrigSFDown"),
-             ("JetEnUp", "JetEnDown"),
-             ("JetResUp", "JetResDown"),
-             ("MuonEnUp", "MuonEnDown"),
-             ("ElectronEnUp", "ElectronEnDown"),
-             ("ElectronResUp", "ElectronResDown")
-             ]
-elif args.channel == "EMu":
-    DATASTREAM = "MuonEG"
-    SYSTs = [("L1PrefireUp", "L1PrefireDown"),
-             ("PileupReweightUp", "PileupReweightDown"),
-             ("PileupJetIDSFUp", "PileupJetIDSFDown"),
-             ("MuonIDSFUp", "MuonIDSFDown"),
-             ("ElectronIDSFUp", "ElectronIDSFDown"),
-             ("EMuTrigSFUp", "EMuTrigSFDown"),
-             ("JetEnUp", "JetEnDown"),
-             ("JetResUp", "JetResDown"),
-             ("MuonEnUp", "MuonEnDown"),
-             ("ElectronEnUp", "ElectronEnDown"),
-             ("ElectronResUp", "ElectronResDown")
-             ]
+if args.channel == "DIMU":
+    FLAG = "RunDiMu"
+elif args.channel == "EMU":
+    FLAG = "RunEMu"
 else:
     raise ValueError(f"Invalid channel: {args.channel}")
 
-W = ["WJets"]
-DY = ["DYJets"]
-TT = ["TTLJ_powheg", "TTLL_powheg"]
-VV = ["WW_pythia", "WZ_pythia", "ZZ_pythia"]
-ST = ["SingleTop_sch_Lep", "SingleTop_tch_antitop_Incl", "SingleTop_tch_top_Incl", "SingleTop_tW_antitop_NoFullyHad", "SingleTop_tW_top_NoFullyHad"]
-MCList = W + DY + TT + VV + ST
+SAMPLEGROUP = json.load(open("configs/samplegroup.json"))[args.era][args.channel]
+SYSTs = json.load(open("configs/systematics.json"))[args.era][args.channel]
+logging.debug(f"SAMPLEGROUP: {SAMPLEGROUP}")
+logging.debug(f"SYSTs: {SYSTs}")
 
-OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/{args.histkey.replace('/', '_')}.png"
+DATAPERIODs = SAMPLEGROUP["data"]
+W = SAMPLEGROUP["W"]
+Z = SAMPLEGROUP["Z"]
+TT = SAMPLEGROUP["TT"]
+ST = SAMPLEGROUP["ST"]
+VV = SAMPLEGROUP["VV"]
+MCList = W + Z + TT + ST + VV
+
+if args.exclude:
+    OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/No{args.exclude}/{args.histkey.replace('/', '_')}.png"
+else:
+    OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/Central/{args.histkey.replace('/', '_')}.png"
+
 os.makedirs(os.path.dirname(OUTPUTPATH), exist_ok=True)
 
 #### Get Histograms
@@ -85,8 +68,8 @@ HISTs = {}
 ## DATA
 ## merge histograms from different periods
 data = None
-for period in PeriodInfo[args.era]:
-    file_path = f"{WORKDIR}/SKNanoOutput/DiLepton/Run{args.channel}_RunSyst/{args.era}/{DATASTREAM}_{period}.root"
+for sample in DATAPERIODs:
+    file_path = f"{WORKDIR}/SKNanoOutput/DiLepton/{FLAG}_RunSyst/{args.era}/{sample}.root"
     logging.debug(f"file_path: {file_path}")
     assert os.path.exists(file_path), f"file {file_path} does not exist"
     f = ROOT.TFile.Open(file_path)
@@ -98,12 +81,16 @@ for period in PeriodInfo[args.era]:
         data.Add(h)
 
 for sample in MCList:
-    file_path = f"{WORKDIR}/SKNanoOutput/DiLepton/Run{args.channel}_RunSyst/{args.era}/{sample}.root"
+    file_path = f"{WORKDIR}/SKNanoOutput/DiLepton/{FLAG}_RunSyst/{args.era}/{sample}.root"
     logging.debug(f"file_path: {file_path}")
     assert os.path.exists(file_path), f"file {file_path} does not exist"
     f = ROOT.TFile.Open(file_path)
     try:
-        h = f.Get(f"{args.channel}/Central/{args.histkey}"); h.SetDirectory(0)
+        if args.exclude:
+            h = f.Get(f"{args.channel}/{args.exclude}_NotImplemented/{args.histkey}"); h.SetDirectory(0)
+        else:
+            h = f.Get(f"{args.channel}/Central/{args.histkey}"); h.SetDirectory(0)
+            #print(h.Integral(), h.Integral(0, h.GetNbinsX()+1))
     except Exception as e:
         logging.debug(e, sample, args.histkey)
         f.Close()
@@ -111,7 +98,9 @@ for sample in MCList:
 
     # Get Systematic Histograms
     hSysts = []
-    for syst_up, syst_down in SYSTs:
+    for syst, sources in SYSTs.items():
+        if args.exclude: continue
+        syst_up, syst_down = tuple(sources)
         try:
             h_up = f.Get(f"{args.channel}/{syst_up}/{args.histkey}"); h_up.SetDirectory(0)
             h_down = f.Get(f"{args.channel}/{syst_down}/{args.histkey}"); h_down.SetDirectory(0)
@@ -142,13 +131,13 @@ def add_hist(name, hist, histDict):
     else:
         histDict[name].Add(hist)
 
-temp_dict = { "W": None, "DY": None, "TT": None, "VV": None, "ST": None }
+temp_dict = { "W": None, "Z": None, "TT": None, "ST": None, "VV": None }
 for sample in W:
     if not sample in HISTs.keys(): continue
     add_hist("W", HISTs[sample], temp_dict)
-for sample in DY:
+for sample in Z:
     if not sample in HISTs.keys(): continue
-    add_hist("DY", HISTs[sample], temp_dict)
+    add_hist("Z", HISTs[sample], temp_dict)
 for sample in TT:
     if not sample in HISTs.keys(): continue
     add_hist("TT", HISTs[sample], temp_dict)

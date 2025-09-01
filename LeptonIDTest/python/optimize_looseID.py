@@ -183,8 +183,8 @@ def optimize_muon(era, reduction=1):
     tree.Add(f"{WORKDIR}/SKNanoOutput/ParseMuIDVariables/{era}/TTLL_powheg.root")
     maxevt = int(tree.GetEntries() / reduction)
     
-    miniiso_cuts = [0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8]
-    sip3d_cuts = [4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+    miniiso_cuts = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8]
+    sip3d_cuts = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
     regions = ["InnerBarrel", "OuterBarrel", "Endcap"]
     target_types = ["fromB", "fromC"]
     pt_bins = [10, 20, 30, 50, 70]
@@ -213,10 +213,8 @@ def optimize_muon(era, reduction=1):
         nMuons = evt.nMuons
         
         for muon_idx in range(nMuons):
-            if not evt.isTrigMatched[muon_idx]: continue
-            
+            if not evt.isIsoMuTrigMatched[muon_idx]: continue
             region = check_region_muon(evt.eta[muon_idx])
-            
             if not evt.tkRelIso[muon_idx] < 0.4: continue
             
             lType = classify_lepton(evt.lepType[muon_idx], evt.nearestJetFlavour[muon_idx])
@@ -258,8 +256,8 @@ def optimize_electron(era, reduction=1):
     maxevt = int(tree.GetEntries() / reduction)
     
     miniiso_cuts = [0.4]
-    sip3d_cuts = [6.0, 7.0, 8.0, 9.0, 10.0]
-    mva_cuts = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    sip3d_cuts = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+    mva_cuts = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95]
     regions = ["InnerBarrel", "OuterBarrel", "Endcap"]
     target_types = ["fromL", "fromB", "fromC"]
     pt_bins = [15, 25, 35, 50, 70]
@@ -290,10 +288,8 @@ def optimize_electron(era, reduction=1):
         nElectrons = evt.nElectrons
         
         for electron_idx in range(nElectrons):
-            if not evt.isTrigMatched[electron_idx]: continue
-            
+            if not evt.isIsoElTrigMatched[electron_idx]: continue
             region = check_region_electron(evt.scEta[electron_idx])
-            
             if not apply_electron_trigger_cuts(evt, electron_idx, region): continue
             
             lType = classify_lepton(evt.lepType[electron_idx], evt.nearestJetFlavour[electron_idx])

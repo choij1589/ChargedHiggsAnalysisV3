@@ -4,6 +4,7 @@ import sys
 import argparse
 import ROOT
 import cmsstyle as CMS
+import math
 
 # Add Common/Tools to path
 sys.path.append(os.path.join(os.environ['WORKDIR'], 'Common', 'Tools'))
@@ -13,12 +14,39 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--era", type=str, default="2023", help="Era")
 args = parser.parse_args()
 
+def clean_nan_values(hist, is_scale_factor=False):
+    """Replace NaN values in histogram with 0 for efficiencies, 1 for scale factors, 0 for errors"""
+    fill_value = 1.0 if is_scale_factor else 0.0
+    
+    if hist.GetDimension() == 1:
+        for bin_idx in range(0, hist.GetNbinsX() + 2):  # Include underflow/overflow
+            content = hist.GetBinContent(bin_idx)
+            error = hist.GetBinError(bin_idx)
+            if math.isnan(content) or math.isinf(content):
+                hist.SetBinContent(bin_idx, fill_value)
+            if math.isnan(error) or math.isinf(error):
+                hist.SetBinError(bin_idx, 0.0)  # Always 0 for error
+    elif hist.GetDimension() == 2:
+        for x_bin in range(0, hist.GetNbinsX() + 2):
+            for y_bin in range(0, hist.GetNbinsY() + 2):
+                content = hist.GetBinContent(x_bin, y_bin)
+                error = hist.GetBinError(x_bin, y_bin)
+                if math.isnan(content) or math.isinf(content):
+                    hist.SetBinContent(x_bin, y_bin, fill_value)
+                if math.isnan(error) or math.isinf(error):
+                    hist.SetBinError(x_bin, y_bin, 0.0)  # Always 0 for error
+
 ## Get efficiency histograms
 f = ROOT.TFile.Open(f"results/{args.era}/ROOT/efficiency_EleID.root")
 h_data = f.Get("data"); h_data.SetDirectory(0)
 h_sim = f.Get("sim"); h_sim.SetDirectory(0)
 h_sf_2d = f.Get("sf"); h_sf_2d.SetDirectory(0)
 f.Close()
+
+# Clean NaN values from all histograms
+clean_nan_values(h_data)  # efficiency histogram - fill with 0
+clean_nan_values(h_sim)   # efficiency histogram - fill with 0  
+clean_nan_values(h_sf_2d)  # scale factor histogram - fill with 0
 
 # Set up ROOT for batch mode and CMS style
 ROOT.gROOT.SetBatch(True)
@@ -153,7 +181,7 @@ def create_pt_projections():
         
         # Get axis range
         xmin, xmax = h_data_proj.GetXaxis().GetXmin(), h_data_proj.GetXaxis().GetXmax()
-        
+
         # Create CMS-style canvas with two pads
         canvas = CMS.cmsDiCanvas(f"c_pt_etabin{eta_bin}", xmin, xmax, 0.0, 1.1, 0.5, 1.5, 
                                 "p_{T} [GeV]", "Efficiency", "Data/MC", square=True, iPos=0, extraSpace=0)
@@ -176,7 +204,7 @@ def create_pt_projections():
         title_label.SetNDC()
         title_label.SetTextFont(42)
         title_label.SetTextSize(0.04)
-        title_label.DrawLatex(0.7, 0.55, f"#eta_{{SC}} = {eta_low:.1f}-{eta_high:.1f}")
+        title_label.DrawLatex(0.7, 0.55, f"{eta_low:.3f} < #eta_{{SC}} < {eta_high:.3f}")
         
         canvas.cd(1).RedrawAxis()
         
@@ -196,7 +224,7 @@ def create_pt_projections():
         canvas.cd(2).RedrawAxis()
         
         # Save canvas
-        canvas.SaveAs(f"{output_dir}/eff_vs_pt_etabin{eta_bin}_{format(eta_low, '.3f').replace('.', 'p')}{format(eta_high, '.3f').replace('.', 'p')}.png")
+        canvas.SaveAs(f"{output_dir}/eff_vs_pt_etabin{eta_bin}_{format(eta_low, '.3f').replace('.', 'p').replace('-','m')}{format(eta_high, '.3f').replace('.', 'p').replace('-','m')}.png")
 
 def create_eta_summary():
     """Create eta summary plot with pt-averaged efficiencies, skipping gap regions"""
@@ -232,7 +260,8 @@ def create_eta_summary():
             sim_eff, sim_err = h_sim.GetBinContent(eta_bin, pt_bin), h_sim.GetBinError(eta_bin, pt_bin)
             sf_eff, sf_err = h_sf_2d.GetBinContent(eta_bin, pt_bin), h_sf_2d.GetBinError(eta_bin, pt_bin)
             
-            if data_eff > 0 and sim_eff > 0:
+            if (data_eff > 0 and sim_eff > 0 and 
+                not math.isnan(data_eff) and not math.isnan(sim_eff) and not math.isnan(sf_eff)):
                 data_effs.append(data_eff)
                 data_errs.append(data_err)
                 sim_effs.append(sim_eff)
@@ -343,7 +372,8 @@ def create_pt_summary():
             sim_eff, sim_err = h_sim.GetBinContent(eta_bin, pt_bin), h_sim.GetBinError(eta_bin, pt_bin)
             sf_eff, sf_err = h_sf_2d.GetBinContent(eta_bin, pt_bin), h_sf_2d.GetBinError(eta_bin, pt_bin)
             
-            if data_eff > 0 and sim_eff > 0:
+            if (data_eff > 0 and sim_eff > 0 and 
+                not math.isnan(data_eff) and not math.isnan(sim_eff) and not math.isnan(sf_eff)):
                 data_effs.append(data_eff)
                 data_errs.append(data_err)
                 sim_effs.append(sim_eff)
@@ -380,8 +410,9 @@ def create_pt_summary():
     h_sim_pt.SetTitle("Simulation")
     
     # Get axis range
-    xmin, xmax = h_data_pt.GetXaxis().GetXmin(), h_data_pt.GetXaxis().GetXmax()
-    
+    #xmin, xmax = h_data_pt.GetXaxis().GetXmin(), h_data_pt.GetXaxis().GetXmax()
+    xmin, xmax = 10.0, 200.0  # Set fixed range for pt summary plot    
+
     # Create CMS-style canvas with two pads (using linear scale for pt)
     canvas = CMS.cmsDiCanvas("c_pt_summary", xmin, xmax, 0.0, 1.1, 0.5, 1.5, 
                             "p_{T} [GeV]", "Efficiency", "Data/MC", square=True, iPos=0, extraSpace=0)

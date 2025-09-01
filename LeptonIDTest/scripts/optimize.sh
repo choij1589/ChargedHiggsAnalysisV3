@@ -17,7 +17,5 @@ optimize_era_object() {
 export -f optimize_era_object
 
 # Run optimization in parallel for all Run3 eras and both objects
-parallel -j 8 optimize_era_object ::: ${RUN2_ERAs[@]} ::: ${OBJECTS[@]}
-
-echo "All Run3 tight ID optimizations completed!"
-echo "Results saved in LeptonIDTest/optimization/"
+#parallel -j 8 optimize_era_object ::: ${RUN2_ERAs[@]} ::: ${OBJECTS[@]}
+parallel -j 8 optimize_era_object ::: ${RUN3_ERAs[@]} ::: ${OBJECTS[@]}

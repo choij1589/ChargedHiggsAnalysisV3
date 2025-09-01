@@ -4,6 +4,7 @@ import sys
 import argparse
 import ROOT
 import cmsstyle as CMS
+import math
 
 # Add Common/Tools to path
 sys.path.append(os.path.join(os.environ['WORKDIR'], 'Common', 'Tools'))
@@ -15,11 +16,37 @@ parser.add_argument("--hltpath", type=str, default="Mu8El23", help="HLT path")
 parser.add_argument("--object", type=str, default="electron", help="Object")
 args = parser.parse_args()
 
+def clean_nan_values(hist, is_scale_factor=False):
+    """Replace NaN values in histogram with 0 for efficiencies, 1 for scale factors, 0 for errors"""
+    fill_value = 1.0 if is_scale_factor else 0.0
+    
+    if hist.GetDimension() == 1:
+        for bin_idx in range(0, hist.GetNbinsX() + 2):  # Include underflow/overflow
+            content = hist.GetBinContent(bin_idx)
+            error = hist.GetBinError(bin_idx)
+            if math.isnan(content) or math.isinf(content):
+                hist.SetBinContent(bin_idx, fill_value)
+            if math.isnan(error) or math.isinf(error):
+                hist.SetBinError(bin_idx, 0.0)  # Always 0 for error
+    elif hist.GetDimension() == 2:
+        for x_bin in range(0, hist.GetNbinsX() + 2):
+            for y_bin in range(0, hist.GetNbinsY() + 2):
+                content = hist.GetBinContent(x_bin, y_bin)
+                error = hist.GetBinError(x_bin, y_bin)
+                if math.isnan(content) or math.isinf(content):
+                    hist.SetBinContent(x_bin, y_bin, fill_value)
+                if math.isnan(error) or math.isinf(error):
+                    hist.SetBinError(x_bin, y_bin, 0.0)  # Always 0 for error
+
 ## Get efficiency histograms
 f = ROOT.TFile.Open(f"results/{args.era}/ROOT/{args.hltpath}_{args.object}.root")
 h_data = f.Get(f"{args.hltpath}_Data"); h_data.SetDirectory(0)
 h_sim = f.Get(f"{args.hltpath}_MC"); h_sim.SetDirectory(0)
 f.Close()
+
+# Clean NaN values from all histograms
+clean_nan_values(h_data)  # efficiency histogram - fill with 0
+clean_nan_values(h_sim)   # efficiency histogram - fill with 0
 
 # Set up ROOT for batch mode and CMS style
 ROOT.gROOT.SetBatch(True)
@@ -59,6 +86,7 @@ def create_eta_projections():
         # Create scale factor histogram
         h_sf = h_data_proj.Clone(f"sf_eta_ptbin{pt_bin}")
         h_sf.Divide(h_sim_proj)
+        clean_nan_values(h_sf)  # Clean scale factor - fill with 0
         
         # Set histogram properties
         h_data_proj.SetDirectory(0)
@@ -132,6 +160,7 @@ def create_pt_projections():
         # Create scale factor histogram
         h_sf = h_data_proj.Clone(f"sf_pt_etabin{eta_bin}")
         h_sf.Divide(h_sim_proj)
+        clean_nan_values(h_sf)  # Clean scale factor - fill with 0
         
         # Set histogram properties
         h_data_proj.SetDirectory(0)
@@ -167,7 +196,10 @@ def create_pt_projections():
         title_label.SetNDC()
         title_label.SetTextFont(42)
         title_label.SetTextSize(0.04)
-        title_label.DrawLatex(0.7, 0.55, f"|#eta| = {eta_low:.1f}-{eta_high:.1f}")
+        if args.object == "electron":
+            title_label.DrawLatex(0.7, 0.55, f"{eta_low:.3f} < |#eta_{{SC}}| < {eta_high:.3f}")
+        else:
+            title_label.DrawLatex(0.7, 0.55, f"{eta_low:.3f} < |#eta| < {eta_high:.3f}")
         
         canvas.cd(1).RedrawAxis()
         
@@ -232,6 +264,7 @@ def create_eta_summary():
     # Create scale factor histogram
     h_sf_eta = h_data_eta.Clone("sf_eta_summary")
     h_sf_eta.Divide(h_sim_eta)
+    clean_nan_values(h_sf_eta)  # Clean scale factor - fill with 0
     
     # Set histogram properties
     h_data_eta.SetDirectory(0)
@@ -332,6 +365,7 @@ def create_pt_summary():
     # Create scale factor histogram
     h_sf_pt = h_data_pt.Clone("sf_pt_summary")
     h_sf_pt.Divide(h_sim_pt)
+    clean_nan_values(h_sf_pt)  # Clean scale factor - fill with 0
     
     # Set histogram properties
     h_data_pt.SetDirectory(0)

@@ -4,6 +4,7 @@ import sys
 import argparse
 import ROOT
 import cmsstyle as CMS
+import math
 
 # Add Common/Tools to path
 sys.path.append(os.path.join(os.environ['WORKDIR'], 'Common', 'Tools'))
@@ -13,6 +14,28 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--era", type=str, default="2023", help="Era")
 parser.add_argument("--leg", type=str, choices=["mu8", "mu17"], required=True, help="Muon leg (mu8 or mu17)")
 args = parser.parse_args()
+
+def clean_nan_values(hist, is_scale_factor=False):
+    """Replace NaN values in histogram with 0 for efficiencies, 1 for scale factors, 0 for errors"""
+    fill_value = 1.0 if is_scale_factor else 0.0
+    
+    if hist.GetDimension() == 1:
+        for bin_idx in range(0, hist.GetNbinsX() + 2):  # Include underflow/overflow
+            content = hist.GetBinContent(bin_idx)
+            error = hist.GetBinError(bin_idx)
+            if math.isnan(content) or math.isinf(content):
+                hist.SetBinContent(bin_idx, fill_value)
+            if math.isnan(error) or math.isinf(error):
+                hist.SetBinError(bin_idx, 0.0)  # Always 0 for error
+    elif hist.GetDimension() == 2:
+        for x_bin in range(0, hist.GetNbinsX() + 2):
+            for y_bin in range(0, hist.GetNbinsY() + 2):
+                content = hist.GetBinContent(x_bin, y_bin)
+                error = hist.GetBinError(x_bin, y_bin)
+                if math.isnan(content) or math.isinf(content):
+                    hist.SetBinContent(x_bin, y_bin, fill_value)
+                if math.isnan(error) or math.isinf(error):
+                    hist.SetBinError(x_bin, y_bin, 0.0)  # Always 0 for error
 
 # Determine ROOT file based on leg selection
 if args.leg == "mu8":
@@ -26,6 +49,11 @@ h_data = f.Get("data"); h_data.SetDirectory(0)
 h_sim = f.Get("sim"); h_sim.SetDirectory(0)
 h_sf_2d = f.Get("sf"); h_sf_2d.SetDirectory(0)
 f.Close()
+
+# Clean NaN values from all histograms
+clean_nan_values(h_data)  # efficiency histogram - fill with 0
+clean_nan_values(h_sim)   # efficiency histogram - fill with 0  
+clean_nan_values(h_sf_2d)  # scale factor histogram - fill with 0
 
 # Set up ROOT for batch mode and CMS style
 ROOT.gROOT.SetBatch(True)
@@ -171,7 +199,7 @@ def create_pt_projections():
         title_label.SetTextSize(0.04)
         trigger_label = f"{args.leg.upper()} Leg" if args.leg in ["mu8", "mu17"] else args.leg
         title_label.DrawLatex(0.7, 0.55, f"{trigger_label}")
-        title_label.DrawLatex(0.7, 0.50, f"#eta = {eta_low:.1f}-{eta_high:.1f}")
+        title_label.DrawLatex(0.7, 0.50, f"{eta_low:.3f} < |#eta| < {eta_high:.3f}")
         
         canvas.cd(1).RedrawAxis()
         
@@ -217,7 +245,8 @@ def create_eta_summary():
             sim_eff, sim_err = h_sim.GetBinContent(eta_bin, pt_bin), h_sim.GetBinError(eta_bin, pt_bin)
             sf_eff, sf_err = h_sf_2d.GetBinContent(eta_bin, pt_bin), h_sf_2d.GetBinError(eta_bin, pt_bin)
             
-            if data_eff > 0 and sim_eff > 0:
+            if (data_eff > 0 and sim_eff > 0 and 
+                not math.isnan(data_eff) and not math.isnan(sim_eff) and not math.isnan(sf_eff)):
                 data_effs.append(data_eff)
                 data_errs.append(data_err)
                 sim_effs.append(sim_eff)
@@ -326,7 +355,8 @@ def create_pt_summary():
             sim_eff, sim_err = h_sim.GetBinContent(eta_bin, pt_bin), h_sim.GetBinError(eta_bin, pt_bin)
             sf_eff, sf_err = h_sf_2d.GetBinContent(eta_bin, pt_bin), h_sf_2d.GetBinError(eta_bin, pt_bin)
             
-            if data_eff > 0 and sim_eff > 0:
+            if (data_eff > 0 and sim_eff > 0 and 
+                not math.isnan(data_eff) and not math.isnan(sim_eff) and not math.isnan(sf_eff)):
                 data_effs.append(data_eff)
                 data_errs.append(data_err)
                 sim_effs.append(sim_eff)

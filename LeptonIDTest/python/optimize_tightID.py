@@ -9,7 +9,7 @@ from itertools import product
 
 ROOT.gROOT.SetBatch(True)
 
-def check_region(eta):
+def check_region_muon(eta):
     if abs(eta) < 0.9:
         return "InnerBarrel"
     elif abs(eta) < 1.6:
@@ -96,8 +96,8 @@ def optimize_tight_id(era, object_type, reduction=1):
     maxevt = int(tree.GetEntries() / reduction)
     
     # Define cut ranges for optimization
-    miniiso_cuts = [0.05, 0.08, 0.09, 0.1, 0.11, 0.12]
-    sip3d_cuts = [2.0, 3.0, 4.0, 5.0, 6.0]
+    miniiso_cuts = [0.05, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13]
+    sip3d_cuts = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
     
     regions = ["InnerBarrel", "OuterBarrel", "Endcap"]
     leptonTypes = ["prompt", "conv", "fromTau", "fromL", "fromC", "fromB", "fromPU", "unknown"]
@@ -127,21 +127,14 @@ def optimize_tight_id(era, object_type, reduction=1):
         nLeptons = evt.nMuons if object_type == "muon" else evt.nElectrons
         
         for lepton_idx in range(nLeptons):
-            if not evt.isTrigMatched[lepton_idx]: 
-                continue
-                
             if object_type == "muon":
-                region = check_region(evt.eta[lepton_idx])
+                if not evt.isIsoMuTrigMatched[lepton_idx]: continue
+                region = check_region_muon(evt.eta[lepton_idx])
+                if not evt.tkRelIso[lepton_idx] < 0.4: continue
             else:  # electron
+                if not evt.isIsoElTrigMatched[lepton_idx]: continue
                 region = check_region_electron(evt.scEta[lepton_idx])
-            
-            # Apply trigger cuts
-            if object_type == "muon":
-                if not evt.tkRelIso[lepton_idx] < 0.4: 
-                    continue
-            else:  # electron
-                if not apply_electron_trigger_cuts(evt, lepton_idx, region):
-                    continue
+                if not apply_electron_trigger_cuts(evt, lepton_idx, region): continue
             
             lType = classify_lepton(evt.lepType[lepton_idx], evt.nearestJetFlavour[lepton_idx])
             

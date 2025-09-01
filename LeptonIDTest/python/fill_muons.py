@@ -109,7 +109,7 @@ for i, evt in enumerate(tree):
     nMuons = evt.nMuons
 
     for i in range(nMuons):
-        if not evt.isTrigMatched[i]: continue
+        if not evt.isIsoMuTrigMatched[i]: continue
         region = check_region(evt.eta[i])
 
         histograms[f"{region}/trackIso"].Fill(evt.tkRelIso[i], genWeight)
@@ -135,7 +135,7 @@ for i, evt in enumerate(tree):
 
         if RUN == 2:
             c_miniIso = 0.6
-            c_sip3d = 6.
+            c_sip3d = 5.
         else:
             c_miniIso = 0.4
             c_sip3d = 8.

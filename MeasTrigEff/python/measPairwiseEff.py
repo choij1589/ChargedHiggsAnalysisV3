@@ -18,56 +18,56 @@ if args.debug: logging.basicConfig(level=logging.DEBUG)
 
 if args.filter == "DblMuDZ":
     DATASTREAMs = {
-        "2016preVFP": "DoubleMuon",
-        "2016postVFP": "DoubleMuon",
-        "2017": "DoubleMuon",
-        "2018": "DoubleMuon",
-        "2022": ["DoubleMuon", "Muon"],
-        "2022EE": ["Muon"],
+        "2016preVFP": ["DoubleMuon_B", "DoubleMuon_C", "DoubleMuon_D", "DoubleMuon_E", "DoubleMuon_F"],
+        "2016postVFP": ["DoubleMuon_F", "DoubleMuon_G", "DoubleMuon_H"],
+        "2017": ["DoubleMuon_B", "DoubleMuon_C", "DoubleMuon_D", "DoubleMuon_E", "DoubleMuon_F"],
+        "2018": ["DoubleMuon_A", "DoubleMuon_B", "DoubleMuon_C", "DoubleMuon_D"],
+        "2022": ["DoubleMuon_C", "Muon_C", "Muon_D"],
+        "2022EE": ["Muon_E", "Muon_F", "Muon_G"],
         "2023": ["Muon0_C_v1", "Muon0_C_v2", "Muon0_C_v3", "Muon0_C_v4", "Muon1_C_v1", "Muon1_C_v2", "Muon1_C_v3", "Muon1_C_v4"],
-        "2023BPix": ["Muon"]
+        "2023BPix": ["Muon0_D_v1", "Muon0_D_v2", "Muon1_D_v1", "Muon1_D_v2"]
     }
     FLAG = "MeasDblMuPairwise"
     DENOM = "TrigEff_Iso"
     NUM = "TrigEff_IsoDZ"
 elif args.filter == "DblMuDZM":
     DATASTREAMs = {
-        "2016preVFP": "DoubleMuon",
-        "2016postVFP": "DoubleMuon",
-        "2017": "DoubleMuon",
-        "2018": "DoubleMuon",
-        "2022": ["DoubleMuon", "Muon"],
-        "2022EE": ["Muon"],
+        "2016preVFP": ["DoubleMuon_B", "DoubleMuon_C", "DoubleMuon_D", "DoubleMuon_E", "DoubleMuon_F"],
+        "2016postVFP": ["DoubleMuon_F", "DoubleMuon_G", "DoubleMuon_H"],
+        "2017": ["DoubleMuon_B", "DoubleMuon_C", "DoubleMuon_D", "DoubleMuon_E", "DoubleMuon_F"],
+        "2018": ["DoubleMuon_A", "DoubleMuon_B", "DoubleMuon_C", "DoubleMuon_D"],
+        "2022": ["DoubleMuon_C", "Muon_C", "Muon_D"],
+        "2022EE": ["Muon_E", "Muon_F", "Muon_G"],
         "2023": ["Muon0_C_v1", "Muon0_C_v2", "Muon0_C_v3", "Muon0_C_v4", "Muon1_C_v1", "Muon1_C_v2", "Muon1_C_v3", "Muon1_C_v4"],
-        "2023BPix": ["Muon"]
+        "2023BPix": ["Muon0_D_v1", "Muon0_D_v2", "Muon1_D_v1", "Muon1_D_v2"]
     }
     FLAG = "MeasDblMuPairwise"
     DENOM = "TrigEff_Iso"
     NUM = "TrigEff_IsoDZM"
 elif args.filter == "DblMuM":
     DATASTREAMs = {
-        "2016preVFP": "DoubleMuon",
-        "2016postVFP": "DoubleMuon",
-        "2017": "DoubleMuon",
-        "2018": "DoubleMuon",
-        "2022": ["DoubleMuon", "Muon"],
-        "2022EE": ["Muon"],
+        "2016preVFP": ["DoubleMuon_B", "DoubleMuon_C", "DoubleMuon_D", "DoubleMuon_E", "DoubleMuon_F"],
+        "2016postVFP": ["DoubleMuon_F", "DoubleMuon_G", "DoubleMuon_H"],
+        "2017": ["DoubleMuon_B", "DoubleMuon_C", "DoubleMuon_D", "DoubleMuon_E", "DoubleMuon_F"],
+        "2018": ["DoubleMuon_A", "DoubleMuon_B", "DoubleMuon_C", "DoubleMuon_D"],
+        "2022": ["DoubleMuon_C", "Muon_C", "Muon_D"],
+        "2022EE": ["Muon_E", "Muon_F", "Muon_G"],
         "2023": ["Muon0_C_v1", "Muon0_C_v2", "Muon0_C_v3", "Muon0_C_v4", "Muon1_C_v1", "Muon1_C_v2", "Muon1_C_v3", "Muon1_C_v4"],
-        "2023BPix": ["Muon"]
+        "2023BPix": ["Muon0_D_v1", "Muon0_D_v2", "Muon1_D_v1", "Muon1_D_v2"]
     }
     FLAG = "MeasDblMuPairwise"
     DENOM = "TrigEff_IsoDZ"
     NUM = "TrigEff_IsoDZM"
 elif args.filter == "EMuDZ":
     DATASTREAMs = {
-        "2016preVFP": "MuonEG",
-        "2016postVFP": "MuonEG",
-        "2017": "MuonEG",
-        "2018": "MuonEG",
-        "2022": ["MuonEG"],
-        "2022EE": ["MuonEG"],
+        "2016preVFP": ["MuonEG_B", "MuonEG_C", "MuonEG_D", "MuonEG_E", "MuonEG_F"],
+        "2016postVFP": ["MuonEG_F", "MuonEG_G", "MuonEG_H"],
+        "2017": ["MuonEG_B", "MuonEG_C", "MuonEG_D", "MuonEG_E", "MuonEG_F"],
+        "2018": ["MuonEG_A", "MuonEG_B", "MuonEG_C", "MuonEG_D"],
+        "2022": ["MuonEG_C", "MuonEG_D"],
+        "2022EE": ["MuonEG_E", "MuonEG_F", "MuonEG_G"],
         "2023": ["MuonEG_C_v1", "MuonEG_C_v2", "MuonEG_C_v3", "MuonEG_C_v4"],
-        "2023BPix": ["MuonEG"]
+        "2023BPix": ["MuonEG_D_v1", "MuonEG_D_v2"]
     }
     FLAG = "MeasEMuPairwise"
     DENOM = "TrigEff_EMuDZ"
@@ -99,10 +99,14 @@ def meas_efficiency(filter: ROOT.TString, syst: ROOT.TString, is_data: bool) -> 
         h_num_total.SetDirectory(0)
     elif syst == "AltMC":
         for rtmc in ["DYJets", "DYJets10to50"]:
-            f = ROOT.TFile.Open(f"{WORKDIR}/SKNanoOutput/MeasTrigEff/{FLAG}/{args.era}/{rtmc}.root")
-            h_denom = f.Get(DENOM); h_denom.SetDirectory(0)
-            h_num = f.Get(NUM); h_num.SetDirectory(0)
-            f.Close()
+            try:
+                f = ROOT.TFile.Open(f"{WORKDIR}/SKNanoOutput/MeasTrigEff/{FLAG}/{args.era}/{rtmc}.root")
+                h_denom = f.Get(DENOM); h_denom.SetDirectory(0)
+                h_num = f.Get(NUM); h_num.SetDirectory(0)
+                f.Close()
+            except Exception as e:
+                logging.error(f"Error opening file {f}: {e}")
+                continue
             if h_denom_total is None:
                 h_denom_total = h_denom.Clone(f"TrigEff_{FLAG}_DENOM/Central/fEta_Pt")
                 h_num_total = h_num.Clone(f"TrigEff_{FLAG}_NUM/Central/fEta_Pt")

@@ -20,7 +20,7 @@ ptcorr_bins = []
 if args.object == "muon":
     ptcorr_bins = [10., 15., 20., 30., 50., 70.]
 elif args.object == "electron":
-    ptcorr_bins = [15., 20., 25., 35., 50., 70.]
+    ptcorr_bins = [10., 15., 20., 25., 35., 50., 70.]
 else:
     raise ValueError(f"Invalid object: {args.object}")
 

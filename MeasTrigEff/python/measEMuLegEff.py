@@ -17,27 +17,27 @@ if args.debug: logging.basicConfig(level=logging.DEBUG)
 
 if args.leg == "muon":
     DATASTREAMs = {
-        "2016preVFP": "SingleElectron",
-        "2016postVFP": "SingleElectron",
-        "2017": "SingleElectron",
-        "2018": "EGamma",
-        "2022": "EGamma",
-        "2022EE": "EGamma",
+        "2016preVFP": ["SingleElectron_B", "SingleElectron_C", "SingleElectron_D", "SingleElectron_E", "SingleElectron_F"],
+        "2016postVFP": ["SingleElectron_F", "SingleElectron_G", "SingleElectron_H"],
+        "2017": ["SingleElectron_B", "SingleElectron_C", "SingleElectron_D", "SingleElectron_E", "SingleElectron_F"],
+        "2018": ["EGamma_A", "EGamma_B", "EGamma_C", "EGamma_D"],
+        "2022": ["EGamma_C", "EGamma_D"],
+        "2022EE": ["EGamma_E", "EGamma_F", "EGamma_G"],
         "2023": ["EGamma0_C_v1", "EGamma0_C_v2", "EGamma0_C_v3", "EGamma0_C_v4", "EGamma1_C_v1", "EGamma1_C_v2", "EGamma1_C_v3", "EGamma1_C_v4"],
-        "2023BPix": "EGamma"
+        "2023BPix": ["EGamma0_D_v1", "EGamma0_D_v2", "EGamma1_D_v1", "EGamma1_D_v2"]
     }
     FLAG = "MeasMuLegs"
     LEG = "MuLeg"
 elif args.leg == "electron":
     DATASTREAMs = {
-        "2016preVFP": "SingleMuon",
-        "2016postVFP": "SingleMuon",
-        "2017": "SingleMuon",
-        "2018": "SingleMuon",
-        "2022": "Muon",
-        "2022EE": "Muon",
+        "2016preVFP": ["SingleMuon_B", "SingleMuon_C", "SingleMuon_D", "SingleMuon_E", "SingleMuon_F"],
+        "2016postVFP": ["SingleMuon_F", "SingleMuon_G", "SingleMuon_H"],
+        "2017": ["SingleMuon_B", "SingleMuon_C", "SingleMuon_D", "SingleMuon_E", "SingleMuon_F"],
+        "2018": ["SingleMuon_A", "SingleMuon_B", "SingleMuon_C", "SingleMuon_D"],
+        "2022": ["SingleMuon_C", "Muon_C", "Muon_D"],
+        "2022EE": ["Muon_E", "Muon_F", "Muon_G"],
         "2023": ["Muon0_C_v1", "Muon0_C_v2", "Muon0_C_v3", "Muon0_C_v4", "Muon1_C_v1", "Muon1_C_v2", "Muon1_C_v3", "Muon1_C_v4"],
-        "2023BPix": "Muon"
+        "2023BPix": ["Muon0_D_v1", "Muon0_D_v2", "Muon1_D_v1", "Muon1_D_v2"]
     }
     FLAG = "MeasElLegs"
     LEG = "ElLeg"
@@ -55,7 +55,10 @@ def get_histograms(hltpath: ROOT.TString, syst: ROOT.TString, is_data: bool) -> 
     ## Get data histograms and add up
     if is_data:
         for rtdata in DATASTREAMs:
+            logging.debug(f"Processing {rtdata}")
             f = ROOT.TFile.Open(f"{WORKDIR}/SKNanoOutput/MeasTrigEff/{FLAG}/{args.era}/{rtdata}.root")
+            print(f"denom: {f.Get(f'TrigEff_{hltpath}_{LEG}_DENOM/{syst}/fEta_Pt')}")
+            print(f"num: {f.Get(f'TrigEff_{hltpath}_{LEG}_NUM/{syst}/fEta_Pt')}")
             h_denom = f.Get(f"TrigEff_{hltpath}_{LEG}_DENOM/{syst}/fEta_Pt"); h_denom.SetDirectory(0)
             h_num = f.Get(f"TrigEff_{hltpath}_{LEG}_NUM/{syst}/fEta_Pt"); h_num.SetDirectory(0)
             f.Close()
@@ -69,6 +72,7 @@ def get_histograms(hltpath: ROOT.TString, syst: ROOT.TString, is_data: bool) -> 
         h_num_total.SetDirectory(0)
     elif syst == "AltMC":
         for rtdata in DYJets:
+            logging.debug(f"Processing {rtdata}")
             f = ROOT.TFile.Open(f"{WORKDIR}/SKNanoOutput/MeasTrigEff/{FLAG}/{args.era}/{rtdata}.root")
             h_denom = f.Get(f"TrigEff_{hltpath}_{LEG}_DENOM/Central/fEta_Pt"); h_denom.SetDirectory(0)
             h_num = f.Get(f"TrigEff_{hltpath}_{LEG}_NUM/Central/fEta_Pt"); h_num.SetDirectory(0)
@@ -82,6 +86,7 @@ def get_histograms(hltpath: ROOT.TString, syst: ROOT.TString, is_data: bool) -> 
         h_denom_total.SetDirectory(0)
         h_num_total.SetDirectory(0)
     else:
+        logging.debug(f"Processing TTLL_powheg")
         f = ROOT.TFile.Open(f"{WORKDIR}/SKNanoOutput/MeasTrigEff/{FLAG}/{args.era}/TTLL_powheg.root")
         h_denom = f.Get(f"TrigEff_{hltpath}_{LEG}_DENOM/{syst}/fEta_Pt"); h_denom.SetDirectory(0)
         h_num = f.Get(f"TrigEff_{hltpath}_{LEG}_NUM/{syst}/fEta_Pt"); h_num.SetDirectory(0)
