@@ -35,6 +35,7 @@ out = ROOT.TFile(f"{WORKDIR}/LeptonIDTest/histograms/electron.{args.era}.root", 
 
 regions = ["InnerBarrel", "OuterBarrel", "Endcap"]
 leptonTypes = ["prompt", "conv", "fromTau", "fromL", "fromC", "fromB", "fromPU", "unknown"]
+ptcorr_bins = [10., 15., 20., 25., 35., 50., 70.]
 
 def check_region(scEta):
     if abs(scEta) < 0.8:
@@ -66,14 +67,14 @@ def get_cuts(region):
         else:
             c_mva = 0.85
     else:
-        c_sip3d = 8.
+        c_sip3d = 6.
         c_miniIso = 0.4
         if region == "InnerBarrel":
             c_mva = 0.8
         elif region == "OuterBarrel":
             c_mva = 0.5
         else:
-            c_mva = 0.2
+            c_mva = -0.8
     
     return c_sieie, c_dEta, c_dPhi, c_hoe, ecalEA, hcalEA, c_miniIso, c_sip3d, c_mva
 
@@ -82,10 +83,10 @@ def classify_lepton(lepType, jetFlavour):
     if lepType in [1, 2, 6]:
         return "prompt"
     # from tau
-    elif abs(lepType) == 3:
+    elif lepType == 3:
         return "fromTau"
     # conv
-    elif lepType in [4, 5, -5, 6]:
+    elif lepType in [4, 5, -5, -6]:
         return "conv"
     # nonprompt
     elif lepType < 0:
@@ -101,6 +102,14 @@ def classify_lepton(lepType, jetFlavour):
             raise ValueError(f"Invalid jetFlavour: {jetFlavour}")
     else:
         return "unknown"
+
+def get_pt_bin_name(pt_corr):
+    for i in range(len(ptcorr_bins)-1):
+        if ptcorr_bins[i] <= pt_corr < ptcorr_bins[i+1]:
+            return f"pt{int(ptcorr_bins[i])}to{int(ptcorr_bins[i+1])}"
+    if pt_corr >= ptcorr_bins[-1]:
+        return f"pt{int(ptcorr_bins[-1])}toInf"
+    return None
 
 # Register histograms and directories
 histograms = {}
@@ -136,11 +145,25 @@ for region, lType in product(regions, leptonTypes):
         
         ## For efficiency study
         histograms[f"{region}/{lType}/miniIso_sip3d_mvaNoIso"] = ROOT.TH3F("miniIso_sip3d_mvaNoIso", "", 100, 0., 1., 100, 0., 10., 2000, -1., 1.)
+        
 
         ## Check current ID
         histograms[f"{region}/{lType}/passTrigCuts"] = ROOT.TH1F(f"passTrigCuts", "", 100, 0., 100.)
         histograms[f"{region}/{lType}/passTightID"] = ROOT.TH1F(f"passTightID", "", 100, 0., 100.)
         histograms[f"{region}/{lType}/passLooseID"] = ROOT.TH1F(f"passLooseID", "", 100, 0., 100.)
+        
+        ## Pt-binned histograms for mvaNoIso, SIP3D, and miniIso
+        for i in range(len(ptcorr_bins)-1):
+            pt_bin = f"pt{int(ptcorr_bins[i])}to{int(ptcorr_bins[i+1])}"
+            histograms[f"{region}/{lType}/mvaNoIso_{pt_bin}"] = ROOT.TH1F(f"mvaNoIso_{pt_bin}", "", 200, -1., 1.)
+            histograms[f"{region}/{lType}/sip3d_{pt_bin}"] = ROOT.TH1F(f"sip3d_{pt_bin}", "", 100, 0., 20.)
+            histograms[f"{region}/{lType}/miniIso_{pt_bin}"] = ROOT.TH1F(f"miniIso_{pt_bin}", "", 100, 0., 1.)
+        
+        # Additional bin for high pt
+        pt_bin = f"pt{int(ptcorr_bins[-1])}toInf"
+        histograms[f"{region}/{lType}/mvaNoIso_{pt_bin}"] = ROOT.TH1F(f"mvaNoIso_{pt_bin}", "", 200, -1., 1.)
+        histograms[f"{region}/{lType}/sip3d_{pt_bin}"] = ROOT.TH1F(f"sip3d_{pt_bin}", "", 100, 0., 20.)
+        histograms[f"{region}/{lType}/miniIso_{pt_bin}"] = ROOT.TH1F(f"miniIso_{pt_bin}", "", 100, 0., 1.)
 
 ## Loop over events
 print("Starting event loop...")
@@ -192,6 +215,13 @@ for i, evt in enumerate(tree):
         ## For fake rate study
         pt_corr = evt.pt[i] * (1.+max(0., evt.miniPFRelIso[i] - 0.1))
         histograms[f"{region}/{lType}/passTrigCuts"].Fill(pt_corr, genWeight)
+        
+        ## Fill pt-binned histograms for mvaNoIso, SIP3D, and miniIso
+        pt_bin = get_pt_bin_name(pt_corr)
+        if pt_bin:
+            histograms[f"{region}/{lType}/mvaNoIso_{pt_bin}"].Fill(evt.mvaNoIso[i], genWeight)
+            histograms[f"{region}/{lType}/sip3d_{pt_bin}"].Fill(evt.sip3d[i], genWeight)
+            histograms[f"{region}/{lType}/miniIso_{pt_bin}"].Fill(evt.miniPFRelIso[i], genWeight)
 
         # Baseline ID
         if not evt.convVeto[i]: continue
@@ -199,7 +229,7 @@ for i, evt in enumerate(tree):
         if not abs(evt.dZ[i]) < 0.1: continue
 
         # Loose ID
-        if not (evt.isMVANoIsoWP90[i] or evt.mvaNoIso[i] > c_mva): continue
+        if not (evt.isMVANoIsoWP90[i] or (evt.mvaNoIso[i] > c_mva)): continue
         if not (evt.sip3d[i] < c_sip3d): continue
         if not (evt.miniPFRelIso[i] < c_miniIso): continue
         

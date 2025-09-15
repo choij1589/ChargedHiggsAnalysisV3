@@ -12,6 +12,7 @@ parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--object", required=True, type=str, help="object")
 parser.add_argument("--region", required=True, type=str, help="region (InnerBarrel, OuterBarrel, Endcap)")
 parser.add_argument("--plotvar", required=True, type=str, help="plotting variable, registered in histkeys.json")
+parser.add_argument("--ptbin", default=None, type=str, help="pt bin (e.g., pt15to20, pt70toInf)")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 
@@ -37,12 +38,19 @@ else:
 ##### Get Histograms
 HISTs = {}
 lepTypes = ["prompt", "conv", "fromTau", "fromC", "fromB", "fromL"]
-if args.object == "muon":
-    histname = "miniIso_sip3d"
-elif args.object == "electron":
-    histname = "miniIso_sip3d_mvaNoIso"
+
+# Use 1D histograms directly for pt-binned efficiency plots
+if args.ptbin:
+    histname = f"{args.plotvar}_{args.ptbin}"
 else:
-    raise ValueError(f"Invalid object: {args.object}")
+    # For inclusive plots, still use multi-dimensional histograms
+    if args.object == "muon":
+        histname_base = "miniIso_sip3d"
+    elif args.object == "electron":
+        histname_base = "miniIso_sip3d_mvaNoIso"
+    else:
+        raise ValueError(f"Invalid object: {args.object}")
+    histname = histname_base
 
 f = ROOT.TFile(f"{WORKDIR}/LeptonIDTest/histograms/{args.object}.{args.era}.root")
 for lepType in lepTypes:
@@ -55,18 +63,25 @@ for lepType in lepTypes:
     hist = hist.Clone(f"{lepType}_{args.plotvar}")
     hist.SetDirectory(0)  # Detach from file
     
-    # Project on the plotting variable
-    # For muon, the plot name is miniIso_sip3d
-    # For electron, the plot name is miniIso_sip3d_mvaNoIso
-    if args.plotvar == "miniIso":
-        proj_hist = hist.ProjectionX(f"{lepType}_{args.plotvar}")
-    elif args.plotvar == "sip3d":
-        proj_hist = hist.ProjectionY(f"{lepType}_{args.plotvar}")
-    elif args.plotvar == "mvaNoIso":
-        proj_hist = hist.ProjectionZ(f"{lepType}_{args.plotvar}")
+    # For pt-binned plots, use 1D histogram directly
+    if args.ptbin:
+        proj_hist = hist
     else:
-        raise ValueError(f"Invalid plotvar: {args.plotvar}")
+        # For inclusive plots, project from multi-dimensional histogram
+        if args.plotvar == "miniIso":
+            proj_hist = hist.ProjectionX(f"{lepType}_{args.plotvar}")
+        elif args.plotvar == "sip3d":
+            proj_hist = hist.ProjectionY(f"{lepType}_{args.plotvar}")
+        elif args.plotvar == "mvaNoIso":
+            proj_hist = hist.ProjectionZ(f"{lepType}_{args.plotvar}")
+        else:
+            raise ValueError(f"Invalid plotvar: {args.plotvar}")
 
+    # Skip empty histograms
+    if proj_hist.Integral() <= 0:
+        print(f"Warning: Empty histogram for {lepType} in {args.region}, skipping...")
+        continue
+        
     # Normalize
     proj_hist.Scale(1.0/proj_hist.Integral())
     proj_hist.SetDirectory(0)  
@@ -103,8 +118,22 @@ for lepType in lepTypes:
 
 f.Close()
 
+# Check if we have any histograms to plot
+if not HISTs:
+    print(f"Warning: No valid histograms found for {args.object} {args.region} {args.plotvar}")
+    if args.ptbin:
+        print(f"Pt bin {args.ptbin} might have insufficient statistics")
+    exit(0)
+
 canvas = KinematicCanvas(HISTs, config)
 canvas.drawPad()
-outpath = f"{WORKDIR}/LeptonIDTest/plots/{args.era}/{args.object}/efficiency/{args.region}/{args.plotvar}.png"
+
+# Organize output path based on pt binning
+if args.ptbin:
+    outpath = f"{WORKDIR}/LeptonIDTest/plots/{args.era}/{args.object}/efficiency/{args.region}/{args.ptbin}/{args.plotvar}.png"
+else:
+    outpath = f"{WORKDIR}/LeptonIDTest/plots/{args.era}/{args.object}/efficiency/{args.region}/{args.plotvar}.png"
+
 os.makedirs(os.path.dirname(outpath), exist_ok=True)
 canvas.canv.SaveAs(outpath)
+print(f"Efficiency plot saved to {outpath}")

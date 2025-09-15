@@ -13,6 +13,7 @@ parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--hlt", required=True, type=str, help="hlt")
 parser.add_argument("--wp", required=True, type=str, help="wp")
 parser.add_argument("--region", required=True, type=str, help="region")
+parser.add_argument("--selection", default="Central", type=str, help="selection")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
@@ -20,7 +21,6 @@ logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 WORKDIR = os.environ['WORKDIR']
 if "El" in args.hlt:
     MEASURE = "electron"
-    QCD = ["QCD_EMEnriched", "QCD_bcToE"]
     if args.hlt == "MeasFakeEl8":
         ptcorr_bins = [10., 15., 20., 25., 35., 50., 100.]
     elif args.hlt == "MeasFakeEl12":
@@ -39,7 +39,6 @@ elif "Mu" in args.hlt:
     else:
         raise ValueError(f"invalid hlt {args.hlt}")
     abseta_bins = [0., 0.9, 1.6, 2.4]
-    QCD = ["QCD_MuEnriched"]
 else:
     raise ValueError(f"invalid hlt {args.hlt}")
 
@@ -61,6 +60,19 @@ VV = SAMPLEGROUP["VV"]
 ST = SAMPLEGROUP["ST"]
 MCList = W + Z + TT + VV + ST
 
+QCD_EMEnriched = []
+QCD_bcToE = []
+QCD_MuEnriched = []
+if MEASURE == "electron":
+    QCD_EMEnriched = SAMPLEGROUP["QCD_EMEnriched"]
+    QCD_bcToE = SAMPLEGROUP["QCD_bcToE"]
+    MCList += QCD_EMEnriched + QCD_bcToE
+elif MEASURE == "muon":
+    QCD_MuEnriched = SAMPLEGROUP["QCD_MuEnriched"]
+    MCList += QCD_MuEnriched
+else:
+    raise KeyError(f"Wrong measure {MEASURE}")
+
 SYSTs = json.load(open("configs/systematics.json"))[args.era][MEASURE]
 
 def add_hist(name, hist, histDict):
@@ -77,28 +89,46 @@ for ptcorr, abseta in product(ptcorr_bins[:-1], abseta_bins[:-1]):
     data = None
     for DATAPERIOD in DATAPERIODs:
         file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRate/{args.hlt}_RunSyst/{args.era}/{DATAPERIOD}.root"
-        try:
-            assert os.path.exists(file_path)
-        except:
-            raise FileNotFoundError(f"{file_path} does not exist")
+        assert os.path.exists(file_path), f"{file_path} does not exist"
         f = ROOT.TFile.Open(file_path)
-        h = f.Get(f"ZEnriched/{args.wp}/{args.selection}/ZCand/mass"); h.SetDirectory(0)
+        try:
+            h = f.Get(f"{prefix}/{args.region}/{args.wp}/{args.selection}/MT")
+            h.SetDirectory(0)
+        except:
+            logging.warning(f"Cannot find {prefix}/{args.region}/{args.wp}/{args.selection}/MT for DATAPERIOD {DATAPERIOD}")
+            f.Close()
+            continue
         f.Close()
         if data is None:
             data = h.Clone()
         else:
             data.Add(h)
 
-    for sample in MCList+QCD:
+    for sample in MCList:
         file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRate/{args.hlt}_RunSyst/{args.era}/{sample}.root"
         assert os.path.exists(file_path), f"{file_path} does not exist"
         f = ROOT.TFile.Open(file_path)
-        h = f.Get(f"ZEnriched/{args.wp}/{args.selection}/ZCand/mass"); h.SetDirectory(0)
+        try:
+            h = f.Get(f"{prefix}/{args.region}/{args.wp}/{args.selection}/MT")
+            h.SetDirectory(0)
+        except:
+            logging.warning(f"Cannot find {prefix}/{args.region}/{args.wp}/{args.selection}/MT for sample {sample}")
+            f.Close()
+            continue
+
         hSysts = []
         for syst, sources in SYSTs.items():
+            if not args.selection == "Central": continue
             systUp, systDown = sources
-            h_up = f.Get(f"ZEnriched/{args.wp}/{systUp}/ZCand/mass"); h_up.SetDirectory(0)
-            h_down = f.Get(f"ZEnriched/{args.wp}/{systDown}/ZCand/mass"); h_down.SetDirectory(0) 
+            try:
+                h_up = f.Get(f"{prefix}/{args.region}/{args.wp}/{systUp}/MT")
+                h_up.SetDirectory(0)
+                h_down = f.Get(f"{prefix}/{args.region}/{args.wp}/{systDown}/MT")
+                h_down.SetDirectory(0) 
+            except:
+                logging.warning(f"Cannot find {prefix}/{args.region}/{args.wp}/{systUp}/MT or {prefix}/{args.region}/{args.wp}/{systDown}/MT for sample {sample}")
+                f.Close()
+                continue
             hSysts.append((h_up, h_down))
         f.Close()
 
@@ -133,7 +163,7 @@ for ptcorr, abseta in product(ptcorr_bins[:-1], abseta_bins[:-1]):
         hist.Scale(scale)
 
     # merge backgrounds
-    temp_dict = { "W": None, "Z": None, "TT": None, "ST": None, "VV": None }
+    temp_dict = { "W": None, "Z": None, "TT": None, "ST": None, "VV": None, "QCD_EMEnriched": None, "QCD_bcToE": None, "QCD_MuEnriched": None }
     for sample in W:
         if not sample in HISTs.keys(): continue
         add_hist("W", HISTs[sample], temp_dict)
@@ -149,7 +179,16 @@ for ptcorr, abseta in product(ptcorr_bins[:-1], abseta_bins[:-1]):
     for sample in ST:
         if not sample in HISTs.keys(): continue
         add_hist("ST", HISTs[sample], temp_dict)
-
+    for sample in QCD_EMEnriched:
+        if not sample in HISTs.keys(): continue
+        add_hist("QCD_EMEnriched", HISTs[sample], temp_dict)
+    for sample in QCD_bcToE:
+        if not sample in HISTs.keys(): continue
+        add_hist("QCD_bcToE", HISTs[sample], temp_dict)
+    for sample in QCD_MuEnriched:
+        if not sample in HISTs.keys(): continue
+        add_hist("QCD_MuEnriched", HISTs[sample], temp_dict)
+    
     # filter out none histograms from temp_dict
     BKGs = {name: hist for name, hist in temp_dict.items() if hist}
     # Sort BKGs by hist.Integral()
@@ -161,9 +200,10 @@ for ptcorr, abseta in product(ptcorr_bins[:-1], abseta_bins[:-1]):
               "xTitle": "M_{T}",
               "yTitle": "Events / 5 GeV",
               "xRange": [0., 200.],
+              "rRange": [0.0, 2.0],
               "rebin": 5}
 
-    output_path = f"{WORKDIR}/MeasFakeRate/results/{args.era}/plots/{MEASURE}/{args.region}/{args.syst}/{prefix}_{args.hlt}_{args.wp}_MT.png"
+    output_path = f"{WORKDIR}/MeasFakeRate/plots/{args.era}/{MEASURE}/{args.hlt}/{args.region}/{args.selection}/{prefix}_{args.wp}_MT.png"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     plotter = ComparisonCanvas(data, BKGs, config)

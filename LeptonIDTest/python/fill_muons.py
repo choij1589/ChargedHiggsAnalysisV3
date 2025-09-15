@@ -34,6 +34,7 @@ out = ROOT.TFile(f"{WORKDIR}/LeptonIDTest/histograms/muon.{args.era}.root", "REC
 
 regions = ["InnerBarrel", "OuterBarrel", "Endcap"]
 leptonTypes = ["prompt", "conv", "fromTau", "fromL", "fromC", "fromB", "fromPU", "unknown"]
+ptcorr_bins = [10., 15., 20., 30., 50., 70.]
 
 def check_region(eta):
     if abs(eta) < 0.9:
@@ -68,6 +69,14 @@ def classify_lepton(lepType, jetFlavour):
     else:
         return "unknown"
 
+def get_pt_bin_name(pt_corr):
+    for i in range(len(ptcorr_bins)-1):
+        if ptcorr_bins[i] <= pt_corr < ptcorr_bins[i+1]:
+            return f"pt{int(ptcorr_bins[i])}to{int(ptcorr_bins[i+1])}"
+    if pt_corr >= ptcorr_bins[-1]:
+        return f"pt{int(ptcorr_bins[-1])}toInf"
+    return None
+
 
 # Register histograms and directories
 histograms = {}
@@ -97,6 +106,18 @@ for region, lType in product(regions, leptonTypes):
     histograms[f"{region}/{lType}/passTrigCuts"] = ROOT.TH1F(f"passTrigCuts", "", 100, 0., 100.)
     histograms[f"{region}/{lType}/passTightID"] = ROOT.TH1F(f"passTightID", "", 100, 0., 100.)
     histograms[f"{region}/{lType}/passLooseID"] = ROOT.TH1F(f"passLooseID", "", 100, 0., 100.)
+    
+    ## Pt-binned histograms for SIP3D and miniIso
+    for i in range(len(ptcorr_bins)-1):
+        pt_bin = f"pt{int(ptcorr_bins[i])}to{int(ptcorr_bins[i+1])}"
+        histograms[f"{region}/{lType}/sip3d_{pt_bin}"] = ROOT.TH1F(f"sip3d_{pt_bin}", "", 100, 0., 20.)
+        histograms[f"{region}/{lType}/miniIso_{pt_bin}"] = ROOT.TH1F(f"miniIso_{pt_bin}", "", 100, 0., 1.)
+    
+    # Additional bin for high pt
+    pt_bin = f"pt{int(ptcorr_bins[-1])}toInf"
+    histograms[f"{region}/{lType}/sip3d_{pt_bin}"] = ROOT.TH1F(f"sip3d_{pt_bin}", "", 100, 0., 20.)
+    histograms[f"{region}/{lType}/miniIso_{pt_bin}"] = ROOT.TH1F(f"miniIso_{pt_bin}", "", 100, 0., 1.)
+    
 
 ## Loop over events
 print("Starting event loop...")
@@ -127,6 +148,12 @@ for i, evt in enumerate(tree):
         # For fake rate study
         pt_corr = evt.pt[i] * (1.+max(0., evt.miniPFRelIso[i] - 0.1))
         histograms[f"{region}/{lType}/passTrigCuts"].Fill(pt_corr, genWeight)
+        
+        ## Fill pt-binned histograms for SIP3D and miniIso
+        pt_bin = get_pt_bin_name(pt_corr)
+        if pt_bin:
+            histograms[f"{region}/{lType}/sip3d_{pt_bin}"].Fill(evt.sip3d[i], genWeight)
+            histograms[f"{region}/{lType}/miniIso_{pt_bin}"].Fill(evt.miniPFRelIso[i], genWeight)
 
         # Baseline ID
         if not evt.isPOGMediumId[i]: continue

@@ -12,6 +12,8 @@ LumiInfo = {    # /fb
     "2022EE": 20.9,
     "2023": 17.8,
     "2023BPix": 9.5,
+    "Run2": 138,  # 19.5 + 16.8 + 41.5 + 59.8
+    "Run3": 62,   # 13.8 + 20.9 + 17.8 + 9.5
 }
 PALETTE = [
     ROOT.TColor.GetColor("#5790fc"),
@@ -33,6 +35,33 @@ PALETTE_LONG = [
     ROOT.TColor.GetColor("#717581"),
     ROOT.TColor.GetColor("#92dadd")
 ]
+
+def get_era_list(era):
+    """Convert Run2/Run3 to list of individual eras"""
+    if era == "Run2":
+        return ["2016preVFP", "2016postVFP", "2017", "2018"]
+    elif era == "Run3":
+        return ["2022", "2022EE", "2023", "2023BPix"]
+    else:
+        return [era]
+
+def get_datastream(era):
+    """Get appropriate datastream name for era"""
+    if era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
+        return "SingleMuon"
+    elif era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
+        return "Muon"
+    else:
+        raise ValueError(f"Unknown era: {era}")
+
+def get_CoM_energy(era):
+    """Get center-of-mass energy for era"""
+    if era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
+        return 13
+    elif era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
+        return 13.6
+    else:
+        raise ValueError(f"Unknown era: {era}")
 
 class ComparisonCanvas():
     def __init__(self, incl, hists, config):
@@ -97,7 +126,7 @@ class ComparisonCanvas():
                                         config.get("yTitle", "Events"), 
                                         config.get("rTitle", "Data / Pred"), 
                                         square=True, 
-                                        iPos=0, 
+                                        iPos=11, 
                                         extraSpace=0)
         hdf = CMS.GetCmsCanvasHist(self.canv.cd(1))
         hdf.GetYaxis().SetMaxDigits(config.get("maxDigits", 3))
@@ -115,7 +144,7 @@ class ComparisonCanvas():
         CMS.cmsObjectDraw(self.incl, "PE", MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
         CMS.addToLegend(self.leg, (self.incl, self.incl.GetTitle(), "PE"))
         CMS.addToLegend(self.leg, *[(self.hists[name], name, "F") for name in self.hists.keys()])
-        CMS.addToLegend(self.leg, (self.systematics, "Stat+Syst", " FE2"))
+        CMS.addToLegend(self.leg, (self.systematics, self.config.get("systSrc", "Stat+Syst"), " FE2"))
         
         if "channel" in self.config.keys():
             CMS.drawText(self.config['channel'], posX=0.2, posY=0.7, font=61, align=0, size=0.05)

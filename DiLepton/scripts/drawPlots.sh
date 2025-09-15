@@ -29,7 +29,7 @@ if [[ $CHANNEL == "EMU" ]]; then
     )
     exclude=("" "L1Prefire" "PileupReweight" "MuonIDSF" "ElectronIDSF"  "EMuTrigSF" "BtagSF_HFcorr")
     export -f draw_plot
-    parallel draw_plot ::: "${histkeys[@]}" ::: "${exclude[@]}"
+    parallel -j 12 draw_plot ::: "${histkeys[@]}" ::: "${exclude[@]}"
 elif [[ $CHANNEL == "DIMU" ]]; then
     histkeys=(
         "muons/1/pt" "muons/1/eta" "muons/1/phi"
@@ -49,6 +49,6 @@ elif [[ $CHANNEL == "DIMU" ]]; then
     )
     exclude=("" "L1Prefire" "PileupReweight" "MuonIDSF" "DblMuTrigSF")
     export -f draw_plot
-    parallel draw_plot ::: "${histkeys[@]}" ::: "${exclude[@]}"
+    parallel -j 12 draw_plot ::: "${histkeys[@]}" ::: "${exclude[@]}"
 fi
    

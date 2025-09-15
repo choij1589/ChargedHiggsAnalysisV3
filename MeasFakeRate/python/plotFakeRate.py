@@ -102,7 +102,7 @@ CMS.addToLegend(legend, (projections["eta3"], f"{abseta_bins[2]} < |#eta| < {abs
 canvas.RedrawAxis()
 legend.Draw("same")
 
-output_path = f"{WORKDIR}/MeasFakeRate/results/{args.era}/plots/{args.measure}/fakerate.png"
+output_path = f"{WORKDIR}/MeasFakeRate/plots/{args.era}/{args.measure}/fakerate.png"
 if args.isQCD:
     output_path = output_path.replace("fakerate", "fakerate_qcd")
 os.makedirs(os.path.dirname(output_path), exist_ok=True)

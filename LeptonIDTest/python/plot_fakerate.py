@@ -44,7 +44,12 @@ else:
     raise ValueError(f"Invalid era: {args.era}")
 
 ##### Get Histograms
-lepTypes = ["fromC", "fromB", "fromL"]
+if args.object == "muon":
+    lepTypes = ["fromC", "fromB"]
+elif args.object == "electron":
+    lepTypes = ["fromC", "fromB", "fromL"]
+else:
+    raise ValueError(f"Invalid object: {args.object}")
 regions = ["InnerBarrel", "OuterBarrel", "Endcap"]
 
 # Convert ptcorr_bins to array for ROOT

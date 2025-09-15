@@ -57,13 +57,15 @@ config = {
 data = None
 for DATAPERIOD in DATAPERIODs:
     file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRate/{args.hlt}_RunSyst/{args.era}/{DATAPERIOD}.root"
-    try:
-        assert os.path.exists(file_path)
-    except:
-        raise FileNotFoundError(f"{file_path} does not exist")
+    assert os.path.exists(file_path), f"{file_path} does not exist"
     f = ROOT.TFile.Open(file_path)
-    h = f.Get(f"ZEnriched/{args.wp}/{args.selection}/ZCand/mass"); h.SetDirectory(0)
+    try:
+        h = f.Get(f"ZEnriched/{args.wp}/{args.selection}/ZCand/mass"); h.SetDirectory(0)
+    except:
+        logging.warning(f"No ZEnriched/{args.wp}/{args.selection}/ZCand/mass histogram for {DATAPERIOD}")
+        continue
     f.Close()
+    
     if data is None:
         data = h.Clone()
     else:
@@ -80,7 +82,7 @@ for sample in MCList:
         h = f.Get(f"ZEnriched/{args.wp}/{args.selection}/ZCand/mass"); h.SetDirectory(0)
         hSysts = []
         for syst, sources in SYSTs.items():
-            if args.selection == "Central": continue
+            if not args.selection == "Central": continue
             systUp, systDown = sources
             h_up = f.Get(f"ZEnriched/{args.wp}/{systUp}/ZCand/mass"); h_up.SetDirectory(0)
             h_down = f.Get(f"ZEnriched/{args.wp}/{systDown}/ZCand/mass"); h_down.SetDirectory(0) 
@@ -147,7 +149,7 @@ BKGs = {name: hist for name, hist in temp_dict.items() if hist}
 BKGs = dict(sorted(BKGs.items(), key=lambda x: x[1].Integral(), reverse=True))
 logging.debug(f"BKGs: {BKGs}")
 
-output_path = f"{WORKDIR}/MeasFakeRate/results/{args.era}/plots/{MEASURE}/ZEnriched/Zmass_{args.hlt}_{args.wp}_{args.selection}.png"
+output_path = f"{WORKDIR}/MeasFakeRate/plots/{args.era}/{MEASURE}/{args.hlt}/ZEnriched/{args.selection}/Zmass_{args.wp}.png"
 os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
 plotter = ComparisonCanvas(data, BKGs, config)

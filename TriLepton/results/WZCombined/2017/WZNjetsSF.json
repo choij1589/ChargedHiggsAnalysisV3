@@ -1,0 +1,1527 @@
+{
+  "schema_version": 2,
+  "description": "WZ N-jets scale factors for WZCombined 2017 (combined WZ1E2Mu+WZ3Mu). Nonprompt uncertainty: ±25%",
+  "corrections": [
+    {
+      "name": "WZNjetsSF_WZCombined_2017_Central",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (Central)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009236950773147,
+          0.8632988332074365,
+          0.8585510197062072,
+          0.9180507846670402,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_L1Prefire_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (L1Prefire_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9053674880557002,
+          0.8682609712319316,
+          0.8643868024697481,
+          0.9253650534464849,
+          1.1403289238535708,
+          1.8594112230787458
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_L1Prefire_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (L1Prefire_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.896518732299998,
+          0.8584049263095929,
+          0.8528155840281921,
+          0.9108459545516082,
+          1.1173069081856095,
+          1.8282705047574443
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_PileupReweight_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (PileupReweight_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009753399878027,
+          0.8650449622869343,
+          0.8663275549442833,
+          0.938727349867248,
+          1.1406720213125159,
+          1.8903086788885097
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_PileupReweight_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (PileupReweight_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9013050883880945,
+          0.862118670473121,
+          0.8522466224711186,
+          0.9003345698679597,
+          1.1116668800932905,
+          1.8100404458938486
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_PileupJetIDSF_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (PileupJetIDSF_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9006253753265042,
+          0.8619198474246799,
+          0.855999533825522,
+          0.914039345986302,
+          1.1219941091662802,
+          1.8289738513193432
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_PileupJetIDSF_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (PileupJetIDSF_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9012220492655837,
+          0.8646807898789676,
+          0.8611112478465894,
+          0.9220808644767319,
+          1.1354327701901916,
+          1.8584958638214335
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_MuonIDSF_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (MuonIDSF_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.8958814503976478,
+          0.8579763149072903,
+          0.8528498529945543,
+          0.9112927389771573,
+          1.1193203869698418,
+          1.8235982143567142
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_MuonIDSF_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (MuonIDSF_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9059975771416167,
+          0.8686588780246514,
+          0.8642938717850573,
+          0.9248636260134445,
+          1.138152295771019,
+          1.8640148925239546
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_ElectronIDSF_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (ElectronIDSF_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.8976451917017394,
+          0.860214481159191,
+          0.8552412133837556,
+          0.9146131408650681,
+          1.1247113778726603,
+          1.838029619398623
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_ElectronIDSF_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (ElectronIDSF_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9042224566440414,
+          0.8664017821971157,
+          0.8618814596964847,
+          0.9215091374878964,
+          1.1326986434004074,
+          1.8493612719951413
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_EMuTrigSF_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (EMuTrigSF_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.8885773909297764,
+          0.8496599608179034,
+          0.8429323641589637,
+          0.8998211877340285,
+          1.1037413203344748,
+          1.8071956059193275
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_EMuTrigSF_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (EMuTrigSF_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9119312125501124,
+          0.875058902040584,
+          0.8716991612353787,
+          0.9331164933613519,
+          1.1487511300493918,
+          1.8727646316228581
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_JetEn_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (JetEn_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.8832152730083404,
+          0.8178652876405113,
+          0.7565630902168147,
+          0.7351094000193182,
+          0.8697252135814204,
+          1.2903991876600414
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_JetEn_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (JetEn_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9029276282793408,
+          0.9065922933564174,
+          0.9714112507411199,
+          1.0927726777492408,
+          1.4258762485409195,
+          2.764219985557852
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_JetRes_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (JetRes_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.8877667931165114,
+          0.850925866974715,
+          0.8444113510622443,
+          0.8942711634667094,
+          1.0863198486228716,
+          1.8058088103987284
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_JetRes_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (JetRes_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9111543337347808,
+          0.880321489955607,
+          0.8708582247118374,
+          0.9420389635155074,
+          1.1207563389720197,
+          1.9420059066302406
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_MuonEn_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (MuonEn_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.8979070132358772,
+          0.8619095078066924,
+          0.8586823959701149,
+          0.9165218796537777,
+          1.1290332215892176,
+          1.8326812402883053
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_MuonEn_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (MuonEn_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9022146535982425,
+          0.8648370220495145,
+          0.8601559000616523,
+          0.9198273349412946,
+          1.1273640161752883,
+          1.8435929667332058
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_ElectronEn_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (ElectronEn_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9007182467441888,
+          0.8631319682314262,
+          0.8583929007590542,
+          0.9181684213675748,
+          1.1286732988940464,
+          1.843919805214356
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_ElectronEn_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (ElectronEn_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9012729981992085,
+          0.863247318464124,
+          0.8585264373657201,
+          0.9181053620769515,
+          1.1286382999531333,
+          1.8440957951651076
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_ElectronRes_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (ElectronRes_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.900966551803165,
+          0.8632667956358622,
+          0.8584882225805275,
+          0.9180634552830453,
+          1.1287444226506418,
+          1.8436804360125265
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_ElectronRes_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (ElectronRes_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009436878051656,
+          0.8631675278606492,
+          0.8584127183637733,
+          0.918065832357957,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_UnclusteredEn_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (UnclusteredEn_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9003468781229116,
+          0.8639907536522301,
+          0.863039363220348,
+          0.9077919154745769,
+          1.1062512097371036,
+          1.8373371963886482
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_UnclusteredEn_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (UnclusteredEn_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.8868265318390688,
+          0.8521351601888265,
+          0.8546968846431047,
+          0.908892847093065,
+          1.124651682412237,
+          1.8425830950365247
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_BTagSF_HFcorr_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (BTagSF_HFcorr_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009236950773147,
+          0.8632988332074365,
+          0.8585510197062072,
+          0.9180507846670402,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_BTagSF_HFcorr_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (BTagSF_HFcorr_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009236950773147,
+          0.8632988332074365,
+          0.8585510197062072,
+          0.9180507846670402,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_BTagSF_HFuncorr_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (BTagSF_HFuncorr_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009236950773147,
+          0.8632988332074365,
+          0.8585510197062072,
+          0.9180507846670402,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_BTagSF_HFuncorr_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (BTagSF_HFuncorr_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009236950773147,
+          0.8632988332074365,
+          0.8585510197062072,
+          0.9180507846670402,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_BTagSF_LFcorr_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (BTagSF_LFcorr_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009236950773147,
+          0.8632988332074365,
+          0.8585510197062072,
+          0.9180507846670402,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_BTagSF_LFcorr_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (BTagSF_LFcorr_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009236950773147,
+          0.8632988332074365,
+          0.8585510197062072,
+          0.9180507846670402,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_BTagSF_LFuncorr_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (BTagSF_LFuncorr_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009236950773147,
+          0.8632988332074365,
+          0.8585510197062072,
+          0.9180507846670402,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_BTagSF_LFuncorr_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (BTagSF_LFuncorr_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9009236950773147,
+          0.8632988332074365,
+          0.8585510197062072,
+          0.9180507846670402,
+          1.128693382186565,
+          1.8436809857000145
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_DblMuTrigSF_Up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (DblMuTrigSF_Up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9004800876743717,
+          0.8628290761761419,
+          0.8580436359756465,
+          0.9174155052507276,
+          1.1278606447411061,
+          1.842097828817176
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_DblMuTrigSF_Down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (DblMuTrigSF_Down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9013702018096578,
+          0.8637720158944984,
+          0.8590622350549586,
+          0.9186909528034125,
+          1.1295332036622692,
+          1.8452795203260681
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_nonprompt_up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (nonprompt_up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.8447190918353683,
+          0.8199406949596383,
+          0.8136325810103195,
+          0.8632076054859191,
+          1.0462229073786415,
+          1.7502298804011802
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_nonprompt_down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (nonprompt_down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9571282983192612,
+          0.9066569714552347,
+          0.9034694584020947,
+          0.9728939638481612,
+          1.2111638569944885,
+          1.937132090998849
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_prompt_up",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (prompt_up)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.9309883751022756,
+          0.915597966185999,
+          0.9740910064103853,
+          1.1052398895440594,
+          1.4317084431441676,
+          2.7719276042707377
+        ],
+        "flow": "clamp"
+      }
+    },
+    {
+      "name": "WZNjetsSF_WZCombined_2017_prompt_down",
+      "description": "WZ N-jets scale factors for WZCombined 2017 (prompt_down)",
+      "version": 1,
+      "inputs": [
+        {
+          "name": "njets",
+          "type": "real",
+          "description": "Number of jets (integer, overflow uses highest bin with clamping)"
+        }
+      ],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "binning",
+        "input": "njets",
+        "edges": [
+          0.0,
+          1.0,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0
+        ],
+        "content": [
+          0.8708590150523539,
+          0.810999700228874,
+          0.7430110330020291,
+          0.7308616797900209,
+          0.8256783212289626,
+          0.9154343671292912
+        ],
+        "flow": "clamp"
+      }
+    }
+  ]
+}
