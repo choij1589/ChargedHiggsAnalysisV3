@@ -84,13 +84,13 @@ canvas = CMS.cmsCanvas("", ptcorr_bins[0], 50.,
                              0., 1., 
                              "p_{T}^{corr}", 
                              title, 
-                             square=True, 
+                             square=False, 
                              iPos=11, 
-                             extraSpace=0)
+                             extraSpace=0.015)
 hdf = CMS.GetCmsCanvasHist(canvas)
 hdf.GetYaxis().SetMaxDigits(1)
 
-legend = CMS.cmsLeg(0.55, 0.89 - 0.05 * 7, 0.92, 0.85, textSize=0.04, columns=1)
+legend = CMS.cmsLeg(0.6, 0.89 - 0.05*5, 0.92, 0.85, textSize=0.04, columns=1)
 
 canvas.cd()
 CMS.cmsObjectDraw(projections["eta1"], "", LineColor=PALETTE[0], LineWidth=2, LineStyle=ROOT.kSolid)

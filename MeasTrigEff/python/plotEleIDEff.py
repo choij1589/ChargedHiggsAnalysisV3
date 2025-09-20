@@ -170,6 +170,18 @@ def create_pt_projections():
         h_sim_proj = h_sim.ProjectionY(f"sim_pt_etabin{eta_bin}", eta_bin, eta_bin)
         h_sf = h_sf_2d.ProjectionY(f"sf_pt_etabin{eta_bin}", eta_bin, eta_bin)
         
+        # For Run3, restrict pt range to below 200 GeV
+        if args.era in ["2022", "2022EE", "2023", "2023BPix"]:
+            for pt_bin in range(1, h_data_proj.GetNbinsX() + 1):
+                pt_center = h_data_proj.GetXaxis().GetBinCenter(pt_bin)
+                if pt_center >= 200.0:
+                    h_data_proj.SetBinContent(pt_bin, 0)
+                    h_data_proj.SetBinError(pt_bin, 0)
+                    h_sim_proj.SetBinContent(pt_bin, 0)
+                    h_sim_proj.SetBinError(pt_bin, 0)
+                    h_sf.SetBinContent(pt_bin, 0)
+                    h_sf.SetBinError(pt_bin, 0)
+        
         # Set histogram properties
         h_data_proj.SetDirectory(0)
         h_sim_proj.SetDirectory(0)
@@ -181,6 +193,10 @@ def create_pt_projections():
         
         # Get axis range
         xmin, xmax = h_data_proj.GetXaxis().GetXmin(), h_data_proj.GetXaxis().GetXmax()
+        
+        # For Run3, limit x-axis range to 200 GeV
+        if args.era in ["2022", "2022EE", "2023", "2023BPix"]:
+            xmax = min(xmax, 200.0)
 
         # Create CMS-style canvas with two pads
         canvas = CMS.cmsDiCanvas(f"c_pt_etabin{eta_bin}", xmin, xmax, 0.0, 1.1, 0.5, 1.5, 
@@ -355,6 +371,18 @@ def create_pt_summary():
     
     # For each pt bin, calculate eta-averaged efficiency
     for pt_bin in range(1, n_pt_bins + 1):
+        # For Run3, skip pt bins >= 200 GeV
+        if args.era in ["2022", "2022EE", "2023", "2023BPix"]:
+            pt_center = h_data_pt.GetXaxis().GetBinCenter(pt_bin)
+            if pt_center >= 200.0:
+                h_data_pt.SetBinContent(pt_bin, 0)
+                h_data_pt.SetBinError(pt_bin, 0)
+                h_sim_pt.SetBinContent(pt_bin, 0)
+                h_sim_pt.SetBinError(pt_bin, 0)
+                h_sf_pt.SetBinContent(pt_bin, 0)
+                h_sf_pt.SetBinError(pt_bin, 0)
+                continue
+        
         # Get efficiency values for all eta bins in this pt bin, excluding gap regions
         data_effs = []
         sim_effs = []
@@ -410,8 +438,14 @@ def create_pt_summary():
     h_sim_pt.SetTitle("Simulation")
     
     # Get axis range
-    #xmin, xmax = h_data_pt.GetXaxis().GetXmin(), h_data_pt.GetXaxis().GetXmax()
-    xmin, xmax = 10.0, 200.0  # Set fixed range for pt summary plot    
+    xmin, xmax = h_data_pt.GetXaxis().GetXmin(), h_data_pt.GetXaxis().GetXmax()
+    
+    # For Run3, limit x-axis range to 200 GeV
+    if args.era in ["2022", "2022EE", "2023", "2023BPix"]:
+        xmax = min(xmax, 200.0)
+    
+    # Set minimum to 10 GeV for better visualization
+    xmin = max(xmin, 10.0)    
 
     # Create CMS-style canvas with two pads (using linear scale for pt)
     canvas = CMS.cmsDiCanvas("c_pt_summary", xmin, xmax, 0.0, 1.1, 0.5, 1.5, 

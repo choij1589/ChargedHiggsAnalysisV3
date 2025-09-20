@@ -15,6 +15,11 @@ draw_plot_exclude_WZSF() {
     plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --exclude "WZSF"
 }
 
+draw_plot_exclude_ConvSF() {
+    local histkey=$1
+    plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --exclude "ConvSF"
+}
+
 draw_plot_blind() {
     local histkey=$1
     plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --blind
@@ -22,6 +27,7 @@ draw_plot_blind() {
 export -f draw_plot
 export -f draw_plot_blind
 export -f draw_plot_exclude_WZSF
+export -f draw_plot_exclude_ConvSF
 
 if [[ $CHANNEL == "SR1E2Mu" ]]; then
     histkeys=(
@@ -82,7 +88,6 @@ elif [[ $CHANNEL == "ZFake1E2Mu" ]]; then
  
     )
     parallel draw_plot ::: ${histkeys[@]}
-    parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
 elif [[ $CHANNEL == "ZFake3Mu" ]]; then
     histkeys=(
         "muons/1/pt" "muons/1/eta" "muons/1/phi" "muons/1/charge" "muons/1/px" "muons/1/py" "muons/1/pz" "muons/1/energy"
@@ -102,7 +107,6 @@ elif [[ $CHANNEL == "ZFake3Mu" ]]; then
         "MHc-160_MA-85/score_nonprompt" "MHc-160_MA-85/score_diboson" "MHc-160_MA-85/score_ttZ" "MHc-160_MA-85/score"
     )
     parallel draw_plot ::: ${histkeys[@]}
-    parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
 elif [[ $CHANNEL == "ZG1E2Mu" ]]; then
     histkeys=(
         "muons/1/pt" "muons/1/eta" "muons/1/phi"
@@ -113,13 +117,12 @@ elif [[ $CHANNEL == "ZG1E2Mu" ]]; then
         "jets/2/pt" "jets/2/eta" "jets/2/phi" "jets/2/mass" 
         "jets/3/pt" "jets/3/eta" "jets/3/phi" "jets/3/mass" 
         "jets/4/pt" "jets/4/eta" "jets/4/phi" "jets/4/mass" 
-        "bjets/1/pt" "bjets/1/eta" "bjets/1/phi" "bjets/1/mass" 
         "METv/pt" "METv/phi"
         "ZCand/pt" "ZCand/eta" "ZCand/phi" "ZCand/mass"
         "convLep/pt" "convLep/eta" "convLep/phi"
     )
     parallel draw_plot ::: ${histkeys[@]}
-    parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
+    parallel draw_plot_exclude_ConvSF ::: ${histkeys[@]}
 elif [[ $CHANNEL == "ZG3Mu" ]]; then
     histkeys=(
         "muons/1/pt" "muons/1/eta" "muons/1/phi"
@@ -130,13 +133,12 @@ elif [[ $CHANNEL == "ZG3Mu" ]]; then
         "jets/2/pt" "jets/2/eta" "jets/2/phi" "jets/2/mass" 
         "jets/3/pt" "jets/3/eta" "jets/3/phi" "jets/3/mass" 
         "jets/4/pt" "jets/4/eta" "jets/4/phi" "jets/4/mass" 
-        "bjets/1/pt" "bjets/1/eta" "bjets/1/phi" "bjets/1/mass" 
         "METv/pt" "METv/phi"
         "ZCand/pt" "ZCand/eta" "ZCand/phi" "ZCand/mass"
         "convLep/pt" "convLep/eta" "convLep/phi"
     )
     parallel draw_plot ::: ${histkeys[@]}
-    parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
+    parallel draw_plot_exclude_ConvSF ::: ${histkeys[@]}
 elif [[ $CHANNEL == "WZ1E2Mu" ]]; then
     histkeys=(
         "muons/1/pt" "muons/1/eta" "muons/1/phi"

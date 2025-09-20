@@ -6,6 +6,7 @@ import json
 import ROOT
 from math import pow, sqrt
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
+import correctionlib
 ROOT.gROOT.SetBatch(True)
 
 parser = argparse.ArgumentParser()
@@ -13,7 +14,7 @@ parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--channel", required=True, type=str, help="channel")
 parser.add_argument("--histkey", required=True, type=str, help="histkey")
 parser.add_argument("--exclude", default=None, type=str,
-                    help="exclude reweighting")
+                    help="exclude reweighting (WZSF, ConvSF)")
 parser.add_argument("--blind", default=False, action="store_true", help="blind data")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
@@ -168,7 +169,7 @@ def calculate_systematics(h, systematics, file_path, args):
     if not f or f.IsZombie():
         return h
     
-    try:
+    try:   
         hSysts = []
         for syst, sources in systematics.items():
             syst_up, syst_down = tuple(sources)
@@ -206,8 +207,115 @@ def sum_histograms(hist_list, name):
         total.Add(h)
     return total
 
+def load_conv_scale_factors(channel, era_list):
+    """Load conversion scale factors for the channel"""
+    conv_sf = {}
+    
+    # Only apply to ZG channels
+    if "ZG" not in channel:
+        return conv_sf
+    
+    # Get the ZG channel name for loading SF
+    zg_channel = channel  # Channel is already ZG1E2Mu or ZG3Mu
+    
+    for era in era_list:
+        sf_file = f"{WORKDIR}/TriLepton/results/{zg_channel}/{era}/ConvSF.json"
+        
+        if not os.path.exists(sf_file):
+            logging.warning(f"Conversion SF file not found: {sf_file}")
+            continue
+            
+        try:
+            cset = correctionlib.CorrectionSet.from_file(sf_file)
+            conv_sf[era] = cset
+            logging.debug(f"Loaded conversion SF for {zg_channel} {era}")
+        except Exception as e:
+            logging.warning(f"Failed to load conversion SF from {sf_file}: {e}")
+    
+    return conv_sf
+
+def apply_conv_scale_factor(hist, sample, era, conv_sf, channel, era_samples):
+    """Apply conversion scale factor to conversion samples"""
+    if args.exclude == "ConvSF":
+        return hist
+    
+    if not conv_sf or era not in conv_sf:
+        return hist
+    
+    # Check if this sample is in the conv list for this era
+    # era_samples[era] already contains the channel-specific data
+    is_conv_sample = sample in era_samples[era]["conv"]
+    if not is_conv_sample:
+        return hist
+    
+    try:
+        # Get central scale factor
+        sf_name = f"ConvSF_{channel}_{era}_Central"
+        sf_central = conv_sf[era][sf_name].evaluate()
+        
+        # Apply scale factor
+        hist.Scale(sf_central)
+        
+        # Calculate systematic uncertainty
+        # Get prompt and nonprompt uncertainties
+        sf_prompt_up = conv_sf[era][f"ConvSF_{channel}_{era}_prompt_up"].evaluate()
+        sf_prompt_down = conv_sf[era][f"ConvSF_{channel}_{era}_prompt_down"].evaluate()
+        sf_nonprompt_up = conv_sf[era][f"ConvSF_{channel}_{era}_nonprompt_up"].evaluate()
+        sf_nonprompt_down = conv_sf[era][f"ConvSF_{channel}_{era}_nonprompt_down"].evaluate()
+        
+        # Calculate relative uncertainties
+        prompt_rel_unc = max(abs(sf_prompt_up - sf_central), abs(sf_central - sf_prompt_down)) / sf_central
+        nonprompt_rel_unc = max(abs(sf_nonprompt_up - sf_central), abs(sf_central - sf_nonprompt_down)) / sf_central
+        
+        # Quadrature sum of prompt and nonprompt uncertainties
+        total_rel_unc = sqrt(prompt_rel_unc**2 + nonprompt_rel_unc**2)
+        
+        # Apply rate uncertainty to all bins
+        for bin in range(hist.GetNcells()):
+            content = hist.GetBinContent(bin)
+            stat_error = hist.GetBinError(bin)
+            rate_error = content * total_rel_unc
+            # Combine statistical and rate uncertainties in quadrature
+            total_error = sqrt(stat_error**2 + rate_error**2)
+            hist.SetBinError(bin, total_error)
+        
+        logging.debug(f"Applied ConvSF={sf_central:.3f} to {sample} in {era} with {total_rel_unc*100:.1f}% rate uncertainty")
+        
+    except Exception as e:
+        logging.warning(f"Failed to apply conversion SF to {sample} in {era}: {e}")
+    
+    return hist
+
+def apply_wz_uncertainty(hist, sample, args):
+    """Apply 20% flat uncertainty to WZ samples when WZSF is applied"""
+    # Only apply when WZSF is NOT excluded and sample is WZ
+    if args.exclude == "WZSF":
+        return hist
+    
+    # Check if this is a WZ sample
+    is_wz_sample = "WZTo3LNu" in sample or "ZZTo4L" in sample
+    if not is_wz_sample:
+        return hist
+    
+    # Apply 20% rate uncertainty to all bins
+    for bin in range(hist.GetNcells()):
+        content = hist.GetBinContent(bin)
+        stat_error = hist.GetBinError(bin)
+        rate_error = content * 0.20  # 20% rate uncertainty
+        # Combine statistical and rate uncertainties in quadrature
+        total_error = sqrt(stat_error**2 + rate_error**2)
+        hist.SetBinError(bin, total_error)
+    
+    logging.debug(f"Applied 20% rate uncertainty to WZ sample {sample}")
+    return hist
+
 #### Get Histograms
 logging.debug("Loading histograms...")
+
+# Load conversion scale factors if not excluded
+conv_sf = {}
+if args.exclude != "ConvSF" and "ZG" in args.channel:
+    conv_sf = load_conv_scale_factors(args.channel, era_list)
 
 # Step 1: Load histograms from each era
 era_data_hists = []
@@ -285,14 +393,18 @@ for era in era_list:
     all_era_samples = ERA_SAMPLES[era]["conv"] + ERA_SAMPLES[era]["ttX"] + ERA_SAMPLES[era]["diboson"] + ERA_SAMPLES[era]["others"]
     for sample in all_era_samples:
         file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}_RunSyst/{era}/Skim_TriLep_{sample}.root"
-        if args.exclude == "WZSF" and "WZTo3LNu" in sample:
-            logging.info(f"Loading {sample} from {era} with WZSF excluded")
+        if args.exclude == "WZSF" and ("WZTo3LNu" in sample or "ZZTo4L" in sample):
+            logging.debug(f"Loading {sample} from {era} with WZSF excluded")
             file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}_RunNoWZSF_RunSyst/{era}/Skim_TriLep_{sample}.root"
         
         hist_path = f"{args.channel}/Central/{args.histkey}"
         h = load_histogram(file_path, hist_path)
         if h:
             h = calculate_systematics(h, ERA_SYSTEMATICS[era], file_path, args)
+            # Apply WZ uncertainty when WZSF is applied
+            h = apply_wz_uncertainty(h, sample, args)
+            # Apply conversion scale factor
+            h = apply_conv_scale_factor(h, sample, era, conv_sf, args.channel, ERA_SAMPLES)
             era_mc_hists[sample].append(h)
             logging.debug(f"Loaded MC {sample} from {era}")
 

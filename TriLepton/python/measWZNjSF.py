@@ -136,10 +136,14 @@ def get_hist_mc(channels, era, mc, syst="Central"):
             h = f.Get(f"{channel}/{syst}/jets/size")
             if not h:
                 if syst != "Central":
-                    # For non-Central systematics, skip samples that don't have the systematic
-                    logging.warning(f"Systematic {syst} not found for {channel}/{sample}, skipping this sample")
-                    f.Close()
-                    continue
+                    # For non-Central systematics, try Central as fallback
+                    h = f.Get(f"{channel}/Central/jets/size")
+                    if h:
+                        logging.info(f"Systematic {syst} not found for {channel}/{sample}, using Central")
+                    else:
+                        logging.warning(f"Cannot find {channel}/Central/jets/size for sample {sample}")
+                        f.Close()
+                        continue
                 else:
                     # For Central systematic, this is an error - the histogram should exist
                     logging.warning(f"Cannot find {channel}/Central/jets/size for sample {sample}")
@@ -184,10 +188,14 @@ def get_hist_by_name(channels, era, name, syst="Central"):
         h = f.Get(f"{channel}/{syst}/jets/size")
         if not h:
             if syst != "Central":
-                # For non-Central systematics, skip channels that don't have the systematic
-                logging.warning(f"Systematic {syst} not found for {channel}, skipping this channel")
-                f.Close()
-                continue
+                # For non-Central systematics, try Central as fallback
+                h = f.Get(f"{channel}/Central/jets/size")
+                if h:
+                    logging.info(f"Systematic {syst} not found for {channel}, using Central")
+                else:
+                    logging.warning(f"Cannot find {channel}/Central/jets/size for sample {name}")
+                    f.Close()
+                    continue
             else:
                 # For Central systematic, this is an error - the histogram should exist
                 logging.warning(f"Cannot find {channel}/Central/jets/size for sample {name}")
@@ -257,15 +265,40 @@ def get_systematics_for_channel(channels, run):
     
     systematics = {}
     
-    # For combined channels, merge systematics from both channels
-    for channel in channels:
-        channel_key = channel.replace("WZ", "")
+    if len(channels) == 1:
+        # Single channel: use all systematics from that channel
+        channel_key = channels[0].replace("WZ", "")
         if run in json_systematics and channel_key in json_systematics[run]:
-            # Merge systematics (union of all systematic sources)
-            for syst_name, variations in json_systematics[run][channel_key].items():
-                if syst_name not in systematics:
-                    systematics[syst_name] = variations
-                # If already exists, keep the existing one (they should be identical)
+            systematics = json_systematics[run][channel_key].copy()
+    else:
+        # Combined channels: use union of all systematics
+        # Channel-specific systematics will use Central values for irrelevant channels
+        all_systematics = set()
+        channel_systematics = {}
+        
+        for channel in channels:
+            channel_key = channel.replace("WZ", "")
+            if run in json_systematics and channel_key in json_systematics[run]:
+                channel_systematics[channel_key] = json_systematics[run][channel_key]
+                all_systematics.update(json_systematics[run][channel_key].keys())
+        
+        # Add all systematics from all channels
+        for syst_name in all_systematics:
+            # Use the systematic definition from any channel that has it
+            for channel_key, syst_dict in channel_systematics.items():
+                if syst_name in syst_dict:
+                    systematics[syst_name] = syst_dict[syst_name]
+                    break
+        
+        # Report which systematics are channel-specific
+        common_systematics = set(channel_systematics[list(channel_systematics.keys())[0]].keys())
+        for channel_key, syst_dict in list(channel_systematics.items())[1:]:
+            common_systematics = common_systematics.intersection(set(syst_dict.keys()))
+        
+        channel_specific = all_systematics - common_systematics
+        if channel_specific:
+            channel_names = [ch.replace("WZ", "") for ch in channels]
+            print(f"Channel-specific systematics for {'+'.join(channel_names)} (using Central for irrelevant channels): {sorted(channel_specific)}")
     
     # Add nonprompt systematics (manual variations)
     nonprompt_uncertainty = 0.25 if run == "Run2" else 0.35  # 25% for Run2, 35% for Run3
