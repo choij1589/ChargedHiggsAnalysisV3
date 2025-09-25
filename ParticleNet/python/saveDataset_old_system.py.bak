@@ -1,0 +1,305 @@
+#!/usr/bin/env python
+import os
+import argparse
+import logging
+import json
+from datetime import datetime
+
+import torch
+import ROOT
+from sklearn.utils import shuffle
+from itertools import product
+
+from Preprocess import GraphDataset, rtfileToDataList
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--signal", required=True, type=str, help="signal mass point")
+parser.add_argument("--channel", required=True, type=str, help="channel")
+parser.add_argument("--multiclass", action="store_true", default=False, help="multi-class classification mode")
+parser.add_argument("--background", type=str, help="background type (only for binary classification)")
+parser.add_argument("--requireBtagged", action="store_true", default=False, help="require btagged")
+parser.add_argument("--pilot", action="store_true", default=False, help="pilot mode")
+parser.add_argument("--debug", action="store_true", default=False, help="debug mode")
+args = parser.parse_args()
+
+# check arguments
+valid_channels = ["Run1E2Mu", "Run3Mu", "Combined"]
+valid_signals = ["MHc-100_MA-95", "MHc-115_MA-87", "MHc-130_MA-90", "MHc-130_MA-100", 
+                 "MHc-145_MA-92", "MHc-160_MA-85", "MHc-160_MA-98"]
+valid_backgrounds = ["nonprompt", "diboson", "ttZ"]
+
+if args.channel not in valid_channels:
+    raise ValueError(f"Invalid channel {args.channel}. Valid options: {valid_channels}")
+if args.signal not in valid_signals:
+    raise ValueError(f"Invalid signal {args.signal}. Valid options: {valid_signals}")
+
+# For binary classification, background must be specified
+if not args.multiclass and args.background is None:
+    raise ValueError("For binary classification, --background must be specified")
+if not args.multiclass and args.background not in valid_backgrounds:
+    raise ValueError(f"Invalid background {args.background}. Valid options: {valid_backgrounds}")
+
+logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
+WORKDIR = os.environ["WORKDIR"]
+
+# Initialize dataset statistics dictionary
+dataset_stats = {
+    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "signal": args.signal,
+    "channel": args.channel,
+    "multiclass": args.multiclass,
+    "background": args.background if not args.multiclass else "all",
+    "pilot_mode": args.pilot,
+    "eras": {},
+    "folds": {},
+    "total_events": {}
+}
+
+# Class labels for multi-class classification
+CLASS_LABELS = {
+    "signal": 0,
+    "nonprompt": 1,
+    "diboson": 2,
+    "ttZ": 3
+}
+
+# Background file mapping
+BACKGROUND_FILES = {
+    "nonprompt": "Skim_TriLep_TTLL_powheg",
+    "diboson": "Skim_TriLep_WZTo3LNu_amcatnlo",
+    "ttZ": "Skim_TriLep_TTZToLLNuNu"
+}
+
+#### load dataset
+maxSize = 10000 if args.pilot else -1
+nFolds = 5
+maxSizeForEra = {
+    "2016preVFP": int(maxSize / 7) if maxSize > 0 else -1,
+    "2016postVFP": int(maxSize / 7) if maxSize > 0 else -1,
+    "2017": int(maxSize * (2/7)) if maxSize > 0 else -1,
+    "2018": int(maxSize * (3/7)) if maxSize > 0 else -1
+}
+logging.debug(maxSizeForEra)
+
+# Initialize data lists
+if args.multiclass:
+    # For multi-class: signal + 3 background types
+    dataListByClass = {
+        "signal": [[] for _ in range(nFolds)],
+        "nonprompt": [[] for _ in range(nFolds)],
+        "diboson": [[] for _ in range(nFolds)],
+        "ttZ": [[] for _ in range(nFolds)]
+    }
+else:
+    # For binary classification
+    sigDataList = [[] for _ in range(nFolds)]
+    bkgDataList = [[] for _ in range(nFolds)]
+
+# Process data
+channels_to_process = ["Run1E2Mu", "Run3Mu"] if args.channel == "Combined" else [args.channel]
+
+for era in ["2016preVFP", "2016postVFP", "2017", "2018"]:
+    # Initialize era statistics
+    if era not in dataset_stats["eras"]:
+        dataset_stats["eras"][era] = {"signal": 0, "backgrounds": {}}
+    
+    for channel in channels_to_process:
+        # Load signal data
+        signal_formatted = args.signal.replace("MHc-", "MHc").replace("MA-", "MA")
+        sig_path = f"{WORKDIR}/SKNanoOutput/EvtTreeProducer/{channel}/{era}/TTToHcToWAToMuMu-{signal_formatted}.root"
+        
+        if os.path.exists(sig_path):
+            rt = ROOT.TFile.Open(sig_path)
+            if args.multiclass:
+                sigDataTmp = rtfileToDataList(rt, label=CLASS_LABELS["signal"], era=era, 
+                                            maxSize=maxSizeForEra[era], nFolds=nFolds)
+                for i in range(nFolds):
+                    dataListByClass["signal"][i] += sigDataTmp[i]
+            else:
+                sigDataTmp = rtfileToDataList(rt, label=0, era=era, 
+                                            maxSize=maxSizeForEra[era], nFolds=nFolds)
+                for i in range(nFolds):
+                    sigDataList[i] += sigDataTmp[i]
+            rt.Close()
+            
+            # Track signal events loaded from this era
+            total_sig_events = sum(len(fold) for fold in sigDataTmp)
+            dataset_stats["eras"][era]["signal"] += total_sig_events
+            logging.info(f"Loaded {total_sig_events} signal events from {era}/{channel}")
+        else:
+            logging.warning(f"Signal file not found: {sig_path}")
+
+        # Load background data
+        if args.multiclass:
+            # Load all three background types
+            for bkg_type, bkg_filename in BACKGROUND_FILES.items():
+                bkg_path = f"{WORKDIR}/SKNanoOutput/EvtTreeProducer/{channel}/{era}/{bkg_filename}.root"
+                if os.path.exists(bkg_path):
+                    rt = ROOT.TFile.Open(bkg_path)
+                    bkgDataTmp = rtfileToDataList(rt, label=CLASS_LABELS[bkg_type], era=era, 
+                                                maxSize=maxSizeForEra[era], nFolds=nFolds)
+                    rt.Close()
+                    
+                    for i in range(nFolds):
+                        dataListByClass[bkg_type][i] += bkgDataTmp[i]
+                    
+                    # Track background events
+                    total_bkg_events = sum(len(fold) for fold in bkgDataTmp)
+                    if bkg_type not in dataset_stats["eras"][era]["backgrounds"]:
+                        dataset_stats["eras"][era]["backgrounds"][bkg_type] = 0
+                    dataset_stats["eras"][era]["backgrounds"][bkg_type] += total_bkg_events
+                    logging.info(f"Loaded {total_bkg_events} {bkg_type} events from {era}/{channel}")
+                else:
+                    logging.warning(f"Background file not found: {bkg_path}")
+        else:
+            # Binary classification - load only specified background
+            bkg_filename = BACKGROUND_FILES[args.background]
+            bkg_path = f"{WORKDIR}/SKNanoOutput/EvtTreeProducer/{channel}/{era}/{bkg_filename}.root"
+            if os.path.exists(bkg_path):
+                rt = ROOT.TFile.Open(bkg_path)
+                bkgDataTmp = rtfileToDataList(rt, label=1, era=era, 
+                                            maxSize=maxSizeForEra[era], nFolds=nFolds)
+                rt.Close()
+                
+                for i in range(nFolds):
+                    bkgDataList[i] += bkgDataTmp[i]
+                
+                # Track background events
+                total_bkg_events = sum(len(fold) for fold in bkgDataTmp)
+                if args.background not in dataset_stats["eras"][era]["backgrounds"]:
+                    dataset_stats["eras"][era]["backgrounds"][args.background] = 0
+                dataset_stats["eras"][era]["backgrounds"][args.background] += total_bkg_events
+                logging.info(f"Loaded {total_bkg_events} {args.background} events from {era}/{channel}")
+            else:
+                logging.warning(f"Background file not found: {bkg_path}")
+
+# Balance and merge datasets
+dataList = [[] for _ in range(nFolds)]
+
+if args.multiclass:
+    # For multi-class, balance all classes
+    for i in range(nFolds):
+        # Find minimum class size
+        class_sizes = {cls: len(dataListByClass[cls][i]) for cls in dataListByClass}
+        min_size = min(class_sizes.values()) if all(s > 0 for s in class_sizes.values()) else 0
+        
+        # Store fold statistics before balancing
+        dataset_stats["folds"][f"fold_{i}"] = {
+            "before_balancing": class_sizes.copy(),
+            "after_balancing": {},
+            "min_size": min_size
+        }
+        
+        if min_size == 0:
+            logging.warning(f"Fold {i} has empty classes, skipping")
+            continue
+            
+        logging.info(f"Fold {i} class sizes before balancing: {class_sizes}")
+        logging.info(f"Balancing to {min_size} samples per class")
+        
+        # Sample equal number from each class
+        for cls in dataListByClass:
+            dataListByClass[cls][i] = shuffle(dataListByClass[cls][i], random_state=42)[:min_size]
+            dataList[i].extend(dataListByClass[cls][i])
+            dataset_stats["folds"][f"fold_{i}"]["after_balancing"][cls] = min_size
+        
+        # Final shuffle
+        dataList[i] = shuffle(dataList[i], random_state=42)
+        logging.info(f"Fold {i}: Total {len(dataList[i])} events ({min_size} per class)")
+else:
+    # Binary classification balancing
+    for i in range(nFolds):
+        sig_size = len(sigDataList[i])
+        bkg_size = len(bkgDataList[i])
+        
+        # Store fold statistics
+        dataset_stats["folds"][f"fold_{i}"] = {
+            "before_balancing": {"signal": sig_size, args.background: bkg_size},
+            "after_balancing": {},
+            "min_size": min(sig_size, bkg_size) if sig_size > 0 and bkg_size > 0 else 0
+        }
+        
+        if sig_size == 0 or bkg_size == 0:
+            logging.warning(f"Fold {i} has empty data, skipping")
+            continue
+            
+        min_size = min(sig_size, bkg_size)
+        logging.info(f"Fold {i}: Signal {sig_size}, Background {bkg_size} events before shuffle")
+        logging.info(f"Balancing to {min_size} events per class")
+        
+        sigDataList[i] = shuffle(sigDataList[i], random_state=42)[:min_size]
+        bkgDataList[i] = shuffle(bkgDataList[i], random_state=42)[:min_size]
+        dataList[i] = shuffle(sigDataList[i] + bkgDataList[i], random_state=42)
+        
+        dataset_stats["folds"][f"fold_{i}"]["after_balancing"] = {
+            "signal": min_size,
+            args.background: min_size
+        }
+        
+        logging.info(f"Fold {i}: Total {len(dataList[i])} events")
+
+logging.info("Finished loading dataset")
+
+# Calculate total statistics
+total_signal = sum(dataset_stats["eras"][era]["signal"] for era in dataset_stats["eras"])
+total_backgrounds = {}
+for era in dataset_stats["eras"]:
+    for bkg, count in dataset_stats["eras"][era]["backgrounds"].items():
+        if bkg not in total_backgrounds:
+            total_backgrounds[bkg] = 0
+        total_backgrounds[bkg] += count
+
+dataset_stats["total_events"]["signal"] = total_signal
+dataset_stats["total_events"]["backgrounds"] = total_backgrounds
+dataset_stats["total_events"]["total"] = total_signal + sum(total_backgrounds.values())
+
+# Save datasets
+if args.multiclass:
+    baseDir = f"{WORKDIR}/ParticleNet/dataset/{args.channel}__multiclass__"
+else:
+    baseDir = f"{WORKDIR}/ParticleNet/dataset/{args.channel}__"
+
+if args.requireBtagged:
+    baseDir += "OnlyBtagged__"
+if args.pilot:
+    baseDir += "pilot__"
+
+logging.info(f"Saving dataset to {baseDir}")
+os.makedirs(baseDir, exist_ok=True)
+
+for i, data in enumerate(dataList):
+    if len(data) > 0:  # Only save non-empty folds
+        graphdataset = GraphDataset(data)
+        if args.multiclass:
+            filename = f"{baseDir}/{args.signal}_multiclass_fold-{i}.pt"
+        else:
+            filename = f"{baseDir}/{args.signal}_vs_{args.background}_fold-{i}.pt"
+        torch.save(graphdataset, filename)
+        logging.info(f"Saved {len(data)} events to {filename}")
+
+# Save dataset statistics to JSON file
+if args.multiclass:
+    stats_filename = f"{baseDir}/{args.signal}_multiclass_stats.json"
+else:
+    stats_filename = f"{baseDir}/{args.signal}_vs_{args.background}_stats.json"
+
+with open(stats_filename, 'w') as f:
+    json.dump(dataset_stats, f, indent=2)
+logging.info(f"Saved dataset statistics to {stats_filename}")
+
+# Also save a summary log in the main logs directory
+log_dir = f"{WORKDIR}/ParticleNet/logs"
+os.makedirs(log_dir, exist_ok=True)
+
+# Create a unique log filename with timestamp
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+if args.multiclass:
+    log_filename = f"{log_dir}/dataset_stats_{args.channel}_{args.signal}_multiclass_{timestamp}.json"
+else:
+    log_filename = f"{log_dir}/dataset_stats_{args.channel}_{args.signal}_vs_{args.background}_{timestamp}.json"
+
+with open(log_filename, 'w') as f:
+    json.dump(dataset_stats, f, indent=2)
+logging.info(f"Saved dataset statistics log to {log_filename}")
+
+logging.info("Finished saving dataset")
