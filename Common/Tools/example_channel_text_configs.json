@@ -1,0 +1,171 @@
+{
+    "_comment": "Example configurations demonstrating channel text feature",
+
+    "basic_channel": {
+        "xTitle": "p_{T} [GeV]",
+        "yTitle": "Events",
+        "xRange": [0, 200],
+        "channel": "e#mu channel",
+        "_description": "Basic usage with default positioning"
+    },
+
+    "custom_position_topleft": {
+        "xTitle": "M(ll) [GeV]",
+        "yTitle": "Events / 2 GeV",
+        "xRange": [60, 120],
+        "rebin": 2,
+        "channel": "#mu#mu",
+        "channelPosX": 0.2,
+        "channelPosY": 0.88,
+        "channelAlign": 11,
+        "_description": "Channel text in top-left corner"
+    },
+
+    "custom_position_topright": {
+        "xTitle": "p_{T} [GeV]",
+        "yTitle": "Events",
+        "xRange": [20, 200],
+        "channel": "e#mu SR",
+        "channelPosX": 0.88,
+        "channelPosY": 0.92,
+        "channelAlign": 33,
+        "channelFont": 61,
+        "_description": "Channel text in top-right corner with bold font"
+    },
+
+    "centered_channel": {
+        "xTitle": "H_{T} [GeV]",
+        "yTitle": "Events / 10 GeV",
+        "xRange": [0, 500],
+        "rebin": 10,
+        "channel": "Tri-lepton SR",
+        "channelPosX": 0.5,
+        "channelPosY": 0.85,
+        "channelAlign": 21,
+        "channelFont": 61,
+        "channelSize": 0.06,
+        "_description": "Centered channel text near top, larger size"
+    },
+
+    "subtle_channel": {
+        "xTitle": "#eta",
+        "yTitle": "Events",
+        "xRange": [-2.5, 2.5],
+        "channel": "CR",
+        "channelPosX": 0.22,
+        "channelPosY": 0.65,
+        "channelFont": 42,
+        "channelSize": 0.04,
+        "channelAlign": 11,
+        "_description": "Small, subtle text for control regions"
+    },
+
+    "large_emphasis": {
+        "xTitle": "E_{T}^{miss} [GeV]",
+        "yTitle": "Events / 5 GeV",
+        "xRange": [0, 200],
+        "rebin": 5,
+        "channel": "Signal Region",
+        "channelPosX": 0.25,
+        "channelPosY": 0.80,
+        "channelFont": 61,
+        "channelSize": 0.07,
+        "channelAlign": 12,
+        "_description": "Large, emphasized channel text"
+    },
+
+    "italic_style": {
+        "xTitle": "m_{T} [GeV]",
+        "yTitle": "Events",
+        "xRange": [0, 150],
+        "channel": "W#rightarrow#mu#nu",
+        "channelPosX": 0.65,
+        "channelPosY": 0.75,
+        "channelFont": 52,
+        "channelSize": 0.05,
+        "_description": "Italic font style"
+    },
+
+    "same_sign_channel": {
+        "xTitle": "p_{T}^{lead} [GeV]",
+        "yTitle": "Events",
+        "xRange": [25, 200],
+        "channel": "SS e^{#pm}#mu^{#pm}",
+        "channelPosX": 0.2,
+        "channelPosY": 0.72,
+        "_description": "Same-sign channel with superscripts"
+    },
+
+    "opposite_sign_channel": {
+        "xTitle": "p_{T}^{sublead} [GeV]",
+        "yTitle": "Events",
+        "xRange": [20, 150],
+        "channel": "OS e^{#pm}#mu^{#mp}",
+        "channelPosX": 0.2,
+        "channelPosY": 0.72,
+        "_description": "Opposite-sign channel with ± symbols"
+    },
+
+    "trilepton_1e2mu": {
+        "xTitle": "M_{3l} [GeV]",
+        "yTitle": "Events / 5 GeV",
+        "xRange": [0, 300],
+        "rebin": 5,
+        "channel": "1e2#mu channel",
+        "channelPosX": 0.2,
+        "channelPosY": 0.7,
+        "_description": "1e2μ tri-lepton channel"
+    },
+
+    "trilepton_3mu": {
+        "xTitle": "M_{3l} [GeV]",
+        "yTitle": "Events / 5 GeV",
+        "xRange": [0, 300],
+        "rebin": 5,
+        "channel": "3#mu channel",
+        "channelPosX": 0.2,
+        "channelPosY": 0.7,
+        "_description": "3μ tri-lepton channel"
+    },
+
+    "tau_channel": {
+        "xTitle": "p_{T}(#tau_{h}) [GeV]",
+        "yTitle": "Events",
+        "xRange": [20, 200],
+        "channel": "#mu#tau_{h} channel",
+        "channelPosX": 0.22,
+        "channelPosY": 0.73,
+        "_description": "Muon + hadronic tau channel"
+    },
+
+    "photon_channel": {
+        "xTitle": "E_{#gamma} [GeV]",
+        "yTitle": "Events",
+        "xRange": [25, 200],
+        "channel": "#gamma#gamma",
+        "channelPosX": 0.75,
+        "channelPosY": 0.82,
+        "channelAlign": 31,
+        "channelFont": 61,
+        "channelSize": 0.055,
+        "_description": "Di-photon channel"
+    },
+
+    "no_channel": {
+        "xTitle": "Observable",
+        "yTitle": "Events",
+        "xRange": [0, 100],
+        "_description": "No channel text (backward compatible)"
+    },
+
+    "variable_binning_with_channel": {
+        "xTitle": "p_{T} [GeV]",
+        "yTitle": "Events",
+        "xRange": [10, 15, 20, 30, 50, 75, 100, 200],
+        "channel": "VR",
+        "channelPosX": 0.82,
+        "channelPosY": 0.88,
+        "channelAlign": 31,
+        "_description": "Variable binning combined with channel text"
+    }
+}

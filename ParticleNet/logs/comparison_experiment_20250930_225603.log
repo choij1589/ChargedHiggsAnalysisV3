@@ -1,0 +1,112 @@
+2025-09-30 22:56:03,976 - INFO - Experiment log: /home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/logs/comparison_experiment_20250930_225603.log
+2025-09-30 22:56:03,976 - INFO - ================================================================================
+2025-09-30 22:56:03,976 - INFO - PARTICLENET METHODOLOGY COMPARISON EXPERIMENT
+2025-09-30 22:56:03,976 - INFO - ================================================================================
+2025-09-30 22:56:03,976 - INFO - ============================================================
+2025-09-30 22:56:03,976 - INFO - METHODOLOGY COMPARISON EXPERIMENT CONFIGURATION
+2025-09-30 22:56:03,976 - INFO - ============================================================
+2025-09-30 22:56:03,976 - INFO - Signal Points:
+2025-09-30 22:56:03,976 - INFO -   1. TTToHcToWAToMuMu-MHc160_MA85 (160, 85)
+2025-09-30 22:56:03,976 - INFO -   2. TTToHcToWAToMuMu-MHc130_MA90 (130, 90)
+2025-09-30 22:56:03,976 - INFO -   3. TTToHcToWAToMuMu-MHc100_MA95 (100, 95)
+2025-09-30 22:56:03,976 - INFO - 
+Background Categories:
+2025-09-30 22:56:03,976 - INFO -   1. nonprompt: Skim_TriLep_TTLL_powheg
+2025-09-30 22:56:03,976 - INFO -   2. diboson: Skim_TriLep_WZTo3LNu_amcatnlo
+2025-09-30 22:56:03,977 - INFO -   3. ttZ: Skim_TriLep_TTZToLLNuNu
+2025-09-30 22:56:03,977 - INFO - 
+Training Configuration:
+2025-09-30 22:56:03,977 - INFO -   Fold: 3 (single fold test)
+2025-09-30 22:56:03,977 - INFO -   Channel: Run1E2Mu
+2025-09-30 22:56:03,977 - INFO - 
+Default Model Parameters:
+2025-09-30 22:56:03,977 - INFO -   model: ParticleNet
+2025-09-30 22:56:03,977 - INFO -   nNodes: 128
+2025-09-30 22:56:03,977 - INFO -   max_epochs: 81
+2025-09-30 22:56:03,977 - INFO -   optimizer: Adam
+2025-09-30 22:56:03,977 - INFO -   initLR: 0.001
+2025-09-30 22:56:03,977 - INFO -   weight_decay: 0.0001
+2025-09-30 22:56:03,977 - INFO -   scheduler: StepLR
+2025-09-30 22:56:03,977 - INFO -   loss_type: weighted_ce
+2025-09-30 22:56:03,977 - INFO -   dropout_p: 0.25
+2025-09-30 22:56:03,977 - INFO - 
+Training Matrix:
+2025-09-30 22:56:03,977 - INFO -   Multi-class scenarios: 3
+2025-09-30 22:56:03,977 - INFO -   Binary scenarios: 9
+2025-09-30 22:56:03,977 - INFO -   Total training jobs: 12
+2025-09-30 22:56:03,977 - INFO - 
+Multi-Class Training:
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:03,977 - INFO - 
+Binary Training:
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. nonprompt
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. diboson
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. ttZ
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. nonprompt
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. diboson
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. ttZ
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. nonprompt
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. diboson
+2025-09-30 22:56:03,977 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. ttZ
+2025-09-30 22:56:03,977 - INFO - ============================================================
+2025-09-30 22:56:03,977 - INFO - Validating environment and datasets...
+2025-09-30 22:56:03,977 - INFO - Environment validation completed
+2025-09-30 22:56:03,977 - INFO - Validating experiment datasets...
+2025-09-30 22:56:03,977 - INFO - All required datasets found
+2025-09-30 22:56:03,978 - INFO - Setting up experiment directories...
+2025-09-30 22:56:03,978 - INFO - Experiment directories created in: /home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/results_bjets/comparison_experiment
+2025-09-30 22:56:03,978 - INFO - ============================================================
+2025-09-30 22:56:03,978 - INFO - STARTING MULTI-CLASS TRAINING
+2025-09-30 22:56:03,978 - INFO - ============================================================
+2025-09-30 22:56:03,978 - INFO - Multi-class training 1/3: TTToHcToWAToMuMu-MHc160_MA85 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:03,978 - INFO - DRY RUN - Would execute: python python/trainMultiClass.py --signal MHc160_MA85 --channel Run1E2Mu --fold 3 --backgrounds TTLL_powheg WZTo3LNu_amcatnlo TTZToLLNuNu --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,978 - INFO - Multi-class training 2/3: TTToHcToWAToMuMu-MHc130_MA90 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:03,978 - INFO - DRY RUN - Would execute: python python/trainMultiClass.py --signal MHc130_MA90 --channel Run1E2Mu --fold 3 --backgrounds TTLL_powheg WZTo3LNu_amcatnlo TTZToLLNuNu --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,978 - INFO - Multi-class training 3/3: TTToHcToWAToMuMu-MHc100_MA95 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:03,978 - INFO - DRY RUN - Would execute: python python/trainMultiClass.py --signal MHc100_MA95 --channel Run1E2Mu --fold 3 --backgrounds TTLL_powheg WZTo3LNu_amcatnlo TTZToLLNuNu --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,978 - INFO - ============================================================
+2025-09-30 22:56:03,978 - INFO - MULTI-CLASS TRAINING COMPLETED (DRY RUN)
+2025-09-30 22:56:03,978 - INFO - ============================================================
+2025-09-30 22:56:03,978 - INFO - ============================================================
+2025-09-30 22:56:03,978 - INFO - STARTING BINARY TRAINING
+2025-09-30 22:56:03,978 - INFO - ============================================================
+2025-09-30 22:56:03,978 - INFO - Binary training 1/9: TTToHcToWAToMuMu-MHc160_MA85 vs. nonprompt
+2025-09-30 22:56:03,978 - INFO - DRY RUN - Would execute: python python/trainBinary.py --signal MHc160_MA85 --background nonprompt --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,978 - INFO - Binary training 2/9: TTToHcToWAToMuMu-MHc160_MA85 vs. diboson
+2025-09-30 22:56:03,978 - INFO - DRY RUN - Would execute: python python/trainBinary.py --signal MHc160_MA85 --background diboson --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,978 - INFO - Binary training 3/9: TTToHcToWAToMuMu-MHc160_MA85 vs. ttZ
+2025-09-30 22:56:03,978 - INFO - DRY RUN - Would execute: python python/trainBinary.py --signal MHc160_MA85 --background ttZ --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,978 - INFO - Binary training 4/9: TTToHcToWAToMuMu-MHc130_MA90 vs. nonprompt
+2025-09-30 22:56:03,979 - INFO - DRY RUN - Would execute: python python/trainBinary.py --signal MHc130_MA90 --background nonprompt --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,979 - INFO - Binary training 5/9: TTToHcToWAToMuMu-MHc130_MA90 vs. diboson
+2025-09-30 22:56:03,979 - INFO - DRY RUN - Would execute: python python/trainBinary.py --signal MHc130_MA90 --background diboson --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,979 - INFO - Binary training 6/9: TTToHcToWAToMuMu-MHc130_MA90 vs. ttZ
+2025-09-30 22:56:03,979 - INFO - DRY RUN - Would execute: python python/trainBinary.py --signal MHc130_MA90 --background ttZ --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,979 - INFO - Binary training 7/9: TTToHcToWAToMuMu-MHc100_MA95 vs. nonprompt
+2025-09-30 22:56:03,979 - INFO - DRY RUN - Would execute: python python/trainBinary.py --signal MHc100_MA95 --background nonprompt --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,979 - INFO - Binary training 8/9: TTToHcToWAToMuMu-MHc100_MA95 vs. diboson
+2025-09-30 22:56:03,979 - INFO - DRY RUN - Would execute: python python/trainBinary.py --signal MHc100_MA95 --background diboson --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,979 - INFO - Binary training 9/9: TTToHcToWAToMuMu-MHc100_MA95 vs. ttZ
+2025-09-30 22:56:03,979 - INFO - DRY RUN - Would execute: python python/trainBinary.py --signal MHc100_MA95 --background ttZ --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets
+2025-09-30 22:56:03,979 - INFO - ============================================================
+2025-09-30 22:56:03,979 - INFO - BINARY TRAINING COMPLETED (DRY RUN)
+2025-09-30 22:56:03,979 - INFO - ============================================================
+2025-09-30 22:56:03,979 - INFO - Saving experiment summary...
+2025-09-30 22:56:03,979 - INFO - Experiment summary saved: /home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/results_bjets/comparison_experiment/experiment_summary.json
+2025-09-30 22:56:03,979 - INFO - ================================================================================
+2025-09-30 22:56:03,979 - INFO - EXPERIMENT COMPLETED
+2025-09-30 22:56:03,979 - INFO - ================================================================================
+2025-09-30 22:56:03,979 - INFO - Total training jobs: 12
+2025-09-30 22:56:03,979 - INFO - Completed successfully: 0
+2025-09-30 22:56:03,979 - INFO - Failed: 0
+2025-09-30 22:56:03,979 - INFO - Success rate: 0.0%
+2025-09-30 22:56:03,979 - INFO - Total duration: 0.0 seconds (0.0 minutes)
+2025-09-30 22:56:03,980 - INFO - 
+Multi-class training: 0/3 completed
+2025-09-30 22:56:03,980 - INFO - Binary training: 0/9 completed
+2025-09-30 22:56:03,980 - INFO - 
+Results saved in: /home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/results_bjets/comparison_experiment
+2025-09-30 22:56:03,980 - INFO - Summary file: /home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/results_bjets/comparison_experiment/experiment_summary.json
+2025-09-30 22:56:03,980 - INFO - ================================================================================

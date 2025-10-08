@@ -1,0 +1,173 @@
+{
+  "multiclass": {
+    "total": 3,
+    "completed": 3,
+    "failed": 0
+  },
+  "binary": {
+    "total": 9,
+    "completed": 9,
+    "failed": 0
+  },
+  "start_time": "2025-10-01T06:48:19.252996",
+  "scenarios": [
+    {
+      "type": "multiclass",
+      "scenario": {
+        "type": "multiclass",
+        "signal": "TTToHcToWAToMuMu-MHc160_MA85",
+        "backgrounds": [
+          "Skim_TriLep_TTLL_powheg",
+          "Skim_TriLep_WZTo3LNu_amcatnlo",
+          "Skim_TriLep_TTZToLLNuNu"
+        ],
+        "num_classes": 4,
+        "description": "TTToHcToWAToMuMu-MHc160_MA85 vs. (nonprompt + diboson + ttZ)"
+      },
+      "command": "python python/trainMultiClass.py --signal MHc160_MA85 --channel Run1E2Mu --fold 3 --backgrounds TTLL_powheg WZTo3LNu_amcatnlo TTZToLLNuNu --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "multiclass",
+      "scenario": {
+        "type": "multiclass",
+        "signal": "TTToHcToWAToMuMu-MHc130_MA90",
+        "backgrounds": [
+          "Skim_TriLep_TTLL_powheg",
+          "Skim_TriLep_WZTo3LNu_amcatnlo",
+          "Skim_TriLep_TTZToLLNuNu"
+        ],
+        "num_classes": 4,
+        "description": "TTToHcToWAToMuMu-MHc130_MA90 vs. (nonprompt + diboson + ttZ)"
+      },
+      "command": "python python/trainMultiClass.py --signal MHc130_MA90 --channel Run1E2Mu --fold 3 --backgrounds TTLL_powheg WZTo3LNu_amcatnlo TTZToLLNuNu --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "multiclass",
+      "scenario": {
+        "type": "multiclass",
+        "signal": "TTToHcToWAToMuMu-MHc100_MA95",
+        "backgrounds": [
+          "Skim_TriLep_TTLL_powheg",
+          "Skim_TriLep_WZTo3LNu_amcatnlo",
+          "Skim_TriLep_TTZToLLNuNu"
+        ],
+        "num_classes": 4,
+        "description": "TTToHcToWAToMuMu-MHc100_MA95 vs. (nonprompt + diboson + ttZ)"
+      },
+      "command": "python python/trainMultiClass.py --signal MHc100_MA95 --channel Run1E2Mu --fold 3 --backgrounds TTLL_powheg WZTo3LNu_amcatnlo TTZToLLNuNu --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "binary",
+      "scenario": {
+        "type": "binary",
+        "signal": "TTToHcToWAToMuMu-MHc160_MA85",
+        "background": "Skim_TriLep_TTLL_powheg",
+        "background_category": "nonprompt",
+        "num_classes": 2,
+        "description": "TTToHcToWAToMuMu-MHc160_MA85 vs. nonprompt"
+      },
+      "command": "python python/trainBinary.py --signal MHc160_MA85 --background nonprompt --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "binary",
+      "scenario": {
+        "type": "binary",
+        "signal": "TTToHcToWAToMuMu-MHc160_MA85",
+        "background": "Skim_TriLep_WZTo3LNu_amcatnlo",
+        "background_category": "diboson",
+        "num_classes": 2,
+        "description": "TTToHcToWAToMuMu-MHc160_MA85 vs. diboson"
+      },
+      "command": "python python/trainBinary.py --signal MHc160_MA85 --background diboson --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "binary",
+      "scenario": {
+        "type": "binary",
+        "signal": "TTToHcToWAToMuMu-MHc160_MA85",
+        "background": "Skim_TriLep_TTZToLLNuNu",
+        "background_category": "ttZ",
+        "num_classes": 2,
+        "description": "TTToHcToWAToMuMu-MHc160_MA85 vs. ttZ"
+      },
+      "command": "python python/trainBinary.py --signal MHc160_MA85 --background ttZ --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "binary",
+      "scenario": {
+        "type": "binary",
+        "signal": "TTToHcToWAToMuMu-MHc130_MA90",
+        "background": "Skim_TriLep_TTLL_powheg",
+        "background_category": "nonprompt",
+        "num_classes": 2,
+        "description": "TTToHcToWAToMuMu-MHc130_MA90 vs. nonprompt"
+      },
+      "command": "python python/trainBinary.py --signal MHc130_MA90 --background nonprompt --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "binary",
+      "scenario": {
+        "type": "binary",
+        "signal": "TTToHcToWAToMuMu-MHc130_MA90",
+        "background": "Skim_TriLep_WZTo3LNu_amcatnlo",
+        "background_category": "diboson",
+        "num_classes": 2,
+        "description": "TTToHcToWAToMuMu-MHc130_MA90 vs. diboson"
+      },
+      "command": "python python/trainBinary.py --signal MHc130_MA90 --background diboson --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "binary",
+      "scenario": {
+        "type": "binary",
+        "signal": "TTToHcToWAToMuMu-MHc130_MA90",
+        "background": "Skim_TriLep_TTZToLLNuNu",
+        "background_category": "ttZ",
+        "num_classes": 2,
+        "description": "TTToHcToWAToMuMu-MHc130_MA90 vs. ttZ"
+      },
+      "command": "python python/trainBinary.py --signal MHc130_MA90 --background ttZ --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "binary",
+      "scenario": {
+        "type": "binary",
+        "signal": "TTToHcToWAToMuMu-MHc100_MA95",
+        "background": "Skim_TriLep_TTLL_powheg",
+        "background_category": "nonprompt",
+        "num_classes": 2,
+        "description": "TTToHcToWAToMuMu-MHc100_MA95 vs. nonprompt"
+      },
+      "command": "python python/trainBinary.py --signal MHc100_MA95 --background nonprompt --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "binary",
+      "scenario": {
+        "type": "binary",
+        "signal": "TTToHcToWAToMuMu-MHc100_MA95",
+        "background": "Skim_TriLep_WZTo3LNu_amcatnlo",
+        "background_category": "diboson",
+        "num_classes": 2,
+        "description": "TTToHcToWAToMuMu-MHc100_MA95 vs. diboson"
+      },
+      "command": "python python/trainBinary.py --signal MHc100_MA95 --background diboson --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    },
+    {
+      "type": "binary",
+      "scenario": {
+        "type": "binary",
+        "signal": "TTToHcToWAToMuMu-MHc100_MA95",
+        "background": "Skim_TriLep_TTZToLLNuNu",
+        "background_category": "ttZ",
+        "num_classes": 2,
+        "description": "TTToHcToWAToMuMu-MHc100_MA95 vs. ttZ"
+      },
+      "command": "python python/trainBinary.py --signal MHc100_MA95 --background ttZ --channel Run1E2Mu --fold 3 --model ParticleNet --nNodes 128 --max_epochs 81 --optimizer Adam --initLR 0.001 --weight_decay 0.0001 --scheduler StepLR --loss_type weighted_ce --dropout_p 0.25 --separate_bjets"
+    }
+  ],
+  "end_time": "2025-10-01T10:50:10.756964",
+  "total_duration": 14511.503968,
+  "total_jobs": 12,
+  "total_completed": 12,
+  "total_failed": 0
+}

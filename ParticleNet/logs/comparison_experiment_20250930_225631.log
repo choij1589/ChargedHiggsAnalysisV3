@@ -1,0 +1,68 @@
+2025-09-30 22:56:31,022 - INFO - Experiment log: /home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/logs/comparison_experiment_20250930_225631.log
+2025-09-30 22:56:31,022 - INFO - ================================================================================
+2025-09-30 22:56:31,022 - INFO - PARTICLENET METHODOLOGY COMPARISON EXPERIMENT
+2025-09-30 22:56:31,023 - INFO - ================================================================================
+2025-09-30 22:56:31,023 - INFO - ============================================================
+2025-09-30 22:56:31,023 - INFO - METHODOLOGY COMPARISON EXPERIMENT CONFIGURATION
+2025-09-30 22:56:31,023 - INFO - ============================================================
+2025-09-30 22:56:31,023 - INFO - Signal Points:
+2025-09-30 22:56:31,023 - INFO -   1. TTToHcToWAToMuMu-MHc160_MA85 (160, 85)
+2025-09-30 22:56:31,023 - INFO -   2. TTToHcToWAToMuMu-MHc130_MA90 (130, 90)
+2025-09-30 22:56:31,023 - INFO -   3. TTToHcToWAToMuMu-MHc100_MA95 (100, 95)
+2025-09-30 22:56:31,023 - INFO - 
+Background Categories:
+2025-09-30 22:56:31,023 - INFO -   1. nonprompt: Skim_TriLep_TTLL_powheg
+2025-09-30 22:56:31,023 - INFO -   2. diboson: Skim_TriLep_WZTo3LNu_amcatnlo
+2025-09-30 22:56:31,023 - INFO -   3. ttZ: Skim_TriLep_TTZToLLNuNu
+2025-09-30 22:56:31,023 - INFO - 
+Training Configuration:
+2025-09-30 22:56:31,023 - INFO -   Fold: 3 (single fold test)
+2025-09-30 22:56:31,023 - INFO -   Channel: Run1E2Mu
+2025-09-30 22:56:31,023 - INFO - 
+Default Model Parameters:
+2025-09-30 22:56:31,023 - INFO -   model: ParticleNet
+2025-09-30 22:56:31,023 - INFO -   nNodes: 128
+2025-09-30 22:56:31,023 - INFO -   max_epochs: 81
+2025-09-30 22:56:31,023 - INFO -   optimizer: Adam
+2025-09-30 22:56:31,023 - INFO -   initLR: 0.001
+2025-09-30 22:56:31,023 - INFO -   weight_decay: 0.0001
+2025-09-30 22:56:31,023 - INFO -   scheduler: StepLR
+2025-09-30 22:56:31,023 - INFO -   loss_type: weighted_ce
+2025-09-30 22:56:31,023 - INFO -   dropout_p: 0.25
+2025-09-30 22:56:31,024 - INFO - 
+Training Matrix:
+2025-09-30 22:56:31,024 - INFO -   Multi-class scenarios: 3
+2025-09-30 22:56:31,024 - INFO -   Binary scenarios: 9
+2025-09-30 22:56:31,024 - INFO -   Total training jobs: 12
+2025-09-30 22:56:31,024 - INFO - 
+Multi-Class Training:
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:31,024 - INFO - 
+Binary Training:
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. nonprompt
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. diboson
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. ttZ
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. nonprompt
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. diboson
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. ttZ
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. nonprompt
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. diboson
+2025-09-30 22:56:31,024 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. ttZ
+2025-09-30 22:56:31,024 - INFO - ============================================================
+2025-09-30 22:56:31,024 - INFO - Validating environment and datasets...
+2025-09-30 22:56:31,024 - INFO - Environment validation completed
+2025-09-30 22:56:31,024 - INFO - Validating experiment datasets...
+2025-09-30 22:56:31,024 - INFO - All required datasets found
+2025-09-30 22:56:31,024 - INFO - Setting up experiment directories...
+2025-09-30 22:56:31,025 - INFO - Experiment directories created in: /home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/results_bjets/comparison_experiment
+2025-09-30 22:56:31,025 - INFO - ============================================================
+2025-09-30 22:56:31,025 - INFO - STARTING MULTI-CLASS TRAINING
+2025-09-30 22:56:31,025 - INFO - ============================================================
+2025-09-30 22:56:31,025 - INFO - Multi-class training 1/3: TTToHcToWAToMuMu-MHc160_MA85 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:31,025 - INFO - Multi-class training 2/3: TTToHcToWAToMuMu-MHc130_MA90 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:31,025 - INFO - Multi-class training 3/3: TTToHcToWAToMuMu-MHc100_MA95 vs. (nonprompt + diboson + ttZ)
+2025-09-30 22:56:31,025 - INFO - Executing 3 multi-class training jobs in parallel...
+2025-09-30 22:56:31,106 - INFO - Using GNU parallel with 2 jobs
+2025-09-30 22:56:31,106 - INFO - Job log: /home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/logs/multiclass_training_20250930_225631.log

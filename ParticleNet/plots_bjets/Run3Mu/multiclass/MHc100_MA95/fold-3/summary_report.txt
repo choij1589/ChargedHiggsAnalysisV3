@@ -1,0 +1,31 @@
+Multi-class Classification Summary: MHc100_MA95 (Physics-Weighted)
+======================================================================
+
+Model Configuration:
+------------------------------
+  Signal: MHc100_MA95
+  Channel: Run3Mu
+  Fold: 3
+  Model Type: ParticleNet
+  Number of Classes: 4
+  Parameters: 272807
+
+Training Results:
+------------------------------
+  Epochs Completed: 76
+  Early Stopped: True
+  Total Training Time (s): 3290.25
+  Average Epoch Time (s): 43.29
+  Best Validation Loss: 0.8973
+  Final Memory Usage (MB): 5650.8
+
+Performance Metrics:
+------------------------------
+  Test Loss: 0.8958
+  Test Accuracy: 0.63
+  Physics-Weighted ROC AUCs:
+    Signal vs. Nonprompt: 0.8308
+    Signal vs. Diboson: 0.9557
+    Signal vs. TTZ: 0.8189
+  Note: Metrics use physics event weights for proper evaluation
+

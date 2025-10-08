@@ -1,0 +1,31 @@
+Multi-class Classification Summary: MHc130_MA90 (Physics-Weighted)
+======================================================================
+
+Model Configuration:
+------------------------------
+  Signal: MHc130_MA90
+  Channel: Run1E2Mu
+  Fold: 3
+  Model Type: ParticleNet
+  Number of Classes: 4
+  Parameters: 272807
+
+Training Results:
+------------------------------
+  Epochs Completed: 81
+  Early Stopped: False
+  Total Training Time (s): 8933.7
+  Average Epoch Time (s): 110.29
+  Best Validation Loss: 0.5809
+  Final Memory Usage (MB): 9567.6
+
+Performance Metrics:
+------------------------------
+  Test Loss: 0.5712
+  Test Accuracy: 0.7605
+  Physics-Weighted ROC AUCs:
+    Signal vs. Nonprompt: 0.9405
+    Signal vs. Diboson: 0.9923
+    Signal vs. TTZ: 0.9259
+  Note: Metrics use physics event weights for proper evaluation
+

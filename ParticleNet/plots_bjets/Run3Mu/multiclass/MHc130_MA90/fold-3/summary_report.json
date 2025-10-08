@@ -1,0 +1,28 @@
+{
+  "Model Configuration": {
+    "Signal": "MHc130_MA90",
+    "Channel": "Run3Mu",
+    "Fold": 3,
+    "Model Type": "ParticleNet",
+    "Number of Classes": 4,
+    "Parameters": 272807
+  },
+  "Training Results": {
+    "Epochs Completed": 63,
+    "Early Stopped": true,
+    "Total Training Time (s)": 5869.7,
+    "Average Epoch Time (s)": 93.17,
+    "Best Validation Loss": 0.8961,
+    "Final Memory Usage (MB)": 6312.7
+  },
+  "Performance Metrics": {
+    "Test Loss": 0.8953,
+    "Test Accuracy": 0.6304,
+    "Physics-Weighted ROC AUCs": {
+      "Signal vs. Nonprompt": 0.8392,
+      "Signal vs. Diboson": 0.9554,
+      "Signal vs. TTZ": 0.8072
+    },
+    "Note": "Metrics use physics event weights for proper evaluation"
+  }
+}
