@@ -105,3 +105,4 @@ All Python analysis scripts follow common patterns:
 - GNU parallel extensively used for multi-core processing
 - JSON configuration files control histogram properties and systematic ranges
 - When creating files with directory paths, always use `os.makedirs(os.path.dirname(file_path), exist_ok=True)` before file creation
+- Do not make silent fallbacks. Raise error when the behaviour of the function call in not expected.

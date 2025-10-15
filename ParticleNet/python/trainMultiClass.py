@@ -90,6 +90,11 @@ def main():
         test_results = orchestrator.evaluate_final_performance()
         training_results.update(test_results)
 
+        # 7.5. B-Jet Subset Evaluation
+        logging.info("Evaluating performance on b-jet subset...")
+        bjet_results = orchestrator.evaluate_bjet_subset_performance()
+        training_results['bjet_subset_results'] = bjet_results
+
         # 8. Save Training Summary
         orchestrator.save_training_summary(summary_path)
 

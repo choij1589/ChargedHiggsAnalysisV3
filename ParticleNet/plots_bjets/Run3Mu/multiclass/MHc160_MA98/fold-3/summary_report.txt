@@ -1,0 +1,31 @@
+Multi-class Classification Summary: MHc160_MA98 (Physics-Weighted)
+======================================================================
+
+Model Configuration:
+------------------------------
+  Signal: MHc160_MA98
+  Channel: Run3Mu
+  Fold: 3
+  Model Type: ParticleNet
+  Number of Classes: 4
+  Parameters: 272807
+
+Training Results:
+------------------------------
+  Epochs Completed: 81
+  Early Stopped: False
+  Total Training Time (s): 8243.19
+  Average Epoch Time (s): 101.77
+  Best Validation Loss: 0.9321
+  Final Memory Usage (MB): 7095.2
+
+Performance Metrics:
+------------------------------
+  Test Loss: 0.9327
+  Test Accuracy: 0.6136
+  Physics-Weighted ROC AUCs:
+    Signal vs. Nonprompt: 0.8015
+    Signal vs. Diboson: 0.9175
+    Signal vs. TTZ: 0.8256
+  Note: Metrics use physics event weights for proper evaluation
+

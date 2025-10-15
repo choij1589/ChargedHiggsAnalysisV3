@@ -168,7 +168,7 @@ class ComparisonExperimentOrchestrator:
             f"{self.experiment_root}",
             f"{self.experiment_root}/multiclass",
             f"{self.experiment_root}/binary",
-            f"{self.experiment_root}/analysis",
+            #f"{self.experiment_root}/analysis",
             f"{self.experiment_root}/logs"
         ]
 

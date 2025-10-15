@@ -23,6 +23,7 @@ from TrainingUtilities import (
 from MultiClassModels import create_multiclass_model
 from WeightedLoss import create_loss_function
 from MLTools import EarlyStopper, SummaryWriter
+from BjetSubsetUtils import create_bjet_subset_loader, get_bjet_subset_statistics
 
 
 class TrainingOrchestrator:
@@ -227,6 +228,206 @@ class TrainingOrchestrator:
         logging.info(f"Final test accuracy: {test_acc*100:.2f}%")
         logging.info(f"Training completed in {self.total_training_time:.1f} seconds")
         logging.info(f"Average epoch time: {self.total_training_time/(self.current_epoch+1):.1f} seconds")
+
+        return results
+
+    def evaluate_bjet_subset_performance(self) -> Dict[str, Any]:
+        """
+        Evaluate model performance on subset of train and test events containing b-jets.
+
+        Returns:
+            Dictionary containing b-jet subset performance metrics and statistics
+        """
+        logging.info("=" * 60)
+        logging.info("EVALUATING B-JET SUBSET PERFORMANCE")
+        logging.info("=" * 60)
+
+        # ========== TRAIN SET EVALUATION ==========
+        logging.info("\n[TRAIN SET B-JET SUBSET EVALUATION]")
+
+        # Get b-jet subset statistics for train data
+        train_stats = get_bjet_subset_statistics(
+            self.data_pipeline.train_data,
+            separate_bjets=self.config.args.separate_bjets
+        )
+
+        logging.info(f"Train set b-jet statistics:")
+        logging.info(f"  Total events: {train_stats['total_events']}")
+        logging.info(f"  Events with b-jets: {train_stats['bjet_events']} "
+                    f"({train_stats['bjet_event_fraction']*100:.1f}%)")
+        logging.info(f"  Total b-jets: {train_stats['total_bjets']}")
+        logging.info(f"  Avg b-jets per b-jet event: {train_stats['avg_bjets_per_bjet_event']:.2f}")
+
+        train_bjet_results = None
+        if train_stats['bjet_events'] > 0:
+            # Create b-jet subset loader for train data
+            train_bjet_loader, train_original_count, train_filtered_count = create_bjet_subset_loader(
+                self.data_pipeline.train_data,
+                separate_bjets=self.config.args.separate_bjets,
+                batch_size=1024
+            )
+
+            if train_bjet_loader is not None:
+                # Evaluate on train b-jet subset
+                train_bjet_loss, train_bjet_acc = evaluate_model(
+                    self.model, train_bjet_loader,
+                    self.loss_fn, self.device,
+                    self.config.use_groups, self.config.num_classes
+                )
+
+                # Get full train set performance for comparison
+                full_train_loss, full_train_acc = evaluate_model(
+                    self.model, self.data_pipeline.train_loader,
+                    self.loss_fn, self.device,
+                    self.config.use_groups, self.config.num_classes
+                )
+
+                # Calculate deltas
+                train_acc_delta = train_bjet_acc - full_train_acc
+                train_loss_delta = train_bjet_loss - full_train_loss
+
+                train_bjet_results = {
+                    'has_bjet_events': True,
+                    'statistics': train_stats,
+                    'bjet_subset_loss': train_bjet_loss,
+                    'bjet_subset_accuracy': train_bjet_acc,
+                    'full_train_loss': full_train_loss,
+                    'full_train_accuracy': full_train_acc,
+                    'accuracy_delta': train_acc_delta,
+                    'loss_delta': train_loss_delta,
+                    'bjet_event_count': train_filtered_count,
+                    'total_train_count': train_original_count
+                }
+
+                # Log comparison
+                logging.info("\nTrain Set Performance Comparison:")
+                logging.info(f"  Full train set: Acc={full_train_acc*100:.2f}%, Loss={full_train_loss:.4f}")
+                logging.info(f"  B-jet subset:   Acc={train_bjet_acc*100:.2f}%, Loss={train_bjet_loss:.4f}")
+                logging.info(f"  Delta:          Acc={train_acc_delta*100:+.2f}pp, Loss={train_loss_delta:+.4f}")
+
+                if abs(train_acc_delta) > 0.05:  # More than 5pp difference
+                    if train_acc_delta > 0:
+                        logging.info("  => Model performs BETTER on train events with b-jets")
+                    else:
+                        logging.info("  => Model performs WORSE on train events with b-jets")
+                else:
+                    logging.info("  => Performance is similar on train events with and without b-jets")
+            else:
+                logging.warning("Failed to create train b-jet subset loader.")
+        else:
+            logging.warning("No events with b-jets found in train set.")
+
+        # ========== TEST SET EVALUATION ==========
+        logging.info("\n[TEST SET B-JET SUBSET EVALUATION]")
+
+        # Get b-jet subset statistics for test data
+        test_stats = get_bjet_subset_statistics(
+            self.data_pipeline.test_data,
+            separate_bjets=self.config.args.separate_bjets
+        )
+
+        logging.info(f"Test set b-jet statistics:")
+        logging.info(f"  Total events: {test_stats['total_events']}")
+        logging.info(f"  Events with b-jets: {test_stats['bjet_events']} "
+                    f"({test_stats['bjet_event_fraction']*100:.1f}%)")
+        logging.info(f"  Total b-jets: {test_stats['total_bjets']}")
+        logging.info(f"  Avg b-jets per b-jet event: {test_stats['avg_bjets_per_bjet_event']:.2f}")
+
+        test_bjet_results = None
+        if test_stats['bjet_events'] > 0:
+            # Create b-jet subset loader for test data
+            test_bjet_loader, test_original_count, test_filtered_count = create_bjet_subset_loader(
+                self.data_pipeline.test_data,
+                separate_bjets=self.config.args.separate_bjets,
+                batch_size=1024
+            )
+
+            if test_bjet_loader is not None:
+                # Evaluate on test b-jet subset
+                test_bjet_loss, test_bjet_acc = evaluate_model(
+                    self.model, test_bjet_loader,
+                    self.loss_fn, self.device,
+                    self.config.use_groups, self.config.num_classes
+                )
+
+                # Get full test set performance for comparison
+                full_test_loss, full_test_acc = evaluate_model(
+                    self.model, self.data_pipeline.test_loader,
+                    self.loss_fn, self.device,
+                    self.config.use_groups, self.config.num_classes
+                )
+
+                # Calculate deltas
+                test_acc_delta = test_bjet_acc - full_test_acc
+                test_loss_delta = test_bjet_loss - full_test_loss
+
+                test_bjet_results = {
+                    'has_bjet_events': True,
+                    'statistics': test_stats,
+                    'bjet_subset_loss': test_bjet_loss,
+                    'bjet_subset_accuracy': test_bjet_acc,
+                    'full_test_loss': full_test_loss,
+                    'full_test_accuracy': full_test_acc,
+                    'accuracy_delta': test_acc_delta,
+                    'loss_delta': test_loss_delta,
+                    'bjet_event_count': test_filtered_count,
+                    'total_test_count': test_original_count
+                }
+
+                # Log comparison
+                logging.info("\nTest Set Performance Comparison:")
+                logging.info(f"  Full test set: Acc={full_test_acc*100:.2f}%, Loss={full_test_loss:.4f}")
+                logging.info(f"  B-jet subset:  Acc={test_bjet_acc*100:.2f}%, Loss={test_bjet_loss:.4f}")
+                logging.info(f"  Delta:         Acc={test_acc_delta*100:+.2f}pp, Loss={test_loss_delta:+.4f}")
+
+                if abs(test_acc_delta) > 0.05:  # More than 5pp difference
+                    if test_acc_delta > 0:
+                        logging.info("  => Model performs BETTER on test events with b-jets")
+                    else:
+                        logging.info("  => Model performs WORSE on test events with b-jets")
+                else:
+                    logging.info("  => Performance is similar on test events with and without b-jets")
+            else:
+                logging.warning("Failed to create test b-jet subset loader.")
+        else:
+            logging.warning("No events with b-jets found in test set.")
+
+        # ========== SUMMARY ==========
+        logging.info("\n[B-JET SUBSET EVALUATION SUMMARY]")
+
+        # Construct comprehensive results
+        results = {
+            'train_results': train_bjet_results if train_bjet_results else {
+                'has_bjet_events': False,
+                'statistics': train_stats
+            },
+            'test_results': test_bjet_results if test_bjet_results else {
+                'has_bjet_events': False,
+                'statistics': test_stats
+            }
+        }
+
+        # Compare train vs test b-jet performance if both are available
+        if train_bjet_results and test_bjet_results:
+            train_test_acc_gap = train_bjet_results['bjet_subset_accuracy'] - test_bjet_results['bjet_subset_accuracy']
+            train_test_loss_gap = train_bjet_results['bjet_subset_loss'] - test_bjet_results['bjet_subset_loss']
+
+            results['train_test_comparison'] = {
+                'bjet_accuracy_gap': train_test_acc_gap,
+                'bjet_loss_gap': train_test_loss_gap
+            }
+
+            logging.info("Train vs Test B-jet Subset Performance:")
+            logging.info(f"  Train B-jet Acc: {train_bjet_results['bjet_subset_accuracy']*100:.2f}%")
+            logging.info(f"  Test B-jet Acc:  {test_bjet_results['bjet_subset_accuracy']*100:.2f}%")
+            logging.info(f"  Gap (Train-Test): {train_test_acc_gap*100:+.2f}pp")
+
+            if abs(train_test_acc_gap) > 0.10:  # More than 10pp gap
+                logging.info("  => Significant train-test performance gap on b-jet events")
+            else:
+                logging.info("  => Train-test performance is consistent on b-jet events")
+
+        logging.info("=" * 60)
 
         return results
 

@@ -1,0 +1,31 @@
+Multi-class Classification Summary: MHc115_MA87 (Physics-Weighted)
+======================================================================
+
+Model Configuration:
+------------------------------
+  Signal: MHc115_MA87
+  Channel: Run1E2Mu
+  Fold: 3
+  Model Type: ParticleNet
+  Number of Classes: 4
+  Parameters: 272807
+
+Training Results:
+------------------------------
+  Epochs Completed: 40
+  Early Stopped: True
+  Total Training Time (s): 5140.43
+  Average Epoch Time (s): 128.51
+  Best Validation Loss: 0.8478
+  Final Memory Usage (MB): 9808.2
+
+Performance Metrics:
+------------------------------
+  Test Loss: 0.8512
+  Test Accuracy: 0.6527
+  Physics-Weighted ROC AUCs:
+    Signal vs. Nonprompt: 0.8531
+    Signal vs. Diboson: 0.9654
+    Signal vs. TTZ: 0.837
+  Note: Metrics use physics event weights for proper evaluation
+

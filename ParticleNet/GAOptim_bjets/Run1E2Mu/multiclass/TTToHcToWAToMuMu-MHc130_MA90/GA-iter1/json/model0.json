@@ -1,0 +1,80 @@
+{
+  "hyperparameters": {
+    "signal": "MHc130_MA90",
+    "channel": "Run1E2Mu",
+    "iteration": 1,
+    "model_idx": 0,
+    "num_hidden": 64,
+    "optimizer": "Adadelta",
+    "initial_lr": 0.0001,
+    "weight_decay": 8e-05,
+    "scheduler": "ReduceLROnPlateau",
+    "pilot_mode": true,
+    "num_classes": 4,
+    "model_type": "ParticleNet",
+    "num_node_features": 9,
+    "num_graph_features": 4,
+    "dropout_p": 0.25,
+    "batch_size": 1024,
+    "train_folds": [
+      0,
+      2,
+      4
+    ],
+    "valid_folds": [
+      1
+    ]
+  },
+  "training_summary": {
+    "best_epoch": 4,
+    "best_train_loss": 1.4510897670139262,
+    "best_valid_loss": 1.4614026550952477,
+    "best_train_acc": 0.2726320201173512,
+    "best_valid_acc": 0.2613831657546965,
+    "total_epochs": 5
+  },
+  "epoch_history": {
+    "train_loss": [
+      1.4584481516794194,
+      1.4579955974489067,
+      1.4594124866837415,
+      1.455587305201323,
+      1.4510897670139262
+    ],
+    "valid_loss": [
+      1.4663275723643558,
+      1.4670833446506528,
+      1.4693624361838216,
+      1.4663859393499958,
+      1.4614026550952477
+    ],
+    "train_acc": [
+      0.25939602637004144,
+      0.2627375909018826,
+      0.264385718493011,
+      0.2699927505040665,
+      0.2726320201173512
+    ],
+    "valid_acc": [
+      0.25205934061592555,
+      0.254469312367896,
+      0.2547261126365486,
+      0.2585188550658791,
+      0.2613831657546965
+    ],
+    "epoch": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "timestamp": [
+      1760523149.2228396,
+      1760523179.350816,
+      1760523210.7061145,
+      1760523241.230181,
+      1760523266.837105
+    ]
+  }
+}

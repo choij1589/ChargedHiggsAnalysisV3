@@ -1,0 +1,27 @@
+B-JET SUBSET PERFORMANCE SUMMARY
+======================================================================
+
+TRAINING SET:
+----------------------------------------
+Total events: 340566
+Events with b-jets: 248935 (73.1%)
+Average b-jets per b-jet event: 1.48
+
+Full dataset - Accuracy: 0.6430, Loss: 0.8560
+B-jet subset - Accuracy: 0.6244, Loss: 0.8664
+Delta - Accuracy: -0.0186, Loss: +0.0104
+
+TEST SET:
+----------------------------------------
+Total events: 130922
+Events with b-jets: 93284 (71.3%)
+Average b-jets per b-jet event: 1.46
+
+Full dataset - Accuracy: 0.6291, Loss: 0.8970
+B-jet subset - Accuracy: 0.6058, Loss: 0.9129
+Delta - Accuracy: -0.0233, Loss: +0.0159
+
+TRAIN vs TEST (B-jet subset):
+----------------------------------------
+Accuracy gap (train - test): +0.0186
+Loss gap (train - test): -0.0465

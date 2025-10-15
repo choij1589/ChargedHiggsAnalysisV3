@@ -23,6 +23,9 @@ class ExperimentConfig:
         ("MHc160", "MA85"),   # (160, 85)
         ("MHc130", "MA90"),   # (130, 90)
         ("MHc100", "MA95"),   # (100, 95)
+        #("MHc115", "MA87"),   # (115, 87)
+        #("MHc145", "MA92"),   # (145, 92)
+        #("MHc160", "MA98")    # (160, 98)
     ]
 
     # Background categories and their corresponding sample names

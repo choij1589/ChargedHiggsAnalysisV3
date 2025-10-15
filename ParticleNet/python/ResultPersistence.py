@@ -18,6 +18,7 @@ import ROOT
 from TrainingConfig import TrainingConfig
 from DataPipeline import DataPipeline
 from TrainingUtilities import extract_weights_from_batch
+from BjetSubsetUtils import has_bjet_in_event
 
 
 class ResultPersistence:
@@ -76,11 +77,13 @@ class ResultPersistence:
         train_mask = array("B", [False])
         valid_mask = array("B", [False])
         test_mask = array("B", [False])
+        has_bjet = array("B", [False])
 
         tree.Branch("true_label", true_label, "true_label/I")
         tree.Branch("train_mask", train_mask, "train_mask/O")
         tree.Branch("valid_mask", valid_mask, "valid_mask/O")
         tree.Branch("test_mask", test_mask, "test_mask/O")
+        tree.Branch("has_bjet", has_bjet, "has_bjet/O")
 
         # Weight branches for class imbalance analysis
         event_weight = array("f", [0.])
@@ -88,17 +91,17 @@ class ResultPersistence:
 
         # Save predictions for all data splits
         self._save_split_predictions(model, data_pipeline.train_loader, device, tree,
-                                   score_arrays, true_label, event_weight,
+                                   score_arrays, true_label, event_weight, has_bjet,
                                    train_mask, valid_mask, test_mask,
                                    is_train=True)
 
         self._save_split_predictions(model, data_pipeline.valid_loader, device, tree,
-                                   score_arrays, true_label, event_weight,
+                                   score_arrays, true_label, event_weight, has_bjet,
                                    train_mask, valid_mask, test_mask,
                                    is_valid=True)
 
         self._save_split_predictions(model, data_pipeline.test_loader, device, tree,
-                                   score_arrays, true_label, event_weight,
+                                   score_arrays, true_label, event_weight, has_bjet,
                                    train_mask, valid_mask, test_mask,
                                    is_test=True)
 
@@ -150,8 +153,8 @@ class ResultPersistence:
     def _save_split_predictions(self, model: torch.nn.Module, data_loader,
                                device: torch.device, tree: ROOT.TTree,
                                score_arrays: Dict[str, array], true_label: array,
-                               event_weight: array, train_mask: array,
-                               valid_mask: array, test_mask: array,
+                               event_weight: array, has_bjet: array,
+                               train_mask: array, valid_mask: array, test_mask: array,
                                is_train: bool = False, is_valid: bool = False,
                                is_test: bool = False) -> None:
         """Save predictions for a specific data split."""
@@ -173,11 +176,15 @@ class ResultPersistence:
                 batch = batch.to(device)
                 logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
 
-                # Apply softmax to get probabilities (model now returns logits)
+                # Apply softmax to get probabilities (model returns logits)
                 out = torch.softmax(logits, dim=1)
 
                 # Extract weights from batch
                 batch_weights = extract_weights_from_batch(batch)
+
+                # Extract node features for each event in batch
+                # batch.batch indicates which nodes belong to which event
+                batch_node_indices = batch.batch.cpu()
 
                 for i, (label, scores) in enumerate(zip(batch.y, out)):
                     true_label[0] = int(label.cpu().numpy())
@@ -188,13 +195,17 @@ class ResultPersistence:
                     # Save background scores dynamically
                     bg_score_keys = list(score_arrays.keys())[1:]  # Skip signal
                     for j, score_key in enumerate(bg_score_keys):
-                        if j + 1 < len(scores):  # Ensure we don't exceed available scores
-                            score_arrays[score_key][0] = float(scores[j + 1].cpu().numpy())
-                        else:
-                            score_arrays[score_key][0] = 0.0  # Default for missing scores
+                        score_arrays[score_key][0] = float(scores[j + 1].cpu().numpy())
 
                     # Save weight information (final training weight after normalization)
                     event_weight[0] = float(batch_weights[i].cpu().numpy())
+
+                    # Calculate and save has_bjet flag
+                    # Extract node features for this event
+                    event_node_mask = (batch_node_indices == i)
+                    event_node_features = batch.x[event_node_mask]
+                    has_bjet[0] = has_bjet_in_event(event_node_features,
+                                                    separate_bjets=self.config.args.separate_bjets)
 
                     tree.Fill()
 

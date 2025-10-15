@@ -1,0 +1,714 @@
+{
+  "Run2": {
+    "SR1E2Mu": {
+      "experimental": {
+        "L1Prefire": {
+          "source": "preprocessed",
+          "variations": ["L1Prefire_Up", "L1Prefire_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "L1 ECAL prefiring uncertainty (Run2 only, uncorrelated per era)"
+        },
+        "PileupReweight": {
+          "source": "preprocessed",
+          "variations": ["PileupReweight_Up", "PileupReweight_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Pileup reweighting uncertainty (correlated across eras)"
+        },
+        "MuonIDSF": {
+          "source": "preprocessed",
+          "variations": ["MuonIDSF_Up", "MuonIDSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Muon ID scale factor uncertainty"
+        },
+        "ElectronIDSF": {
+          "source": "preprocessed",
+          "variations": ["ElectronIDSF_Up", "ElectronIDSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Electron ID scale factor uncertainty"
+        },
+        "EMuTrigSF": {
+          "source": "preprocessed",
+          "variations": ["EMuTrigSF_Up", "EMuTrigSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "EMu trigger scale factor uncertainty"
+        },
+        "ElectronRes": {
+          "source": "preprocessed",
+          "variations": ["ElectronRes_Up", "ElectronRes_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Electron energy resolution uncertainty"
+        },
+        "ElectronEn": {
+          "source": "preprocessed",
+          "variations": ["ElectronEn_Up", "ElectronEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Electron energy scale uncertainty"
+        },
+        "JetRes": {
+          "source": "preprocessed",
+          "variations": ["JetRes_Up", "JetRes_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Jet energy resolution uncertainty (uncorrelated per era)"
+        },
+        "JetEn": {
+          "source": "preprocessed",
+          "variations": ["JetEn_Up", "JetEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Jet energy scale uncertainty"
+        },
+        "MuonEn": {
+          "source": "preprocessed",
+          "variations": ["MuonEn_Up", "MuonEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Muon energy scale uncertainty"
+        },
+        "UnclusteredEn": {
+          "source": "preprocessed",
+          "variations": ["UnclusteredEn_Up", "UnclusteredEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Unclustered energy uncertainty"
+        },
+        "BtagSF_HFcorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_HFcorr_Up", "BtagSF_HFcorr_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Heavy flavor b-tagging SF (correlated component)"
+        },
+        "BtagSF_HFuncorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_HFuncorr_Up", "BtagSF_HFuncorr_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Heavy flavor b-tagging SF (uncorrelated component)"
+        },
+        "BtagSF_LFcorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_LFcorr_Up", "BtagSF_LFcorr_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Light flavor b-tagging SF (correlated component)"
+        },
+        "BtagSF_LFuncorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_LFuncorr_Up", "BtagSF_LFuncorr_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"],
+          "description": "Light flavor b-tagging SF (uncorrelated component)"
+        }
+      },
+      "datadriven": {
+        "Nonprompt": {
+          "source": "manual",
+          "scale_variation": 0.30,
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["nonprompt"],
+          "description": "Data-driven nonprompt background uncertainty (±30%)"
+        },
+        "Conversion": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.20,
+          "correlation": "uncorrelated",
+          "applies_to": ["conversion"],
+          "description": "Conversion electron background uncertainty (±20%)"
+        }
+      },
+      "normalization": {
+        "lumi_13TeV": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.025,
+          "correlation": "correlated",
+          "applies_to": ["signal", "diboson", "ttX", "others"],
+          "description": "Integrated luminosity uncertainty (2.5%)"
+        },
+        "norm_diboson": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.10,
+          "correlation": "correlated",
+          "applies_to": ["diboson"],
+          "description": "Diboson cross-section uncertainty (10%)"
+        },
+        "norm_ttX": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.12,
+          "correlation": "correlated",
+          "applies_to": ["ttX"],
+          "description": "ttX cross-section uncertainty (12%)"
+        },
+        "norm_others": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.50,
+          "correlation": "correlated",
+          "applies_to": ["others"],
+          "description": "Rare processes cross-section uncertainty (50%)"
+        }
+      },
+      "theory": {
+        "PDF": {
+          "source": "preprocessed",
+          "variations": ["PDF_Up", "PDF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"],
+          "description": "PDF uncertainty (signal only)"
+        },
+        "Scale": {
+          "source": "preprocessed",
+          "variations": ["Scale_Up", "Scale_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"],
+          "description": "Renormalization/factorization scale uncertainty (signal only)"
+        },
+        "PS": {
+          "source": "preprocessed",
+          "variations": ["PS_Up", "PS_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"],
+          "description": "Parton shower uncertainty (signal only)"
+        }
+      }
+    },
+    "SR3Mu": {
+      "experimental": {
+        "L1Prefire": {
+          "source": "preprocessed",
+          "variations": ["L1Prefire_Up", "L1Prefire_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "PileupReweight": {
+          "source": "preprocessed",
+          "variations": ["PileupReweight_Up", "PileupReweight_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "MuonIDSF": {
+          "source": "preprocessed",
+          "variations": ["MuonIDSF_Up", "MuonIDSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "DblMuTrigSF": {
+          "source": "preprocessed",
+          "variations": ["DblMuTrigSF_Up", "DblMuTrigSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "ElectronRes": {
+          "source": "preprocessed",
+          "variations": ["ElectronRes_Up", "ElectronRes_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "ElectronEn": {
+          "source": "preprocessed",
+          "variations": ["ElectronEn_Up", "ElectronEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "JetRes": {
+          "source": "preprocessed",
+          "variations": ["JetRes_Up", "JetRes_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "JetEn": {
+          "source": "preprocessed",
+          "variations": ["JetEn_Up", "JetEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "MuonEn": {
+          "source": "preprocessed",
+          "variations": ["MuonEn_Up", "MuonEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "UnclusteredEn": {
+          "source": "preprocessed",
+          "variations": ["UnclusteredEn_Up", "UnclusteredEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_HFcorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_HFcorr_Up", "BtagSF_HFcorr_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_HFuncorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_HFuncorr_Up", "BtagSF_HFuncorr_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_LFcorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_LFcorr_Up", "BtagSF_LFcorr_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_LFuncorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_LFuncorr_Up", "BtagSF_LFuncorr_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        }
+      },
+      "datadriven": {
+        "Nonprompt": {
+          "source": "manual",
+          "scale_variation": 0.30,
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["nonprompt"]
+        },
+        "Conversion": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.20,
+          "correlation": "uncorrelated",
+          "applies_to": ["conversion"]
+        }
+      },
+      "normalization": {
+        "lumi_13TeV": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.025,
+          "correlation": "correlated",
+          "applies_to": ["signal", "diboson", "ttX", "others"]
+        },
+        "norm_diboson": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.10,
+          "correlation": "correlated",
+          "applies_to": ["diboson"]
+        },
+        "norm_ttX": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.12,
+          "correlation": "correlated",
+          "applies_to": ["ttX"]
+        },
+        "norm_others": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.50,
+          "correlation": "correlated",
+          "applies_to": ["others"]
+        }
+      },
+      "theory": {
+        "PDF": {
+          "source": "preprocessed",
+          "variations": ["PDF_Up", "PDF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"]
+        },
+        "Scale": {
+          "source": "preprocessed",
+          "variations": ["Scale_Up", "Scale_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"]
+        },
+        "PS": {
+          "source": "preprocessed",
+          "variations": ["PS_Up", "PS_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"]
+        }
+      }
+    }
+  },
+  "Run3": {
+    "SR1E2Mu": {
+      "experimental": {
+        "PileupReweight": {
+          "source": "preprocessed",
+          "variations": ["PileupReweight_Up", "PileupReweight_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "MuonIDSF": {
+          "source": "preprocessed",
+          "variations": ["MuonIDSF_Up", "MuonIDSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "ElectronIDSF": {
+          "source": "preprocessed",
+          "variations": ["ElectronIDSF_Up", "ElectronIDSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "EMuTrigSF": {
+          "source": "preprocessed",
+          "variations": ["EMuTrigSF_Up", "EMuTrigSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "ElectronRes": {
+          "source": "preprocessed",
+          "variations": ["ElectronRes_Up", "ElectronRes_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "ElectronEn": {
+          "source": "preprocessed",
+          "variations": ["ElectronEn_Up", "ElectronEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "JetRes": {
+          "source": "preprocessed",
+          "variations": ["JetRes_Up", "JetRes_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "JetEn": {
+          "source": "preprocessed",
+          "variations": ["JetEn_Up", "JetEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "MuonEn": {
+          "source": "preprocessed",
+          "variations": ["MuonEn_Up", "MuonEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "UnclusteredEn": {
+          "source": "preprocessed",
+          "variations": ["UnclusteredEn_Up", "UnclusteredEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_HFcorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_HFcorr_Up", "BtagSF_HFcorr_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_HFuncorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_HFuncorr_Up", "BtagSF_HFuncorr_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_LFcorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_LFcorr_Up", "BtagSF_LFcorr_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_LFuncorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_LFuncorr_Up", "BtagSF_LFuncorr_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        }
+      },
+      "datadriven": {
+        "Nonprompt": {
+          "source": "manual",
+          "scale_variation": 0.30,
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["nonprompt"]
+        },
+        "Conversion": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.20,
+          "correlation": "uncorrelated",
+          "applies_to": ["conversion"]
+        }
+      },
+      "normalization": {
+        "lumi_13TeV": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.025,
+          "correlation": "correlated",
+          "applies_to": ["signal", "diboson", "ttX", "others"]
+        },
+        "norm_diboson": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.10,
+          "correlation": "correlated",
+          "applies_to": ["diboson"]
+        },
+        "norm_ttX": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.12,
+          "correlation": "correlated",
+          "applies_to": ["ttX"]
+        },
+        "norm_others": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.50,
+          "correlation": "correlated",
+          "applies_to": ["others"]
+        }
+      },
+      "theory": {
+        "PDF": {
+          "source": "preprocessed",
+          "variations": ["PDF_Up", "PDF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"]
+        },
+        "Scale": {
+          "source": "preprocessed",
+          "variations": ["Scale_Up", "Scale_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"]
+        },
+        "PS": {
+          "source": "preprocessed",
+          "variations": ["PS_Up", "PS_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"]
+        }
+      }
+    },
+    "SR3Mu": {
+      "experimental": {
+        "PileupReweight": {
+          "source": "preprocessed",
+          "variations": ["PileupReweight_Up", "PileupReweight_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "MuonIDSF": {
+          "source": "preprocessed",
+          "variations": ["MuonIDSF_Up", "MuonIDSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "DblMuTrigSF": {
+          "source": "preprocessed",
+          "variations": ["DblMuTrigSF_Up", "DblMuTrigSF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "ElectronRes": {
+          "source": "preprocessed",
+          "variations": ["ElectronRes_Up", "ElectronRes_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "ElectronEn": {
+          "source": "preprocessed",
+          "variations": ["ElectronEn_Up", "ElectronEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "JetRes": {
+          "source": "preprocessed",
+          "variations": ["JetRes_Up", "JetRes_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "JetEn": {
+          "source": "preprocessed",
+          "variations": ["JetEn_Up", "JetEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "MuonEn": {
+          "source": "preprocessed",
+          "variations": ["MuonEn_Up", "MuonEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "UnclusteredEn": {
+          "source": "preprocessed",
+          "variations": ["UnclusteredEn_Up", "UnclusteredEn_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_HFcorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_HFcorr_Up", "BtagSF_HFcorr_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_HFuncorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_HFuncorr_Up", "BtagSF_HFuncorr_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_LFcorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_LFcorr_Up", "BtagSF_LFcorr_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        },
+        "BtagSF_LFuncorr": {
+          "source": "preprocessed",
+          "variations": ["BtagSF_LFuncorr_Up", "BtagSF_LFuncorr_Down"],
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["signal", "conversion", "diboson", "ttX", "others"]
+        }
+      },
+      "datadriven": {
+        "Nonprompt": {
+          "source": "manual",
+          "scale_variation": 0.30,
+          "type": "shape",
+          "correlation": "uncorrelated",
+          "applies_to": ["nonprompt"]
+        },
+        "Conversion": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.20,
+          "correlation": "uncorrelated",
+          "applies_to": ["conversion"]
+        }
+      },
+      "normalization": {
+        "lumi_13TeV": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.025,
+          "correlation": "correlated",
+          "applies_to": ["signal", "diboson", "ttX", "others"]
+        },
+        "norm_diboson": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.10,
+          "correlation": "correlated",
+          "applies_to": ["diboson"]
+        },
+        "norm_ttX": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.12,
+          "correlation": "correlated",
+          "applies_to": ["ttX"]
+        },
+        "norm_others": {
+          "source": "value",
+          "type": "lnN",
+          "value": 1.50,
+          "correlation": "correlated",
+          "applies_to": ["others"]
+        }
+      },
+      "theory": {
+        "PDF": {
+          "source": "preprocessed",
+          "variations": ["PDF_Up", "PDF_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"]
+        },
+        "Scale": {
+          "source": "preprocessed",
+          "variations": ["Scale_Up", "Scale_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"]
+        },
+        "PS": {
+          "source": "preprocessed",
+          "variations": ["PS_Up", "PS_Down"],
+          "type": "shape",
+          "correlation": "correlated",
+          "applies_to": ["signal"]
+        }
+      }
+    }
+  }
+}

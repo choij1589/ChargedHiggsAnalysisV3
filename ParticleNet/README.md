@@ -5,10 +5,10 @@ ParticleNet-based machine learning pipeline for charged Higgs boson analysis. Th
 
 ## Workflow Overview
 1. **Dataset Preparation** (`saveDatasets.sh`) - Convert ROOT files to PyTorch Geometric datasets
-2. **Multi-Class Training** (`trainMultiClass.py`) - N-class training with physics-aware weighting and class imbalance handling
+2. **Multi-Class Training** (`trainMultiClass.py`) - N-class training with physics-aware weighting
 3. **Visualization** (`visualizeMultiClass.py`) - Analysis plots and performance metrics
 4. **Hyperparameter Optimization** (`launchGAOptim.sh`) - Genetic Algorithm optimization
-5. **Model Evaluation** (`evalModels.sh`) - Cross-validation training and evaluation
+5. **Model Evaluation** (`evalModels.sh`) - Cross-validation training
 6. **SKFlat Integration** (`toSKFlat.sh`) - Deploy models to analysis framework
 
 ---
@@ -20,11 +20,11 @@ Converts ROOT files into PyTorch Geometric datasets with per-process storage.
 ### Configuration
 **Signal Samples** (7 mass points): TTToHcToWAToMuMu-MHc[100,115,130,145,160]MA[85,87,90,92,95,98,100]
 
-**Background Samples**: Skim_TriLep_TTLL_powheg (nonprompt), DYJets + DYJets10to50 (prompt), WZTo3LNu_amcatnlo + ZZTo4L_powheg (diboson), TTZToLLNuNu + TTWToLNu + tZq (ttX)
+**Background Samples**: Skim_TriLep_TTLL_powheg (nonprompt), DYJets (nonprompt), WZTo3LNu_amcatnlo + ZZTo4L_powheg (diboson), TTZToLLNuNu + TTWToLNu + tZq (ttX)
 
 **Channels**: Run1E2Mu (1e+2μ), Run3Mu (3μ), Combined
 
-**Features**: 9 per particle [E,Px,Py,Pz,Charge,BtagScore,IsMuon,IsElectron,IsJet] + 4 graph-level (era encoding) + event weights (genWeight×puWeight×prefireWeight)
+**Features**: 9 per particle [E,Px,Py,Pz,Charge,IsMuon,IsElectron,IsJet,IsBjet] + 4 graph-level (era encoding) + event weights (genWeight×puWeight×prefireWeight)
 
 ### Usage
 ```bash
@@ -49,15 +49,7 @@ dataset/samples/
 
 ## Step 2: Multi-Class Training (`trainMultiClass.py`)
 
-**NEW**: Fully refactored modular training system with sophisticated class imbalance handling.
-
-### Architecture Variants
-| Model | Parameters | Use Case |
-|-------|------------|----------|
-| **ParticleNet** | ~270K | Standard baseline, individual backgrounds |
-| **OptimizedParticleNet** | ~350K | **Recommended for grouped backgrounds** |
-| **EfficientParticleNet** | ~500K | Complex classification, balanced performance |
-| **EnhancedParticleNet** | ~1M+ | Maximum capacity (slower training) |
+Modular training system with sophisticated class imbalance handling. See script docstrings for detailed architecture documentation.
 
 ### Class Imbalance Handling
 
@@ -70,48 +62,12 @@ dataset/samples/
 - **Individual**: Each sample as separate class (e.g., signal + TTLL + WZ + TTZ)
 - **Grouped**: Physics-motivated categories (e.g., signal + nonprompt + diboson + ttX)
 
-### Modular Training System (NEW)
-
-The training system has been refactored into focused modules for improved maintainability and extensibility:
-
-```python
-# Example usage with new modular system
-from TrainingConfig import create_training_config
-from DataPipeline import create_data_pipeline
-from TrainingOrchestrator import create_training_orchestrator
-from ResultPersistence import create_result_persistence
-
-# 1. Configuration Management
-config = create_training_config()  # Handles all argument parsing and validation
-
-# 2. Data Pipeline Setup
-data_pipeline = create_data_pipeline(config)
-data_pipeline.create_datasets()
-data_pipeline.create_data_loaders()
-
-# 3. Training Orchestration
-orchestrator = create_training_orchestrator(config, data_pipeline)
-training_results = orchestrator.train()
-
-# 4. Result Persistence
-persistence = create_result_persistence(config)
-persistence.save_predictions_to_root(model, data_pipeline, device, tree_path)
-```
-
-**Module Responsibilities**:
-- **TrainingConfig**: Argument parsing, validation, path management, model naming
-- **TrainingUtilities**: Core training functions, group-balanced metrics, device setup
-- **DataPipeline**: Dataset creation, data loader management, integrity validation
-- **TrainingOrchestrator**: Training loop execution, early stopping, progress monitoring
-- **ResultPersistence**: ROOT tree creation, performance metrics, model information
-
-### Key Training Features
+### Key Features
 - 5-fold cross-validation (3 train / 1 valid / 1 test)
 - Automatic weight normalization for class balance
 - Early stopping with validation monitoring
 - Real-time performance monitoring (memory, CPU, time)
-- ROOT tree outputs with per-class score distributions and event weights
-- **NEW**: Comprehensive error handling and validation at each pipeline stage
+- ROOT tree outputs with per-class score distributions
 
 ### Usage Examples
 
@@ -145,15 +101,10 @@ python trainMultiClass.py \
 - `--signal`: Signal sample (without prefix, required)
 - `--backgrounds`: Individual background samples (space-separated)
 - `--background_groups`: Groups format 'groupname:sample1,sample2,...'
-- `--model`: Architecture variant
+- `--model`: Architecture variant (ParticleNet, OptimizedParticleNet, etc.)
 - `--loss_type`: weighted_ce (default), sample_normalized, focal
 - `--balance`: Enable weight normalization (default: True)
-- `--pilot`: Use pilot datasets
-
-### Performance Impact
-- **Individual backgrounds**: 17.7% accuracy (imbalanced)
-- **Grouped backgrounds**: 36.5% accuracy (106% improvement)
-- **Training stability**: 2x faster convergence with proper normalization
+- `--pilot`: Use pilot datasets for testing
 
 ---
 
@@ -192,13 +143,75 @@ plots/analysis/
 
 ## Step 4: Hyperparameter Optimization (`launchGAOptim.sh`)
 
-Genetic Algorithm optimization for systematic hyperparameter search.
+Genetic Algorithm (GA) optimization with statistical overfitting detection and filtering. All configuration managed via `configs/GAConfig.json`. See script docstrings for implementation details.
 
-**Search Space**: Nodes [64,96,128], Optimizers [RMSprop,Adam,Adadelta], Schedulers [ExponentialLR,CyclicLR,ReduceLROnPlateau], Learning rates [1e-4,1e-2], Weight decay [1e-5,1e-2]
+### Overview
+
+**Key Features**:
+- Configuration-driven approach (no hardcoded parameters)
+- Log-uniform sampling for continuous hyperparameters
+- Per-class overfitting detection using Kolmogorov-Smirnov tests
+- Automatic filtering and population regeneration
+- Parallel training and evaluation
+
+**Hyperparameter Search**:
+- **nNodes**: [64, 96, 128] hidden nodes
+- **Optimizers**: [RMSprop, Adam, Adadelta]
+- **Schedulers**: [ExponentialLR, CyclicLR, ReduceLROnPlateau]
+- **initLR**: Log-uniform [1e-4, 1e-2] (100 samples)
+- **weight_decay**: Log-uniform [1e-5, 1e-2] (1000 samples)
+
+### Configuration Reference
+
+Edit `configs/GAConfig.json` to adjust:
+- **GA parameters**: population_size, max_iterations, evolution_ratio, mutation_thresholds
+- **Training parameters**: max_epochs, batch_size, dropout_p, train/valid/test folds
+- **Background groups**: Physics-motivated sample groupings
+- **Overfitting detection**: Enable/disable, p-value threshold, test folds
+
+### Overfitting Detection
+
+**Strategy**: Independent test set (fold 3) with per-class K-S tests comparing train vs test score distributions. Models fail if ANY class has p < 0.05. Filtered models are immediately replaced to maintain population size.
+
+**Diagnostics**: Detailed per-model histograms, p-values, and summary reports saved to `GAOptim_bjets/{channel}/multiclass/{signal}/GA-iter{N}/overfitting_diagnostics/`
+
+### Usage
 
 ```bash
-./scripts/launchGAOptim.sh MHc-130_MA-100 nonprompt Combined cuda:0
+# Basic command
+./scripts/launchGAOptim.sh MHc130_MA100 Run1E2Mu cuda:0
+
+# With pilot data (recommended for testing)
+./scripts/launchGAOptim.sh MHc130_MA100 Run1E2Mu cuda:0 --pilot
+
+# Debug mode
+./scripts/launchGAOptim.sh MHc130_MA100 Run1E2Mu cuda:0 --pilot --debug
 ```
+
+### Output Structure
+
+```
+GAOptim_bjets/{channel}/multiclass/{signal}/
+├── GA-iter0/                              # Generation 0
+│   ├── models/model{N}.pt                 # Population checkpoints
+│   ├── json/model{N}.json                 # Training metrics
+│   ├── json/model_info.csv                # Population summary
+│   └── overfitting_diagnostics/
+│       ├── model{N}_iter0_histograms.root
+│       ├── model{N}_iter0_ks_results.json
+│       ├── overfitting_summary.json
+│       └── overfitting_summary.txt
+├── GA-iter1/                              # Generation 1 (evolved)
+└── GA-iter2/                              # Generation 2
+```
+
+### Module List
+- **`GAConfig.py`**: Configuration loading and validation
+- **`GATools.py`**: Genetic algorithm operations (selection, crossover, mutation)
+- **`launchGAOptim.py`**: Main optimization workflow
+- **`trainMultiClassForGA.py`**: Single model training
+- **`evaluateGAModels.py`**: Batch overfitting evaluation
+- **`OverfittingDetector.py`**: K-S test implementation
 
 ---
 
@@ -234,7 +247,7 @@ Deploy trained models to SKFlat analysis framework.
 - **Output**: Configurable N-class (signal + N-1 backgrounds)
 - **Cross-validation**: 5-fold deterministic splitting
 
-### Class Imbalance Strategy Details
+### Class Imbalance Strategy
 
 **Problem**: Signal/background cross-sections differ by 4-5 orders of magnitude
 
@@ -248,47 +261,6 @@ Deploy trained models to SKFlat analysis framework.
 - `sample_normalized`: Additional per-class normalization
 - `focal`: Hard example focus with physics weights
 
-### Refactored Modular Architecture (NEW)
-
-**Training System Refactoring**: The original 691-line monolithic `trainMultiClass.py` has been refactored into a clean modular architecture with 80% code reduction in the main script (140 lines).
-
-**Core Training Modules**:
-- **`TrainingConfig.py`** - Centralized argument parsing, validation, and configuration management
-- **`TrainingUtilities.py`** - Core training functions, group-balanced metrics, and performance monitoring
-- **`DataPipeline.py`** - Dataset creation, data loader management, and integrity validation
-- **`TrainingOrchestrator.py`** - Training loop execution, early stopping, and metrics collection
-- **`ResultPersistence.py`** - ROOT tree creation, model saving, and output management
-- **`trainMultiClass.py`** - Clean main entry point with high-level workflow orchestration
-
-**Benefits**:
-- **Maintainability**: Single responsibility per module
-- **Testability**: Individual components can be unit tested
-- **Reusability**: Training utilities shared across scripts
-- **Extensibility**: Easy feature additions without affecting existing code
-- **Backward Compatibility**: Same CLI interface and output structure
-
-### Directory Structure
-```
-ParticleNet/
-├── python/          # Core modules and refactored training system
-│   ├── trainMultiClass.py          # Main entry point (140 lines, was 691)
-│   ├── trainMultiClass_original.py # Original backup
-│   ├── TrainingConfig.py           # Configuration management
-│   ├── TrainingUtilities.py        # Core training functions
-│   ├── DataPipeline.py             # Data loading and validation
-│   ├── TrainingOrchestrator.py     # Training loop management
-│   ├── ResultPersistence.py        # Output and persistence
-│   ├── MultiClassModels.py         # Model architectures
-│   ├── WeightedLoss.py             # Physics-aware loss functions
-│   ├── DynamicDatasetLoader.py     # Dataset management
-│   ├── visualizeMultiClass.py      # Visualization with class imbalance support
-│   └── ...                         # Other utilities
-├── scripts/         # Workflow automation
-├── dataset/         # Processed datasets
-├── results/         # Trained models and metrics
-└── plots/          # Analysis visualizations
-```
-
 ### Requirements
 - PyTorch + PyTorch Geometric
 - ROOT + scikit-learn
@@ -296,17 +268,5 @@ ParticleNet/
 - CUDA recommended
 
 ### Current Status
-✅ **Complete**: Dataset preparation, multi-class training, visualization, class imbalance handling, performance monitoring, **modular refactoring**
-🚧 **In Progress**: Hyperparameter optimization, results parsing, SKFlat deployment
-
-### Key Features
-- **NEW**: Modular training architecture with 80% code reduction and improved maintainability
-- **NEW**: Comprehensive weight storage for class imbalance analysis in ROOT trees
-- Per-process dataset storage (~60% size reduction)
-- Physics-motivated background grouping with hierarchical weight normalization
-- 6 architecture variants optimized for different complexity levels
-- Advanced class imbalance handling preserving cross-section physics
-- Real-time performance monitoring and computational optimization
-- Comprehensive visualization pipeline with automatic adaptation
-- 5-fold cross-validation with proven train/valid/test splitting scheme
-- **NEW**: Full backward compatibility with enhanced error handling and validation
+✅ **Complete**: Dataset preparation, multi-class training, visualization, hyperparameter optimization
+🚧 **In Progress**: Visualizing hyperparameter optiomzation results, results parsing to SKFlat

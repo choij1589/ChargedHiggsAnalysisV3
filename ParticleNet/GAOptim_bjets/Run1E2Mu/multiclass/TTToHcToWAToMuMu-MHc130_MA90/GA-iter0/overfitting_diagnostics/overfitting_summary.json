@@ -1,0 +1,104 @@
+{
+  "total_models": 6,
+  "valid_models": 2,
+  "overfitted_models": 4,
+  "overfitted_model_indices": [
+    0,
+    1,
+    3,
+    4
+  ],
+  "model_details": [
+    {
+      "model_idx": 0,
+      "is_overfitted": true,
+      "per_class_p_values": {
+        "signal": 9.583437664192839e-10,
+        "nonprompt": 3.747681248956082e-08,
+        "diboson": 3.389499980749691e-14,
+        "ttX": 1.2353921046369403e-30
+      },
+      "failed_classes": [
+        "signal",
+        "nonprompt",
+        "diboson",
+        "ttX"
+      ],
+      "overall_min_p_value": 1.2353921046369403e-30
+    },
+    {
+      "model_idx": 1,
+      "is_overfitted": true,
+      "per_class_p_values": {
+        "signal": 2.513499658667908e-09,
+        "nonprompt": 1.2316187863694509e-16,
+        "diboson": 7.23383759967296e-18,
+        "ttX": 3.8521686487596955e-31
+      },
+      "failed_classes": [
+        "signal",
+        "nonprompt",
+        "diboson",
+        "ttX"
+      ],
+      "overall_min_p_value": 3.8521686487596955e-31
+    },
+    {
+      "model_idx": 2,
+      "is_overfitted": false,
+      "per_class_p_values": {
+        "signal": 0.9957454771802169,
+        "nonprompt": 0.05021651760461301,
+        "diboson": 0.20929579109776056,
+        "ttX": 0.5409838725504826
+      },
+      "failed_classes": [],
+      "overall_min_p_value": 0.05021651760461301
+    },
+    {
+      "model_idx": 3,
+      "is_overfitted": true,
+      "per_class_p_values": {
+        "signal": 5.638582711099868e-11,
+        "nonprompt": 8.97156538206142e-10,
+        "diboson": 2.980037819802999e-24,
+        "ttX": 6.876967527531539e-39
+      },
+      "failed_classes": [
+        "signal",
+        "nonprompt",
+        "diboson",
+        "ttX"
+      ],
+      "overall_min_p_value": 6.876967527531539e-39
+    },
+    {
+      "model_idx": 4,
+      "is_overfitted": true,
+      "per_class_p_values": {
+        "signal": 0.005572858186379695,
+        "nonprompt": 0.9990159923512798,
+        "diboson": 0.5297097836172839,
+        "ttX": 1.0136041989725012e-07
+      },
+      "failed_classes": [
+        "signal",
+        "ttX"
+      ],
+      "overall_min_p_value": 1.0136041989725012e-07
+    },
+    {
+      "model_idx": 5,
+      "is_overfitted": false,
+      "per_class_p_values": {
+        "signal": 0.9736272298356001,
+        "nonprompt": 0.6771649860418884,
+        "diboson": 0.10899182405728179,
+        "ttX": 0.7879259167217386
+      },
+      "failed_classes": [],
+      "overall_min_p_value": 0.10899182405728179
+    }
+  ],
+  "iteration": 0
+}

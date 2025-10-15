@@ -173,9 +173,15 @@ def load_predictions_from_root(signal, background, channel, fold, pilot=False, s
 
             sample_weights = tree["weight"].array(library="np")
 
-            # Load train/test masks
+            # Load train/test masks and b-jet flag
             train_mask = tree["train_mask"].array(library="np").astype(bool)
             test_mask = tree["test_mask"].array(library="np").astype(bool)
+
+            # Load has_bjet flag if available
+            has_bjet = None
+            if "has_bjet" in tree.keys():
+                has_bjet = tree["has_bjet"].array(library="np").astype(bool)
+                logging.info("Loaded has_bjet flag for b-jet subset analysis")
 
             y_true_train = y_true[train_mask]
             y_scores_train = y_scores[train_mask]
@@ -184,6 +190,10 @@ def load_predictions_from_root(signal, background, channel, fold, pilot=False, s
             y_true_test = y_true[test_mask]
             y_scores_test = y_scores[test_mask]
             weights_test = sample_weights[test_mask]
+
+            # Split has_bjet if available
+            has_bjet_train = has_bjet[train_mask] if has_bjet is not None else None
+            has_bjet_test = has_bjet[test_mask] if has_bjet is not None else None
 
             logging.info(f"Loaded {len(y_true_train)} training and {len(y_true_test)} test predictions from ROOT file")
 
@@ -217,8 +227,14 @@ def load_predictions_from_root(signal, background, channel, fold, pilot=False, s
                 if signal_score_mean_test < bg_score_mean_test:
                     logging.warning("⚠️ Signal events have LOWER scores than background - possible label/score mismatch!")
 
+            # Print b-jet statistics if available
+            if has_bjet_train is not None:
+                train_bjet_count = np.sum(has_bjet_train)
+                test_bjet_count = np.sum(has_bjet_test)
+                logging.info(f"Events with b-jets: {train_bjet_count}/{len(has_bjet_train)} train, {test_bjet_count}/{len(has_bjet_test)} test")
+
             return (y_true_train, y_scores_train, weights_train,
-                    y_true_test, y_scores_test, weights_test)
+                    y_true_test, y_scores_test, weights_test, has_bjet_train, has_bjet_test)
 
     except Exception as e:
         logging.error(f"Error reading ROOT file: {e}. Using dummy data.")
@@ -265,8 +281,12 @@ def load_dummy_predictions():
     y_true_train, y_scores_train, weights_train = generate_data(800, train_performance=0.95)
     y_true_test, y_scores_test, weights_test = generate_data(200, test_performance=0.85)
 
+    # Generate dummy has_bjet flags (approximately 60% of events have b-jets)
+    has_bjet_train = np.random.rand(len(y_true_train)) > 0.4
+    has_bjet_test = np.random.rand(len(y_true_test)) > 0.4
+
     return (y_true_train, y_scores_train, weights_train,
-            y_true_test, y_scores_test, weights_test)
+            y_true_test, y_scores_test, weights_test, has_bjet_train, has_bjet_test)
 
 def plot_training_curves(df, signal, background, output_path):
     """Plot combined loss and accuracy curves."""
@@ -622,6 +642,353 @@ def generate_summary_report(data, roc_auc, pr_auc, signal, background, output_pa
 
     logging.info(f"Summary report saved to: {output_file}")
 
+def plot_bjet_subset_comparison_roc(y_true_train, y_scores_train, weights_train, has_bjet_train,
+                                    y_true_test, y_scores_test, weights_test, has_bjet_test,
+                                    signal, background, output_path):
+    """
+    Plot ROC curve comparison between full dataset and b-jet subset.
+
+    Creates comparison plots showing:
+    - Full dataset ROC (train and test)
+    - B-jet subset ROC (train and test)
+    - Allows visualization of performance changes on b-jet-enriched events
+    """
+    # Handle negative weights
+    weights_train_abs = np.abs(weights_train)
+    weights_test_abs = np.abs(weights_test)
+
+    logging.info("=" * 60)
+    logging.info("B-JET SUBSET ROC CURVE COMPARISON")
+    logging.info("=" * 60)
+
+    # Calculate statistics
+    train_bjet_fraction = np.sum(has_bjet_train) / len(has_bjet_train)
+    test_bjet_fraction = np.sum(has_bjet_test) / len(has_bjet_test)
+    logging.info(f"Train set: {np.sum(has_bjet_train)}/{len(has_bjet_train)} ({train_bjet_fraction*100:.1f}%) events with b-jets")
+    logging.info(f"Test set: {np.sum(has_bjet_test)}/{len(has_bjet_test)} ({test_bjet_fraction*100:.1f}%) events with b-jets")
+
+    # --- FULL DATASET ---
+    # Calculate physics-weighted ROC curves for full dataset
+    fpr_train_full, tpr_train_full, _ = roc_curve(y_true_train, y_scores_train,
+                                                   sample_weight=weights_train_abs)
+    fpr_test_full, tpr_test_full, _ = roc_curve(y_true_test, y_scores_test,
+                                                 sample_weight=weights_test_abs)
+
+    fpr_train_full = np.clip(fpr_train_full, 0.0, 1.0)
+    tpr_train_full = np.clip(tpr_train_full, 0.0, 1.0)
+    fpr_test_full = np.clip(fpr_test_full, 0.0, 1.0)
+    tpr_test_full = np.clip(tpr_test_full, 0.0, 1.0)
+
+    roc_auc_train_full = auc(fpr_train_full, tpr_train_full)
+    roc_auc_test_full = auc(fpr_test_full, tpr_test_full)
+
+    # --- B-JET SUBSET ---
+    if np.sum(has_bjet_train) > 0 and np.sum(has_bjet_test) > 0:
+        # Filter to b-jet events
+        y_true_train_bjet = y_true_train[has_bjet_train]
+        y_scores_train_bjet = y_scores_train[has_bjet_train]
+        weights_train_bjet = weights_train_abs[has_bjet_train]
+
+        y_true_test_bjet = y_true_test[has_bjet_test]
+        y_scores_test_bjet = y_scores_test[has_bjet_test]
+        weights_test_bjet = weights_test_abs[has_bjet_test]
+
+        # Calculate physics-weighted ROC curves for b-jet subset
+        fpr_train_bjet, tpr_train_bjet, _ = roc_curve(y_true_train_bjet, y_scores_train_bjet,
+                                                       sample_weight=weights_train_bjet)
+        fpr_test_bjet, tpr_test_bjet, _ = roc_curve(y_true_test_bjet, y_scores_test_bjet,
+                                                     sample_weight=weights_test_bjet)
+
+        fpr_train_bjet = np.clip(fpr_train_bjet, 0.0, 1.0)
+        tpr_train_bjet = np.clip(tpr_train_bjet, 0.0, 1.0)
+        fpr_test_bjet = np.clip(fpr_test_bjet, 0.0, 1.0)
+        tpr_test_bjet = np.clip(tpr_test_bjet, 0.0, 1.0)
+
+        roc_auc_train_bjet = auc(fpr_train_bjet, tpr_train_bjet)
+        roc_auc_test_bjet = auc(fpr_test_bjet, tpr_test_bjet)
+
+        # Plot comparison
+        plt.figure(figsize=(10, 10))
+
+        # Full dataset curves
+        plt.plot(fpr_train_full, tpr_train_full, color='blue', lw=2, alpha=0.7, linestyle='-',
+                label=f'Full Train (AUC = {roc_auc_train_full:.3f})')
+        plt.plot(fpr_test_full, tpr_test_full, color='blue', lw=2, alpha=0.7, linestyle='--',
+                label=f'Full Test (AUC = {roc_auc_test_full:.3f})')
+
+        # B-jet subset curves
+        plt.plot(fpr_train_bjet, tpr_train_bjet, color='red', lw=3, linestyle='-',
+                label=f'B-jet Train (AUC = {roc_auc_train_bjet:.3f})')
+        plt.plot(fpr_test_bjet, tpr_test_bjet, color='red', lw=3, linestyle='--',
+                label=f'B-jet Test (AUC = {roc_auc_test_bjet:.3f})')
+
+        plt.plot([0, 1], [0, 1], color='gray', lw=2, linestyle=':', label='Random classifier')
+
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate', fontsize=14)
+        plt.ylabel('True Positive Rate', fontsize=14)
+        plt.title(f'ROC Comparison: {signal} vs {background}\nFull Dataset vs. B-jet Subset', fontsize=14)
+        plt.legend(loc="lower right", fontsize=11)
+        plt.grid(True, alpha=0.3)
+
+        output_file = os.path.join(output_path, 'roc_curve_bjet_comparison.png')
+        plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        plt.close()
+
+        logging.info(f"B-jet ROC comparison saved to: {output_file}")
+        logging.info(f"  Full dataset - Train AUC: {roc_auc_train_full:.4f}, Test AUC: {roc_auc_test_full:.4f}")
+        logging.info(f"  B-jet subset - Train AUC: {roc_auc_train_bjet:.4f}, Test AUC: {roc_auc_test_bjet:.4f}")
+        logging.info(f"  AUC change (test): {roc_auc_test_bjet - roc_auc_test_full:+.4f}")
+    else:
+        logging.warning("Not enough b-jet events for ROC comparison")
+
+    logging.info("=" * 60)
+
+def plot_bjet_subset_score_distributions(y_true_train, y_scores_train, weights_train, has_bjet_train,
+                                         y_true_test, y_scores_test, weights_test, has_bjet_test,
+                                         signal, background, output_path):
+    """
+    Plot score distributions comparing full dataset vs. b-jet subset.
+
+    Creates overlaid distributions showing how score distributions change
+    when filtering to events containing b-jets.
+    """
+    # Setup ROOT
+    ROOT.gROOT.SetBatch(True)
+    CMS.setCMSStyle()
+
+    # Handle negative weights
+    weights_train_abs = np.abs(weights_train)
+    weights_test_abs = np.abs(weights_test)
+
+    logging.info("Generating b-jet subset score distribution comparisons...")
+
+    # Separate signal and background for full dataset (test set only for clarity)
+    signal_mask_test_full = (y_true_test == 0)
+    bg_mask_test_full = (y_true_test == 1)
+
+    signal_scores_test_full = y_scores_test[signal_mask_test_full]
+    signal_weights_test_full = weights_test_abs[signal_mask_test_full]
+    bg_scores_test_full = y_scores_test[bg_mask_test_full]
+    bg_weights_test_full = weights_test_abs[bg_mask_test_full]
+
+    # --- B-JET SUBSET ---
+    if np.sum(has_bjet_test) > 10:  # Need sufficient events
+        # Filter to b-jet events
+        y_true_test_bjet = y_true_test[has_bjet_test]
+        y_scores_test_bjet = y_scores_test[has_bjet_test]
+        weights_test_bjet = weights_test_abs[has_bjet_test]
+
+        # Separate signal and background for b-jet subset
+        signal_mask_test_bjet = (y_true_test_bjet == 0)
+        bg_mask_test_bjet = (y_true_test_bjet == 1)
+
+        signal_scores_test_bjet = y_scores_test_bjet[signal_mask_test_bjet]
+        signal_weights_test_bjet = weights_test_bjet[signal_mask_test_bjet]
+        bg_scores_test_bjet = y_scores_test_bjet[bg_mask_test_bjet]
+        bg_weights_test_bjet = weights_test_bjet[bg_mask_test_bjet]
+
+        # Define histogram parameters
+        nbins = 50
+        xmin, xmax = 0.0, 1.0
+
+        # Create histograms
+        h_signal_full = ROOT.TH1F("h_signal_full_bin", f"{signal} (Full)", nbins, xmin, xmax)
+        h_signal_bjet = ROOT.TH1F("h_signal_bjet_bin", f"{signal} (B-jet)", nbins, xmin, xmax)
+        h_bg_full = ROOT.TH1F("h_bg_full_bin", f"{background} (Full)", nbins, xmin, xmax)
+        h_bg_bjet = ROOT.TH1F("h_bg_bjet_bin", f"{background} (B-jet)", nbins, xmin, xmax)
+
+        # Fill histograms with physics weights
+        for score, weight in zip(signal_scores_test_full, signal_weights_test_full):
+            h_signal_full.Fill(score, weight)
+        for score, weight in zip(signal_scores_test_bjet, signal_weights_test_bjet):
+            h_signal_bjet.Fill(score, weight)
+        for score, weight in zip(bg_scores_test_full, bg_weights_test_full):
+            h_bg_full.Fill(score, weight)
+        for score, weight in zip(bg_scores_test_bjet, bg_weights_test_bjet):
+            h_bg_bjet.Fill(score, weight)
+
+        # Normalize histograms
+        if h_signal_full.Integral() > 0:
+            h_signal_full.Scale(1.0 / h_signal_full.Integral())
+        if h_signal_bjet.Integral() > 0:
+            h_signal_bjet.Scale(1.0 / h_signal_bjet.Integral())
+        if h_bg_full.Integral() > 0:
+            h_bg_full.Scale(1.0 / h_bg_full.Integral())
+        if h_bg_bjet.Integral() > 0:
+            h_bg_bjet.Scale(1.0 / h_bg_bjet.Integral())
+
+        # Find maximum for y-axis scaling
+        max_val = max(h_signal_full.GetMaximum(), h_signal_bjet.GetMaximum(),
+                     h_bg_full.GetMaximum(), h_bg_bjet.GetMaximum())
+
+        # Create canvas with CMS style
+        CMS.SetEnergy(13)
+        CMS.SetLumi(-1, run="Run2")
+        CMS.SetExtraText("Simulation Preliminary")
+
+        canvas = CMS.cmsCanvas("score_bjet_comp_bin", 0.0, 1.0, 1e-6, max_val * 100,
+                              "Score", "Normalized Events", square=True,
+                              iPos=11, extraSpace=0.)
+        legend = CMS.cmsLeg(0.45, 0.7-0.035*4, 0.85, 0.85, textSize=0.03, columns=1)
+        canvas.cd()
+        canvas.SetLogy()
+
+        # Draw histograms (test set only, full vs b-jet)
+        CMS.cmsObjectDraw(h_signal_full, "hist", LineColor=PALETTE[0], LineWidth=2, LineStyle=ROOT.kSolid)
+        CMS.cmsObjectDraw(h_signal_bjet, "hist", LineColor=PALETTE[0], LineWidth=3, LineStyle=ROOT.kDashed)
+        CMS.cmsObjectDraw(h_bg_full, "hist", LineColor=PALETTE[2], LineWidth=2, LineStyle=ROOT.kSolid)
+        CMS.cmsObjectDraw(h_bg_bjet, "hist", LineColor=PALETTE[2], LineWidth=3, LineStyle=ROOT.kDashed)
+
+        CMS.addToLegend(legend, (h_signal_full, f"{signal} (Full)", "L"))
+        CMS.addToLegend(legend, (h_signal_bjet, f"{signal} (B-jet subset)", "L"))
+        CMS.addToLegend(legend, (h_bg_full, f"{background} (Full)", "L"))
+        CMS.addToLegend(legend, (h_bg_bjet, f"{background} (B-jet subset)", "L"))
+        legend.Draw()
+        canvas.RedrawAxis()
+
+        # Save the plot
+        output_file = os.path.join(output_path, 'score_distributions_bjet_comparison.png')
+        canvas.SaveAs(output_file)
+        canvas.Close()
+
+        logging.info(f"B-jet score distribution comparison saved to: {output_file}")
+    else:
+        logging.warning("Not enough b-jet events for score distribution comparison")
+
+def plot_bjet_performance_summary(data, output_path):
+    """
+    Plot summary bar charts comparing full dataset vs. b-jet subset performance.
+
+    Uses the bjet_subset_results from the performance JSON file to create
+    visual comparisons of accuracy and loss metrics.
+    """
+    logging.info("Generating b-jet performance summary plots...")
+
+    training_results = data['training_results']
+
+    # Check if b-jet results exist
+    if 'bjet_subset_results' not in training_results:
+        logging.warning("No b-jet subset results found in training data")
+        return
+
+    bjet_results = training_results['bjet_subset_results']
+
+    # Extract metrics for train and test
+    train_results = bjet_results.get('train_results', {})
+    test_results = bjet_results.get('test_results', {})
+
+    if not train_results.get('has_bjet_events') or not test_results.get('has_bjet_events'):
+        logging.warning("Insufficient b-jet events for summary plots")
+        return
+
+    # Create comparison plots
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 12))
+
+    # --- Plot 1: Train Accuracy Comparison ---
+    categories = ['Full Dataset', 'B-jet Subset']
+    train_accs = [train_results['full_train_accuracy'], train_results['bjet_subset_accuracy']]
+    colors = ['blue', 'red']
+
+    bars1 = ax1.bar(categories, train_accs, color=colors, alpha=0.7, edgecolor='black')
+    ax1.set_ylabel('Accuracy')
+    ax1.set_title('Training Set Accuracy', fontsize=14, fontweight='bold')
+    ax1.set_ylim([0, 1.05])
+    ax1.grid(True, alpha=0.3, axis='y')
+
+    for bar, val in zip(bars1, train_accs):
+        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
+                f'{val:.3f}', ha='center', va='bottom', fontsize=11, fontweight='bold')
+
+    # --- Plot 2: Test Accuracy Comparison ---
+    test_accs = [test_results['full_test_accuracy'], test_results['bjet_subset_accuracy']]
+
+    bars2 = ax2.bar(categories, test_accs, color=colors, alpha=0.7, edgecolor='black')
+    ax2.set_ylabel('Accuracy')
+    ax2.set_title('Test Set Accuracy', fontsize=14, fontweight='bold')
+    ax2.set_ylim([0, 1.05])
+    ax2.grid(True, alpha=0.3, axis='y')
+
+    for bar, val in zip(bars2, test_accs):
+        ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02,
+                f'{val:.3f}', ha='center', va='bottom', fontsize=11, fontweight='bold')
+
+    # --- Plot 3: Train Loss Comparison ---
+    train_losses = [train_results['full_train_loss'], train_results['bjet_subset_loss']]
+
+    bars3 = ax3.bar(categories, train_losses, color=colors, alpha=0.7, edgecolor='black')
+    ax3.set_ylabel('Loss')
+    ax3.set_title('Training Set Loss', fontsize=14, fontweight='bold')
+    ax3.grid(True, alpha=0.3, axis='y')
+
+    for bar, val in zip(bars3, train_losses):
+        ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                f'{val:.3f}', ha='center', va='bottom', fontsize=11, fontweight='bold')
+
+    # --- Plot 4: Test Loss Comparison ---
+    test_losses = [test_results['full_test_loss'], test_results['bjet_subset_loss']]
+
+    bars4 = ax4.bar(categories, test_losses, color=colors, alpha=0.7, edgecolor='black')
+    ax4.set_ylabel('Loss')
+    ax4.set_title('Test Set Loss', fontsize=14, fontweight='bold')
+    ax4.grid(True, alpha=0.3, axis='y')
+
+    for bar, val in zip(bars4, test_losses):
+        ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                f'{val:.3f}', ha='center', va='bottom', fontsize=11, fontweight='bold')
+
+    # Overall title with statistics
+    train_stats = train_results['statistics']
+    test_stats = test_results['statistics']
+    fig.suptitle(f'B-Jet Subset Performance Summary\n'
+                f'Train: {train_stats["bjet_events"]}/{train_stats["total_events"]} '
+                f'({train_stats["bjet_event_fraction"]*100:.1f}%) events with b-jets | '
+                f'Test: {test_stats["bjet_events"]}/{test_stats["total_events"]} '
+                f'({test_stats["bjet_event_fraction"]*100:.1f}%) events with b-jets',
+                fontsize=14, fontweight='bold')
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+    output_file = os.path.join(output_path, 'bjet_performance_summary.png')
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    logging.info(f"B-jet performance summary saved to: {output_file}")
+
+    # Also save text summary
+    summary_file = os.path.join(output_path, 'bjet_performance_summary.txt')
+    with open(summary_file, 'w') as f:
+        f.write("B-JET SUBSET PERFORMANCE SUMMARY\n")
+        f.write("=" * 70 + "\n\n")
+
+        f.write("TRAINING SET:\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"Total events: {train_stats['total_events']}\n")
+        f.write(f"Events with b-jets: {train_stats['bjet_events']} ({train_stats['bjet_event_fraction']*100:.1f}%)\n")
+        f.write(f"Average b-jets per b-jet event: {train_stats['avg_bjets_per_bjet_event']:.2f}\n\n")
+        f.write(f"Full dataset - Accuracy: {train_results['full_train_accuracy']:.4f}, Loss: {train_results['full_train_loss']:.4f}\n")
+        f.write(f"B-jet subset - Accuracy: {train_results['bjet_subset_accuracy']:.4f}, Loss: {train_results['bjet_subset_loss']:.4f}\n")
+        f.write(f"Delta - Accuracy: {train_results['accuracy_delta']:+.4f}, Loss: {train_results['loss_delta']:+.4f}\n\n")
+
+        f.write("TEST SET:\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"Total events: {test_stats['total_events']}\n")
+        f.write(f"Events with b-jets: {test_stats['bjet_events']} ({test_stats['bjet_event_fraction']*100:.1f}%)\n")
+        f.write(f"Average b-jets per b-jet event: {test_stats['avg_bjets_per_bjet_event']:.2f}\n\n")
+        f.write(f"Full dataset - Accuracy: {test_results['full_test_accuracy']:.4f}, Loss: {test_results['full_test_loss']:.4f}\n")
+        f.write(f"B-jet subset - Accuracy: {test_results['bjet_subset_accuracy']:.4f}, Loss: {test_results['bjet_subset_loss']:.4f}\n")
+        f.write(f"Delta - Accuracy: {test_results['accuracy_delta']:+.4f}, Loss: {test_results['loss_delta']:+.4f}\n\n")
+
+        if 'train_test_comparison' in bjet_results:
+            comp = bjet_results['train_test_comparison']
+            f.write("TRAIN vs TEST (B-jet subset):\n")
+            f.write("-" * 40 + "\n")
+            f.write(f"Accuracy gap (train - test): {comp['bjet_accuracy_gap']:+.4f}\n")
+            f.write(f"Loss gap (train - test): {comp['bjet_loss_gap']:+.4f}\n")
+
+    logging.info(f"B-jet performance text summary saved to: {summary_file}")
+
 def main():
     parser = argparse.ArgumentParser(description='Visualize binary ParticleNet classification results')
     parser.add_argument('--signal', required=True,
@@ -677,7 +1044,7 @@ def main():
         # Load predictions with event weights (train/test splits)
         logging.info("Loading prediction data with physics weights...")
         (y_true_train, y_scores_train, weights_train,
-         y_true_test, y_scores_test, weights_test) = load_predictions_from_root(
+         y_true_test, y_scores_test, weights_test, has_bjet_train, has_bjet_test) = load_predictions_from_root(
             args.signal, args.background, args.channel, args.fold, args.pilot, args.separate_bjets)
 
         y_pred_test = (y_scores_test > 0.5).astype(int)
@@ -713,6 +1080,23 @@ def main():
         # Generate summary report
         logging.info("Generating summary report...")
         generate_summary_report(data, roc_auc, pr_auc, args.signal, args.background, args.output)
+
+        # B-jet subset visualizations (if has_bjet flag available)
+        if has_bjet_train is not None and has_bjet_test is not None:
+            logging.info("Generating b-jet subset ROC comparison...")
+            plot_bjet_subset_comparison_roc(y_true_train, y_scores_train, weights_train, has_bjet_train,
+                                           y_true_test, y_scores_test, weights_test, has_bjet_test,
+                                           args.signal, args.background, args.output)
+
+            logging.info("Generating b-jet subset score distributions...")
+            plot_bjet_subset_score_distributions(y_true_train, y_scores_train, weights_train, has_bjet_train,
+                                                y_true_test, y_scores_test, weights_test, has_bjet_test,
+                                                args.signal, args.background, args.output)
+
+            logging.info("Generating b-jet performance summary...")
+            plot_bjet_performance_summary(data, args.output)
+        else:
+            logging.info("No b-jet flag available, skipping b-jet subset visualizations")
 
         logging.info(f"All plots and reports saved to: {args.output}")
 

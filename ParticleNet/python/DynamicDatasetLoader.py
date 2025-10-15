@@ -93,12 +93,16 @@ class DynamicDatasetLoader:
         sample_dir = os.path.join(base_dir, sample_name)
         if pilot:
             sample_dir += "_pilot"
+            logging.info(f"PILOT MODE: Loading from {sample_dir}")
 
         filename = f"{channel}_fold-{fold}.pt"
         filepath = os.path.join(sample_dir, filename)
 
         if not os.path.exists(filepath):
             logging.warning(f"Dataset file not found: {filepath}")
+            if pilot:
+                logging.error(f"PILOT DATASET MISSING: {filepath}")
+                logging.error("Make sure pilot datasets exist by running: ./scripts/saveDatasets.sh --pilot")
             return []
 
         try:

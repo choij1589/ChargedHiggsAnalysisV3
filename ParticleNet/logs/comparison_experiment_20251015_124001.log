@@ -1,0 +1,111 @@
+2025-10-15 12:40:01,023 - INFO - Experiment log: /data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/logs/comparison_experiment_20251015_124001.log
+2025-10-15 12:40:01,023 - INFO - ================================================================================
+2025-10-15 12:40:01,023 - INFO - PARTICLENET METHODOLOGY COMPARISON EXPERIMENT
+2025-10-15 12:40:01,023 - INFO - ================================================================================
+2025-10-15 12:40:01,023 - INFO - ============================================================
+2025-10-15 12:40:01,023 - INFO - METHODOLOGY COMPARISON EXPERIMENT CONFIGURATION
+2025-10-15 12:40:01,023 - INFO - ============================================================
+2025-10-15 12:40:01,023 - INFO - Signal Points:
+2025-10-15 12:40:01,023 - INFO -   1. TTToHcToWAToMuMu-MHc160_MA85 (160, 85)
+2025-10-15 12:40:01,023 - INFO -   2. TTToHcToWAToMuMu-MHc130_MA90 (130, 90)
+2025-10-15 12:40:01,023 - INFO -   3. TTToHcToWAToMuMu-MHc100_MA95 (100, 95)
+2025-10-15 12:40:01,023 - INFO - 
+Background Categories:
+2025-10-15 12:40:01,023 - INFO -   1. nonprompt: Skim_TriLep_TTLL_powheg
+2025-10-15 12:40:01,023 - INFO -   2. diboson: Skim_TriLep_WZTo3LNu_amcatnlo
+2025-10-15 12:40:01,023 - INFO -   3. ttZ: Skim_TriLep_TTZToLLNuNu
+2025-10-15 12:40:01,023 - INFO - 
+Training Configuration:
+2025-10-15 12:40:01,023 - INFO -   Fold: 3 (single fold test)
+2025-10-15 12:40:01,023 - INFO -   Channel: Run1E2Mu
+2025-10-15 12:40:01,024 - INFO - 
+Default Model Parameters:
+2025-10-15 12:40:01,024 - INFO -   model: ParticleNet
+2025-10-15 12:40:01,024 - INFO -   nNodes: 128
+2025-10-15 12:40:01,024 - INFO -   max_epochs: 81
+2025-10-15 12:40:01,024 - INFO -   optimizer: Adam
+2025-10-15 12:40:01,024 - INFO -   initLR: 0.001
+2025-10-15 12:40:01,024 - INFO -   weight_decay: 0.0001
+2025-10-15 12:40:01,024 - INFO -   scheduler: StepLR
+2025-10-15 12:40:01,024 - INFO -   loss_type: weighted_ce
+2025-10-15 12:40:01,024 - INFO -   dropout_p: 0.25
+2025-10-15 12:40:01,024 - INFO - 
+Training Matrix:
+2025-10-15 12:40:01,024 - INFO -   Multi-class scenarios: 3
+2025-10-15 12:40:01,024 - INFO -   Binary scenarios: 9
+2025-10-15 12:40:01,024 - INFO -   Total training jobs: 12
+2025-10-15 12:40:01,024 - INFO - 
+Multi-Class Training:
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. (nonprompt + diboson + ttZ)
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. (nonprompt + diboson + ttZ)
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. (nonprompt + diboson + ttZ)
+2025-10-15 12:40:01,024 - INFO - 
+Binary Training:
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. nonprompt
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. diboson
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc160_MA85 vs. ttZ
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. nonprompt
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. diboson
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc130_MA90 vs. ttZ
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. nonprompt
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. diboson
+2025-10-15 12:40:01,024 - INFO -   - TTToHcToWAToMuMu-MHc100_MA95 vs. ttZ
+2025-10-15 12:40:01,024 - INFO - ============================================================
+2025-10-15 12:40:01,024 - INFO - Validating environment and datasets...
+2025-10-15 12:40:01,024 - INFO - Environment validation completed
+2025-10-15 12:40:01,025 - INFO - Validating experiment datasets...
+2025-10-15 12:40:01,025 - INFO - All required datasets found
+2025-10-15 12:40:01,025 - INFO - Setting up experiment directories...
+2025-10-15 12:40:01,028 - INFO - Experiment directories created in: /data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/results_bjets/comparison_experiment
+2025-10-15 12:40:01,028 - INFO - ============================================================
+2025-10-15 12:40:01,028 - INFO - STARTING BINARY TRAINING
+2025-10-15 12:40:01,028 - INFO - ============================================================
+2025-10-15 12:40:01,028 - INFO - Binary training 1/9: TTToHcToWAToMuMu-MHc160_MA85 vs. nonprompt
+2025-10-15 12:40:01,028 - INFO - Binary training 2/9: TTToHcToWAToMuMu-MHc160_MA85 vs. diboson
+2025-10-15 12:40:01,028 - INFO - Binary training 3/9: TTToHcToWAToMuMu-MHc160_MA85 vs. ttZ
+2025-10-15 12:40:01,028 - INFO - Binary training 4/9: TTToHcToWAToMuMu-MHc130_MA90 vs. nonprompt
+2025-10-15 12:40:01,028 - INFO - Binary training 5/9: TTToHcToWAToMuMu-MHc130_MA90 vs. diboson
+2025-10-15 12:40:01,028 - INFO - Binary training 6/9: TTToHcToWAToMuMu-MHc130_MA90 vs. ttZ
+2025-10-15 12:40:01,028 - INFO - Binary training 7/9: TTToHcToWAToMuMu-MHc100_MA95 vs. nonprompt
+2025-10-15 12:40:01,028 - INFO - Binary training 8/9: TTToHcToWAToMuMu-MHc100_MA95 vs. diboson
+2025-10-15 12:40:01,028 - INFO - Binary training 9/9: TTToHcToWAToMuMu-MHc100_MA95 vs. ttZ
+2025-10-15 12:40:01,028 - INFO - Executing 9 binary training jobs in parallel...
+2025-10-15 12:40:01,144 - INFO - Using GNU parallel with all jobs
+2025-10-15 12:40:01,144 - INFO - Job log: /data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/logs/binary_training_20251015_124001.log
+2025-10-15 14:37:03,022 - INFO - ✓ All binary training jobs completed successfully
+2025-10-15 14:37:03,022 - INFO - ============================================================
+2025-10-15 14:37:03,022 - INFO - BINARY TRAINING COMPLETED
+2025-10-15 14:37:03,023 - INFO - Success: 9/9
+2025-10-15 14:37:03,023 - INFO - Total duration: 7022.0s
+2025-10-15 14:37:03,023 - INFO - ============================================================
+2025-10-15 14:37:03,023 - INFO - Saving experiment summary...
+2025-10-15 14:37:03,024 - INFO - Experiment summary saved: /data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/results_bjets/comparison_experiment/experiment_summary.json
+2025-10-15 14:37:03,024 - INFO - Validating experiment success by checking output models...
+2025-10-15 14:37:03,025 - WARNING - ✗ Binary model missing: MHc160_MA85 vs nonprompt
+2025-10-15 14:37:03,025 - WARNING - ✗ Binary model missing: MHc160_MA85 vs diboson
+2025-10-15 14:37:03,025 - WARNING - ✗ Binary model missing: MHc160_MA85 vs ttZ
+2025-10-15 14:37:03,025 - WARNING - ✗ Binary model missing: MHc130_MA90 vs nonprompt
+2025-10-15 14:37:03,025 - WARNING - ✗ Binary model missing: MHc130_MA90 vs diboson
+2025-10-15 14:37:03,025 - WARNING - ✗ Binary model missing: MHc130_MA90 vs ttZ
+2025-10-15 14:37:03,025 - WARNING - ✗ Binary model missing: MHc100_MA95 vs nonprompt
+2025-10-15 14:37:03,025 - WARNING - ✗ Binary model missing: MHc100_MA95 vs diboson
+2025-10-15 14:37:03,026 - WARNING - ✗ Binary model missing: MHc100_MA95 vs ttZ
+2025-10-15 14:37:03,026 - INFO - Model validation: 0/9 models found (0.0%)
+2025-10-15 14:37:03,026 - INFO - ================================================================================
+2025-10-15 14:37:03,026 - INFO - EXPERIMENT COMPLETED
+2025-10-15 14:37:03,026 - INFO - ================================================================================
+2025-10-15 14:37:03,026 - INFO - Total training jobs: 9
+2025-10-15 14:37:03,026 - INFO - Completed successfully: 9
+2025-10-15 14:37:03,026 - INFO - Failed: 0
+2025-10-15 14:37:03,026 - INFO - Success rate: 100.0%
+2025-10-15 14:37:03,026 - INFO - Total duration: 7022.0 seconds (117.0 minutes)
+2025-10-15 14:37:03,026 - INFO - 
+Multi-class training: 0/0 completed
+2025-10-15 14:37:03,026 - INFO - Binary training: 9/9 completed
+2025-10-15 14:37:03,026 - INFO - 
+Model validation: FAILED
+2025-10-15 14:37:03,026 - WARNING - Some expected model files were not found!
+2025-10-15 14:37:03,026 - INFO - 
+Results saved in: /data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/results_bjets/comparison_experiment
+2025-10-15 14:37:03,026 - INFO - Summary file: /data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNet/results_bjets/comparison_experiment/experiment_summary.json
+2025-10-15 14:37:03,026 - INFO - ================================================================================

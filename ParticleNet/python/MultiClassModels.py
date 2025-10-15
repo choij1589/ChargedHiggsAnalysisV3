@@ -68,7 +68,6 @@ class MultiClassParticleNet(torch.nn.Module):
     """
     Multi-class ParticleNet for 4-class classification.
 
-    Architecture based on V2's proven ParticleNet design:
     - 3 DynamicEdgeConv layers with k=4 nearest neighbors
     - Concatenation of all conv outputs before pooling
     - Global mean pooling followed by dense layers
@@ -80,7 +79,7 @@ class MultiClassParticleNet(torch.nn.Module):
         # Input normalization
         self.gn0 = GraphNorm(num_node_features)
 
-        # Three DynamicEdgeConv layers (proven V2 architecture)
+        # Three DynamicEdgeConv layers
         self.conv1 = DynamicEdgeConv(num_node_features, num_hidden, dropout_p, k=4)
         self.conv2 = DynamicEdgeConv(num_hidden, num_hidden, dropout_p, k=4)
         self.conv3 = DynamicEdgeConv(num_hidden, num_hidden, dropout_p, k=4)
@@ -113,7 +112,7 @@ class MultiClassParticleNet(torch.nn.Module):
         # Input normalization
         x = self.gn0(x, batch=batch)
 
-        # Graph convolution layers with concatenation (V2 pattern)
+        # Graph convolution layers with concatenation
         conv1 = self.conv1(x, edge_index, batch=batch)
         conv2 = self.conv2(conv1, batch=batch)
         conv3 = self.conv3(conv2, batch=batch)
