@@ -24,14 +24,15 @@ if [ -d $BASEDIR ]; then
 fi
 
 # Preprocess with SR channel name (script handles internal conversion)
-preprocess.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD
+preprocess.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method Baseline
 
 # Template creation with SR channel name
 if [ $METHOD == "Baseline" ]; then
     makeBinnedTemplates.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD
 else
-    makeBinnedTemplates.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD --update
+    makeBinnedTemplates.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD
+    plotParticleNetScore.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT
 fi
 
-printDatacard.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD
 checkTemplates.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD
+printDatacard.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD

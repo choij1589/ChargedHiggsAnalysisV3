@@ -310,7 +310,7 @@ class OverfittingDetector:
             h_test = test_hists_all[class_idx]
 
             # Perform Kolmogorov test
-            p_value = h_train.KolmogorovTest(h_test)
+            p_value = h_train.KolmogorovTest(h_test, option="X")
             is_overfitted = (p_value < self.p_threshold)
 
             logging.debug(f"  {class_name} score: p = {p_value:.4f}")

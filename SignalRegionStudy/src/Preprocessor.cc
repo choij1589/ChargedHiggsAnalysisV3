@@ -11,14 +11,14 @@ void Preprocessor::setInputTree(const TString &syst) {
         exit(EXIT_FAILURE);
     }
 
-    // Try PromptTreeProducer structure first (tree/Events_Central)
-    centralTree = static_cast<TTree*>(inFile->Get("tree/Events_Central"));
+    // Try PromptTreeProducer structure first (Events_Central)
+    centralTree = static_cast<TTree*>(inFile->Get("Events_Central"));
 
-    // If not found, try MatrixTreeProducer structure (tree/Events)
+    // If not found, try MatrixTreeProducer structure (Events)
     if (!centralTree) {
-        centralTree = static_cast<TTree*>(inFile->Get("tree/Events"));
+        centralTree = static_cast<TTree*>(inFile->Get("Events"));
         if (!centralTree) {
-            cerr << "ERROR: Could not find tree/Events_Central or tree/Events in file" << endl;
+            cerr << "ERROR: Could not find Events_Central or Events in file" << endl;
             exit(EXIT_FAILURE);
         }
         // For MatrixTreeProducer files, use tree/Events directly (no systematics)
@@ -27,9 +27,9 @@ void Preprocessor::setInputTree(const TString &syst) {
     }
 
     // For PromptTreeProducer files, get the systematic variation tree
-    inTree = static_cast<TTree*>(inFile->Get(("tree/Events_" + syst).Data()));
+    inTree = static_cast<TTree*>(inFile->Get(("Events_" + syst).Data()));
     if (!inTree) {
-        cerr << "ERROR: Could not find tree/Events_" << syst << " in file" << endl;
+        cerr << "ERROR: Could not find Events_" << syst << " in file" << endl;
         exit(EXIT_FAILURE);
     }
 }
@@ -42,7 +42,7 @@ void Preprocessor::fillOutTree(const TString &sampleName, const TString &signal,
     outTree->Branch("MT1", &MT1);
     outTree->Branch("MT2", &MT2);
     if (isTrainedSample) {
-        outTree->Branch(("score_" + signal).Data(), &score_0);
+        outTree->Branch(("score_" + signal + "_signal").Data(), &score_0);
         outTree->Branch(("score_" + signal + "_nonprompt").Data(), &score_1);
         outTree->Branch(("score_" + signal + "_diboson").Data(), &score_2);
         outTree->Branch(("score_" + signal + "_ttZ").Data(), &score_3);
@@ -56,7 +56,7 @@ void Preprocessor::fillOutTree(const TString &sampleName, const TString &signal,
     inTree->SetBranchAddress("MT1", &MT1);
     inTree->SetBranchAddress("MT2", &MT2);
     if (isTrainedSample) {
-        inTree->SetBranchAddress(("score_" + signal).Data(), &score_0);
+        inTree->SetBranchAddress(("score_" + signal + "_signal").Data(), &score_0);
         inTree->SetBranchAddress(("score_" + signal + "_nonprompt").Data(), &score_1);
         inTree->SetBranchAddress(("score_" + signal + "_diboson").Data(), &score_2);
         inTree->SetBranchAddress(("score_" + signal + "_ttZ").Data(), &score_3);

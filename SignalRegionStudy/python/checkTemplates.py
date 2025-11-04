@@ -370,7 +370,7 @@ def make_background_stack(shapes_file):
         "era": args.era,
         "CoM": get_CoM_energy(args.era),
         "channel": f"{args.channel}",
-        "xTitle": "Reconstructed A mass [GeV]",
+        "xTitle": "|A mass - m_{A}^{fit}| [GeV]",
         "yTitle": "Events",
         "rTitle": "Data / Pred",
         "maxDigits": 3,
@@ -446,7 +446,7 @@ def make_signal_vs_background(shapes_file):
         "era": args.era,
         "CoM": get_CoM_energy(args.era),
         "channel": f"{args.channel}",
-        "xTitle": "Reconstructed A mass [GeV]",
+        "xTitle": "|A mass - m_{A}^{fit}| [GeV]",
         "yTitle": "Events",
         "maxDigits": 3,
         "xRange": [xmin, xmax]
@@ -521,7 +521,7 @@ def make_systematic_variations(shapes_file):
             "era": args.era,
             "CoM": get_CoM_energy(args.era),
             "channel": f"{args.channel}, {args.masspoint}",
-            "xTitle": "Reconstructed A mass [GeV]",
+            "xTitle": "|A mass - m_{A}^{fit}| [GeV]",
             "yTitle": "Events",
             "maxDigits": 3,
             "xRange": [xmin, xmax]

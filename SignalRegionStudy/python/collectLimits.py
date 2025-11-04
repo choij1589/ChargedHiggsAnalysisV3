@@ -28,27 +28,33 @@ elif args.method == "ParticleNet":
     MASSPOINTs = [
         "MHc100_MA95", "MHc130_MA90", "MHc160_MA85", "MHc115_MA87", "MHc145_MA92", "MHc160_MA98"
     ]
-    raise NotImplementedError("ParticleNet not yet implemented")
 else:
     raise ValueError("Invalid method")
-REFERENCE_XSEC = 5.0  # pb
+REFERENCE_XSEC = 5.0  # fb
+TTBAR_XEC_13TEV = 832.0e3  # fb
+
 
 def parseAsymptoticLimit(masspoint, method):
     base_dir = f"templates/{args.era}/{args.channel}/{masspoint}/Shape/{method}"
     f = ROOT.TFile.Open(f"{base_dir}/higgsCombineTest.AsymptoticLimits.mH120.root")
     limit = f.Get("limit")
-    xsecs = {}
-    for idx, entry in enumerate(limit):
-        xsecs[idx] = entry.limit * REFERENCE_XSEC
-    f.Close()
+    branching_ratios = {}
+    try:
+        for idx, entry in enumerate(limit):
+            branching_ratios[idx] = entry.limit * REFERENCE_XSEC / TTBAR_XEC_13TEV
+    except Exception as e:
+        print(masspoint)
+        raise ValueError(e)
+    finally:
+        f.Close()
     
     out = {}
-    out["exp-2"] = xsecs[0]
-    out["exp-1"] = xsecs[1]
-    out["exp0"] = xsecs[2]
-    out["exp+1"] = xsecs[3]
-    out["exp+2"] = xsecs[4]
-    out["obs"] = xsecs[5]
+    out["exp-2"] = branching_ratios[0]
+    out["exp-1"] = branching_ratios[1]
+    out["exp0"] = branching_ratios[2]
+    out["exp+1"] = branching_ratios[3]
+    out["exp+2"] = branching_ratios[4]
+    out["obs"] = branching_ratios[5]
 
     return out
 

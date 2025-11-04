@@ -11,8 +11,8 @@ void AmassFitter::fitMass(const double &mA, const double &low, const double &hig
     // Create the output file before creating new TTree
     TTree *copy = new TTree("Events", "");
 
-    float mass; tree->SetBranchAddress("mass", &mass);
-    float weight; tree->SetBranchAddress("weight", &weight); copy->Branch("weight", &weight);
+    double mass; tree->SetBranchAddress("mass", &mass);
+    double weight; tree->SetBranchAddress("weight", &weight); copy->Branch("weight", &weight);
 
     double Amass; copy->Branch("Amass", &Amass);
 

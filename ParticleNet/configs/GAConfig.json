@@ -3,12 +3,13 @@
   "version": "1.0",
 
   "ga_parameters": {
-    "population_size": 16,
+    "population_size": 20,
     "max_iterations": 4,
     "evolution_ratio": 0.7,
     "mutation_thresholds": [0.7, 0.7, 0.7, 0.7, 0.7],
     "fitness_metric": "loss/valid",
-    "comment": "mutation_thresholds: one per hyperparameter [nNodes, optimizer, initLR, weight_decay, scheduler]"
+    "overfitting_penalty_weight": 0.3,
+    "comment": "mutation_thresholds: one per hyperparameter [nNodes, optimizer, initLR, weight_decay, scheduler]. overfitting_penalty_weight: λ for fitness = valid_loss + λ*(valid_loss - train_loss). Set to 0 to disable."
   },
 
   "hyperparameter_search_space": {
@@ -48,13 +49,13 @@
   "training_parameters": {
     "max_epochs": 81,
     "batch_size": 1024,
-    "dropout_p": 0.25,
+    "dropout_p": 0.3,
     "early_stopping_patience": 7,
     "loss_type": "weighted_ce",
     "train_folds": [0, 1, 2],
     "valid_folds": [3],
     "balance_weights": true,
-    "comment": "train_folds [0,2,4] for training, valid_folds [1] for early stopping, test_folds [3] for overfitting detection"
+    "comment": "train_folds [0,1,2] for training, valid_folds [3] for early stopping, test_folds [4] for overfitting detection"
   },
 
   "background_groups": {
@@ -93,7 +94,7 @@
   },
 
   "overfitting_detection": {
-    "enabled": true,
+    "enabled": false,
     "p_value_threshold": 0.3,
     "test_folds": [4],
     "comment": "Kolmogorov-Smirnov test on per-class score distributions. Model is overfitted if ANY class has p < threshold. Always regenerate filtered models to maintain population size."

@@ -47,7 +47,7 @@ private:
     TTree *outTree;
 
     double convSF, convSFerr;
-    float mass, mass1, mass2, MT1, MT2, score_0, score_1, score_2, score_3, weight;
+    double mass, mass1, mass2, MT1, MT2, score_0, score_1, score_2, score_3, weight;
     int fold;
 };
 

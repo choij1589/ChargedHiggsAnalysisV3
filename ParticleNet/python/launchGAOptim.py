@@ -111,15 +111,21 @@ def update_population_fitness(config, ga_module, args, iteration, base_dir):
 
     output_config = config.get_output_config()
     fitness_metric = config.get_fitness_metric()
+    ga_params = config.get_ga_parameters()
+    penalty_weight = ga_params.get('overfitting_penalty_weight', 0.0)
 
     ga_subdir = output_config['ga_subdir_pattern'].format(iteration=iteration)
     json_dir = f"{base_dir}/{ga_subdir}/{output_config['json_subdir']}"
+
+    if penalty_weight > 0:
+        logging.info(f"Using overfitting penalty: λ = {penalty_weight}")
 
     ga_module.updatePopulation(
         args.channel,
         metric=fitness_metric,
         read_from=json_dir,
-        model_name_pattern=output_config['model_name_pattern']
+        model_name_pattern=output_config['model_name_pattern'],
+        penalty_weight=penalty_weight
     )
 
     # Log results

@@ -37,8 +37,18 @@ class GeneticModule:
         """Randomly sample n individuals from population."""
         self.population = random.choices(self.population, k=n_population)
 
-    def updatePopulation(self, channel, metric="loss/valid", read_from=None, model_name_pattern="model{idx}"):
-        """Update fitness values from JSON files."""
+    def updatePopulation(self, channel, metric="loss/valid", read_from=None, model_name_pattern="model{idx}", penalty_weight=0.0):
+        """Update fitness values from JSON files with optional overfitting penalty.
+
+        Args:
+            channel: Channel name
+            metric: Fitness metric format (e.g., "loss/valid")
+            read_from: Directory containing model JSON files
+            model_name_pattern: Pattern for model filenames
+            penalty_weight: Weight λ for overfitting penalty.
+                          Fitness = valid_loss + λ*(valid_loss - train_loss)
+                          Set to 0 to disable penalty (default)
+        """
         import json
 
         for idx, individual in enumerate(self.population):
@@ -68,7 +78,37 @@ class GeneticModule:
 
             # Get best (minimum) value from history
             history_values = data['epoch_history'][history_key]
-            individual['fitness'] = float(min(history_values))
+            best_epoch_idx = int(np.argmin(history_values))
+            base_fitness = float(history_values[best_epoch_idx])
+
+            # Add overfitting penalty if enabled
+            if penalty_weight > 0:
+                # Get corresponding train metric
+                train_history_key = f"train_{metric_type}"
+
+                if train_history_key not in data['epoch_history']:
+                    logging.warning(
+                        f"Model {idx}: Train metric '{train_history_key}' not found. "
+                        f"Skipping overfitting penalty."
+                    )
+                    penalty = 0.0
+                else:
+                    train_values = data['epoch_history'][train_history_key]
+
+                    # Get train loss at the SAME epoch as best valid loss
+                    best_train_at_best_epoch = float(train_values[best_epoch_idx])
+                    gap = base_fitness - best_train_at_best_epoch  # valid_loss - train_loss at same epoch
+                    penalty = penalty_weight * max(0, gap)  # Only penalize positive gap
+
+                    logging.debug(
+                        f"Model {idx}: best_epoch={best_epoch_idx}, "
+                        f"valid={base_fitness:.4f}, train={best_train_at_best_epoch:.4f}, "
+                        f"gap={gap:.4f}, penalty={penalty:.4f}"
+                    )
+
+                individual['fitness'] = base_fitness + penalty
+            else:
+                individual['fitness'] = base_fitness
 
     def rankSelection(self):
         """Select two parents using rank-based roulette wheel selection."""

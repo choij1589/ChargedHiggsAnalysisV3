@@ -118,7 +118,7 @@ samples/2022/SR1E2Mu/MHc130_MA90/
 ERA="2017"
 CHANNEL="SR1E2Mu"
 MASSPOINT="MHc130_MA90"
-METHOD="Baseline"  # Currently: Baseline only (ParticleNet/GBDT: future)
+METHOD="Baseline"  # Options: Baseline, ParticleNet
 
 makeBinnedTemplates.py --era $ERA --channel $CHANNEL \
     --masspoint $MASSPOINT --method $METHOD
@@ -126,11 +126,12 @@ makeBinnedTemplates.py --era $ERA --channel $CHANNEL \
 
 **What This Does**:
 
-**Current Implementation: Baseline Method**
-- Simple mass-based binning (no ML optimization)
-- ParticleNet/GBDT methods deferred to future release
+**Available Methods**:
+- **Baseline**: Simple mass-based analysis without ML discrimination
+- **ParticleNet**: ML-enhanced event selection with optimized score cuts
+  - See [PARTICLENET_WORKFLOW.md](PARTICLENET_WORKFLOW.md) for detailed ParticleNet documentation
 
-**Processing Steps**:
+**Processing Steps** (Baseline Method shown; ParticleNet adds threshold optimization):
 
 1. **A Mass Fitting** (using `AmassFitter` C++ class):
    - Fits Voigtian (Breit-Wigner ⊗ Gaussian) to signal mass distribution
@@ -138,7 +139,8 @@ makeBinnedTemplates.py --era $ERA --channel $CHANNEL \
      - **mA**: Fitted peak position (e.g., 89.84 GeV for nominal 90 GeV)
      - **Γ (width)**: Natural decay width (e.g., 0.893 GeV)
      - **σ (sigma)**: Detector resolution (e.g., 0.823 GeV)
-   - Saves fit visualization: `fit_result.png`
+   - Saves fit visualization: `signal_fit.png`
+   - Saves fit parameters: `signal_fit.json`
 
 2. **Binning Calculation**:
    - Formula: `mass_range = 5 × √(Γ² + σ²)`
@@ -171,10 +173,15 @@ makeBinnedTemplates.py --era $ERA --channel $CHANNEL \
 
 **Output Structure**:
 ```
-templates/2017/SR1E2Mu/MHc130_MA90/Shape/Baseline/
+templates/2017/SR1E2Mu/MHc130_MA90/Shape/{Method}/
 ├── shapes.root        # All templates (~159 histograms)
 ├── fit_result.root    # RooFit workspace
-└── fit_result.png     # Fit visualization
+├── signal_fit.png     # Fit visualization
+└── signal_fit.json    # Fit parameters and mass window
+
+# ParticleNet method adds:
+├── threshold.csv             # (ParticleNet only)
+└── score_optimization.png    # (ParticleNet only)
 ```
 
 **Histogram Naming Convention**:
@@ -219,12 +226,11 @@ INFO:root:  Total background:        105.6792
 INFO:root:  S/B ratio:                 0.0821
 ```
 
-**Expected Runtime**: ~2-5 minutes per masspoint
+**Expected Runtime**: ~2-5 minutes per masspoint (add 2-5 min for ParticleNet threshold optimization)
 
 **Known Limitations**:
 - Theory systematics (PDF, Scale, PS) not yet available in preprocessed files
 - ConvSF treated as rate uncertainty (not shape systematic in templates)
-- ParticleNet/GBDT methods not yet implemented
 
 ---
 
@@ -1013,20 +1019,20 @@ does not correspond to the type needed "Float_t" (5) by the branch: mass
 ```
 
 **Cause**:
-AmassFitter.cc used incorrect data type (Double_t) for branch reading when branches are stored as Float_t
+AmassFitter.cc used incorrect data type for branch reading (must match ROOT file branch type)
 
 **Solution** (Already fixed in current version):
 
-The issue was in `src/AmassFitter.cc`. The correct implementation uses `float` instead of `double`:
+The issue was in `src/AmassFitter.cc`. The correct implementation uses `double` for branches stored as `Double_t`:
 
 ```cpp
-// CORRECT (current implementation):
-float mass; tree->SetBranchAddress("mass", &mass);
-float weight; tree->SetBranchAddress("weight", &weight);
+// CORRECT (current implementation for Double_t branches):
+double mass; tree->SetBranchAddress("mass", &mass);
+double weight; tree->SetBranchAddress("weight", &weight);
 
-// INCORRECT (old implementation):
-double mass; tree->SetBranchAddress("mass", &mass);     // Type mismatch!
-double weight; tree->SetBranchAddress("weight", &weight); // Type mismatch!
+// INCORRECT (if branches are Double_t but code uses float):
+float mass; tree->SetBranchAddress("mass", &mass);     // Type mismatch!
+float weight; tree->SetBranchAddress("weight", &weight); // Type mismatch!
 ```
 
 **If you encounter this error**:
