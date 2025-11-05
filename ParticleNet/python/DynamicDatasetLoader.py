@@ -635,8 +635,11 @@ class DynamicDatasetLoader:
             List of Data objects with:
             - Signal: label 0
             - Background groups: labels 1, 2, 3, ...
-            - Weights rescaled to preserve cross-section (if subsampled)
             - Weights normalized across classes (if balance_weights=True)
+
+        Note:
+            Weight rescaling is applied once after all folds are loaded, not per-fold.
+            This simplifies the logic while achieving the same training objective.
         """
         from sklearn.utils import resample
 
@@ -648,26 +651,12 @@ class DynamicDatasetLoader:
             for data in signal_data:
                 data.y = torch.tensor(0, dtype=torch.long)  # Signal = class 0
 
-            # Subsample and rescale weights if needed
+            # Subsample if needed (weight rescaling deferred to final class balancing)
             original_count = len(signal_data)
             if max_events_per_fold and original_count > max_events_per_fold:
-                # Calculate original total weight before subsampling
-                original_total_weight = sum(data.weight.item() for data in signal_data)
-
                 # Randomly subsample to max_events_per_fold
                 signal_data = resample(signal_data, n_samples=max_events_per_fold, replace=False, random_state=random_state)
-
-                # Calculate new total weight after subsampling
-                subsampled_total_weight = sum(data.weight.item() for data in signal_data)
-
-                # Rescale weights to preserve total cross-section
-                if subsampled_total_weight > 0:
-                    scale_factor = original_total_weight / subsampled_total_weight
-                    for data in signal_data:
-                        data.weight = data.weight * scale_factor
-                    logging.info(f"Subsampled signal fold {fold}: {original_count} → {len(signal_data)} events, weight scale factor: {scale_factor:.3f}")
-                else:
-                    logging.warning(f"Signal fold {fold}: subsampled total weight is zero, skipping rescaling")
+                logging.info(f"Subsampled signal fold {fold}: {original_count} → {len(signal_data)} events")
             else:
                 logging.info(f"Loaded {len(signal_data)} signal events from fold {fold}")
 
@@ -688,26 +677,12 @@ class DynamicDatasetLoader:
                 for data in group_fold_data:
                     data.y = torch.tensor(group_label, dtype=torch.long)
 
-                # Subsample and rescale weights at group level
+                # Subsample at group level if needed (weight rescaling deferred to final class balancing)
                 original_count = len(group_fold_data)
                 if max_events_per_fold and original_count > max_events_per_fold:
-                    # Calculate original total weight before subsampling
-                    original_total_weight = sum(data.weight.item() for data in group_fold_data)
-
                     # Randomly subsample to max_events_per_fold
                     group_fold_data = resample(group_fold_data, n_samples=max_events_per_fold, replace=False, random_state=random_state)
-
-                    # Calculate new total weight after subsampling
-                    subsampled_total_weight = sum(data.weight.item() for data in group_fold_data)
-
-                    # Rescale weights to preserve total cross-section
-                    if subsampled_total_weight > 0:
-                        scale_factor = original_total_weight / subsampled_total_weight
-                        for data in group_fold_data:
-                            data.weight = data.weight * scale_factor
-                        logging.info(f"Subsampled {group_name} fold {fold}: {original_count} → {len(group_fold_data)} events, weight scale factor: {scale_factor:.3f}")
-                    else:
-                        logging.warning(f"{group_name} fold {fold}: subsampled total weight is zero, skipping rescaling")
+                    logging.info(f"Subsampled {group_name} fold {fold}: {original_count} → {len(group_fold_data)} events")
                 else:
                     logging.info(f"Loaded {len(group_fold_data)} events from {group_name} (label {group_label}) fold {fold}")
 
