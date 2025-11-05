@@ -15,7 +15,6 @@ from typing import Dict, Any, List
 import torch
 import ROOT
 
-from TrainingConfig import TrainingConfig
 from DataPipeline import DataPipeline
 from TrainingUtilities import extract_weights_from_batch
 from BjetSubsetUtils import has_bjet_in_event
@@ -29,12 +28,12 @@ class ResultPersistence:
     persistence with dynamic branch creation for different background modes.
     """
 
-    def __init__(self, config: TrainingConfig):
+    def __init__(self, config):
         """
         Initialize result persistence manager.
 
         Args:
-            config: Training configuration
+            config: Configuration object with args namespace and sample information
         """
         self.config = config
 
@@ -347,12 +346,12 @@ class ResultPersistence:
         logging.info("=" * 60)
 
 
-def create_result_persistence(config: TrainingConfig) -> ResultPersistence:
+def create_result_persistence(config) -> ResultPersistence:
     """
     Factory function to create result persistence manager.
 
     Args:
-        config: Training configuration
+        config: Configuration object with args namespace and sample information
 
     Returns:
         Initialized ResultPersistence instance

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Genetic Algorithm optimization launcher for ParticleNet multi-class training
+# Genetic Algorithm optimization launcher for ParticleNet hyperparameter tuning
+# Uses shared memory to efficiently train multiple models in parallel
 #
 # Usage (Format 1 - paired config):
 #   ./scripts/launchGAOptim.sh --config <sig1:ch1,sig2:ch2,...> --device <dev1,dev2,...> [--pilot] [--debug]
@@ -16,6 +17,8 @@
 
 print_usage() {
     echo "Error: Missing or invalid arguments"
+    echo ""
+    echo "GA Optimization Launcher"
     echo ""
     echo "Usage (Format 1 - paired signal:channel config):"
     echo "  $0 --config <sig1:ch1,sig2:ch2,...> --device <dev1,dev2,...> [--pilot] [--debug]"
@@ -220,6 +223,8 @@ PIDS=()
 NUM_JOBS=${#SIGNAL_ARRAY[@]}
 
 echo "=========================================="
+echo "GA OPTIMIZATION"
+echo "=========================================="
 echo "Launching ${NUM_JOBS} parallel GA optimization job(s)"
 echo "=========================================="
 
@@ -232,7 +237,7 @@ for i in "${!SIGNAL_ARRAY[@]}"; do
     echo "[$((i+1))/${NUM_JOBS}] Signal: ${SIGNAL}, Channel: ${CHANNEL}, Device: ${DEVICE}"
     echo "        Log: ${LOGFILE}"
 
-    # Launch in background and redirect output to log file
+    # Launch GA optimization
     launchGAOptim.py --signal "$SIGNAL" --channel "$CHANNEL" --device "$DEVICE" "${EXTRA_FLAGS[@]}" \
         > "$LOGFILE" 2>&1 &
 

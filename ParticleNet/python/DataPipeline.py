@@ -14,7 +14,6 @@ from torch_geometric.loader import DataLoader
 
 from DynamicDatasetLoader import DynamicDatasetLoader
 from Preprocess import GraphDataset
-from TrainingConfig import TrainingConfig
 
 
 class DataPipeline:
@@ -25,12 +24,12 @@ class DataPipeline:
     with comprehensive dataset validation and loader configuration.
     """
 
-    def __init__(self, config: TrainingConfig):
+    def __init__(self, config):
         """
         Initialize data pipeline with training configuration.
 
         Args:
-            config: TrainingConfig instance with parsed arguments
+            config: Configuration object with args namespace and sample information
         """
         self.config = config
         dataset_dir = "dataset_bjets" if config.args.separate_bjets else "dataset"
@@ -293,12 +292,12 @@ class DataPipeline:
         return info
 
 
-def create_data_pipeline(config: TrainingConfig) -> DataPipeline:
+def create_data_pipeline(config) -> DataPipeline:
     """
     Factory function to create and initialize data pipeline.
 
     Args:
-        config: TrainingConfig instance
+        config: Configuration object with args namespace and sample information
 
     Returns:
         Initialized DataPipeline instance

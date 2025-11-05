@@ -3,8 +3,8 @@
   "version": "1.0",
 
   "ga_parameters": {
-    "population_size": 12,
-    "max_iterations": 5,
+    "population_size": 16,
+    "max_iterations": 4,
     "evolution_ratio": 0.7,
     "mutation_thresholds": [0.7, 0.7, 0.7, 0.7, 0.7],
     "fitness_metric": "loss/valid",
@@ -62,7 +62,7 @@
   "background_groups": {
     "nonprompt": ["TTLL_powheg"],
     "diboson": ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"],
-    "ttX": ["TTZToLLNuNu", "TTWToLNu", "tZq"],
+    "ttX": ["TTZToLLNuNu", "tZq"],
     "comment": "Physics-motivated background grouping for multi-class training"
   },
 

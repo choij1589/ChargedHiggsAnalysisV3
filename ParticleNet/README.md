@@ -7,7 +7,7 @@ ParticleNet-based machine learning pipeline for charged Higgs boson analysis. Th
 1. **Dataset Preparation** (`saveDatasets.sh`) - Convert ROOT files to PyTorch Geometric datasets
 2. **Multi-Class Training** (`trainMultiClass.py`) - N-class training with physics-aware weighting
 3. **Visualization** (`visualizeMultiClass.py`) - Analysis plots and performance metrics
-4. **Hyperparameter Optimization** (`launchGAOptim.sh`) - Genetic Algorithm optimization
+4. **Hyperparameter Optimization** (`launchGAOptim.sh`) - Genetic Algorithm optimization with shared memory for efficient parallel training
 5. **Model Evaluation** (`evalModels.sh`) - Cross-validation training
 6. **SKFlat Integration** (`toSKFlat.sh`) - Deploy models to analysis framework
 
@@ -209,9 +209,29 @@ GAOptim_bjets/{channel}/multiclass/{signal}/
 - **`GAConfig.py`**: Configuration loading and validation
 - **`GATools.py`**: Genetic algorithm operations (selection, crossover, mutation)
 - **`launchGAOptim.py`**: Main optimization workflow
-- **`trainMultiClassForGA.py`**: Single model training
+- **`trainWorker.py`**: Worker function for parallel training
+- **`SharedDatasetManager.py`**: Shared memory dataset management
 - **`evaluateGAModels.py`**: Batch overfitting evaluation
 - **`OverfittingDetector.py`**: K-S test implementation
+
+### Shared Memory Implementation
+
+The GA optimization uses PyTorch's shared memory to enable efficient parallel training:
+
+**How It Works**:
+1. Dataset loaded once and shared via `.share_memory_()` to `/dev/shm`
+2. Worker processes created with `mp.spawn()` for CUDA-safe operation
+3. Workers access shared memory with zero-copy reads
+
+**Performance Benefits**:
+- **Memory**: ~10-20GB total (vs 200-400GB for independent loading)
+- **Startup**: Significantly faster dataset initialization
+- **Scalability**: Enables larger population sizes
+
+**Technical Notes**:
+- Shared tensors are read-only (workers must not modify)
+- Requires Linux shared memory (`/dev/shm`)
+- Uses `spawn` multiprocessing for clean CUDA contexts
 
 ---
 
@@ -268,5 +288,5 @@ Deploy trained models to SKFlat analysis framework.
 - CUDA recommended
 
 ### Current Status
-✅ **Complete**: Dataset preparation, multi-class training, visualization, hyperparameter optimization
-🚧 **In Progress**: Visualizing hyperparameter optiomzation results, results parsing to SKFlat
+✅ **Complete**: Dataset preparation, multi-class training, visualization, hyperparameter optimization with shared memory
+🚧 **In Progress**: Visualizing hyperparameter optimization results, results parsing to SKFlat

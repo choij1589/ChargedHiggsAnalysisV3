@@ -30,20 +30,40 @@ python3 python/saveDataset.py --sample TTToHcToWAToMuMu-MHc130MA100 --sample-typ
 ```
 
 ### Multi-Class Training
-```bash
-# Grouped backgrounds (physics-motivated, recommended)
-python trainMultiClass.py \
-  --signal MHc130_MA100 --channel Run1E2Mu --fold 0 \
-  --background_groups \
-    "nonprompt:TTLL_powheg" \
-    "diboson:WZTo3LNu_amcatnlo,ZZTo4L_powheg" \
-    "ttX:TTZToLLNuNu,TTWToLNu,tZq" \
-  --model OptimizedParticleNet --loss_type weighted_ce
 
-# Batch training across all folds
-./scripts/trainMultiClass.sh --channel Run1E2Mu \
-  --backgrounds "TTLL_powheg WZTo3LNu_amcatnlo TTZToLLNuNu"
+Training parameters are now configured via `configs/SglConfig.json`:
+
+```bash
+# Direct Python script usage
+python trainMultiClass.py --signal MHc130_MA100 --channel Run1E2Mu
+python trainMultiClass.py --signal MHc130_MA100 --channel Run1E2Mu --config configs/SglConfig-custom.json
+
+# Batch training - Format 1: Paired signal:channel configs
+./scripts/trainMultiClass.sh --config MHc130_MA100:Run1E2Mu,MHc130_MA90:Run3Mu
+./scripts/trainMultiClass.sh --config MHc130_MA100:Run1E2Mu,MHc130_MA90:Run3Mu --param configs/SglConfig-custom.json
+
+# Batch training - Format 2: Single signal, multiple channels
+./scripts/trainMultiClass.sh --signal MHc130_MA100 --channels Run1E2Mu,Run3Mu
+./scripts/trainMultiClass.sh --signal MHc130_MA100 --channels Run1E2Mu,Run3Mu --param configs/SglConfig-custom.json
+
+# Batch training - Format 3: Single channel, multiple signals (backward compatible)
+./scripts/trainMultiClass.sh --channel Run1E2Mu
+./scripts/trainMultiClass.sh --channel Run1E2Mu --signals "MHc130_MA90,MHc160_MA85"
+./scripts/trainMultiClass.sh --channel Run1E2Mu --signals "MHc130_MA90,MHc160_MA85" --param configs/SglConfig-custom.json
 ```
+
+**Configuration**: All training parameters (model, optimizer, learning rate, backgrounds, folds, etc.) are specified in `configs/SglConfig.json`. To customize:
+```bash
+cp configs/SglConfig.json configs/SglConfig-custom.json
+# Edit configs/SglConfig-custom.json to change:
+#   - Model architecture (model_config.default_model, model_config.nNodes)
+#   - Optimization (optimization_config.optimizer, initLR, scheduler)
+#   - Background grouping (background_config.mode, background_groups)
+#   - Training parameters (training_parameters.max_epochs, batch_size, loss_type)
+#   - Fold configuration (training_parameters.train_folds, valid_folds, test_folds)
+```
+
+**Note**: The shell script uses `--param` for the parameter JSON file to avoid conflict with `--config` (used for signal:channel pairs in Format 1). The Python script still uses `--config` for the parameter file.
 
 ### Hyperparameter Optimization (GA)
 ```bash
@@ -80,7 +100,8 @@ python trainMultiClass.py \
 ```
 ParticleNet/
 ├── configs/
-│   └── GAConfig.json          # GA optimization configuration
+│   ├── GAConfig.json          # GA optimization configuration
+│   └── SglConfig.json         # Single-run training configuration
 ├── dataset/
 │   └── samples/               # PyTorch datasets (auto-generated)
 │       ├── signals/
@@ -93,12 +114,24 @@ ParticleNet/
 └── scripts/                   # Shell wrappers with GNU parallel
 ```
 
-### Key Configuration: GAConfig.json
+### Key Configuration Files
 
-Controls all GA optimization parameters:
+#### SglConfig.json - Single-Run Training
+Controls trainMultiClass.py behavior:
+- **training_parameters**: max_epochs, batch_size, dropout_p, loss_type, train_folds, valid_folds, test_folds
+- **model_config**: default_model (ParticleNet variants), nNodes
+- **optimization_config**: optimizer, initLR, weight_decay, scheduler
+- **background_config**: mode (groups/individual), background_groups, backgrounds_list
+- **dataset_config**: use_bjets, signal_prefix, background_prefix
+- **system_config**: device, pilot mode, debug mode
+
+**Fold Configuration**: Use train_folds=[0,1,2], valid_folds=[3], test_folds=[4] for standard setup. To perform 5-fold cross-validation, create 5 different config files with different fold splits.
+
+#### GAConfig.json - Hyperparameter Optimization
+Controls launchGAOptim.sh behavior:
 - **GA parameters**: population_size=20, max_iterations=4, evolution_ratio=0.7
 - **Hyperparameter space**: nNodes, optimizers, schedulers, initLR, weight_decay
-- **Training config**: max_epochs=81, batch_size=1024, 5-fold cross-validation
+- **Training config**: max_epochs=10, batch_size=1024, fold splits for GA
 - **Background groups**: Physics-motivated sample grouping
 - **Overfitting detection**: Kolmogorov-Smirnov tests with p-value threshold
 

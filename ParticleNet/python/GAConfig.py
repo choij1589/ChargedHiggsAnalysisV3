@@ -261,6 +261,10 @@ class GAConfigLoader:
                     if fold < 0:
                         raise ValueError(f'overfitting_detection.test_folds[{i}] must be non-negative, got {fold}')
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Return the full configuration as a dictionary."""
+        return self.config
+
     def summary(self) -> str:
         """Generate configuration summary string."""
         lines = ["=" * 60, "GA CONFIGURATION SUMMARY", "=" * 60]

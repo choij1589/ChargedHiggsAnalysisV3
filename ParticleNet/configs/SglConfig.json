@@ -1,0 +1,61 @@
+{
+  "description": "Single-run training configuration for ParticleNet multi-class training",
+  "version": "1.0",
+
+  "training_parameters": {
+    "train_folds": [0, 1, 2],
+    "valid_folds": [3],
+    "test_folds": [4],
+    "max_epochs": 81,
+    "batch_size": 1024,
+    "dropout_p": 0.25,
+    "early_stopping_patience": 10,
+    "loss_type": "weighted_ce",
+    "balance_weights": true,
+    "comment": "train_folds for training data, valid_folds for validation/early stopping, test_folds for final evaluation. Standard 5-fold cross-validation with folds 0-4."
+  },
+
+  "model_config": {
+    "default_model": "ParticleNet",
+    "nNodes": 128,
+    "comment": "Model architecture options: ParticleNet, ParticleNetV2, OptimizedParticleNet, EfficientParticleNet, EnhancedParticleNet, HierarchicalParticleNet"
+  },
+
+  "optimization_config": {
+    "optimizer": "Adam",
+    "initLR": 0.001,
+    "weight_decay": 0.0001,
+    "scheduler": "StepLR",
+    "comment": "Valid optimizers: Adam, RMSprop, Adadelta. Valid schedulers: StepLR, ExponentialLR, CyclicLR, ReduceLROnPlateau"
+  },
+
+  "background_config": {
+    "mode": "groups",
+    "background_groups": {
+      "nonprompt": ["TTLL_powheg", "DYJets"],
+      "diboson": ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"],
+      "ttX": ["TTZToLLNuNu", "TTWToLNu", "tZq"]
+    },
+    "backgrounds_list": [],
+    "comment": "mode: 'groups' or 'individual'. If 'groups', use background_groups (physics-motivated grouping). If 'individual', use backgrounds_list (each background as separate class)."
+  },
+
+  "dataset_config": {
+    "use_bjets": false,
+    "signal_prefix": "TTToHcToWAToMuMu-",
+    "background_prefix": "Skim_TriLep_",
+    "comment": "use_bjets=true means use dataset_bjets with separate b-jet particles. use_bjets=false means standard dataset."
+  },
+
+  "system_config": {
+    "device": "cuda",
+    "pilot": false,
+    "debug": false,
+    "comment": "device: 'cpu', 'cuda', or 'cuda:X' for specific GPU. pilot=true uses small pilot datasets for testing."
+  },
+
+  "output_config": {
+    "results_dir": "results",
+    "comment": "results_dir: 'results' or 'results_bjets'. Automatically set based on dataset_config.use_bjets if not explicitly overridden."
+  }
+}

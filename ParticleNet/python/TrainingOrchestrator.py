@@ -13,7 +13,6 @@ from typing import Dict, Any
 
 import torch
 
-from TrainingConfig import TrainingConfig
 from DataPipeline import DataPipeline
 from TrainingUtilities import (
     train_epoch, evaluate_model, get_detailed_predictions,
@@ -34,12 +33,12 @@ class TrainingOrchestrator:
     and metrics collection with self-contained infrastructure.
     """
 
-    def __init__(self, config: TrainingConfig, data_pipeline: DataPipeline):
+    def __init__(self, config, data_pipeline: DataPipeline):
         """
         Initialize training orchestrator.
 
         Args:
-            config: Training configuration
+            config: Configuration object with args namespace and sample information
             data_pipeline: Data pipeline with prepared data loaders
         """
         self.config = config
@@ -510,12 +509,12 @@ class TrainingOrchestrator:
         return self.training_history
 
 
-def create_training_orchestrator(config: TrainingConfig, data_pipeline: DataPipeline) -> TrainingOrchestrator:
+def create_training_orchestrator(config, data_pipeline: DataPipeline) -> TrainingOrchestrator:
     """
     Factory function to create training orchestrator.
 
     Args:
-        config: Training configuration
+        config: Configuration object with args namespace and sample information
         data_pipeline: Data pipeline with prepared data
 
     Returns:
