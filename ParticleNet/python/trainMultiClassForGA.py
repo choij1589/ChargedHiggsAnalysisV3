@@ -5,6 +5,10 @@ import os
 import argparse
 import logging
 import torch
+
+# Also set PyTorch threads explicitly
+torch.set_num_threads(2)
+
 import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
 from sklearn.utils import shuffle
@@ -103,36 +107,22 @@ def evaluate(model, loader, device):
     return loss / len(loader.dataset), correct / len(loader.dataset)
 
 
-def load_multiclass_datasets(loader, signal_full, background_groups_full, channel, fold_list, pilot):
-    """Load and combine data from multiple folds."""
-    all_data = []
+def load_multiclass_datasets(loader, signal_full, background_groups_full, channel, fold_list, pilot, max_events_per_fold=None, balance_weights=True):
+    """
+    Load and combine data from multiple folds with optional event subsampling and weight rescaling.
 
-    # Load signal data
-    for fold in fold_list:
-        signal_data = loader.load_sample_data(signal_full, "signal", channel, fold, pilot)
-        for data in signal_data:
-            data.y = torch.tensor(0, dtype=torch.long)  # Signal = class 0
-        all_data.extend(signal_data)
-        logging.info(f"Loaded {len(signal_data)} signal events from fold {fold}")
-
-    # Load background groups
-    for group_idx, (group_name, sample_list) in enumerate(background_groups_full.items()):
-        group_label = group_idx + 1  # Background groups: 1, 2, 3, ...
-
-        for fold in fold_list:
-            group_fold_data = []
-            for sample_name in sample_list:
-                sample_data = loader.load_sample_data(sample_name, "background", channel, fold, pilot)
-                group_fold_data.extend(sample_data)
-
-            # Assign group labels
-            for data in group_fold_data:
-                data.y = torch.tensor(group_label, dtype=torch.long)
-
-            all_data.extend(group_fold_data)
-            logging.info(f"Loaded {len(group_fold_data)} events from {group_name} (label {group_label}) fold {fold}")
-
-    return shuffle(all_data, random_state=42)
+    This is a wrapper around DynamicDatasetLoader.load_multiclass_with_subsampling().
+    """
+    return loader.load_multiclass_with_subsampling(
+        signal_sample=signal_full,
+        background_groups=background_groups_full,
+        channel=channel,
+        fold_list=fold_list,
+        pilot=pilot,
+        max_events_per_fold=max_events_per_fold,
+        balance_weights=balance_weights,
+        random_state=42
+    )
 
 
 def setup_training_environment(args, ga_config):
@@ -163,12 +153,20 @@ def setup_training_environment(args, ga_config):
     dataset_root = f"{WORKDIR}/ParticleNet/dataset"
     loader = DynamicDatasetLoader(dataset_root=dataset_root, separate_bjets=dataset_config['use_bjets'])
 
+    # Get max events per fold parameter and balance_weights flag
+    max_events_per_fold = train_params.get('max_events_per_fold_per_class', None)
+    balance_weights = train_params.get('balance_weights', True)
+
+    if max_events_per_fold:
+        logging.info(f"Event subsampling enabled: max {max_events_per_fold} events per fold per class")
+    logging.info(f"Weight balancing: {balance_weights}")
+
     # Load and combine data
     train_data = load_multiclass_datasets(
-        loader, signal_full, background_groups_full, args.channel, train_params['train_folds'], args.pilot
+        loader, signal_full, background_groups_full, args.channel, train_params['train_folds'], args.pilot, max_events_per_fold, balance_weights
     )
     valid_data = load_multiclass_datasets(
-        loader, signal_full, background_groups_full, args.channel, train_params['valid_folds'], args.pilot
+        loader, signal_full, background_groups_full, args.channel, train_params['valid_folds'], args.pilot, max_events_per_fold, balance_weights
     )
 
     # Create datasets and loaders

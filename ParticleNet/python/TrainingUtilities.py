@@ -151,9 +151,12 @@ def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
         Tuple of (average_loss, accuracy)
     """
     model.train()
-    total_loss = 0.0
+
+    # Accumulate losses on GPU to avoid per-batch synchronization
+    loss_accumulator = []
 
     # Collect all predictions, labels, and weights for group-balanced accuracy
+    # Keep on GPU during training to avoid unnecessary CPU transfers
     all_predictions = []
     all_labels = []
     all_weights = []
@@ -175,14 +178,18 @@ def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
         loss.backward()
         optimizer.step()
 
-        # Statistics
-        total_loss += loss.item()
+        # Statistics - keep on GPU
+        loss_accumulator.append(loss.detach())
         pred = logits.argmax(dim=1)  # argmax works on logits too
 
         # Collect predictions and labels for group-balanced accuracy
-        all_predictions.append(pred.cpu())
-        all_labels.append(batch.y.cpu())
-        all_weights.append(weights.cpu())
+        # Use .detach() to prevent gradient graph buildup, keep on GPU
+        all_predictions.append(pred.detach())
+        all_labels.append(batch.y)
+        all_weights.append(weights)
+
+    # Calculate total loss (single GPU-CPU sync at end)
+    total_loss = torch.stack(loss_accumulator).sum().item()
 
     # Update scheduler
     if hasattr(scheduler, 'step'):
@@ -191,10 +198,10 @@ def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
         else:
             scheduler.step()
 
-    # Calculate group-balanced accuracy
-    all_predictions = torch.cat(all_predictions)
-    all_labels = torch.cat(all_labels)
-    all_weights = torch.cat(all_weights)
+    # Concatenate on GPU, then move to CPU for accuracy calculation
+    all_predictions = torch.cat(all_predictions).cpu()
+    all_labels = torch.cat(all_labels).cpu()
+    all_weights = torch.cat(all_weights).cpu()
 
     accuracy = calculate_group_balanced_accuracy(
         all_predictions, all_labels, all_weights, use_groups, num_classes
@@ -220,9 +227,12 @@ def evaluate_model(model, data_loader, loss_fn, device, use_groups=False, num_cl
         Tuple of (average_loss, accuracy)
     """
     model.eval()
-    total_loss = 0.0
+
+    # Accumulate losses on GPU to avoid per-batch synchronization
+    loss_accumulator = []
 
     # Collect all predictions, labels, and weights for group-balanced accuracy
+    # Keep on GPU during evaluation to avoid unnecessary CPU transfers
     all_predictions = []
     all_labels = []
     all_weights = []
@@ -238,19 +248,23 @@ def evaluate_model(model, data_loader, loss_fn, device, use_groups=False, num_cl
             # Compute loss (loss function expects logits)
             loss = loss_fn(logits, batch.y, weights)
 
-            # Statistics
-            total_loss += loss.item()
+            # Statistics - keep on GPU
+            loss_accumulator.append(loss)
             pred = logits.argmax(dim=1)  # argmax works on logits too
 
             # Collect predictions and labels for group-balanced accuracy
-            all_predictions.append(pred.cpu())
-            all_labels.append(batch.y.cpu())
-            all_weights.append(weights.cpu())
+            # Keep on GPU to avoid per-batch CPU transfers
+            all_predictions.append(pred)
+            all_labels.append(batch.y)
+            all_weights.append(weights)
 
-    # Calculate group-balanced accuracy
-    all_predictions = torch.cat(all_predictions)
-    all_labels = torch.cat(all_labels)
-    all_weights = torch.cat(all_weights)
+    # Calculate total loss (single GPU-CPU sync at end)
+    total_loss = torch.stack(loss_accumulator).sum().item()
+
+    # Concatenate on GPU, then move to CPU for accuracy calculation
+    all_predictions = torch.cat(all_predictions).cpu()
+    all_labels = torch.cat(all_labels).cpu()
+    all_weights = torch.cat(all_weights).cpu()
 
     accuracy = calculate_group_balanced_accuracy(
         all_predictions, all_labels, all_weights, use_groups, num_classes
@@ -286,11 +300,15 @@ def get_detailed_predictions(model, data_loader, device, use_groups=False, num_c
             pred = out.argmax(dim=1)
             weights = extract_weights_from_batch(batch)
 
-            all_predictions.append(pred.cpu())
-            all_labels.append(batch.y.cpu())
-            all_weights.append(weights.cpu())
+            # Keep on GPU to avoid per-batch CPU transfers
+            all_predictions.append(pred)
+            all_labels.append(batch.y)
+            all_weights.append(weights)
 
-    return torch.cat(all_predictions), torch.cat(all_labels), torch.cat(all_weights)
+    # Concatenate on GPU, then move to CPU once at the end
+    return (torch.cat(all_predictions).cpu(),
+            torch.cat(all_labels).cpu(),
+            torch.cat(all_weights).cpu())
 
 
 class PerformanceMonitor:

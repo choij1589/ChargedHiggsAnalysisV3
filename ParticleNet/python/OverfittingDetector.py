@@ -232,13 +232,15 @@ class OverfittingDetector:
                 out = model(data.x, data.edge_index, data.graphInput, data.batch)
                 scores = F.softmax(out, dim=1)  # Convert to probabilities
 
-                y_true_list.append(data.y.cpu().numpy())
-                y_scores_list.append(scores.cpu().numpy())
-                weights_list.append(data.weight.cpu().numpy())
+                # Keep on GPU during loop, avoid per-batch CPU transfer
+                y_true_list.append(data.y)
+                y_scores_list.append(scores)
+                weights_list.append(data.weight)
 
-        y_true = np.concatenate(y_true_list)
-        y_scores = np.concatenate(y_scores_list)
-        weights = np.concatenate(weights_list)
+        # Concatenate on GPU, then move to CPU and convert to numpy once
+        y_true = torch.cat(y_true_list).cpu().numpy()
+        y_scores = torch.cat(y_scores_list).cpu().numpy()
+        weights = torch.cat(weights_list).cpu().numpy()
 
         return y_true, y_scores, weights
 

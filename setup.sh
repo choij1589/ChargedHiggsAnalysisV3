@@ -21,7 +21,10 @@ elif [[ $HOST == *"private-snu"* ]]; then
     eval "$(micromamba shell hook -s zsh)"
     micromamba activate Nano
 else
-    echo "Environment not configured for $HOST"
+    echo "Is it nersc?"
+    export WORKDIR="/pscratch/sd/c/choij/workspace/ChargedHiggsAnalysisV3"
+    source $HOME/miniconda3/bin/activate
+    conda activate Nano
 fi
 echo "@@@@ WORKDIR: $WORKDIR"
 

@@ -3,8 +3,8 @@
   "version": "1.0",
 
   "ga_parameters": {
-    "population_size": 20,
-    "max_iterations": 4,
+    "population_size": 12,
+    "max_iterations": 5,
     "evolution_ratio": 0.7,
     "mutation_thresholds": [0.7, 0.7, 0.7, 0.7, 0.7],
     "fitness_metric": "loss/valid",
@@ -49,13 +49,14 @@
   "training_parameters": {
     "max_epochs": 81,
     "batch_size": 1024,
-    "dropout_p": 0.3,
+    "dropout_p": 0.4,
     "early_stopping_patience": 7,
     "loss_type": "weighted_ce",
     "train_folds": [0, 1, 2],
     "valid_folds": [3],
     "balance_weights": true,
-    "comment": "train_folds [0,1,2] for training, valid_folds [3] for early stopping, test_folds [4] for overfitting detection"
+    "max_events_per_fold_per_class": 50000,
+    "comment": "train_folds [0,1,2] for training, valid_folds [3] for early stopping, test_folds [4] for overfitting detection. max_events_per_fold_per_class limits memory usage and speeds up training while preserving physics through weight rescaling."
   },
 
   "background_groups": {

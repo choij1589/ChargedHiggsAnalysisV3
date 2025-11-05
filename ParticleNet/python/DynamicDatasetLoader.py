@@ -601,6 +601,141 @@ class DynamicDatasetLoader:
 
         return train_data, valid_data, test_data
 
+    def load_multiclass_with_subsampling(self, signal_sample, background_groups, channel, fold_list,
+                                         pilot=False, max_events_per_fold=None, balance_weights=True,
+                                         random_state=42):
+        """
+        Load multi-class data with optional per-fold subsampling and weight normalization.
+
+        This method combines loading, subsampling, and weight balancing in a single call.
+        Used by trainMultiClassForGA.py and visualizeGAIteration.py.
+
+        Args:
+            signal_sample: Signal sample name (e.g., "TTToHcToWAToMuMu-MHc130_MA90")
+            background_groups: Dict of {group_name: [list_of_samples]}
+                             e.g., {'nonprompt': ['Skim_TriLep_TTLL_powheg'],
+                                    'diboson': ['Skim_TriLep_WZTo3LNu_amcatnlo', 'Skim_TriLep_ZZTo4L_powheg']}
+            channel: Channel name (e.g., "Run1E2Mu", "Run3Mu")
+            fold_list: List of fold numbers to load (e.g., [0, 1, 2])
+            pilot: Whether to use pilot datasets
+            max_events_per_fold: Maximum events per fold per class (None = no limit)
+            balance_weights: Whether to normalize weights so each class has equal total weight
+            random_state: Random state for shuffling and subsampling
+
+        Returns:
+            List of Data objects with:
+            - Signal: label 0
+            - Background groups: labels 1, 2, 3, ...
+            - Weights rescaled to preserve cross-section (if subsampled)
+            - Weights normalized across classes (if balance_weights=True)
+        """
+        from sklearn.utils import resample
+
+        all_data = []
+
+        # Load signal data with per-fold subsampling
+        for fold in fold_list:
+            signal_data = self.load_sample_data(signal_sample, "signal", channel, fold, pilot)
+            for data in signal_data:
+                data.y = torch.tensor(0, dtype=torch.long)  # Signal = class 0
+
+            # Subsample and rescale weights if needed
+            original_count = len(signal_data)
+            if max_events_per_fold and original_count > max_events_per_fold:
+                # Calculate original total weight before subsampling
+                original_total_weight = sum(data.weight.item() for data in signal_data)
+
+                # Randomly subsample to max_events_per_fold
+                signal_data = resample(signal_data, n_samples=max_events_per_fold, replace=False, random_state=random_state)
+
+                # Calculate new total weight after subsampling
+                subsampled_total_weight = sum(data.weight.item() for data in signal_data)
+
+                # Rescale weights to preserve total cross-section
+                if subsampled_total_weight > 0:
+                    scale_factor = original_total_weight / subsampled_total_weight
+                    for data in signal_data:
+                        data.weight = data.weight * scale_factor
+                    logging.info(f"Subsampled signal fold {fold}: {original_count} → {len(signal_data)} events, weight scale factor: {scale_factor:.3f}")
+                else:
+                    logging.warning(f"Signal fold {fold}: subsampled total weight is zero, skipping rescaling")
+            else:
+                logging.info(f"Loaded {len(signal_data)} signal events from fold {fold}")
+
+            all_data.extend(signal_data)
+
+        # Load background groups with per-fold subsampling at group level
+        for group_idx, (group_name, sample_list) in enumerate(background_groups.items()):
+            group_label = group_idx + 1  # Background groups: 1, 2, 3, ...
+
+            for fold in fold_list:
+                # Load all samples in this group for this fold
+                group_fold_data = []
+                for sample_name in sample_list:
+                    sample_data = self.load_sample_data(sample_name, "background", channel, fold, pilot)
+                    group_fold_data.extend(sample_data)
+
+                # Assign group labels
+                for data in group_fold_data:
+                    data.y = torch.tensor(group_label, dtype=torch.long)
+
+                # Subsample and rescale weights at group level
+                original_count = len(group_fold_data)
+                if max_events_per_fold and original_count > max_events_per_fold:
+                    # Calculate original total weight before subsampling
+                    original_total_weight = sum(data.weight.item() for data in group_fold_data)
+
+                    # Randomly subsample to max_events_per_fold
+                    group_fold_data = resample(group_fold_data, n_samples=max_events_per_fold, replace=False, random_state=random_state)
+
+                    # Calculate new total weight after subsampling
+                    subsampled_total_weight = sum(data.weight.item() for data in group_fold_data)
+
+                    # Rescale weights to preserve total cross-section
+                    if subsampled_total_weight > 0:
+                        scale_factor = original_total_weight / subsampled_total_weight
+                        for data in group_fold_data:
+                            data.weight = data.weight * scale_factor
+                        logging.info(f"Subsampled {group_name} fold {fold}: {original_count} → {len(group_fold_data)} events, weight scale factor: {scale_factor:.3f}")
+                    else:
+                        logging.warning(f"{group_name} fold {fold}: subsampled total weight is zero, skipping rescaling")
+                else:
+                    logging.info(f"Loaded {len(group_fold_data)} events from {group_name} (label {group_label}) fold {fold}")
+
+                all_data.extend(group_fold_data)
+
+        # Apply weight normalization to balance classes (if requested)
+        # This makes each class have equal total weight for balanced training
+        if balance_weights:
+            # Calculate total weight per class across ALL folds
+            class_weights = {}
+            for data in all_data:
+                label = data.y.item()
+                class_weights[label] = class_weights.get(label, 0.0) + data.weight.item()
+
+            # Normalize so each class has equal total weight
+            if class_weights:
+                max_class_weight = max(class_weights.values())
+                logging.info(f"Applying weight normalization across classes:")
+
+                for class_label in sorted(class_weights.keys()):
+                    if class_weights[class_label] > 0:
+                        norm_factor = max_class_weight / class_weights[class_label]
+
+                        # Apply normalization to all events of this class
+                        for data in all_data:
+                            if data.y.item() == class_label:
+                                data.weight = data.weight * norm_factor
+
+                        # Log the normalization
+                        if class_label == 0:
+                            class_name = "signal"
+                        else:
+                            class_name = list(background_groups.keys())[class_label - 1]
+                        logging.info(f"  Class {class_label} ({class_name}): factor {norm_factor:.4f}, weight {class_weights[class_label]:.2f} → {max_class_weight:.2f}")
+
+        return shuffle(all_data, random_state=random_state)
+
 # Example usage
 if __name__ == "__main__":
     # Example usage of the dynamic dataset loader

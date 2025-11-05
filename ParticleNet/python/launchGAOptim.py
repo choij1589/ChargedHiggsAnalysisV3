@@ -39,13 +39,8 @@ def setup_output_directory(config, args):
     base_dir = f"{WORKDIR}/ParticleNet/{results_dir}/{args.channel}/multiclass/{signal_full}"
 
     if os.path.exists(base_dir):
-        print(f"{base_dir} exists. Delete it? [y/n]")
-        if input().strip().lower() == 'y':
-            logging.info(f"Deleting existing directory: {base_dir}")
-            shutil.rmtree(base_dir)
-        else:
-            logging.info("Aborting - directory exists")
-            exit(0)
+        logging.info(f"Deleting existing directory: {base_dir}")
+        shutil.rmtree(base_dir)
 
     return base_dir
 
