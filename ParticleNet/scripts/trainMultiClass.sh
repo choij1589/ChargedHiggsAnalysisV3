@@ -288,17 +288,27 @@ echo "Note: All training parameters (model, optimizer, backgrounds, etc.)"
 echo "      are configured in the JSON parameter file."
 echo "=========================================="
 
-# Generate all training commands
+# Generate all training commands with individual log files
 COMMANDS=()
+LOGFILES=()
+mkdir -p logs
+
 for i in "${!SIGNAL_ARRAY[@]}"; do
     sig="${SIGNAL_ARRAY[$i]}"
     ch="${CHANNEL_ARRAY[$i]}"
 
-    cmd="python trainMultiClass.py --signal $sig --channel $ch"
+    # Create individual log file per training job (following GA naming pattern)
+    logfile="logs/Sgl_${sig}_${ch}.log"
+    LOGFILES+=("$logfile")
+
+    cmd="trainMultiClass.py --signal $sig --channel $ch"
 
     if [[ -n "$PARAM_FILE" ]]; then
         cmd="$cmd --config $PARAM_FILE"
     fi
+
+    # Redirect output to individual log file
+    cmd="$cmd > $logfile 2>&1"
 
     COMMANDS+=("$cmd")
 done
@@ -310,57 +320,30 @@ if [[ "$DRY_RUN" == true ]]; then
     echo "DRY RUN - Commands that would be executed:"
     echo "=========================================="
     for i in "${!COMMANDS[@]}"; do
-        printf "%3d: %s\n" $((i+1)) "${COMMANDS[$i]}"
+        sig="${SIGNAL_ARRAY[$i]}"
+        ch="${CHANNEL_ARRAY[$i]}"
+        logfile="${LOGFILES[$i]}"
+        printf "%3d: Signal: %s, Channel: %s\n" $((i+1)) "$sig" "$ch"
+        printf "     Log: %s\n" "$logfile"
     done
     echo ""
     echo "To execute, run without --dry-run"
     exit 0
 fi
 
-# Check if dataset directories exist
-echo "Checking dataset availability..."
-DATASET_ROOT="$WORKDIR/ParticleNet/dataset/samples"
-DATASET_ROOT_BJETS="$WORKDIR/ParticleNet/dataset_bjets/samples"
-
-if [[ ! -d "$DATASET_ROOT" ]] && [[ ! -d "$DATASET_ROOT_BJETS" ]]; then
-    echo "ERROR: No dataset directories found"
-    echo "  Checked: $DATASET_ROOT"
-    echo "  Checked: $DATASET_ROOT_BJETS"
-    echo "Please run dataset creation first"
-    exit 1
-fi
-
-# Check signal-channel combinations (check both regular and bjets datasets)
-missing_datasets=()
-for i in "${!SIGNAL_ARRAY[@]}"; do
-    sig="${SIGNAL_ARRAY[$i]}"
-    ch="${CHANNEL_ARRAY[$i]}"
-
-    found=false
-    for dataset_root in "$DATASET_ROOT" "$DATASET_ROOT_BJETS"; do
-        if [[ -d "$dataset_root/signals/$sig/$ch" ]]; then
-            found=true
-            break
-        fi
-    done
-    if [[ "$found" == false ]]; then
-        missing_datasets+=("$sig:$ch")
-    fi
-done
-
-if [[ ${#missing_datasets[@]} -gt 0 ]]; then
-    echo "ERROR: Missing signal-channel dataset combinations:"
-    printf "  %s\n" "${missing_datasets[@]}"
-    echo "Please run dataset creation for these signal-channel combinations"
-    exit 1
-fi
-
-echo "All required signal-channel datasets found"
-echo ""
-
 # Execute training commands in parallel
+# Note: Dataset availability will be checked by the Python script
 echo "Starting parallel training..."
 echo "Using GNU parallel with $(nproc) cores"
+echo ""
+
+# Show individual log files
+echo "Individual log files:"
+for i in "${!LOGFILES[@]}"; do
+    sig="${SIGNAL_ARRAY[$i]}"
+    ch="${CHANNEL_ARRAY[$i]}"
+    printf "  [%d/%d] %s/%s -> %s\n" $((i+1)) ${#LOGFILES[@]} "$sig" "$ch" "${LOGFILES[$i]}"
+done
 echo ""
 
 # Create a temporary file with all commands
@@ -371,9 +354,8 @@ printf "%s\n" "${COMMANDS[@]}" > "$TEMP_CMD_FILE"
 # --jobs 0 uses all available cores
 # --halt soon,fail=1 stops on first failure
 # --progress shows progress bar
-# --joblog creates a log of job execution
-JOBLOG_FILE="${WORKDIR}/ParticleNet/logs/multiclass_training_$(date +%Y%m%d_%H%M%S).log"
-mkdir -p "$(dirname "$JOBLOG_FILE")"
+# --joblog creates a summary log of job execution (not full output)
+JOBLOG_FILE="logs/Sgl_joblog_$(date +%Y%m%d_%H%M%S).tsv"
 
 if command -v parallel > /dev/null; then
     parallel --jobs 0 --halt soon,fail=1 --progress --joblog "$JOBLOG_FILE" < "$TEMP_CMD_FILE"
@@ -414,10 +396,19 @@ if [[ $exit_code -eq 0 ]]; then
     echo "      in the parameter file. To perform 5-fold CV, run with different configs."
 else
     echo "Some training jobs failed!"
-    echo "Check the job log: $JOBLOG_FILE"
+    echo ""
+    echo "Check individual log files in logs/:"
+    for i in "${!LOGFILES[@]}"; do
+        sig="${SIGNAL_ARRAY[$i]}"
+        ch="${CHANNEL_ARRAY[$i]}"
+        echo "  - ${LOGFILES[$i]} (${sig}/${ch})"
+    done
 fi
 
-echo "Job log: $JOBLOG_FILE"
+echo ""
+echo "Log files:"
+echo "  Individual logs: logs/Sgl_*_*.log"
+echo "  Job summary: $JOBLOG_FILE"
 echo "=========================================="
 
 exit $exit_code

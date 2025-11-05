@@ -12,7 +12,8 @@
     "early_stopping_patience": 10,
     "loss_type": "weighted_ce",
     "balance_weights": true,
-    "comment": "train_folds for training data, valid_folds for validation/early stopping, test_folds for final evaluation. Standard 5-fold cross-validation with folds 0-4."
+    "max_events_per_fold_per_class": 50000,
+    "comment": "train_folds for training data, valid_folds for validation/early stopping, test_folds for final evaluation. max_events_per_fold_per_class limits memory usage and speeds up training while preserving physics through weight rescaling."
   },
 
   "model_config": {
@@ -32,16 +33,16 @@
   "background_config": {
     "mode": "groups",
     "background_groups": {
-      "nonprompt": ["TTLL_powheg", "DYJets"],
+      "nonprompt": ["TTLL_powheg"],
       "diboson": ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"],
-      "ttX": ["TTZToLLNuNu", "TTWToLNu", "tZq"]
+      "ttX": ["TTZToLLNuNu", "tZq"]
     },
     "backgrounds_list": [],
     "comment": "mode: 'groups' or 'individual'. If 'groups', use background_groups (physics-motivated grouping). If 'individual', use backgrounds_list (each background as separate class)."
   },
 
   "dataset_config": {
-    "use_bjets": false,
+    "use_bjets": true,
     "signal_prefix": "TTToHcToWAToMuMu-",
     "background_prefix": "Skim_TriLep_",
     "comment": "use_bjets=true means use dataset_bjets with separate b-jet particles. use_bjets=false means standard dataset."
@@ -55,7 +56,7 @@
   },
 
   "output_config": {
-    "results_dir": "results",
+    "results_dir": "experiment",
     "comment": "results_dir: 'results' or 'results_bjets'. Automatically set based on dataset_config.use_bjets if not explicitly overridden."
   }
 }

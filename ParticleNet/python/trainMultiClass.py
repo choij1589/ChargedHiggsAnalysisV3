@@ -40,6 +40,7 @@ class Config:
         bg_config = self.sgl_config.get_background_config()
         dataset_config = self.sgl_config.get_dataset_config()
         system_config = self.sgl_config.get_system_config()
+        output_config = self.sgl_config.get_output_config()
 
         # Create args namespace compatible with existing modules
         self.args = argparse.Namespace()
@@ -58,6 +59,7 @@ class Config:
         self.args.early_stopping_patience = train_params['early_stopping_patience']
         self.args.loss_type = train_params['loss_type']
         self.args.balance = train_params['balance_weights']
+        self.args.max_events_per_fold_per_class = train_params.get('max_events_per_fold_per_class')
 
         # Model configuration
         self.args.model = model_config['default_model']
@@ -78,6 +80,22 @@ class Config:
         self.args.device = system_config['device']
         self.args.pilot = system_config['pilot']
         self.args.debug = system_config['debug']
+
+        # Output configuration
+        # Automatic selection: determine expected value based on use_bjets
+        auto_results_dir = "results_bjets" if self.args.separate_bjets else "results"
+
+        # If results_dir is explicitly set AND different from auto value, use explicit value
+        # Otherwise, use automatic selection based on use_bjets
+        config_results_dir = output_config.get('results_dir', '')
+
+        if config_results_dir and config_results_dir not in ['results', 'results_bjets']:
+            # Custom path explicitly set (not the standard results/results_bjets)
+            self.args.results_dir = config_results_dir
+        else:
+            # Use automatic selection based on use_bjets
+            # This handles: empty string, "results", "results_bjets", or not set
+            self.args.results_dir = auto_results_dir
 
         # Process background configuration
         self.use_groups = (bg_config['mode'] == 'groups')
@@ -127,7 +145,8 @@ class Config:
 
     def get_output_paths(self, model_name: str) -> Tuple[str, str, str, str]:
         """Get standardized output paths for model artifacts."""
-        results_dir = "results_bjets" if self.args.separate_bjets else "results"
+        # Use results_dir from config (respects both explicit setting and automatic selection)
+        results_dir = self.args.results_dir
         output_path = f"{self.workdir}/ParticleNet/{results_dir}/{self.args.channel}/multiclass/{self.signal_full_name}/fold-{self.args.fold}"
         if self.args.pilot:
             output_path = f"{self.workdir}/ParticleNet/{results_dir}/{self.args.channel}/multiclass/{self.signal_full_name}/pilot"

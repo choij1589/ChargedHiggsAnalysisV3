@@ -60,6 +60,10 @@ class DataPipeline:
         logging.info(f"Creating multi-class training splits for signal: {self.config.signal_full_name}")
         logging.info(f"Channel: {self.config.args.channel}, Fold: {self.config.args.fold}")
 
+        # Check if max_events_per_fold_per_class is specified
+        max_events = self.config.args.max_events_per_fold_per_class
+        use_subsampling = (max_events is not None)
+
         try:
             if self.config.use_groups:
                 # Create grouped background training splits
@@ -69,18 +73,66 @@ class DataPipeline:
                 for group_name, samples in background_groups_full.items():
                     logging.info(f"  {group_name}: {[s.replace(self.config.args.background_prefix, '') for s in samples]}")
 
-                self.train_data, self.valid_data, self.test_data = self.loader.create_grouped_multiclass_training_splits(
-                    signal_sample=self.config.signal_full_name,
-                    background_groups=background_groups_full,
-                    channel=self.config.args.channel,
-                    fold=self.config.args.fold,
-                    balance=self.config.args.balance,
-                    pilot=self.config.args.pilot
-                )
+                if use_subsampling:
+                    logging.info(f"Using subsampling with max_events_per_fold_per_class={max_events}")
+                    # Use subsampling path (same as GA optimization)
+                    # Determine fold indices based on standard 5-fold scheme
+                    train_folds = self.config.args.train_folds
+                    valid_folds = self.config.args.valid_folds
+                    test_folds = self.config.args.test_folds
+
+                    # Load training data with subsampling
+                    self.train_data = self.loader.load_multiclass_with_subsampling(
+                        signal_sample=self.config.signal_full_name,
+                        background_groups=background_groups_full,
+                        channel=self.config.args.channel,
+                        fold_list=train_folds,
+                        pilot=self.config.args.pilot,
+                        max_events_per_fold=max_events,
+                        balance_weights=self.config.args.balance,
+                        random_state=42
+                    )
+
+                    # Load validation data with subsampling
+                    self.valid_data = self.loader.load_multiclass_with_subsampling(
+                        signal_sample=self.config.signal_full_name,
+                        background_groups=background_groups_full,
+                        channel=self.config.args.channel,
+                        fold_list=valid_folds,
+                        pilot=self.config.args.pilot,
+                        max_events_per_fold=max_events,
+                        balance_weights=self.config.args.balance,
+                        random_state=42
+                    )
+
+                    # Load test data with subsampling
+                    self.test_data = self.loader.load_multiclass_with_subsampling(
+                        signal_sample=self.config.signal_full_name,
+                        background_groups=background_groups_full,
+                        channel=self.config.args.channel,
+                        fold_list=test_folds,
+                        pilot=self.config.args.pilot,
+                        max_events_per_fold=max_events,
+                        balance_weights=self.config.args.balance,
+                        random_state=42
+                    )
+                else:
+                    # Use original path without subsampling (backward compatibility)
+                    self.train_data, self.valid_data, self.test_data = self.loader.create_grouped_multiclass_training_splits(
+                        signal_sample=self.config.signal_full_name,
+                        background_groups=background_groups_full,
+                        channel=self.config.args.channel,
+                        fold=self.config.args.fold,
+                        balance=self.config.args.balance,
+                        pilot=self.config.args.pilot
+                    )
             else:
                 # Use individual background training splits (backward compatibility)
                 logging.info(f"Using individual backgrounds: {len(self.config.background_full_names)} samples")
                 logging.info(f"  Samples: {[s.replace(self.config.args.background_prefix, '') for s in self.config.background_full_names]}")
+
+                if use_subsampling:
+                    logging.warning("Subsampling is only supported with grouped backgrounds mode. Falling back to standard loading.")
 
                 self.train_data, self.valid_data, self.test_data = self.loader.create_multiclass_training_splits(
                     signal_sample=self.config.signal_full_name,
