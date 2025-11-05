@@ -12,13 +12,14 @@ import logging
 import torch
 import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
+from torch_geometric.data import Batch
 
 # Set PyTorch threads for worker processes
 torch.set_num_threads(2)
 
 from MultiClassModels import create_multiclass_model
 from MLTools import EarlyStopper, SummaryWriter
-from Preprocess import GraphDataset
+from Preprocess import SharedBatchDataset
 
 
 def create_optimizer(model, optimizer_name, initLR, weight_decay):
@@ -188,34 +189,32 @@ def train_worker(worker_id, population_hyperparams, train_data_list, valid_data_
     bg_groups = ga_config.get_background_groups()
     num_classes = 1 + len(bg_groups)
 
-    # Unbatch the shared data dictionaries to individual Data objects
-    from SharedDatasetManager import SharedDatasetManager
-    logging.info(f"Unbatching shared data...")
-    train_data_unbatched = SharedDatasetManager.unbatch_shared_data(train_data_list)
-    valid_data_unbatched = SharedDatasetManager.unbatch_shared_data(valid_data_list)
-
-    # Create datasets from unbatched shared data (NO LOADING FROM DISK!)
-    logging.info(f"Creating datasets from shared data...")
-    train_dataset = GraphDataset(train_data_unbatched)
-    valid_dataset = GraphDataset(valid_data_unbatched)
+    # Create datasets directly from shared Batch objects (NO UNBATCHING!)
+    # This eliminates memory overhead from creating 491K individual Data objects
+    logging.info(f"Creating datasets from shared Batch (no unbatching)...")
+    train_dataset = SharedBatchDataset(train_data_list)
+    valid_dataset = SharedBatchDataset(valid_data_list)
 
     logging.info(f"Train dataset: {len(train_dataset)} events (from shared memory)")
     logging.info(f"Valid dataset: {len(valid_dataset)} events (from shared memory)")
 
-    # Create loaders
+    # Create loaders with explicit collate function
+    # collate_fn ensures mini-batches are properly batched into Batch objects
     train_loader = DataLoader(
         train_dataset,
         batch_size=train_params['batch_size'],
         pin_memory=True,  # Faster CPU->GPU transfer
         shuffle=True,
-        num_workers=0  # Important: avoid nested multiprocessing
+        num_workers=0,  # Important: avoid nested multiprocessing
+        collate_fn=Batch.from_data_list  # Explicit collation for mini-batches
     )
     valid_loader = DataLoader(
         valid_dataset,
         batch_size=train_params['batch_size'],
         pin_memory=True,
         shuffle=False,
-        num_workers=0  # Important: avoid nested multiprocessing
+        num_workers=0,  # Important: avoid nested multiprocessing
+        collate_fn=Batch.from_data_list  # Explicit collation for mini-batches
     )
 
     # Setup device
