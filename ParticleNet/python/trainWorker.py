@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
 
 # Set PyTorch threads for worker processes
-torch.set_num_threads(1)
+torch.set_num_threads(2)
 
 from MultiClassModels import create_multiclass_model
 from MLTools import EarlyStopper, SummaryWriter
@@ -219,13 +219,9 @@ def train_worker(worker_id, population_hyperparams, train_data_list, valid_data_
     )
 
     # Setup device
+    # Respect user-specified device - use only the requested GPU
     device = torch.device(args_dict['device'])
-    if device.type == 'cuda':
-        # For multi-GPU, distribute workers across GPUs
-        if torch.cuda.device_count() > 1:
-            gpu_id = worker_id % torch.cuda.device_count()
-            device = torch.device(f'cuda:{gpu_id}')
-            logging.info(f"Using GPU {gpu_id} for worker {worker_id}")
+    logging.info(f"Using device {device} for worker {worker_id}")
 
     # Create model
     model = create_multiclass_model(
