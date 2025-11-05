@@ -1,18 +1,26 @@
 #!/usr/bin/env python
-"""Genetic Algorithm optimization launcher for ParticleNet multi-class training."""
+"""
+Genetic Algorithm optimization launcher for ParticleNet hyperparameter tuning.
+
+Uses shared memory datasets to enable efficient parallel training of multiple
+model configurations with minimal memory overhead.
+"""
 
 import os
 import shutil
 import logging
 import argparse
-import subprocess
 import random
 import json
-from time import sleep
+import torch
+import torch.multiprocessing as mp
 
 from GAConfig import load_ga_config
 from GATools import GeneticModule
 import evaluateGAModels
+from SharedDatasetManager import SharedDatasetManager
+from DynamicDatasetLoader import DynamicDatasetLoader
+from trainWorker import train_worker
 
 
 def parse_arguments():
@@ -46,37 +54,104 @@ def setup_output_directory(config, args):
 
 
 def run_training_population(config, args, population, iteration, base_dir):
-    """Launch parallel training for entire population."""
+    """Launch parallel training using shared memory datasets."""
+
+    logging.info("=" * 60)
+    logging.info("Loading datasets into shared memory")
+    logging.info("=" * 60)
+
+    # Get configurations
+    WORKDIR = os.environ.get("WORKDIR")
+    dataset_config = config.get_dataset_config()
+    train_params = config.get_training_parameters()
+    bg_groups = config.get_background_groups()
     exec_config = config.get_execution_config()
-    processes = []
 
-    for idx in range(len(population)):
-        nNodes, optimizer, initLR, weight_decay, scheduler = population[idx]["chromosome"]
+    # Construct full sample names
+    signal_full = dataset_config['signal_prefix'] + args.signal
+    background_groups_full = {
+        group_name: [dataset_config['background_prefix'] + sample for sample in samples]
+        for group_name, samples in bg_groups.items()
+    }
 
-        command = f"python/trainMultiClassForGA.py"
-        command += f" --signal {args.signal} --channel {args.channel} --iter {iteration} --idx {idx}"
-        command += f" --nNodes {nNodes} --optimizer {optimizer} --initLR {initLR}"
-        command += f" --weight_decay {weight_decay} --scheduler {scheduler} --device {args.device}"
-        if args.pilot:
-            command += " --pilot"
-        if args.debug:
-            command += " --debug"
+    # Initialize dataset manager and loader
+    dataset_root = f"{WORKDIR}/ParticleNet/dataset"
+    if dataset_config.get('use_bjets', False):
+        dataset_root = dataset_root.replace('/dataset', '/dataset_bjets')
 
-        logging.info(f"[Iter {iteration}] Starting model {idx}: nNodes={nNodes}, opt={optimizer}")
+    loader = DynamicDatasetLoader(
+        dataset_root=dataset_root,
+        separate_bjets=dataset_config.get('use_bjets', False)
+    )
 
-        proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        processes.append((idx, proc))
-        sleep(exec_config['process_delay_seconds'])
+    manager = SharedDatasetManager()
 
-    # Wait for all processes to complete
-    for idx, proc in processes:
-        stdout, stderr = proc.communicate()
-        if proc.returncode != 0:
-            logging.error(f"Model {idx} failed with return code {proc.returncode}")
-            logging.error(f"stderr: {stderr.decode()}")
-            raise RuntimeError(f"Training failed for model {idx}")
+    # Load datasets into shared memory (ONE TIME ONLY!)
+    train_data_list, valid_data_list = manager.prepare_shared_datasets(
+        loader=loader,
+        signal_sample=signal_full,
+        background_groups=background_groups_full,
+        channel=args.channel,
+        train_folds=train_params['train_folds'],
+        valid_folds=train_params['valid_folds'],
+        pilot=args.pilot,
+        max_events_per_fold=train_params.get('max_events_per_fold_per_class'),
+        balance_weights=train_params.get('balance_weights', True),
+        random_state=42
+    )
 
-    logging.info(f"[Iter {iteration}] All {len(population)} models completed")
+    # Display memory usage statistics
+    memory_stats = manager.get_memory_usage()
+    logging.info(f"Shared memory usage: {memory_stats['total_gb']:.2f} GB")
+
+    # Prepare arguments for workers
+    args_dict = {
+        'signal': args.signal,
+        'channel': args.channel,
+        'device': args.device,
+        'iteration': iteration,
+        'pilot': args.pilot,
+        'debug': args.debug
+    }
+
+    # Extract hyperparameters for all models
+    population_hyperparams = []
+    for model_config in population:
+        nNodes, optimizer, initLR, weight_decay, scheduler = model_config["chromosome"]
+        hyperparams = {
+            'nNodes': nNodes,
+            'optimizer': optimizer,
+            'initLR': initLR,
+            'weight_decay': weight_decay,
+            'scheduler': scheduler
+        }
+        population_hyperparams.append(hyperparams)
+
+    # Set multiprocessing start method
+    try:
+        mp.set_start_method('spawn', force=True)
+    except RuntimeError:
+        # Already set, that's fine
+        pass
+
+    logging.info(f"[Iter {iteration}] Spawning {len(population)} worker processes...")
+
+    # Launch workers using multiprocessing.spawn
+    # Note: spawn automatically handles process creation and joining
+    try:
+        mp.spawn(
+            train_worker,
+            args=(population_hyperparams, train_data_list, valid_data_list, args_dict, config),
+            nprocs=len(population),
+            join=True  # Wait for all processes to complete
+        )
+        logging.info(f"[Iter {iteration}] All {len(population)} workers completed")
+    except Exception as e:
+        logging.error(f"Error during parallel training: {e}")
+        raise
+
+    # Clear cache after training to free memory
+    manager.clear_cache()
 
 
 def run_overfitting_check(config, args, ga_module, iteration, base_dir):
@@ -198,34 +273,28 @@ def main():
     # ========== Evolution Loop ==========
     for iteration in range(1, max_iterations):
         logging.info("=" * 60)
-        logging.info(f"GENERATION {iteration} - Preparation")
+        logging.info(f"GENERATION {iteration}")
         logging.info("=" * 60)
 
-        num_survivors = len(ga_module.population)
-        logging.info(f"Starting with {num_survivors} survivors from previous iteration")
-
-        if num_survivors > 0:
-            logging.info(f"Evolving from {num_survivors} survivors (ratio={evolution_ratio})")
-            ga_module.evolution(thresholds=mutation_thresholds, ratio=evolution_ratio)
-        else:
-            logging.info("No survivors - will regenerate entire population")
-            ga_module.population = []
-
-        # Regenerate to fill population
-        needed = population_size - len(ga_module.population)
-        if needed > 0:
-            logging.info(f"Regenerating {needed} models to reach population size {population_size}")
+        if len(ga_module.population) == 0:
+            logging.warning("Population extinct! Regenerating models...")
+            ga_module.population = regenerate_models(ga_module, population_size)
+        elif len(ga_module.population) < int(population_size * 0.25):
+            logging.warning(f"Population critically low ({len(ga_module.population)}). Regenerating...")
+            needed = population_size - len(ga_module.population)
             ga_module.population.extend(regenerate_models(ga_module, needed))
-        elif needed < 0:
-            raise RuntimeError(f"Population size ({len(ga_module.population)}) exceeds target ({population_size})")
+        else:
+            # Normal evolution
+            # evolution_ratio = fraction of NEW children to create
+            num_children = int(len(ga_module.population) * evolution_ratio)
+            num_survivors = len(ga_module.population) - num_children
 
-        logging.info(f"Final population ready: {len(ga_module.population)} models")
+            logging.info(f"Population: {len(ga_module.population)}")
+            logging.info(f"Survivors: {num_survivors}, New children: {num_children} (evolution_ratio: {evolution_ratio:.2f})")
 
-        # Train, evaluate, and update
-        logging.info("=" * 60)
-        logging.info(f"GENERATION {iteration} - Training")
-        logging.info("=" * 60)
+            ga_module.evolution(mutation_thresholds, evolution_ratio)
 
+        # Train the new generation
         run_training_population(config, args, ga_module.population, iteration, base_dir)
 
         if overfitting_config['enabled']:
@@ -233,19 +302,25 @@ def main():
 
         update_population_fitness(config, ga_module, args, iteration, base_dir)
 
-    # ========== Final Summary ==========
+    # Final results
+    best = ga_module.bestChromosome()
     logging.info("=" * 60)
-    logging.info("GA OPTIMIZATION COMPLETED")
+    logging.info("GA OPTIMIZATION COMPLETE")
     logging.info("=" * 60)
-    if len(ga_module.population) > 0:
-        final_best = ga_module.bestChromosome()
-        logging.info(f"Final best chromosome: {final_best['chromosome']}")
-        logging.info(f"Final best fitness: {final_best['fitness']:.6f}")
-        logging.info(f"Model: {final_best.get('model', 'N/A')}")
-    else:
-        logging.warning("No valid models found - all models were filtered as overfitted")
-    logging.info(f"Results directory: {base_dir}")
-    logging.info("=" * 60)
+    logging.info(f"Best configuration found: {best}")
+    logging.info(f"Best fitness: {best['fitness']:.6f}")
+
+    # Save final results
+    final_results = {
+        'signal': args.signal,
+        'channel': args.channel,
+        'best_chromosome': best,
+        'configuration': config.to_dict()
+    }
+    final_path = f"{base_dir}/ga_optimization_results.json"
+    with open(final_path, 'w') as f:
+        json.dump(final_results, f, indent=2)
+    logging.info(f"Final results saved to: {final_path}")
 
 
 if __name__ == "__main__":

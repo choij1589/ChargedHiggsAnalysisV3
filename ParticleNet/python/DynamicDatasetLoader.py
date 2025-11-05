@@ -78,13 +78,22 @@ class DynamicDatasetLoader:
         Args:
             sample_name: Name of the MC sample (e.g., "TTToHcToWAToMuMu-MHc130MA100")
             sample_type: "signal" or "background"
-            channel: Channel name (e.g., "Run1E2Mu", "Run3Mu")
+            channel: Channel name (e.g., "Run1E2Mu", "Run3Mu", "Combined")
             fold: Fold number (0-4)
             pilot: Whether to load pilot datasets
 
         Returns:
             List of PyTorch Geometric Data objects
         """
+        # Handle Combined channel by loading both Run1E2Mu and Run3Mu
+        if channel == "Combined":
+            data_1e2mu = self.load_sample_data(sample_name, sample_type, "Run1E2Mu", fold, pilot)
+            data_3mu = self.load_sample_data(sample_name, sample_type, "Run3Mu", fold, pilot)
+            combined_data = data_1e2mu + data_3mu
+            if combined_data:
+                logging.info(f"Combined channel: loaded {len(data_1e2mu)} Run1E2Mu + {len(data_3mu)} Run3Mu = {len(combined_data)} events")
+            return combined_data
+
         if sample_type == "signal":
             base_dir = self.signals_dir
         else:
@@ -120,7 +129,7 @@ class DynamicDatasetLoader:
 
         Args:
             category: Background category ("nonprompt", "diboson", "ttZ")
-            channel: Channel name
+            channel: Channel name (e.g., "Run1E2Mu", "Run3Mu", "Combined")
             fold: Fold number
             pilot: Whether to use pilot datasets
 
@@ -615,7 +624,7 @@ class DynamicDatasetLoader:
             background_groups: Dict of {group_name: [list_of_samples]}
                              e.g., {'nonprompt': ['Skim_TriLep_TTLL_powheg'],
                                     'diboson': ['Skim_TriLep_WZTo3LNu_amcatnlo', 'Skim_TriLep_ZZTo4L_powheg']}
-            channel: Channel name (e.g., "Run1E2Mu", "Run3Mu")
+            channel: Channel name (e.g., "Run1E2Mu", "Run3Mu", "Combined")
             fold_list: List of fold numbers to load (e.g., [0, 1, 2])
             pilot: Whether to use pilot datasets
             max_events_per_fold: Maximum events per fold per class (None = no limit)
