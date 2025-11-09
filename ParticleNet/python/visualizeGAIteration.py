@@ -165,11 +165,291 @@ def create_weighted_histogram(scores: np.ndarray, weights: np.ndarray, name: str
     return hist
 
 
+def identify_problematic_bins(hist: ROOT.TH1D, threshold: float = 1e-6) -> List[int]:
+    """
+    Identify bins with negative content or very small absolute content.
+
+    Args:
+        hist: ROOT histogram to analyze
+        threshold: Minimum absolute content threshold
+
+    Returns:
+        List of bin indices (1-indexed) that are problematic
+    """
+    problematic_bins = []
+    nbins = hist.GetNbinsX()
+
+    for i in range(1, nbins + 1):  # ROOT bins are 1-indexed
+        content = hist.GetBinContent(i)
+        if content < 0 or abs(content) < threshold:
+            problematic_bins.append(i)
+
+    return problematic_bins
+
+
+def create_merge_groups(hist_train: ROOT.TH1D, hist_test: ROOT.TH1D,
+                       threshold: float = 1e-6) -> List[Tuple[int, int]]:
+    """
+    Create groups of consecutive bins to merge based on problematic bins in both histograms.
+
+    Algorithm:
+    1. Identify problematic bins in both train and test histograms
+    2. Create union of problematic bin indices
+    3. Find consecutive problematic bins
+    4. Extend merge groups until cumulative content meets criteria:
+       - sum(abs(content)) >= threshold
+       - sum(content) >= 0 (net positive)
+
+    Args:
+        hist_train: Training histogram
+        hist_test: Test histogram
+        threshold: Minimum content threshold
+
+    Returns:
+        List of (start_bin, end_bin) tuples for bins to merge
+    """
+    # Get problematic bins from both histograms
+    prob_train = set(identify_problematic_bins(hist_train, threshold))
+    prob_test = set(identify_problematic_bins(hist_test, threshold))
+    problematic_bins = sorted(prob_train | prob_test)  # Union
+
+    if not problematic_bins:
+        return []
+
+    nbins = hist_train.GetNbinsX()
+    merge_groups = []
+    i = 0
+
+    while i < len(problematic_bins):
+        group_start = problematic_bins[i]
+        group_end = group_start
+
+        # Calculate cumulative content from both histograms
+        cum_content_train = hist_train.GetBinContent(group_start)
+        cum_abs_train = abs(cum_content_train)
+        cum_content_test = hist_test.GetBinContent(group_start)
+        cum_abs_test = abs(cum_content_test)
+
+        # Extend group while consecutive and criteria not met
+        while (cum_abs_train < threshold or cum_content_train < 0 or
+               cum_abs_test < threshold or cum_content_test < 0):
+
+            # Try to extend to next bin
+            next_bin = group_end + 1
+            if next_bin > nbins:
+                break  # Reached end of histogram
+
+            # Add next bin to group
+            group_end = next_bin
+            cum_content_train += hist_train.GetBinContent(next_bin)
+            cum_abs_train += abs(hist_train.GetBinContent(next_bin))
+            cum_content_test += hist_test.GetBinContent(next_bin)
+            cum_abs_test += abs(hist_test.GetBinContent(next_bin))
+
+            # Check if next_bin was in problematic list - if so, skip it in outer loop
+            if i + 1 < len(problematic_bins) and problematic_bins[i + 1] == next_bin:
+                i += 1
+
+        # Only create merge group if we're actually merging multiple bins
+        if group_end > group_start:
+            merge_groups.append((group_start, group_end))
+
+        i += 1
+
+    return merge_groups
+
+
+def apply_bin_merging(hist_train: ROOT.TH1D, hist_test: ROOT.TH1D,
+                     merge_groups: List[Tuple[int, int]]) -> Tuple[ROOT.TH1D, ROOT.TH1D]:
+    """
+    Apply bin merging to both histograms using the same merge groups.
+
+    Creates new histograms with merged bins, maintaining synchronization between
+    train and test histograms.
+
+    Args:
+        hist_train: Training histogram
+        hist_test: Test histogram
+        merge_groups: List of (start_bin, end_bin) tuples
+
+    Returns:
+        Tuple of (merged_train_hist, merged_test_hist)
+    """
+    if not merge_groups:
+        # No merging needed - return clones
+        h_train_new = hist_train.Clone(f"{hist_train.GetName()}_merged")
+        h_test_new = hist_test.Clone(f"{hist_test.GetName()}_merged")
+        h_train_new.SetDirectory(0)
+        h_test_new.SetDirectory(0)
+        return h_train_new, h_test_new
+
+    nbins_old = hist_train.GetNbinsX()
+    xmin = hist_train.GetXaxis().GetXmin()
+    xmax = hist_train.GetXaxis().GetXmax()
+
+    # Create mapping: old_bin -> new_bin
+    # and track which bins are merged
+    merged_bins = set()
+    for start, end in merge_groups:
+        for b in range(start, end + 1):
+            merged_bins.add(b)
+
+    # Build new bin edges
+    bin_edges = [xmin]
+    current_edge = xmin
+    bin_width = (xmax - xmin) / nbins_old
+
+    old_bin = 1
+    while old_bin <= nbins_old:
+        # Check if this bin is start of a merge group
+        in_merge_group = False
+        for start, end in merge_groups:
+            if old_bin == start:
+                # This is start of merge group - skip to end
+                current_edge = xmin + end * bin_width
+                bin_edges.append(current_edge)
+                old_bin = end + 1
+                in_merge_group = True
+                break
+
+        if not in_merge_group:
+            # Regular bin (not being merged)
+            if old_bin not in merged_bins:
+                current_edge = xmin + old_bin * bin_width
+                bin_edges.append(current_edge)
+            old_bin += 1
+
+    # Create new histograms with variable binning
+    nbins_new = len(bin_edges) - 1
+    bin_edges_array = np.array(bin_edges, dtype=np.float64)
+
+    h_train_new = ROOT.TH1D(
+        f"{hist_train.GetName()}_merged",
+        hist_train.GetTitle(),
+        nbins_new,
+        bin_edges_array
+    )
+    h_test_new = ROOT.TH1D(
+        f"{hist_test.GetName()}_merged",
+        hist_test.GetTitle(),
+        nbins_new,
+        bin_edges_array
+    )
+    h_train_new.SetDirectory(0)
+    h_test_new.SetDirectory(0)
+
+    # Fill new histograms
+    new_bin = 1
+    old_bin = 1
+
+    while old_bin <= nbins_old:
+        # Check if this bin is start of a merge group
+        is_merged = False
+        for start, end in merge_groups:
+            if old_bin == start:
+                # Merge bins from start to end
+                content_train = 0.0
+                error2_train = 0.0
+                content_test = 0.0
+                error2_test = 0.0
+
+                for b in range(start, end + 1):
+                    content_train += hist_train.GetBinContent(b)
+                    error2_train += hist_train.GetBinError(b) ** 2
+                    content_test += hist_test.GetBinContent(b)
+                    error2_test += hist_test.GetBinError(b) ** 2
+
+                h_train_new.SetBinContent(new_bin, content_train)
+                h_train_new.SetBinError(new_bin, np.sqrt(error2_train))
+                h_test_new.SetBinContent(new_bin, content_test)
+                h_test_new.SetBinError(new_bin, np.sqrt(error2_test))
+
+                new_bin += 1
+                old_bin = end + 1
+                is_merged = True
+                break
+
+        if not is_merged:
+            # Regular bin - copy as-is
+            if old_bin not in merged_bins:
+                h_train_new.SetBinContent(new_bin, hist_train.GetBinContent(old_bin))
+                h_train_new.SetBinError(new_bin, hist_train.GetBinError(old_bin))
+                h_test_new.SetBinContent(new_bin, hist_test.GetBinContent(old_bin))
+                h_test_new.SetBinError(new_bin, hist_test.GetBinError(old_bin))
+                new_bin += 1
+            old_bin += 1
+
+    return h_train_new, h_test_new
+
+
+def merge_histograms_iteratively(hist_train: ROOT.TH1D, hist_test: ROOT.TH1D,
+                                 threshold: float = 1e-6, max_iterations: int = 100) -> Tuple[ROOT.TH1D, ROOT.TH1D, int]:
+    """
+    Iteratively merge bins in both histograms until no problematic bins remain.
+
+    Applies adaptive bin merging to handle negative weights and low-statistics bins.
+    The same merging scheme is applied to both train and test histograms to maintain
+    synchronized binning for KS tests.
+
+    Args:
+        hist_train: Training histogram
+        hist_test: Test histogram
+        threshold: Minimum bin content threshold (default: 1e-6)
+        max_iterations: Maximum number of merge iterations (default: 100)
+
+    Returns:
+        Tuple of (merged_train_hist, merged_test_hist, n_iterations)
+    """
+    h_train = hist_train.Clone(f"{hist_train.GetName()}_itermerge")
+    h_test = hist_test.Clone(f"{hist_test.GetName()}_itermerge")
+    h_train.SetDirectory(0)
+    h_test.SetDirectory(0)
+
+    iteration = 0
+
+    while iteration < max_iterations:
+        # Check if any problematic bins remain
+        prob_train = identify_problematic_bins(h_train, threshold)
+        prob_test = identify_problematic_bins(h_test, threshold)
+
+        if not prob_train and not prob_test:
+            break  # Stable - no more problematic bins
+
+        # Create merge groups
+        merge_groups = create_merge_groups(h_train, h_test, threshold)
+
+        if not merge_groups:
+            break  # No merging possible
+
+        # Apply merging
+        h_train, h_test = apply_bin_merging(h_train, h_test, merge_groups)
+        iteration += 1
+
+    # Warn if max iterations reached
+    if iteration >= max_iterations:
+        print(f"Warning: Bin merging reached max iterations ({max_iterations}) for {hist_train.GetName()}")
+
+    return h_train, h_test, iteration
+
+
 def perform_ks_tests_comprehensive(y_true_train: np.ndarray, y_scores_train: np.ndarray, weights_train: np.ndarray,
                                    y_true_test: np.ndarray, y_scores_test: np.ndarray, weights_test: np.ndarray,
-                                   p_threshold: float = 0.05) -> Tuple[Dict, Dict]:
+                                   p_threshold: float = 0.05,
+                                   bin_merge_threshold: float = 1e-6,
+                                   bin_merge_max_iterations: int = 100) -> Tuple[Dict, Dict]:
     """
     Perform comprehensive KS tests: all 4 output scores for each of 4 true classes.
+
+    Args:
+        y_true_train: True labels for training set
+        y_scores_train: Predicted scores for training set
+        weights_train: Event weights for training set
+        y_true_test: True labels for test set
+        y_scores_test: Predicted scores for test set
+        weights_test: Event weights for test set
+        p_threshold: p-value threshold for overfitting detection
+        bin_merge_threshold: Minimum bin content threshold for adaptive bin merging
+        bin_merge_max_iterations: Maximum iterations for iterative bin merging
 
     Returns:
         ks_results: Dict with p-values for all 16 tests
@@ -206,8 +486,13 @@ def perform_ks_tests_comprehensive(y_true_train: np.ndarray, y_scores_train: np.
                 f"h_test_{key}", f"Test: {CLASS_DISPLAY_NAMES[true_class]} - {SCORE_NAMES[score_idx]}"
             )
 
-            # Perform KS test
-            p_value = h_train.KolmogorovTest(h_test, option="X")
+            # Apply adaptive bin merging to handle negative weights and low-statistics bins
+            h_train_merged, h_test_merged, n_merge_iterations = merge_histograms_iteratively(
+                h_train, h_test, threshold=bin_merge_threshold, max_iterations=bin_merge_max_iterations
+            )
+
+            # Perform KS test on merged histograms
+            p_value = h_train_merged.KolmogorovTest(h_test_merged, option="X")
 
             ks_results[key] = {
                 'true_class': CLASS_NAMES[true_class],
@@ -215,12 +500,15 @@ def perform_ks_tests_comprehensive(y_true_train: np.ndarray, y_scores_train: np.
                 'p_value': float(p_value),
                 'is_overfitted': bool(p_value < p_threshold),
                 'n_train': int(train_mask.sum()),
-                'n_test': int(test_mask.sum())
+                'n_test': int(test_mask.sum()),
+                'n_merge_iterations': int(n_merge_iterations),
+                'n_bins_original': int(h_train.GetNbinsX()),
+                'n_bins_merged': int(h_train_merged.GetNbinsX())
             }
 
             histograms[key] = {
-                'train': h_train,
-                'test': h_test
+                'train': h_train_merged,
+                'test': h_test_merged
             }
 
     return ks_results, histograms
@@ -642,6 +930,8 @@ def load_existing_results(model_idx: int, config_path: str, output_dirs: Dict) -
 def process_model(model_idx: int, model_path: str, config_path: str,
                  train_loader: DataLoader, test_loader: DataLoader,
                  device: str, output_dirs: Dict, p_threshold: float,
+                 bin_merge_threshold: float = 1e-6,
+                 bin_merge_max_iterations: int = 100,
                  skip_eval: bool = False):
     """Process a single model: evaluate (or load existing), perform KS tests, generate plots."""
     print(f"\n{'='*60}")
@@ -717,7 +1007,9 @@ def process_model(model_idx: int, model_path: str, config_path: str,
     ks_results, histograms = perform_ks_tests_comprehensive(
         y_true_train, y_scores_train, weights_train,
         y_true_test, y_scores_test, weights_test,
-        p_threshold
+        p_threshold,
+        bin_merge_threshold,
+        bin_merge_max_iterations
     )
 
     # Save KS results
@@ -927,6 +1219,14 @@ def main():
     # Load configuration
     config = load_ga_config()
 
+    # Get bin merge parameters from config
+    overfitting_config = config.get_overfitting_config()
+    bin_merge_threshold = overfitting_config.get('bin_merge_threshold', 1e-6)
+    bin_merge_max_iterations = overfitting_config.get('bin_merge_max_iterations', 100)
+
+    print(f"Bin merge threshold: {bin_merge_threshold}")
+    print(f"Bin merge max iterations: {bin_merge_max_iterations}")
+
     # Setup paths
     signal_full = f"TTToHcToWAToMuMu-{args.signal}"
     base_dir = f"GAOptim_bjets/{args.channel}/multiclass/{signal_full}/GA-iter{args.iteration}"
@@ -997,6 +1297,7 @@ def main():
                 model_idx, model_path, config_path,
                 train_loader, test_loader,
                 args.device, output_dirs, args.p_threshold,
+                bin_merge_threshold, bin_merge_max_iterations,
                 skip_eval=args.skip_eval
             )
             all_results.append(result)

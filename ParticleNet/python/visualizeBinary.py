@@ -24,7 +24,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import roc_curve, auc, precision_recall_curve, confusion_matrix, classification_report
+from sklearn.metrics import precision_recall_curve, confusion_matrix, classification_report
+from ROCCurveCalculator import ROCCurveCalculator
 import logging
 import ROOT
 import cmsstyle as CMS
@@ -324,47 +325,100 @@ def plot_training_curves(df, signal, background, output_path):
 
 def plot_roc_curve(y_true_train, y_scores_train, weights_train,
                    y_true_test, y_scores_test, weights_test, signal, background, output_path):
-    """Plot ROC curve for binary classification with train/test comparison."""
-    # Handle negative weights from NLO Monte Carlo samples by using absolute values
-    weights_train_abs = np.abs(weights_train)
-    weights_test_abs = np.abs(weights_test)
+    """
+    Plot ROC curve for binary classification with train/test comparison.
 
-    # Calculate weighted ROC curves for train and test
-    fpr_train, tpr_train, _ = roc_curve(y_true_train, y_scores_train, sample_weight=weights_train_abs)
-    # Fix numerical precision issues with weighted ROC curves
-    fpr_train = np.clip(fpr_train, 0.0, 1.0)
-    tpr_train = np.clip(tpr_train, 0.0, 1.0)
-    roc_auc_train = auc(fpr_train, tpr_train)
+    Uses ROOT and ROCCurveCalculator for proper negative weight handling.
+    """
+    ROOT.gROOT.SetBatch(True)
+    CMS.setCMSStyle()
 
-    fpr_test, tpr_test, _ = roc_curve(y_true_test, y_scores_test, sample_weight=weights_test_abs)
-    # Fix numerical precision issues with weighted ROC curves
-    fpr_test = np.clip(fpr_test, 0.0, 1.0)
-    tpr_test = np.clip(tpr_test, 0.0, 1.0)
-    roc_auc_test = auc(fpr_test, tpr_test)
+    # Initialize ROC calculator
+    calculator = ROCCurveCalculator()
 
-    plt.figure(figsize=(8, 8))
-    plt.plot(fpr_train, tpr_train, color='blue', lw=3, alpha=0.8,
-             label=f'Training (AUC = {roc_auc_train:.3f})')
-    plt.plot(fpr_test, tpr_test, color='darkorange', lw=3,
-             label=f'Test (AUC = {roc_auc_test:.3f})')
-    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--',
-             label='Random classifier')
+    # Calculate ROC curves with proper negative weight handling
+    fpr_train, tpr_train, auc_train = calculator.calculate_roc_curve(
+        y_true_train, y_scores_train, weights_train
+    )
+    fpr_test, tpr_test, auc_test = calculator.calculate_roc_curve(
+        y_true_test, y_scores_test, weights_test
+    )
 
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title(f'ROC Curve: {signal} vs {background}')
-    plt.legend(loc="lower right")
-    plt.grid(True, alpha=0.3)
+    # Create ROOT canvas
+    canvas = ROOT.TCanvas("c_roc", "ROC Curve", 800, 800)
+    canvas.SetLeftMargin(0.13)
+    canvas.SetRightMargin(0.05)
+    canvas.SetTopMargin(0.08)
+    canvas.SetBottomMargin(0.12)
+    canvas.SetGrid()
 
+    # Create frame
+    frame = canvas.DrawFrame(0, 0, 1, 1)
+    frame.SetTitle(f"{signal} vs {background}")
+    frame.GetXaxis().SetTitle("False Positive Rate")
+    frame.GetYaxis().SetTitle("True Positive Rate")
+    frame.GetXaxis().SetTitleSize(0.045)
+    frame.GetYaxis().SetTitleSize(0.045)
+    frame.GetXaxis().SetLabelSize(0.04)
+    frame.GetYaxis().SetLabelSize(0.04)
+
+    # Create TGraphs for train and test
+    graph_train = ROOT.TGraph(len(fpr_train))
+    for i in range(len(fpr_train)):
+        graph_train.SetPoint(i, fpr_train[i], tpr_train[i])
+    graph_train.SetLineColor(ROOT.kBlue)
+    graph_train.SetLineWidth(3)
+    graph_train.SetLineStyle(1)  # Solid
+
+    graph_test = ROOT.TGraph(len(fpr_test))
+    for i in range(len(fpr_test)):
+        graph_test.SetPoint(i, fpr_test[i], tpr_test[i])
+    graph_test.SetLineColor(ROOT.kOrange+1)
+    graph_test.SetLineWidth(3)
+    graph_test.SetLineStyle(2)  # Dashed
+
+    # Create diagonal line (random classifier)
+    graph_diag = ROOT.TGraph(2)
+    graph_diag.SetPoint(0, 0, 0)
+    graph_diag.SetPoint(1, 1, 1)
+    graph_diag.SetLineColor(ROOT.kGray+2)
+    graph_diag.SetLineWidth(2)
+    graph_diag.SetLineStyle(3)  # Dotted
+
+    # Draw graphs
+    graph_diag.Draw("L SAME")
+    graph_train.Draw("L SAME")
+    graph_test.Draw("L SAME")
+
+    # Create legend
+    legend = ROOT.TLegend(0.50, 0.15, 0.90, 0.35)
+    legend.SetBorderSize(0)
+    legend.SetFillStyle(0)
+    legend.SetTextSize(0.035)
+    legend.AddEntry(graph_train, f"Training (AUC = {auc_train:.3f})", "L")
+    legend.AddEntry(graph_test, f"Test (AUC = {auc_test:.3f})", "L")
+    legend.AddEntry(graph_diag, "Random classifier", "L")
+    legend.Draw()
+
+    # Add CMS label
+    CMS.cmsText = "CMS"
+    CMS.extraText = "Preliminary"
+    CMS.cmsTextSize = 0.65
+    CMS.extraTextSize = 0.55
+    try:
+        CMS.CMS_lumi(canvas, "", 0)
+    except:
+        pass  # Skip if CMS_lumi fails
+
+    # Save canvas
     output_file = os.path.join(output_path, 'roc_curve.png')
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    plt.close()
+    canvas.SaveAs(output_file)
+    canvas.Close()
 
     logging.info(f"ROC curve saved to: {output_file}")
-    logging.info(f"Training ROC AUC: {roc_auc_train:.4f}, Test ROC AUC: {roc_auc_test:.4f}")
-    return roc_auc_test  # Return test AUC for summary
+    logging.info(f"Training ROC AUC: {auc_train:.4f}, Test ROC AUC: {auc_test:.4f}")
+
+    return auc_test  # Return test AUC for summary
 
 def plot_precision_recall_curve(y_true_train, y_scores_train, weights_train,
                                y_true_test, y_scores_test, weights_test, signal, background, output_path):

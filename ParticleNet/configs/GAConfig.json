@@ -98,6 +98,8 @@
     "enabled": false,
     "p_value_threshold": 0.3,
     "test_folds": [4],
-    "comment": "Kolmogorov-Smirnov test on per-class score distributions. Model is overfitted if ANY class has p < threshold. Always regenerate filtered models to maintain population size."
+    "bin_merge_threshold": 1e-6,
+    "bin_merge_max_iterations": 100,
+    "comment": "Kolmogorov-Smirnov test on per-class score distributions. Model is overfitted if ANY class has p < threshold. bin_merge_threshold: merge bins with |content| < threshold or content < 0. bin_merge_max_iterations: maximum iterations for iterative bin merging."
   }
 }

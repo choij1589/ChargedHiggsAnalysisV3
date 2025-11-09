@@ -25,7 +25,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import roc_curve, auc, roc_auc_score, confusion_matrix, classification_report
+from sklearn.metrics import confusion_matrix, classification_report
+from ROCCurveCalculator import ROCCurveCalculator
 import logging
 import ROOT
 import cmsstyle as CMS
@@ -284,35 +285,40 @@ def plot_per_class_roc_curves(y_true_train, y_scores_train, weights_train,
     - Uses likelihood ratio: score = P(signal) / (P(signal) + P(background))
     - Optimal discriminant under Neyman-Pearson lemma
     - Utilizes full multi-class probability information for fair comparison
-    """
-    n_classes = len(class_names)
-    class_colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray']
 
-    # Mapping: class_names[0] = 'Signal', class_names[1:] = backgrounds
-    # Corresponding to y_scores[:, 0] = signal score, y_scores[:, 1:] = background scores
+    Uses ROOT and ROCCurveCalculator for proper negative weight handling.
+    """
+    ROOT.gROOT.SetBatch(True)
+    CMS.setCMSStyle()
+
+    # Initialize ROC calculator
+    calculator = ROCCurveCalculator()
+
+    n_classes = len(class_names)
+
+    # Color palette consistent with other scripts
+    PALETTE = [
+        ROOT.TColor.GetColor("#5790fc"),  # Blue
+        ROOT.TColor.GetColor("#f89c20"),  # Orange
+        ROOT.TColor.GetColor("#e42536"),  # Red
+        ROOT.TColor.GetColor("#964a8b"),  # Purple
+    ]
 
     roc_aucs = {}
-
-    # Handle negative weights from NLO Monte Carlo samples by using absolute values
-    weights_train_abs = np.abs(weights_train)
-    weights_test_abs = np.abs(weights_test)
 
     # Plot Signal vs. each background separately (like binary classification)
     for bg_idx in range(1, n_classes):
         bg_name = class_names[bg_idx]
-        plt.figure(figsize=(8, 8))
 
         # Filter to only Signal (label=0) vs. this background (label=bg_idx)
-        # This creates a binary problem for direct comparison with binary classification
         train_mask = (y_true_train == 0) | (y_true_train == bg_idx)
         test_mask = (y_true_test == 0) | (y_true_test == bg_idx)
 
-        # Create binary labels: Signal=1, Background=0 (matching sklearn convention for positive class)
+        # Create binary labels: Signal=1, Background=0
         y_binary_train = (y_true_train[train_mask] == 0).astype(int)
         y_binary_test = (y_true_test[test_mask] == 0).astype(int)
 
         # Calculate likelihood ratio: P(signal) / (P(signal) + P(background))
-        # This is the optimal discriminant for binary hypothesis testing
         signal_prob_train = y_scores_train[train_mask, 0]
         bg_prob_train = y_scores_train[train_mask, bg_idx]
         signal_scores_train = signal_prob_train / (signal_prob_train + bg_prob_train + 1e-10)
@@ -321,60 +327,102 @@ def plot_per_class_roc_curves(y_true_train, y_scores_train, weights_train,
         bg_prob_test = y_scores_test[test_mask, bg_idx]
         signal_scores_test = signal_prob_test / (signal_prob_test + bg_prob_test + 1e-10)
 
-        # Get filtered weights
-        weights_train_filtered = weights_train_abs[train_mask]
-        weights_test_filtered = weights_test_abs[test_mask]
+        # Get filtered weights (keep signed weights for proper handling)
+        weights_train_filtered = weights_train[train_mask]
+        weights_test_filtered = weights_test[test_mask]
 
-        # Calculate physics-weighted ROC curves for train and test
-        fpr_train, tpr_train, _ = roc_curve(y_binary_train, signal_scores_train,
-                                            sample_weight=weights_train_filtered)
-        fpr_test, tpr_test, _ = roc_curve(y_binary_test, signal_scores_test,
-                                          sample_weight=weights_test_filtered)
-
-        # Fix numerical precision issues with weighted ROC curves
-        fpr_train = np.clip(fpr_train, 0.0, 1.0)
-        tpr_train = np.clip(tpr_train, 0.0, 1.0)
-        fpr_test = np.clip(fpr_test, 0.0, 1.0)
-        tpr_test = np.clip(tpr_test, 0.0, 1.0)
-
-        # Calculate AUC
-        try:
-            roc_auc_train = roc_auc_score(y_binary_train, signal_scores_train,
-                                         sample_weight=weights_train_filtered)
-            roc_auc_test = roc_auc_score(y_binary_test, signal_scores_test,
-                                        sample_weight=weights_test_filtered)
-        except Exception as e:
-            logging.warning(f"Failed to calculate weighted ROC AUC for Signal vs {bg_name}: {e}")
-            # Fallback to direct AUC calculation
-            roc_auc_train = auc(fpr_train, tpr_train)
-            roc_auc_test = auc(fpr_test, tpr_test)
+        # Calculate ROC curves with proper negative weight handling
+        fpr_train, tpr_train, auc_train = calculator.calculate_roc_curve(
+            y_binary_train, signal_scores_train, weights_train_filtered
+        )
+        fpr_test, tpr_test, auc_test = calculator.calculate_roc_curve(
+            y_binary_test, signal_scores_test, weights_test_filtered
+        )
 
         # Store test AUC with "Signal vs. Background" naming for summary
-        roc_aucs[f"Signal vs. {bg_name}"] = roc_auc_test
+        roc_aucs[f"Signal vs. {bg_name}"] = auc_test
 
-        plt.plot(fpr_train, tpr_train, color=class_colors[bg_idx % len(class_colors)],
-                lw=3, alpha=0.8, label=f'Training (AUC = {roc_auc_train:.3f})')
-        plt.plot(fpr_test, tpr_test, color=class_colors[bg_idx % len(class_colors)],
-                lw=3, linestyle='--', label=f'Test (AUC = {roc_auc_test:.3f})')
-        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle=':',
-                label='Random classifier')
+        # Create ROOT canvas
+        canvas = ROOT.TCanvas(f"c_roc_{bg_idx}", "ROC Curve", 800, 800)
+        canvas.SetLeftMargin(0.13)
+        canvas.SetRightMargin(0.05)
+        canvas.SetTopMargin(0.08)
+        canvas.SetBottomMargin(0.12)
+        canvas.SetGrid()
 
-        plt.xlim([0.0, 1.0])
-        plt.ylim([0.0, 1.05])
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title(f'ROC Curve: Signal vs. {bg_name} ({signal})\nLikelihood Ratio Discriminant')
-        plt.legend(loc="lower right")
-        plt.grid(True, alpha=0.3)
+        # Create frame
+        frame = canvas.DrawFrame(0, 0, 1, 1)
+        frame.SetTitle(f"Signal vs. {bg_name} ({signal})")
+        frame.GetXaxis().SetTitle("False Positive Rate")
+        frame.GetYaxis().SetTitle("True Positive Rate")
+        frame.GetXaxis().SetTitleSize(0.045)
+        frame.GetYaxis().SetTitleSize(0.045)
+        frame.GetXaxis().SetLabelSize(0.04)
+        frame.GetYaxis().SetLabelSize(0.04)
 
-        # Save individual ROC curve with naming convention matching binary classification
+        # Create TGraphs for train and test
+        graph_train = ROOT.TGraph(len(fpr_train))
+        for i in range(len(fpr_train)):
+            graph_train.SetPoint(i, fpr_train[i], tpr_train[i])
+        graph_train.SetLineColor(PALETTE[bg_idx % len(PALETTE)])
+        graph_train.SetLineWidth(3)
+        graph_train.SetLineStyle(1)  # Solid
+
+        graph_test = ROOT.TGraph(len(fpr_test))
+        for i in range(len(fpr_test)):
+            graph_test.SetPoint(i, fpr_test[i], tpr_test[i])
+        graph_test.SetLineColor(PALETTE[bg_idx % len(PALETTE)])
+        graph_test.SetLineWidth(3)
+        graph_test.SetLineStyle(2)  # Dashed
+
+        # Create diagonal line (random classifier)
+        graph_diag = ROOT.TGraph(2)
+        graph_diag.SetPoint(0, 0, 0)
+        graph_diag.SetPoint(1, 1, 1)
+        graph_diag.SetLineColor(ROOT.kGray+2)
+        graph_diag.SetLineWidth(2)
+        graph_diag.SetLineStyle(3)  # Dotted
+
+        # Draw graphs
+        graph_diag.Draw("L SAME")
+        graph_train.Draw("L SAME")
+        graph_test.Draw("L SAME")
+
+        # Create legend
+        legend = ROOT.TLegend(0.50, 0.15, 0.90, 0.35)
+        legend.SetBorderSize(0)
+        legend.SetFillStyle(0)
+        legend.SetTextSize(0.035)
+        legend.AddEntry(graph_train, f"Training (AUC = {auc_train:.3f})", "L")
+        legend.AddEntry(graph_test, f"Test (AUC = {auc_test:.3f})", "L")
+        legend.AddEntry(graph_diag, "Random classifier", "L")
+        legend.Draw()
+
+        # Add CMS label
+        CMS.cmsText = "CMS"
+        CMS.extraText = "Preliminary"
+        CMS.cmsTextSize = 0.65
+        CMS.extraTextSize = 0.55
+        try:
+            CMS.CMS_lumi(canvas, "", 0)
+        except:
+            pass  # Skip if CMS_lumi fails
+
+        # Add subtitle for likelihood ratio
+        latex = ROOT.TLatex()
+        latex.SetNDC()
+        latex.SetTextSize(0.03)
+        latex.SetTextAlign(22)
+        latex.DrawLatex(0.5, 0.92, "Likelihood Ratio Discriminant")
+
+        # Save canvas
         output_file = os.path.join(output_path,
                                   f'signal_vs_{bg_name.lower().replace(" ", "_")}_roc_curve.png')
-        plt.savefig(output_file, dpi=300, bbox_inches='tight')
-        plt.close()
+        canvas.SaveAs(output_file)
+        canvas.Close()
 
         logging.info(f"ROC curve for Signal vs. {bg_name} saved to: {output_file}")
-        logging.info(f"  Training AUC: {roc_auc_train:.4f}, Test AUC: {roc_auc_test:.4f}")
+        logging.info(f"  Training AUC: {auc_train:.4f}, Test AUC: {auc_test:.4f}")
 
     return roc_aucs
 
