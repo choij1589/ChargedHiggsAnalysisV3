@@ -91,7 +91,7 @@ class DynamicDatasetLoader:
             data_3mu = self.load_sample_data(sample_name, sample_type, "Run3Mu", fold, pilot)
             combined_data = data_1e2mu + data_3mu
             if combined_data:
-                logging.info(f"Combined channel: loaded {len(data_1e2mu)} Run1E2Mu + {len(data_3mu)} Run3Mu = {len(combined_data)} events")
+                logging.info(f"Combined channel [{sample_name}]: loaded {len(data_1e2mu)} Run1E2Mu + {len(data_3mu)} Run3Mu = {len(combined_data)} events")
             return combined_data
 
         if sample_type == "signal":
@@ -669,22 +669,32 @@ class DynamicDatasetLoader:
             for fold in fold_list:
                 # Load all samples in this group for this fold
                 group_fold_data = []
+                sample_counts = []  # Track individual sample contributions
                 for sample_name in sample_list:
                     sample_data = self.load_sample_data(sample_name, "background", channel, fold, pilot)
+                    sample_counts.append((sample_name, len(sample_data)))
                     group_fold_data.extend(sample_data)
 
                 # Assign group labels
                 for data in group_fold_data:
                     data.y = torch.tensor(group_label, dtype=torch.long)
 
-                # Subsample at group level if needed (weight rescaling deferred to final class balancing)
+                # Log group composition before subsampling
                 original_count = len(group_fold_data)
+                if len(sample_list) > 1:
+                    # Multiple samples in group - show breakdown
+                    sample_breakdown = " + ".join([f"{count} {name}" for name, count in sample_counts])
+                    logging.info(f"Group '{group_name}' fold {fold}: {sample_breakdown} = {original_count} events")
+
+                # Subsample at group level if needed (weight rescaling deferred to final class balancing)
                 if max_events_per_fold and original_count > max_events_per_fold:
                     # Randomly subsample to max_events_per_fold
                     group_fold_data = resample(group_fold_data, n_samples=max_events_per_fold, replace=False, random_state=random_state)
                     logging.info(f"Subsampled {group_name} fold {fold}: {original_count} → {len(group_fold_data)} events")
                 else:
-                    logging.info(f"Loaded {len(group_fold_data)} events from {group_name} (label {group_label}) fold {fold}")
+                    if len(sample_list) == 1:
+                        # Single sample group - use simpler log
+                        logging.info(f"Loaded {len(group_fold_data)} events from {group_name} (label {group_label}) fold {fold}")
 
                 all_data.extend(group_fold_data)
 

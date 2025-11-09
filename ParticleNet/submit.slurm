@@ -3,14 +3,14 @@
 #SBATCH --account=m2612
 #SBATCH --qos=regular
 #SBATCH --constraint=gpu
-#SBATCH --gpus=2
+#SBATCH --gpus=1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=64
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/slurm/slurm-%j.out
 #SBATCH --error=logs/slurmslurm-%j.err
-#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-type=START,END,FAIL
 #SBATCH --mail-user=choij@cern.ch
 
 # Parse command-line arguments

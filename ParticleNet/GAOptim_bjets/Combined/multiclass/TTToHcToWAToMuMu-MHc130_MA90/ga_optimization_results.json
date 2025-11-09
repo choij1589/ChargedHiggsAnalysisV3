@@ -4,20 +4,20 @@
   "best_chromosome": {
     "chromosome": [
       128,
-      "Adam",
-      0.0003,
-      3e-05,
-      "CyclicLR"
+      "RMSprop",
+      0.0002,
+      1e-05,
+      "ReduceLROnPlateau"
     ],
-    "fitness": 0.9108367117689198,
-    "model": "model1"
+    "fitness": 0.908384812960909,
+    "model": "model3"
   },
   "configuration": {
     "description": "Genetic Algorithm hyperparameter optimization configuration for ParticleNet multi-class training",
     "version": "1.0",
     "ga_parameters": {
-      "population_size": 12,
-      "max_iterations": 3,
+      "population_size": 16,
+      "max_iterations": 4,
       "evolution_ratio": 0.7,
       "mutation_thresholds": [
         0.7,
