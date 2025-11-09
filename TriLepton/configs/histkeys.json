@@ -188,6 +188,27 @@
     "rebin": 10,
     "logy": false
   },
+  "muons/1/min_dR_bjets": {
+    "xTitle": "min #DeltaR(#mu1, b-jets)",
+    "yTitle": "Events",
+    "xRange": [0.0, 5.0],
+    "rRange": [0.0, 2.0],
+    "logy": false
+  },
+  "muons/2/min_dR_bjets": {
+    "xTitle": "min #DeltaR(#mu2, b-jets)",
+    "yTitle": "Events",
+    "xRange": [0.0, 5.0],
+    "rRange": [0.0, 2.0],
+    "logy": false
+  },
+  "muons/3/min_dR_bjets": {
+    "xTitle": "min #DeltaR(#mu3, b-jets)",
+    "yTitle": "Events",
+    "xRange": [0.0, 5.0],
+    "rRange": [0.0, 2.0],
+    "logy": false
+  },
   "electrons/1/pt": {
     "xTitle": "p_{T}(e) [GeV]",
     "yTitle": "Events",
@@ -249,6 +270,13 @@
     "xRange": [0.0, 300.0],
     "rRange": [0.0, 2.0],
     "rebin": 5,
+    "logy": false
+  },
+  "electrons/1/min_dR_bjets": {
+    "xTitle": "min #DeltaR(e, b-jets)",
+    "yTitle": "Events",
+    "xRange": [0.0, 5.0],
+    "rRange": [0.0, 2.0],
     "logy": false
   },
   "nonprompt/pt": {
@@ -489,41 +517,6 @@
     "xRange": [-1.0, 1.0],
     "rRange": [0.0, 2.0],
     "rebin": 5,
-    "logy": false
-  },
-  "jets/1/btagScore": {
-    "xTitle": "btagScore(j1)",
-    "yTitle": "Events",
-    "xRange": [0.0, 1.0],
-    "rRange": [0.0, 2.0],
-    "logy": false
-  },
-  "jets/2/btagScore": {
-    "xTitle": "btagScore(j2)",
-    "yTitle": "Events",
-    "xRange": [0.0, 1.0],
-    "rRange": [0.0, 2.0],
-    "logy": false
-  },
-  "jets/3/btagScore": {
-    "xTitle": "btagScore(j3)",
-    "yTitle": "Events",
-    "xRange": [0.0, 1.0],
-    "rRange": [0.0, 2.0],
-    "logy": false
-  },
-  "jets/4/btagScore": {
-    "xTitle": "btagScore(j4)",
-    "yTitle": "Events",
-    "xRange": [0.0, 1.0],
-    "rRange": [0.0, 2.0],
-    "logy": false
-  },
-  "jets/5/btagScore": {
-    "xTitle": "btagScore(j5)",
-    "yTitle": "Events",
-    "xRange": [0.0, 1.0],
-    "rRange": [0.0, 2.0],
     "logy": false
   },
   "jets/1/px": {
@@ -1007,96 +1000,241 @@
     "rebin": 4,
     "logy": false
   },
-  "MHc-100_MA-95/score_nonprompt": {
-    "xTitle": "(100, 95) vs. fake",
+  "dR_ele_mu1": {
+    "xTitle": "#DeltaR(e, #mu_{1})",
     "yTitle": "Events",
-    "xRange": [0.0, 1.0],
+    "xRange": [0.0, 5.0],
     "rRange": [0.0, 2.0],
-    "rebin": 2,
-    "logy": true
+    "logy": false
   },
-  "MHc-100_MA-95/score_diboson": {
-    "xTitle": "(100, 95) vs. VV",
+  "dR_ele_mu2": {
+    "xTitle": "#DeltaR(e, #mu_{2})",
     "yTitle": "Events",
-    "xRange": [0.0, 1.0],
+    "xRange": [0.0, 5.0],
     "rRange": [0.0, 2.0],
-    "rebin": 2,
-    "logy": true
+    "logy": false
   },
-  "MHc-100_MA-95/score_ttZ": {
-    "xTitle": "(100, 95) vs. tt+Z",
+  "dR_min_ele_mu": {
+    "xTitle": "min #DeltaR(e, #mu)",
     "yTitle": "Events",
-    "xRange": [0.0, 1.0],
+    "xRange": [0.0, 5.0],
     "rRange": [0.0, 2.0],
-    "rebin": 2,
-    "logy": true
+    "logy": false
   },
-  "MHc-100_MA-95/score": {
-    "xTitle": "score",
+  "dR_mu1_mu2": {
+    "xTitle": "#DeltaR(#mu_{1}, #mu_{2})",
+    "yTitle": "Events",
+    "xRange": [0.0, 5.0],
+    "rRange": [0.0, 2.0],
+    "logy": false
+  },
+  "dR_pair_ss1_os": {
+    "xTitle": "#DeltaR(OSSF_1)",
+    "yTitle": "Events",
+    "xRange": [0.0, 5.0],
+    "rRange": [0.0, 2.0],
+    "logy": false
+  },
+  "dR_pair_ss2_os": {
+    "xTitle": "#DeltaR(OSSF_2)",
+    "yTitle": "Events",
+    "xRange": [0.0, 5.0],
+    "rRange": [0.0, 2.0],
+    "logy": false
+  },
+  "dR_pair_ss1_ss2": {
+    "xTitle": "#DeltaR(SSSF)",
+    "yTitle": "Events",
+    "xRange": [0.0, 5.0],
+    "rRange": [0.0, 2.0],
+    "logy": false
+  },
+  "MHc100_MA95/score_nonprompt": {
+    "xTitle": "P(nonprompt)",
     "yTitle": "Events",
     "xRange": [0.0, 1.0],
     "rRange": [0.0, 2.0],
     "rebin": 2,
     "logy": false
   },
-  "MHc-130_MA-90/score_nonprompt": {
-    "xTitle": "(130, 90) vs. fake",
-    "yTitle": "Events",
-    "xRange": [0.0, 1.0],
-    "rRange": [0.0, 2.0],
-    "rebin": 2,
-    "logy": true
-  },
-  "MHc-130_MA-90/score_diboson": {
-    "xTitle": "(130, 90) vs. VV",
-    "yTitle": "Events",
-    "xRange": [0.0, 1.0],
-    "rRange": [0.0, 2.0],
-    "rebin": 2,
-    "logy": true
-  },
-  "MHc-130_MA-90/score_ttZ": {
-    "xTitle": "(130, 90) vs. tt+Z",
-    "yTitle": "Events",
-    "xRange": [0.0, 1.0],
-    "rRange": [0.0, 2.0],
-    "rebin": 2,
-    "logy": true
-  },
-  "MHc-130_MA-90/score": {
-    "xTitle": "score",
+  "MHc100_MA95/score_diboson": {
+    "xTitle": "P(VV)",
     "yTitle": "Events",
     "xRange": [0.0, 1.0],
     "rRange": [0.0, 2.0],
     "rebin": 2,
     "logy": false
   },
-  "MHc-160_MA-85/score_nonprompt": {
-    "xTitle": "(160, 85) vs. fake",
+  "MHc100_MA95/score_ttZ": {
+    "xTitle": "P(tt+Z)",
     "yTitle": "Events",
     "xRange": [0.0, 1.0],
     "rRange": [0.0, 2.0],
     "rebin": 2,
-    "logy": true
+    "logy": false
   },
-  "MHc-160_MA-85/score_diboson": {
-    "xTitle": "(160, 85) vs. VV",
+  "MHc100_MA95/score_signal": {
+    "xTitle": "P(signal)",
     "yTitle": "Events",
     "xRange": [0.0, 1.0],
     "rRange": [0.0, 2.0],
     "rebin": 2,
-    "logy": true
+    "logy": false
   },
-  "MHc-160_MA-85/score_ttZ": {
-    "xTitle": "(160, 85) vs. tt+Z",
+  "MHc115_MA87/score_nonprompt": {
+    "xTitle": "P(nonprompt)",
     "yTitle": "Events",
     "xRange": [0.0, 1.0],
     "rRange": [0.0, 2.0],
     "rebin": 2,
-    "logy": true
+    "logy": false
   },
-  "MHc-160_MA-85/score": {
-    "xTitle": "score",
+  "MHc115_MA87/score_diboson": {
+    "xTitle": "P(VV)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc115_MA87/score_ttZ": {
+    "xTitle": "P(tt+Z)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc115_MA87/score_signal": {
+    "xTitle": "P(signal)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc130_MA90/score_nonprompt": {
+    "xTitle": "P(nonprompt)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc130_MA90/score_diboson": {
+    "xTitle": "P(VV)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc130_MA90/score_ttZ": {
+    "xTitle": "P(tt+Z)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc130_MA90/score_signal": {
+    "xTitle": "P(signal)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc145_MA92/score_nonprompt": {
+    "xTitle": "P(nonprompt)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc145_MA92/score_diboson": {
+    "xTitle": "P(VV)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc145_MA92/score_ttZ": {
+    "xTitle": "P(tt+Z)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc145_MA92/score_signal": {
+    "xTitle": "P(signal)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc160_MA85/score_nonprompt": {
+    "xTitle": "P(nonprompt)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc160_MA85/score_diboson": {
+    "xTitle": "P(VV)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc160_MA85/score_ttZ": {
+    "xTitle": "P(tt+Z)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc160_MA85/score_signal": {
+    "xTitle": "P(signal)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc160_MA98/score_nonprompt": {
+    "xTitle": "P(nonprompt)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc160_MA98/score_diboson": {
+    "xTitle": "P(VV)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc160_MA98/score_ttZ": {
+    "xTitle": "P(tt+Z)",
+    "yTitle": "Events",
+    "xRange": [0.0, 1.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 2,
+    "logy": false
+  },
+  "MHc160_MA98/score_signal": {
+    "xTitle": "P(signal)",
     "yTitle": "Events",
     "xRange": [0.0, 1.0],
     "rRange": [0.0, 2.0],

@@ -350,7 +350,42 @@ class ComparisonCanvas(BaseCanvas):
         hdf.GetYaxis().SetMaxDigits(config.get("maxDigits", 3))
 
         # Create legend AFTER setting log scales
-        self.leg = self._create_legend(config)        
+        self.leg = self._create_legend(config)
+
+    def update_y_scale(self, additional_hists=None):
+        """
+        Update y-axis scale to accommodate all histograms including optional additional ones.
+
+        Args:
+            additional_hists (list or dict, optional): Additional histograms to consider for scaling
+        """
+        # Skip if yRange is explicitly set in config
+        if self.config.get("yRange") is not None:
+            return
+
+        # Find maximum among systematics (background stack)
+        hist_max = self.systematics.GetMaximum()
+
+        # Consider additional histograms (e.g., signals) if provided
+        if additional_hists is not None:
+            hist_list = additional_hists.values() if isinstance(additional_hists, dict) else additional_hists
+            for hist in hist_list:
+                hist_max = max(hist_max, hist.GetMaximum())
+
+        # Calculate new y-axis range
+        if self.config.get('logy', False):
+            ymin = self.systematics.GetMinimum() * 0.5
+            if not ymin > 0:
+                ymin = 1e-3
+            ymax = hist_max * 100
+        else:
+            ymin = 0.
+            ymax = hist_max * 1.5
+
+        # Update the canvas histogram's y-axis
+        hdf = CMS.GetCmsCanvasHist(self.canv.cd(1))
+        hdf.SetMinimum(ymin)
+        hdf.SetMaximum(ymax)        
 
     def drawPadUp(self):
         self.canv.cd(1)
@@ -371,15 +406,25 @@ class ComparisonCanvas(BaseCanvas):
         self.canv.cd(1)
         self.signals = {}
         self.sigleg = CMS.cmsLeg(0.38, 0.6, 0.6, 0.84, textSize=0.04, columns=1)
+
+        # Process all signals
         for idx, (name, hist) in enumerate(signals.items()):
+            # Clone with unique name to avoid ROOT histogram registry conflicts
+            hist_clone = hist.Clone(f"signal_{name}")
             # Apply same binning as main histograms using base class method
-            rebinned_hist = self._apply_binning(hist, self.config)
+            rebinned_hist = self._apply_binning(hist_clone, self.config)
             self.signals[name] = rebinned_hist
 
-            self.signals[name].SetStats(0)
-            CMS.cmsObjectDraw(self.signals[name], "hist", LineColor=ROOT.TColor.GetColorDark(self.palette[idx]), LineWidth=2, LineStyle=ROOT.kSolid, MarkerSize=0)
-            CMS.cmsObjectDraw(self.signals[name], "LE", LineColor=ROOT.TColor.GetColorDark(self.palette[idx]), LineWidth=2, LineStyle=ROOT.kSolid, FillColor=ROOT.kWhite, MarkerSize=0)
-            CMS.addToLegend(self.sigleg, (self.signals[name], name, "LE"))
+        # Update y-axis scale to accommodate signals
+        self.update_y_scale(self.signals)
+
+        # Now draw all signals
+        for idx, (name, hist) in enumerate(self.signals.items()):
+            hist.SetStats(0)
+            CMS.cmsObjectDraw(hist, "hist", LineColor=ROOT.TColor.GetColorDark(self.palette[idx]), LineWidth=2, LineStyle=ROOT.kSolid, MarkerSize=0)
+            CMS.cmsObjectDraw(hist, "LE", LineColor=ROOT.TColor.GetColorDark(self.palette[idx]), LineWidth=2, LineStyle=ROOT.kSolid, FillColor=ROOT.kWhite, MarkerSize=0)
+            CMS.addToLegend(self.sigleg, (hist, name, "LE"))
+        self.sigleg.Draw()
         self.canv.cd(1).RedrawAxis()
 
     def drawPadDown(self):

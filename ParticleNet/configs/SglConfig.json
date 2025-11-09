@@ -7,9 +7,9 @@
     "valid_folds": [3],
     "test_folds": [4],
     "max_epochs": 81,
-    "batch_size": 1024,
-    "dropout_p": 0.25,
-    "early_stopping_patience": 10,
+    "batch_size": 128,
+    "dropout_p": 0.4,
+    "early_stopping_patience": 7,
     "loss_type": "weighted_ce",
     "balance_weights": true,
     "max_events_per_fold_per_class": 50000,
@@ -26,7 +26,7 @@
     "optimizer": "Adam",
     "initLR": 0.001,
     "weight_decay": 0.0001,
-    "scheduler": "StepLR",
+    "scheduler": "ExponentialLR",
     "comment": "Valid optimizers: Adam, RMSprop, Adadelta. Valid schedulers: StepLR, ExponentialLR, CyclicLR, ReduceLROnPlateau"
   },
 

@@ -19,6 +19,10 @@ parser.add_argument("--histkey", required=True, type=str, help="histkey")
 parser.add_argument("--exclude", default=None, type=str,
                     help="exclude reweighting (WZSF, ConvSF)")
 parser.add_argument("--blind", default=False, action="store_true", help="blind data")
+parser.add_argument("--signals", default=["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"],
+                    nargs="+", help="Signal mass points to overlay")
+parser.add_argument("--signal-scale", default=10.0, type=float,
+                    help="Scale factor for signal histograms")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 
@@ -241,9 +245,6 @@ else:
     if eras_without_data:
         logging.warning(f"Data for {args.histkey} completely missing in eras: {eras_without_data}")
 
-if args.blind:
-    data.Scale(0.)
-
 # Load nonprompt samples from each era
 HISTs = {}
 for era in era_list:
@@ -294,7 +295,7 @@ for sample in MCList + list(nonprompt):
     if sample in HISTs and HISTs[sample] is not None:
         valid_mc_samples += 1
     else:
-        logging.warning(f"No histograms found for sample {sample}")
+        logging.debug(f"No histograms found for sample {sample}")
 
 # Check if we have at least some MC samples
 if valid_mc_samples == 0:
@@ -331,14 +332,61 @@ BKGs = {name: hist for name, hist in temp_dict.items() if hist}
 # Sort BKGs by hist.Integral()
 BKGs = dict(sorted(BKGs.items(), key=lambda x: x[1].Integral(), reverse=True))
 
-#print(f"data: {data.Integral()}")
-#prediction = 0.
-#for name, hist in BKGs.items():
-#    print(f"{name}: {hist.Integral()} ({hist.Integral()/data.Integral()*100:.1f}%)")
-#    prediction += hist.Integral()
-#print(f"prediction: {prediction}")
+# Apply blind option: create fake data as exact sum of all backgrounds
+if args.blind:
+    data = None
+    for hist in BKGs.values():
+        if data is None:
+            data = hist.Clone("data_blind")
+            data.SetDirectory(0)
+        else:
+            data.Add(hist)
+    data.SetTitle("Data")
+
+# Load signal histograms (only for SR1E2Mu and SR3Mu)
+SIGNALs = {}
+if args.channel in ["SR1E2Mu", "SR3Mu"]:
+    for signal_mass in args.signals:
+        signal_name = f"TTToHcToWAToMuMu-{signal_mass}"
+        signal_hist = None
+
+        for era in era_list:
+            path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}_RunSyst/{era}/{signal_name}.root"
+            if not os.path.exists(path):
+                logging.debug(f"Signal file not found: {path}")
+                continue
+
+            f = ROOT.TFile.Open(path)
+            h = f.Get(f"{args.channel}/Central/{args.histkey}")
+            if not h:
+                logging.debug(f"Signal histogram not found: {args.channel}/Central/{args.histkey} in {path}")
+                f.Close()
+                continue
+
+            h.SetDirectory(0)
+            h.Scale(args.signal_scale)
+
+            if signal_hist is None:
+                signal_hist = h.Clone(signal_mass)
+                signal_hist.SetDirectory(0)
+            else:
+                signal_hist.Add(h)
+            f.Close()
+
+        if signal_hist:
+            SIGNALs[signal_mass] = signal_hist
+    # For ParticleNet score plots, keep only matching signal
+    if "score" in args.histkey:
+        # Extract mass point from histkey (e.g., "MHc160_MA155/score_diboson" -> "MHc160_MA155")
+        mass_point = args.histkey.split("/")[0]
+        # Keep only the matching signal
+        SIGNALs = {k: v for k, v in SIGNALs.items() if k == mass_point}
+        if not SIGNALs:
+            logging.warning(f"ParticleNet score plot for {mass_point}, but no matching signal histogram found")
 
 plotter = ComparisonCanvas(data, BKGs, config)
 plotter.drawPadUp()
+if SIGNALs:
+    plotter.drawSignals(SIGNALs)
 plotter.drawPadDown()
 plotter.canv.SaveAs(OUTPUTPATH)

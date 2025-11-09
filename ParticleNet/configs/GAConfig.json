@@ -3,8 +3,8 @@
   "version": "1.0",
 
   "ga_parameters": {
-    "population_size": 16,
-    "max_iterations": 4,
+    "population_size": 12,
+    "max_iterations": 3,
     "evolution_ratio": 0.7,
     "mutation_thresholds": [0.7, 0.7, 0.7, 0.7, 0.7],
     "fitness_metric": "loss/valid",
@@ -39,8 +39,8 @@
     "weight_decay": {
       "type": "log_uniform",
       "min": 1e-5,
-      "max": 1e-2,
-      "samples": 1000,
+      "max": 1e-3,
+      "samples": 100,
       "round_digits": 5,
       "description": "L2 regularization weight decay (log-uniform sampled)"
     }
