@@ -35,7 +35,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report
+from sklearn.metrics import confusion_matrix, classification_report
 
 # Add python directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
@@ -44,6 +44,7 @@ from GAConfig import load_ga_config
 from DynamicDatasetLoader import DynamicDatasetLoader
 from MultiClassModels import create_multiclass_model
 from Preprocess import GraphDataset
+from ROCCurveCalculator import ROCCurveCalculator
 
 # Try to import CMS style
 try:
@@ -376,38 +377,25 @@ def plot_score_distributions_grid(histograms: Dict, output_path: str, model_idx:
 
 def plot_roc_curves(y_true_test: np.ndarray, y_scores_test: np.ndarray, weights_test: np.ndarray,
                    output_path: str, model_idx: int):
-    """Plot ROC curves for signal vs each background class."""
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    """
+    Plot ROC curves for signal vs each background class using ROOT.
 
-    for bg_idx in range(1, 4):  # Loop over background classes
-        ax = axes[bg_idx - 1]
+    This function uses the ROCCurveCalculator class which properly handles
+    negative weights from NLO MC generators. The matplotlib/sklearn implementation
+    has been replaced with a manual ROC calculation using ROOT for visualization.
 
-        # Create binary classification: signal (0) vs background_i
-        binary_true = (y_true_test == 0).astype(int)
-
-        # Likelihood ratio score: signal / (signal + background_i)
-        signal_scores = y_scores_test[:, 0]
-        bg_scores = y_scores_test[:, bg_idx]
-        lr_scores = signal_scores / (signal_scores + bg_scores + 1e-10)
-
-        # Compute ROC
-        fpr, tpr, _ = roc_curve(binary_true, lr_scores, sample_weight=weights_test)
-        roc_auc = auc(fpr, tpr)
-
-        # Plot
-        ax.plot(fpr, tpr, linewidth=2, label=f'AUC = {roc_auc:.4f}')
-        ax.plot([0, 1], [0, 1], 'k--', linewidth=1, label='Random')
-
-        ax.set_xlabel('False Positive Rate', fontsize=12)
-        ax.set_ylabel('True Positive Rate', fontsize=12)
-        ax.set_title(f'Signal vs {CLASS_DISPLAY_NAMES[bg_idx]}', fontsize=13)
-        ax.legend(loc='lower right', fontsize=11)
-        ax.grid(True, alpha=0.3)
-
-    plt.suptitle(f'Model {model_idx} - ROC Curves', fontsize=14, y=1.02)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
+    Args:
+        y_true_test: True class labels
+        y_scores_test: Predicted class probabilities
+        weights_test: Event weights (can be negative)
+        output_path: Path to save the plot
+        model_idx: Model index for title
+    """
+    calculator = ROCCurveCalculator()
+    calculator.plot_multiclass_rocs(
+        y_true_test, y_scores_test, weights_test,
+        output_path, model_idx, CLASS_DISPLAY_NAMES
+    )
 
 
 def plot_confusion_matrices(y_true: np.ndarray, y_scores: np.ndarray, weights: np.ndarray,

@@ -15,7 +15,7 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.data import Batch
 
 # Set PyTorch threads for worker processes
-torch.set_num_threads(2)
+torch.set_num_threads(1)
 
 from MultiClassModels import create_multiclass_model
 from MLTools import EarlyStopper, SummaryWriter
