@@ -981,7 +981,8 @@ def load_datasets(config, signal: str, channel: str, pilot: bool, device: str):
     balance_weights = config.get_training_parameters().get('balance_weights', True)
 
     if max_events_per_fold:
-        print(f"  Event subsampling: max {max_events_per_fold} events per fold per class")
+        print(f"  Train event subsampling: max {max_events_per_fold} events per fold per class")
+    print(f"  Test event subsampling: None (using full test set)")
     print(f"  Weight balancing: {balance_weights}")
 
     # Load datasets using the same method as training
@@ -995,13 +996,14 @@ def load_datasets(config, signal: str, channel: str, pilot: bool, device: str):
         balance_weights=balance_weights,
         random_state=42
     )
+    # Load test data WITHOUT subsampling for proper evaluation
     test_data = loader.load_multiclass_with_subsampling(
         signal_sample=signal_full,
         background_groups=background_groups_full,
         channel=channel,
         fold_list=test_folds,
         pilot=pilot,
-        max_events_per_fold=max_events_per_fold,
+        max_events_per_fold=None,  # Use full test set for proper evaluation
         balance_weights=balance_weights,
         random_state=42
     )

@@ -169,54 +169,6 @@ class ROCCurveCalculator:
 
         return float(np.clip(auc, 0, 1))
 
-    def plot_binary_roc(self, y_true: np.ndarray, scores: np.ndarray,
-                       weights: np.ndarray, title: str = "",
-                       color: int = None) -> Tuple[ROOT.TGraph, ROOT.TGraph, float]:
-        """
-        Create ROOT TGraph objects for a binary ROC curve.
-
-        Args:
-            y_true: True binary labels
-            scores: Discriminant scores
-            weights: Event weights
-            title: Legend title for this curve
-            color: ROOT color code (default: blue from PALETTE)
-
-        Returns:
-            roc_graph: TGraph of the ROC curve
-            diag_graph: TGraph of diagonal (random classifier)
-            auc: Area under the curve
-        """
-        if color is None:
-            color = PALETTE[0]
-
-        # Calculate ROC curve
-        fpr, tpr, auc = self.calculate_roc_curve(y_true, scores, weights)
-
-        # Create TGraph for ROC curve
-        n_points = len(fpr)
-        roc_graph = ROOT.TGraph(n_points)
-        roc_graph.SetName(f"roc_{title.replace(' ', '_')}")
-
-        for i in range(n_points):
-            roc_graph.SetPoint(i, fpr[i], tpr[i])
-
-        # Style the curve
-        roc_graph.SetLineColor(color)
-        roc_graph.SetLineWidth(2)
-        roc_graph.SetMarkerColor(color)
-        roc_graph.SetMarkerStyle(0)
-
-        # Create diagonal line (random classifier)
-        diag_graph = ROOT.TGraph(2)
-        diag_graph.SetPoint(0, 0, 0)
-        diag_graph.SetPoint(1, 1, 1)
-        diag_graph.SetLineColor(ROOT.kGray+2)
-        diag_graph.SetLineWidth(1)
-        diag_graph.SetLineStyle(2)  # Dashed
-
-        return roc_graph, diag_graph, auc
-
     def plot_multiclass_rocs(self, y_true_train: np.ndarray, y_scores_train: np.ndarray,
                             weights_train: np.ndarray,
                             y_true_test: np.ndarray, y_scores_test: np.ndarray,
@@ -266,7 +218,7 @@ class ROCCurveCalculator:
             "Signal Efficiency",
             "Background Rejection",
             square=True,
-            iPos=11,
+            iPos=0,
             extraSpace=0.
         )
         canvas.SetGrid()
@@ -316,7 +268,7 @@ class ROCCurveCalculator:
                 roc_graph_train.SetPoint(i, tpr_train[i], 1 - fpr_train[i])
 
             roc_graph_train.SetLineColor(bg_color)
-            roc_graph_train.SetLineWidth(3)
+            roc_graph_train.SetLineWidth(2)
             roc_graph_train.SetLineStyle(1)  # Solid line for train
             roc_graph_train.Draw("L SAME")
             all_graphs.append(roc_graph_train)
@@ -342,7 +294,7 @@ class ROCCurveCalculator:
                 roc_graph_test.SetPoint(i, tpr_test[i], 1 - fpr_test[i])
 
             roc_graph_test.SetLineColor(bg_color)
-            roc_graph_test.SetLineWidth(3)
+            roc_graph_test.SetLineWidth(2)
             roc_graph_test.SetLineStyle(2)  # Dashed line for test
             roc_graph_test.Draw("L SAME")
             all_graphs.append(roc_graph_test)
@@ -352,15 +304,8 @@ class ROCCurveCalculator:
             CMS.addToLegend(legend, (roc_graph_test, f"Signal vs {bg_name} (Test): AUC = {auc_test:.4f}", "L"))
 
         # Add diagonal to legend
-        CMS.addToLegend(legend, (diag_graph, "Random", "L"))
         legend.Draw()
-
-        # Add model index as text
-        model_text = ROOT.TLatex()
-        model_text.SetNDC()
-        model_text.SetTextSize(0.035)
-        model_text.SetTextAlign(31)  # Right-aligned
-        model_text.DrawLatex(0.90, 0.92, f"Model {model_idx}")
+        canvas.RedrawAxis()
 
         canvas.Update()
 
@@ -368,86 +313,4 @@ class ROCCurveCalculator:
         canvas.SaveAs(output_path)
 
         # Clean up
-        canvas.Close()
-
-    def plot_multiclass_ovr(self, y_true: np.ndarray, y_scores: np.ndarray,
-                           weights: np.ndarray, output_path: str,
-                           class_names: List[str] = None) -> None:
-        """
-        Plot one-vs-rest ROC curves for all classes on a single plot.
-
-        Args:
-            y_true: True class labels
-            y_scores: Predicted class probabilities
-            weights: Event weights
-            output_path: Path to save the plot
-            class_names: List of class display names
-        """
-        if class_names is None:
-            class_names = ["Signal", "Nonprompt", "Diboson", "ttX"]
-
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-        # Create canvas
-        canvas = ROOT.TCanvas("c_roc_ovr", "ROC Curves (One-vs-Rest)", 800, 800)
-        canvas.SetLeftMargin(0.13)
-        canvas.SetRightMargin(0.05)
-        canvas.SetTopMargin(0.08)
-        canvas.SetBottomMargin(0.12)
-        canvas.SetGrid()
-
-        # Create frame
-        frame = canvas.DrawFrame(0, 0, 1, 1)
-        frame.SetTitle("Multi-class ROC Curves (One-vs-Rest)")
-        frame.GetXaxis().SetTitle("False Positive Rate")
-        frame.GetYaxis().SetTitle("True Positive Rate")
-        frame.GetXaxis().SetTitleSize(0.045)
-        frame.GetYaxis().SetTitleSize(0.045)
-
-        # Store graphs
-        graphs = []
-        legend = ROOT.TLegend(0.50, 0.15, 0.90, 0.40)
-        legend.SetBorderSize(0)
-        legend.SetFillStyle(0)
-        legend.SetTextSize(0.035)
-
-        # Plot ROC for each class (one-vs-rest)
-        n_classes = y_scores.shape[1]
-        for class_idx in range(n_classes):
-            # Binary classification: this class vs all others
-            y_true_binary = (y_true == class_idx).astype(int)
-            scores_binary = y_scores[:, class_idx]
-
-            # Plot ROC
-            roc_graph, _, auc = self.plot_binary_roc(
-                y_true_binary, scores_binary, weights,
-                title=f"{class_names[class_idx]}_OvR",
-                color=PALETTE[class_idx % len(PALETTE)]
-            )
-
-            graphs.append(roc_graph)
-            roc_graph.Draw("L SAME")
-            legend.AddEntry(roc_graph, f"{class_names[class_idx]}: AUC={auc:.3f}", "L")
-
-        # Draw diagonal
-        diag = ROOT.TGraph(2)
-        diag.SetPoint(0, 0, 0)
-        diag.SetPoint(1, 1, 1)
-        diag.SetLineColor(ROOT.kGray+2)
-        diag.SetLineWidth(1)
-        diag.SetLineStyle(2)
-        diag.Draw("L SAME")
-        legend.AddEntry(diag, "Random", "L")
-
-        legend.Draw()
-
-        # Add CMS label if available
-        if HAS_CMS_STYLE:
-            try:
-                CMS.CMS_lumi(canvas, "", 0)
-            except:
-                pass
-
-        canvas.Update()
-        canvas.SaveAs(output_path)
         canvas.Close()
