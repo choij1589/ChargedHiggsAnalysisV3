@@ -217,35 +217,42 @@ class ROCCurveCalculator:
 
         return roc_graph, diag_graph, auc
 
-    def plot_multiclass_rocs(self, y_true: np.ndarray, y_scores: np.ndarray,
-                            weights: np.ndarray, output_path: str,
+    def plot_multiclass_rocs(self, y_true_train: np.ndarray, y_scores_train: np.ndarray,
+                            weights_train: np.ndarray,
+                            y_true_test: np.ndarray, y_scores_test: np.ndarray,
+                            weights_test: np.ndarray,
+                            output_path: str,
                             model_idx: int = 0,
                             class_names: List[str] = None,
                             signal_class: int = 0) -> None:
         """
-        Plot ROC curves for multi-class classification (one-vs-rest).
+        Plot ROC curves for multi-class classification (one-vs-rest) with train and test.
 
         Creates a grid of ROC curves:
         - Signal vs each background class using likelihood ratio
+        - Shows both train and test ROC curves with their AUC values
 
         Args:
-            y_true: True class labels (0=signal, 1=nonprompt, 2=diboson, 3=ttX)
-            y_scores: Predicted class probabilities (n_samples, n_classes)
-            weights: Event weights
+            y_true_train: True class labels for training set (0=signal, 1=nonprompt, 2=diboson, 3=ttX)
+            y_scores_train: Predicted class probabilities for training set (n_samples, n_classes)
+            weights_train: Event weights for training set
+            y_true_test: True class labels for test set
+            y_scores_test: Predicted class probabilities for test set
+            weights_test: Event weights for test set
             output_path: Path to save the plot
             model_idx: Model index for title
             class_names: List of class display names
             signal_class: Index of the signal class (default: 0)
         """
-        # Default class names
+        # Default class names (using lowercase with hyphens as requested)
         if class_names is None:
-            class_names = ["Signal", "Nonprompt", "Diboson", "ttX"]
+            class_names = ["signal", "nonprompt", "diboson", "tt+X"]
 
         # Ensure output directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         # Number of background classes
-        n_classes = y_scores.shape[1]
+        n_classes = y_scores_train.shape[1]
         n_backgrounds = n_classes - 1
 
         # Create canvas with subpads
@@ -264,29 +271,58 @@ class ROCCurveCalculator:
             pad.SetBottomMargin(0.12)
             pad.SetGrid()
 
+            # Use color specific to this background class
+            bg_color = PALETTE[bg_class]
+
+            # ===== TRAIN ROC =====
             # Create binary classification: signal vs this background
-            # Extract only signal and this background events
-            mask = (y_true == signal_class) | (y_true == bg_class)
-            y_true_binary = (y_true[mask] == signal_class).astype(int)
-            weights_binary = weights[mask]
+            mask_train = (y_true_train == signal_class) | (y_true_train == bg_class)
+            y_true_binary_train = (y_true_train[mask_train] == signal_class).astype(int)
+            weights_binary_train = weights_train[mask_train]
 
             # Likelihood ratio score: P(signal) / [P(signal) + P(background)]
-            signal_scores = y_scores[mask, signal_class]
-            bg_scores = y_scores[mask, bg_class]
-            lr_scores = signal_scores / (signal_scores + bg_scores + 1e-10)
+            signal_scores_train = y_scores_train[mask_train, signal_class]
+            bg_scores_train = y_scores_train[mask_train, bg_class]
+            lr_scores_train = signal_scores_train / (signal_scores_train + bg_scores_train + 1e-10)
 
-            # Plot ROC curve
-            roc_graph, diag_graph, auc = self.plot_binary_roc(
-                y_true_binary, lr_scores, weights_binary,
-                title=f"Signal_vs_{class_names[bg_class]}",
-                color=PALETTE[bg_class]
+            # Calculate train ROC
+            roc_graph_train, _, auc_train = self.plot_binary_roc(
+                y_true_binary_train, lr_scores_train, weights_binary_train,
+                title=f"Signal_vs_{class_names[bg_class]}_train",
+                color=bg_color
             )
+            roc_graph_train.SetLineStyle(1)  # Solid line for train
+            roc_graph_train.SetLineWidth(3)  # Thicker for visibility
 
-            graphs.append((roc_graph, diag_graph))
+            # ===== TEST ROC =====
+            mask_test = (y_true_test == signal_class) | (y_true_test == bg_class)
+            y_true_binary_test = (y_true_test[mask_test] == signal_class).astype(int)
+            weights_binary_test = weights_test[mask_test]
 
-            # Create frame
+            signal_scores_test = y_scores_test[mask_test, signal_class]
+            bg_scores_test = y_scores_test[mask_test, bg_class]
+            lr_scores_test = signal_scores_test / (signal_scores_test + bg_scores_test + 1e-10)
+
+            # Calculate test ROC (use same color as train)
+            roc_graph_test, diag_graph, auc_test = self.plot_binary_roc(
+                y_true_binary_test, lr_scores_test, weights_binary_test,
+                title=f"Signal_vs_{class_names[bg_class]}_test",
+                color=bg_color
+            )
+            roc_graph_test.SetLineStyle(2)  # Dashed line for test
+            roc_graph_test.SetLineWidth(3)  # Thicker for visibility
+
+            graphs.append((roc_graph_train, roc_graph_test, diag_graph))
+
+            # Create frame (capitalize for title display)
+            bg_title = class_names[bg_class]
+            if bg_title == "tt+X":
+                bg_title = "tt+X"  # Keep as-is
+            else:
+                bg_title = bg_title.capitalize()
+
             frame = pad.DrawFrame(0, 0, 1, 1)
-            frame.SetTitle(f"Signal vs {class_names[bg_class]}")
+            frame.SetTitle(f"Signal vs {bg_title}")
             frame.GetXaxis().SetTitle("False Positive Rate")
             frame.GetYaxis().SetTitle("True Positive Rate")
             frame.GetXaxis().SetTitleSize(0.05)
@@ -298,14 +334,16 @@ class ROCCurveCalculator:
 
             # Draw graphs
             diag_graph.Draw("L SAME")
-            roc_graph.Draw("L SAME")
+            roc_graph_train.Draw("L SAME")
+            roc_graph_test.Draw("L SAME")
 
-            # Create legend
-            legend = ROOT.TLegend(0.50, 0.15, 0.90, 0.30)
+            # Create legend with train and test AUC values
+            legend = ROOT.TLegend(0.45, 0.15, 0.90, 0.35)
             legend.SetBorderSize(0)
             legend.SetFillStyle(0)
-            legend.SetTextSize(0.04)
-            legend.AddEntry(roc_graph, f"AUC = {auc:.4f}", "L")
+            legend.SetTextSize(0.035)
+            legend.AddEntry(roc_graph_train, f"Train: AUC = {auc_train:.4f}", "L")
+            legend.AddEntry(roc_graph_test, f"Test: AUC = {auc_test:.4f}", "L")
             legend.AddEntry(diag_graph, "Random", "L")
             legend.Draw()
             legends.append(legend)

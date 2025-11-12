@@ -528,8 +528,9 @@ def save_ks_results(ks_results: Dict, histograms: Dict, output_dir: str, model_i
     root_file = ROOT.TFile(root_path, "RECREATE")
 
     for key, hists in histograms.items():
-        hists['train'].Write()
-        hists['test'].Write()
+        # Write with explicit clean names (histograms may have _merged or _itermerge suffixes)
+        hists['train'].Write(f"h_train_{key}")
+        hists['test'].Write(f"h_test_{key}")
 
     root_file.Close()
 
@@ -663,53 +664,70 @@ def plot_score_distributions_grid(histograms: Dict, output_path: str, model_idx:
     canvas.Close()
 
 
-def plot_roc_curves(y_true_test: np.ndarray, y_scores_test: np.ndarray, weights_test: np.ndarray,
+def plot_roc_curves(y_true_train: np.ndarray, y_scores_train: np.ndarray, weights_train: np.ndarray,
+                   y_true_test: np.ndarray, y_scores_test: np.ndarray, weights_test: np.ndarray,
                    output_path: str, model_idx: int):
     """
     Plot ROC curves for signal vs each background class using ROOT.
 
     This function uses the ROCCurveCalculator class which properly handles
-    negative weights from NLO MC generators. The matplotlib/sklearn implementation
-    has been replaced with a manual ROC calculation using ROOT for visualization.
+    negative weights from NLO MC generators. Plots both train and test ROC curves
+    with their respective AUC values.
 
     Args:
-        y_true_test: True class labels
-        y_scores_test: Predicted class probabilities
-        weights_test: Event weights (can be negative)
+        y_true_train: True class labels for training set
+        y_scores_train: Predicted class probabilities for training set
+        weights_train: Event weights for training set (can be negative)
+        y_true_test: True class labels for test set
+        y_scores_test: Predicted class probabilities for test set
+        weights_test: Event weights for test set (can be negative)
         output_path: Path to save the plot
         model_idx: Model index for title
     """
     calculator = ROCCurveCalculator()
     calculator.plot_multiclass_rocs(
+        y_true_train, y_scores_train, weights_train,
         y_true_test, y_scores_test, weights_test,
         output_path, model_idx, CLASS_DISPLAY_NAMES
     )
 
 
-def plot_confusion_matrices(y_true: np.ndarray, y_scores: np.ndarray, weights: np.ndarray,
-                           output_path: str, model_idx: int, dataset_name: str):
-    """Plot confusion matrix."""
+def plot_confusion_matrices(y_true_train: np.ndarray, y_scores_train: np.ndarray, weights_train: np.ndarray,
+                           y_true_test: np.ndarray, y_scores_test: np.ndarray, weights_test: np.ndarray,
+                           output_path: str, model_idx: int):
+    """Plot confusion matrix with train(test) format."""
     # Get predictions
-    y_pred = np.argmax(y_scores, axis=1)
+    y_pred_train = np.argmax(y_scores_train, axis=1)
+    y_pred_test = np.argmax(y_scores_test, axis=1)
 
-    # Compute confusion matrix (weighted)
-    cm = np.zeros((4, 4))
+    # Compute confusion matrices (weighted)
+    cm_train = np.zeros((4, 4))
+    cm_test = np.zeros((4, 4))
+
     for true_label in range(4):
-        mask = (y_true == true_label)
-        if mask.sum() == 0:
-            continue
+        # Train
+        mask_train = (y_true_train == true_label)
+        if mask_train.sum() > 0:
+            for pred_label in range(4):
+                pred_mask = (y_pred_train == pred_label)
+                cm_train[true_label, pred_label] = weights_train[mask_train & pred_mask].sum()
 
-        for pred_label in range(4):
-            pred_mask = (y_pred == pred_label)
-            cm[true_label, pred_label] = weights[mask & pred_mask].sum()
+        # Test
+        mask_test = (y_true_test == true_label)
+        if mask_test.sum() > 0:
+            for pred_label in range(4):
+                pred_mask = (y_pred_test == pred_label)
+                cm_test[true_label, pred_label] = weights_test[mask_test & pred_mask].sum()
 
     # Normalize by row (true class)
-    cm_normalized = cm / (cm.sum(axis=1, keepdims=True) + 1e-10)
+    cm_train_normalized = cm_train / (cm_train.sum(axis=1, keepdims=True) + 1e-10)
+    cm_test_normalized = cm_test / (cm_test.sum(axis=1, keepdims=True) + 1e-10)
 
     # Plot
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(12, 10))
 
-    im = ax.imshow(cm_normalized, cmap='Blues', vmin=0, vmax=1)
+    # Use train values for color mapping
+    im = ax.imshow(cm_train_normalized, cmap='Blues', vmin=0, vmax=1)
 
     # Ticks and labels
     ax.set_xticks(np.arange(4))
@@ -719,21 +737,28 @@ def plot_confusion_matrices(y_true: np.ndarray, y_scores: np.ndarray, weights: n
 
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 
-    # Text annotations
+    # Text annotations with train(test) format
     for i in range(4):
         for j in range(4):
-            val = cm_normalized[i, j]
-            color = 'white' if val > 0.5 else 'black'
-            text = ax.text(j, i, f'{val:.3f}', ha="center", va="center",
-                         color=color, fontsize=12, fontweight='bold')
+            val_train = cm_train_normalized[i, j]
+            val_test = cm_test_normalized[i, j]
+
+            # Color based on train value
+            color = 'white' if val_train > 0.5 else 'black'
+
+            # Format: train(test)
+            text_str = f'{val_train:.3f}\n({val_test:.3f})'
+
+            ax.text(j, i, text_str, ha="center", va="center",
+                   color=color, fontsize=11, fontweight='bold')
 
     ax.set_xlabel('Predicted Class', fontsize=13)
     ax.set_ylabel('True Class', fontsize=13)
-    ax.set_title(f'Model {model_idx} - Confusion Matrix ({dataset_name})', fontsize=14, pad=15)
+    ax.set_title(f'Model {model_idx} - Confusion Matrix [Train (Test)]', fontsize=14, pad=15)
 
     # Colorbar
     cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label('Fraction', rotation=270, labelpad=20, fontsize=12)
+    cbar.set_label('Fraction (Train)', rotation=270, labelpad=20, fontsize=12)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
@@ -741,7 +766,7 @@ def plot_confusion_matrices(y_true: np.ndarray, y_scores: np.ndarray, weights: n
 
 
 def plot_training_curves(config_data: Dict, output_path: str, model_idx: int):
-    """Plot training curves from JSON history."""
+    """Plot training curves from JSON history using ROOT with cmsstyle."""
     if 'epoch_history' not in config_data:
         print(f"Warning: No epoch history found for model {model_idx}")
         return
@@ -752,30 +777,170 @@ def plot_training_curves(config_data: Dict, output_path: str, model_idx: int):
     if not epochs:
         return
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    # Get best epoch from training summary
+    best_epoch = config_data.get('training_summary', {}).get('best_epoch', -1)
 
-    # Loss plot
-    ax1.plot(epochs, history['train_loss'], 'b-o', label='Train Loss', linewidth=2, markersize=5)
-    ax1.plot(epochs, history['valid_loss'], 'r-s', label='Valid Loss', linewidth=2, markersize=5)
-    ax1.set_xlabel('Epoch', fontsize=12)
-    ax1.set_ylabel('Loss', fontsize=12)
-    ax1.set_title('Training and Validation Loss', fontsize=13)
-    ax1.legend(fontsize=11)
-    ax1.grid(True, alpha=0.3)
+    # Setup CMS style
+    setup_cms_style()
 
-    # Accuracy plot
-    ax2.plot(epochs, history['train_acc'], 'b-o', label='Train Acc', linewidth=2, markersize=5)
-    ax2.plot(epochs, history['valid_acc'], 'r-s', label='Valid Acc', linewidth=2, markersize=5)
-    ax2.set_xlabel('Epoch', fontsize=12)
-    ax2.set_ylabel('Accuracy', fontsize=12)
-    ax2.set_title('Training and Validation Accuracy', fontsize=13)
-    ax2.legend(fontsize=11)
-    ax2.grid(True, alpha=0.3)
+    # Create canvas with two pads
+    canvas = ROOT.TCanvas(f"c_training_model{model_idx}", "Training Curves", 1400, 600)
+    canvas.Divide(2, 1, 0.01, 0.01)
 
-    plt.suptitle(f'Model {model_idx} - Training History', fontsize=14, y=1.02)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
+    # ===== LOSS PLOT =====
+    pad1 = canvas.cd(1)
+    pad1.SetLeftMargin(0.12)
+    pad1.SetRightMargin(0.05)
+    pad1.SetTopMargin(0.08)
+    pad1.SetBottomMargin(0.12)
+    pad1.SetGrid()
+
+    # Create TGraphs for loss
+    n_epochs = len(epochs)
+    gr_train_loss = ROOT.TGraph(n_epochs)
+    gr_valid_loss = ROOT.TGraph(n_epochs)
+
+    for i, (epoch, train_loss, valid_loss) in enumerate(zip(epochs, history['train_loss'], history['valid_loss'])):
+        gr_train_loss.SetPoint(i, epoch, train_loss)
+        gr_valid_loss.SetPoint(i, epoch, valid_loss)
+
+    # Style for loss graphs
+    gr_train_loss.SetLineColor(ROOT.kBlue)
+    gr_train_loss.SetLineWidth(2)
+    gr_train_loss.SetMarkerColor(ROOT.kBlue)
+    gr_train_loss.SetMarkerStyle(20)
+    gr_train_loss.SetMarkerSize(0.8)
+
+    gr_valid_loss.SetLineColor(ROOT.kRed)
+    gr_valid_loss.SetLineWidth(2)
+    gr_valid_loss.SetMarkerColor(ROOT.kRed)
+    gr_valid_loss.SetMarkerStyle(21)
+    gr_valid_loss.SetMarkerSize(0.8)
+
+    # Find y-axis range for loss
+    min_loss = min(min(history['train_loss']), min(history['valid_loss']))
+    max_loss = max(max(history['train_loss']), max(history['valid_loss']))
+    loss_range = max_loss - min_loss
+    y_min_loss = max(0, min_loss - 0.1 * loss_range)
+    y_max_loss = max_loss + 0.1 * loss_range
+
+    # Create frame for loss plot
+    frame1 = pad1.DrawFrame(min(epochs), y_min_loss, max(epochs), y_max_loss)
+    frame1.SetTitle("Training and Validation Loss")
+    frame1.GetXaxis().SetTitle("Epoch")
+    frame1.GetYaxis().SetTitle("Loss")
+    frame1.GetXaxis().SetTitleSize(0.05)
+    frame1.GetYaxis().SetTitleSize(0.05)
+    frame1.GetXaxis().SetLabelSize(0.04)
+    frame1.GetYaxis().SetLabelSize(0.04)
+
+    # Draw loss graphs
+    gr_train_loss.Draw("LP SAME")
+    gr_valid_loss.Draw("LP SAME")
+
+    # Add vertical line at best epoch
+    if best_epoch >= 0:
+        line_loss = ROOT.TLine(best_epoch, y_min_loss, best_epoch, y_max_loss)
+        line_loss.SetLineColor(ROOT.kGreen+2)
+        line_loss.SetLineWidth(2)
+        line_loss.SetLineStyle(2)
+        line_loss.Draw()
+
+    # Legend for loss plot
+    legend1 = ROOT.TLegend(0.55, 0.65, 0.90, 0.88)
+    legend1.SetBorderSize(0)
+    legend1.SetFillStyle(0)
+    legend1.SetTextSize(0.04)
+    legend1.AddEntry(gr_train_loss, "Train Loss", "LP")
+    legend1.AddEntry(gr_valid_loss, "Valid Loss", "LP")
+    if best_epoch >= 0:
+        legend1.AddEntry(line_loss, f"Best Epoch ({best_epoch})", "L")
+    legend1.Draw()
+
+    pad1.Update()
+
+    # ===== ACCURACY PLOT =====
+    pad2 = canvas.cd(2)
+    pad2.SetLeftMargin(0.12)
+    pad2.SetRightMargin(0.05)
+    pad2.SetTopMargin(0.08)
+    pad2.SetBottomMargin(0.12)
+    pad2.SetGrid()
+
+    # Create TGraphs for accuracy
+    gr_train_acc = ROOT.TGraph(n_epochs)
+    gr_valid_acc = ROOT.TGraph(n_epochs)
+
+    for i, (epoch, train_acc, valid_acc) in enumerate(zip(epochs, history['train_acc'], history['valid_acc'])):
+        gr_train_acc.SetPoint(i, epoch, train_acc)
+        gr_valid_acc.SetPoint(i, epoch, valid_acc)
+
+    # Style for accuracy graphs
+    gr_train_acc.SetLineColor(ROOT.kBlue)
+    gr_train_acc.SetLineWidth(2)
+    gr_train_acc.SetMarkerColor(ROOT.kBlue)
+    gr_train_acc.SetMarkerStyle(20)
+    gr_train_acc.SetMarkerSize(0.8)
+
+    gr_valid_acc.SetLineColor(ROOT.kRed)
+    gr_valid_acc.SetLineWidth(2)
+    gr_valid_acc.SetMarkerColor(ROOT.kRed)
+    gr_valid_acc.SetMarkerStyle(21)
+    gr_valid_acc.SetMarkerSize(0.8)
+
+    # Find y-axis range for accuracy
+    min_acc = min(min(history['train_acc']), min(history['valid_acc']))
+    max_acc = max(max(history['train_acc']), max(history['valid_acc']))
+    acc_range = max_acc - min_acc
+    y_min_acc = max(0, min_acc - 0.1 * acc_range)
+    y_max_acc = min(1.0, max_acc + 0.1 * acc_range)
+
+    # Create frame for accuracy plot
+    frame2 = pad2.DrawFrame(min(epochs), y_min_acc, max(epochs), y_max_acc)
+    frame2.SetTitle("Training and Validation Accuracy")
+    frame2.GetXaxis().SetTitle("Epoch")
+    frame2.GetYaxis().SetTitle("Accuracy")
+    frame2.GetXaxis().SetTitleSize(0.05)
+    frame2.GetYaxis().SetTitleSize(0.05)
+    frame2.GetXaxis().SetLabelSize(0.04)
+    frame2.GetYaxis().SetLabelSize(0.04)
+
+    # Draw accuracy graphs
+    gr_train_acc.Draw("LP SAME")
+    gr_valid_acc.Draw("LP SAME")
+
+    # Add vertical line at best epoch
+    if best_epoch >= 0:
+        line_acc = ROOT.TLine(best_epoch, y_min_acc, best_epoch, y_max_acc)
+        line_acc.SetLineColor(ROOT.kGreen+2)
+        line_acc.SetLineWidth(2)
+        line_acc.SetLineStyle(2)
+        line_acc.Draw()
+
+    # Legend for accuracy plot
+    legend2 = ROOT.TLegend(0.55, 0.20, 0.90, 0.43)
+    legend2.SetBorderSize(0)
+    legend2.SetFillStyle(0)
+    legend2.SetTextSize(0.04)
+    legend2.AddEntry(gr_train_acc, "Train Accuracy", "LP")
+    legend2.AddEntry(gr_valid_acc, "Valid Accuracy", "LP")
+    if best_epoch >= 0:
+        legend2.AddEntry(line_acc, f"Best Epoch ({best_epoch})", "L")
+    legend2.Draw()
+
+    pad2.Update()
+
+    # Add overall title
+    canvas.cd()
+    title_text = ROOT.TLatex()
+    title_text.SetNDC()
+    title_text.SetTextSize(0.035)
+    title_text.SetTextAlign(22)
+    title_text.DrawLatex(0.5, 0.97, f"Model {model_idx} - Training History")
+
+    # Save canvas
+    canvas.SaveAs(output_path)
+    canvas.Close()
 
 
 def load_datasets(config, signal: str, channel: str, pilot: bool, device: str):
@@ -1041,21 +1206,18 @@ def process_model(model_idx: int, model_path: str, config_path: str,
 
     print("  Generating ROC curves...")
     plot_roc_curves(
+        y_true_train, y_scores_train, weights_train,
         y_true_test, y_scores_test, weights_test,
         os.path.join(plots_dir, f"model{model_idx}_roc_curves.png"),
         model_idx
     )
 
-    print("  Generating confusion matrices...")
+    print("  Generating confusion matrix...")
     plot_confusion_matrices(
         y_true_train, y_scores_train, weights_train,
-        os.path.join(plots_dir, f"model{model_idx}_confusion_matrix_train.png"),
-        model_idx, "Train"
-    )
-    plot_confusion_matrices(
         y_true_test, y_scores_test, weights_test,
-        os.path.join(plots_dir, f"model{model_idx}_confusion_matrix_test.png"),
-        model_idx, "Test"
+        os.path.join(plots_dir, f"model{model_idx}_confusion_matrix.png"),
+        model_idx
     )
 
     print("  Generating training curves...")
@@ -1202,6 +1364,8 @@ def main():
     parser.add_argument("--p-threshold", type=float, default=0.05, help="p-value threshold for overfitting")
     parser.add_argument("--model-indices", type=str, default=None,
                        help="Comma-separated model indices to process (default: all)")
+    parser.add_argument("--input", type=str, default="GAOptim_bjets",
+                       help="Input directory path (default: GAOptim_bjets)")
 
     args = parser.parse_args()
 
@@ -1214,6 +1378,7 @@ def main():
     print(f"Device: {args.device}")
     print(f"Pilot mode: {args.pilot}")
     print(f"p-value threshold: {args.p_threshold}")
+    print(f"Input directory: {args.input}")
     print("="*80)
 
     # Load configuration
@@ -1229,7 +1394,7 @@ def main():
 
     # Setup paths
     signal_full = f"TTToHcToWAToMuMu-{args.signal}"
-    base_dir = f"GAOptim_bjets/{args.channel}/multiclass/{signal_full}/GA-iter{args.iteration}"
+    base_dir = f"{args.input}/{args.channel}/multiclass/{signal_full}/GA-iter{args.iteration}"
 
     models_dir = os.path.join(base_dir, "models")
     json_dir = os.path.join(base_dir, "json")
