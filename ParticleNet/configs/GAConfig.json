@@ -4,7 +4,7 @@
 
   "ga_parameters": {
     "population_size": 12,
-    "max_iterations": 3,
+    "max_iterations": 4,
     "evolution_ratio": 0.7,
     "mutation_thresholds": [0.7, 0.7, 0.7, 0.7, 0.7],
     "fitness_metric": "loss/valid",
@@ -15,7 +15,7 @@
   "hyperparameter_search_space": {
     "nNodes": {
       "type": "discrete",
-      "values": [64, 96, 128],
+      "values": [96, 128, 192],
       "description": "Number of hidden nodes in convolution layers"
     },
     "optimizers": {
@@ -47,8 +47,8 @@
   },
 
   "training_parameters": {
-    "max_epochs": 81,
-    "batch_size": 1024,
+    "max_epochs": 100,
+    "batch_size": 512,
     "dropout_p": 0.4,
     "early_stopping_patience": 7,
     "loss_type": "weighted_ce",
