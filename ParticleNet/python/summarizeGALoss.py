@@ -209,8 +209,8 @@ def create_loss_evolution_plot(summary_data: Dict, output_path: str):
         gr_best_valid.SetPoint(i, iter_nums[i], best_valid[i])
 
     # Fixed y-axis range
-    y_min = 0.7
-    y_max = 1.3
+    y_min = 0.5
+    y_max = 1.5
 
     # X-axis range
     x_min = min(iter_nums) - 0.2

@@ -226,11 +226,12 @@ class ROCCurveCalculator:
                             class_names: List[str] = None,
                             signal_class: int = 0) -> None:
         """
-        Plot ROC curves for multi-class classification (one-vs-rest) with train and test.
+        Plot ROC curves for multi-class classification on a single canvas.
 
-        Creates a grid of ROC curves:
+        Creates consolidated ROC curves showing signal efficiency vs background rejection:
         - Signal vs each background class using likelihood ratio
         - Shows both train and test ROC curves with their AUC values
+        - All curves on single plot with unified legend
 
         Args:
             y_true_train: True class labels for training set (0=signal, 1=nonprompt, 2=diboson, 3=ttX)
@@ -244,35 +245,53 @@ class ROCCurveCalculator:
             class_names: List of class display names
             signal_class: Index of the signal class (default: 0)
         """
-        # Default class names (using lowercase with hyphens as requested)
+        # Default class names
         if class_names is None:
-            class_names = ["signal", "nonprompt", "diboson", "tt+X"]
+            class_names = ["Signal", "Nonprompt", "Diboson", "TTX"]
 
         # Ensure output directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        # Number of background classes
-        n_classes = y_scores_train.shape[1]
-        n_backgrounds = n_classes - 1
+        # Configure CMS style
+        if HAS_CMS_STYLE:
+            CMS.SetEnergy(13)
+            CMS.SetLumi(-1, run="Run2")
+            CMS.SetExtraText("Simulation Preliminary")
 
-        # Create canvas with subpads
-        canvas = ROOT.TCanvas("c_roc", "ROC Curves", 1800, 600)
-        canvas.Divide(3, 1, 0.01, 0.01)
+        # Create single CMS canvas
+        canvas = CMS.cmsCanvas(
+            "",
+            0, 1,  # x-axis: signal efficiency from 0 to 1
+            0, 1,  # y-axis: background rejection from 0 to 1
+            "Signal Efficiency",
+            "Background Rejection",
+            square=True,
+            iPos=11,
+            extraSpace=0.
+        )
+        canvas.SetGrid()
 
         # Store graphs to prevent deletion
-        graphs = []
-        legends = []
+        all_graphs = []
 
-        for idx, bg_class in enumerate([1, 2, 3]):  # Background classes
-            pad = canvas.cd(idx + 1)
-            pad.SetLeftMargin(0.13)
-            pad.SetRightMargin(0.05)
-            pad.SetTopMargin(0.08)
-            pad.SetBottomMargin(0.12)
-            pad.SetGrid()
+        # Create legend
+        legend = CMS.cmsLeg(0.20, 0.15, 0.65, 0.45, textSize=0.030, columns=1)
 
+        # Draw diagonal reference line (from (0,1) to (1,0))
+        diag_graph = ROOT.TGraph(2)
+        diag_graph.SetPoint(0, 0, 1)
+        diag_graph.SetPoint(1, 1, 0)
+        diag_graph.SetLineColor(ROOT.kGray+2)
+        diag_graph.SetLineWidth(1)
+        diag_graph.SetLineStyle(2)  # Dashed
+        diag_graph.Draw("L SAME")
+        all_graphs.append(diag_graph)
+
+        # Process each background class
+        for bg_class in [1, 2, 3]:  # Background classes
             # Use color specific to this background class
             bg_color = PALETTE[bg_class]
+            bg_name = class_names[bg_class]
 
             # ===== TRAIN ROC =====
             # Create binary classification: signal vs this background
@@ -286,13 +305,21 @@ class ROCCurveCalculator:
             lr_scores_train = signal_scores_train / (signal_scores_train + bg_scores_train + 1e-10)
 
             # Calculate train ROC
-            roc_graph_train, _, auc_train = self.plot_binary_roc(
-                y_true_binary_train, lr_scores_train, weights_binary_train,
-                title=f"Signal_vs_{class_names[bg_class]}_train",
-                color=bg_color
+            fpr_train, tpr_train, auc_train = self.calculate_roc_curve(
+                y_true_binary_train, lr_scores_train, weights_binary_train
             )
+
+            # Create TGraph with transformed axes: (signal_eff, 1 - bg_eff) = (tpr, 1-fpr)
+            n_points = len(fpr_train)
+            roc_graph_train = ROOT.TGraph(n_points)
+            for i in range(n_points):
+                roc_graph_train.SetPoint(i, tpr_train[i], 1 - fpr_train[i])
+
+            roc_graph_train.SetLineColor(bg_color)
+            roc_graph_train.SetLineWidth(3)
             roc_graph_train.SetLineStyle(1)  # Solid line for train
-            roc_graph_train.SetLineWidth(3)  # Thicker for visibility
+            roc_graph_train.Draw("L SAME")
+            all_graphs.append(roc_graph_train)
 
             # ===== TEST ROC =====
             mask_test = (y_true_test == signal_class) | (y_true_test == bg_class)
@@ -303,73 +330,39 @@ class ROCCurveCalculator:
             bg_scores_test = y_scores_test[mask_test, bg_class]
             lr_scores_test = signal_scores_test / (signal_scores_test + bg_scores_test + 1e-10)
 
-            # Calculate test ROC (use same color as train)
-            roc_graph_test, diag_graph, auc_test = self.plot_binary_roc(
-                y_true_binary_test, lr_scores_test, weights_binary_test,
-                title=f"Signal_vs_{class_names[bg_class]}_test",
-                color=bg_color
+            # Calculate test ROC
+            fpr_test, tpr_test, auc_test = self.calculate_roc_curve(
+                y_true_binary_test, lr_scores_test, weights_binary_test
             )
+
+            # Create TGraph with transformed axes
+            n_points = len(fpr_test)
+            roc_graph_test = ROOT.TGraph(n_points)
+            for i in range(n_points):
+                roc_graph_test.SetPoint(i, tpr_test[i], 1 - fpr_test[i])
+
+            roc_graph_test.SetLineColor(bg_color)
+            roc_graph_test.SetLineWidth(3)
             roc_graph_test.SetLineStyle(2)  # Dashed line for test
-            roc_graph_test.SetLineWidth(3)  # Thicker for visibility
-
-            graphs.append((roc_graph_train, roc_graph_test, diag_graph))
-
-            # Create frame (capitalize for title display)
-            bg_title = class_names[bg_class]
-            if bg_title == "tt+X":
-                bg_title = "tt+X"  # Keep as-is
-            else:
-                bg_title = bg_title.capitalize()
-
-            frame = pad.DrawFrame(0, 0, 1, 1)
-            frame.SetTitle(f"Signal vs {bg_title}")
-            frame.GetXaxis().SetTitle("False Positive Rate")
-            frame.GetYaxis().SetTitle("True Positive Rate")
-            frame.GetXaxis().SetTitleSize(0.05)
-            frame.GetYaxis().SetTitleSize(0.05)
-            frame.GetXaxis().SetLabelSize(0.04)
-            frame.GetYaxis().SetLabelSize(0.04)
-            frame.GetXaxis().SetTitleOffset(1.0)
-            frame.GetYaxis().SetTitleOffset(1.2)
-
-            # Draw graphs
-            diag_graph.Draw("L SAME")
-            roc_graph_train.Draw("L SAME")
             roc_graph_test.Draw("L SAME")
+            all_graphs.append(roc_graph_test)
 
-            # Create legend with train and test AUC values
-            legend = ROOT.TLegend(0.45, 0.15, 0.90, 0.35)
-            legend.SetBorderSize(0)
-            legend.SetFillStyle(0)
-            legend.SetTextSize(0.035)
-            legend.AddEntry(roc_graph_train, f"Train: AUC = {auc_train:.4f}", "L")
-            legend.AddEntry(roc_graph_test, f"Test: AUC = {auc_test:.4f}", "L")
-            legend.AddEntry(diag_graph, "Random", "L")
-            legend.Draw()
-            legends.append(legend)
+            # Add to legend
+            CMS.addToLegend(legend, (roc_graph_train, f"Signal vs {bg_name} (Train): AUC = {auc_train:.4f}", "L"))
+            CMS.addToLegend(legend, (roc_graph_test, f"Signal vs {bg_name} (Test): AUC = {auc_test:.4f}", "L"))
 
-            # Add CMS label if available
-            if HAS_CMS_STYLE:
-                CMS.cmsText = "CMS"
-                CMS.extraText = "Preliminary"
-                CMS.cmsTextSize = 0.65
-                CMS.extraTextSize = 0.55
-                CMS.relPosX = 0.10
-                CMS.relPosY = -0.07
-                try:
-                    CMS.CMS_lumi(pad, "", 0)
-                except:
-                    pass  # Skip if CMS_lumi fails
+        # Add diagonal to legend
+        CMS.addToLegend(legend, (diag_graph, "Random", "L"))
+        legend.Draw()
 
-            pad.Update()
+        # Add model index as text
+        model_text = ROOT.TLatex()
+        model_text.SetNDC()
+        model_text.SetTextSize(0.035)
+        model_text.SetTextAlign(31)  # Right-aligned
+        model_text.DrawLatex(0.90, 0.92, f"Model {model_idx}")
 
-        # Add title to canvas
-        canvas.cd()
-        title_text = ROOT.TLatex()
-        title_text.SetNDC()
-        title_text.SetTextSize(0.035)
-        title_text.SetTextAlign(22)
-        title_text.DrawLatex(0.5, 0.97, f"Model {model_idx} - ROC Curves")
+        canvas.Update()
 
         # Save canvas
         canvas.SaveAs(output_path)

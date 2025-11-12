@@ -1143,6 +1143,37 @@ def process_model(model_idx: int, model_path: str, config_path: str,
             model_idx
         )
 
+        # Load predictions for ROC curves and confusion matrices
+        predictions_path = os.path.join(output_dirs['overfitting'], f"model{model_idx}_predictions.npz")
+        if os.path.exists(predictions_path):
+            print("  Loading predictions from file...")
+            predictions = np.load(predictions_path)
+            y_true_train = predictions['y_true_train']
+            y_scores_train = predictions['y_scores_train']
+            weights_train = predictions['weights_train']
+            y_true_test = predictions['y_true_test']
+            y_scores_test = predictions['y_scores_test']
+            weights_test = predictions['weights_test']
+
+            print("  Generating ROC curves...")
+            plot_roc_curves(
+                y_true_train, y_scores_train, weights_train,
+                y_true_test, y_scores_test, weights_test,
+                os.path.join(plots_dir, f"model{model_idx}_roc_curves.png"),
+                model_idx
+            )
+
+            print("  Generating confusion matrix...")
+            plot_confusion_matrices(
+                y_true_train, y_scores_train, weights_train,
+                y_true_test, y_scores_test, weights_test,
+                os.path.join(plots_dir, f"model{model_idx}_confusion_matrix.png"),
+                model_idx
+            )
+        else:
+            print(f"  Warning: Predictions file not found: {predictions_path}")
+            print("  Skipping ROC curves and confusion matrix generation")
+
         return result
 
     # If skip_eval but results don't exist, warn and continue
@@ -1166,6 +1197,13 @@ def process_model(model_idx: int, model_path: str, config_path: str,
 
     print("  Evaluating on test set...")
     y_true_test, y_scores_test, weights_test = evaluate_model(model, test_loader, device)
+
+    # Save predictions for later use with --skip-eval
+    print("  Saving predictions...")
+    predictions_path = os.path.join(output_dirs['overfitting'], f"model{model_idx}_predictions.npz")
+    np.savez(predictions_path,
+             y_true_train=y_true_train, y_scores_train=y_scores_train, weights_train=weights_train,
+             y_true_test=y_true_test, y_scores_test=y_scores_test, weights_test=weights_test)
 
     # Perform comprehensive KS tests
     print("  Performing KS tests (16 tests)...")
