@@ -305,6 +305,13 @@ class ComparisonCanvas(BaseCanvas):
             else:
                 self.systematics.Add(hist)
 
+        # If blind mode is requested, replace data with systematics
+        # This ensures data and systematics are EXACTLY the same
+        if config.get("blind", False):
+            self.incl = self.systematics.Clone("data_blind")
+            self.incl.SetTitle("Data")
+            self.incl.SetDirectory(0)
+
         # Create ratio histogram
         self.ratio = self.incl.Clone("ratio")
         self.ratio.Divide(self.systematics)

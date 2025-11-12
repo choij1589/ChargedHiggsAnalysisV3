@@ -39,6 +39,7 @@ config["era"] = args.era
 config["CoM"] = get_CoM_energy(args.era)
 config["rTitle"] = "Data / Pred"
 config["maxDigits"] = 3
+config["blind"] = args.blind  # Pass blind flag to ComparisonCanvas
 #### Configurations
 # Get era list for merging
 era_list = get_era_list(args.era)
@@ -332,16 +333,8 @@ BKGs = {name: hist for name, hist in temp_dict.items() if hist}
 # Sort BKGs by hist.Integral()
 BKGs = dict(sorted(BKGs.items(), key=lambda x: x[1].Integral(), reverse=True))
 
-# Apply blind option: create fake data as exact sum of all backgrounds
-if args.blind:
-    data = None
-    for hist in BKGs.values():
-        if data is None:
-            data = hist.Clone("data_blind")
-            data.SetDirectory(0)
-        else:
-            data.Add(hist)
-    data.SetTitle("Data")
+# Note: Blinding is now handled in ComparisonCanvas to ensure
+# data and systematics are guaranteed to be identical
 
 # Load signal histograms (only for SR1E2Mu and SR3Mu)
 SIGNALs = {}
