@@ -12,6 +12,7 @@
 - [AmassFitter Class](#amassfitter-class)
 - [Type Definitions](#type-definitions)
 - [Usage Examples](#usage-examples)
+- [Shell Script API](#shell-script-api)
 
 ---
 
@@ -256,11 +257,21 @@ void fillOutTree(const TString &sampleName,
        outTree->Fill();
    }
 
-   // 3Mu: Two Z candidates per event
+   // 3Mu: Two Z candidates per event - select based on mass point
    else if (channel.Contains("3Mu")) {
-       mass = mass1;
-       outTree->Fill();
-       mass = mass2;
+       // Extract mass point parameters from signal string
+       int mHc = extractMHc(signal);
+       int mA = extractMA(signal);
+
+       // Selection algorithm based on mass point thresholds:
+       // - If MHc >= 100 AND MA >= 60: mass = max(mass1, mass2)
+       // - Otherwise: mass = min(mass1, mass2)
+       // For background samples (no MHc/MA): defaults to min
+       if (mHc >= 100 && mA >= 60) {
+           mass = (mass1 > mass2) ? mass1 : mass2;  // max
+       } else {
+           mass = (mass1 < mass2) ? mass1 : mass2;  // min
+       }
        outTree->Fill();
    }
    ```
@@ -1896,6 +1907,478 @@ mA_err = fitter.getRooMA().getError()
 print(f"Fitted mA: {mA:.2f} ± {mA_err:.2f} GeV")
 
 fitter.Close()
+```
+
+---
+
+## Shell Script API
+
+This section documents the shell scripts used for automated template preparation and statistical analysis.
+
+### `prepareCombine.sh`
+
+**Location**: `scripts/prepareCombine.sh`
+
+**Purpose**: Automated template creation pipeline (runs 4 sub-steps)
+
+**Syntax**:
+```bash
+./scripts/prepareCombine.sh <ERA> <CHANNEL> <MASSPOINT> <METHOD>
+```
+
+**Parameters**:
+
+| Parameter | Type | Description | Valid Values |
+|-----------|------|-------------|--------------|
+| `ERA` | String | Data-taking period | `2016preVFP`, `2016postVFP`, `2017`, `2018`, `2022`, `2022EE`, `2023`, `2023BPix` |
+| `CHANNEL` | String | Analysis channel | `SR1E2Mu`, `SR3Mu` |
+| `MASSPOINT` | String | Signal hypothesis | `MHc100_MA95`, `MHc115_MA87`, `MHc130_MA90`, `MHc145_MA92`, `MHc160_MA85`, `MHc160_MA98` |
+| `METHOD` | String | Discrimination method | `Baseline`, `ParticleNet` |
+
+**Execution Steps**:
+
+1. **Environment Setup**:
+   ```bash
+   export PATH="${PWD}/python:${PATH}"
+   export LD_LIBRARY_PATH="${PWD}/lib:${LD_LIBRARY_PATH}"
+   ```
+
+2. **Directory Cleanup**:
+   ```bash
+   rm -rf samples/$ERA/$CHANNEL/$MASSPOINT
+   rm -rf templates/$ERA/$CHANNEL/$MASSPOINT
+   ```
+
+3. **Preprocessing** (sub-step 1):
+   ```bash
+   preprocess.py --era $ERA --channel $CHANNEL --signal $MASSPOINT --method Baseline
+   ```
+   - Loads Preprocessor C++ class
+   - Processes all samples (nonprompt, diboson, ttX, conversion, signal)
+   - Outputs: `samples/$ERA/$CHANNEL/$MASSPOINT/Baseline/*.root`
+
+4. **Template Creation** (sub-step 2):
+   ```bash
+   makeBinnedTemplates.py --era $ERA --channel $CHANNEL \
+       --masspoint $MASSPOINT --method $METHOD
+   ```
+   - Fits signal mass distribution
+   - Creates binned templates (~159 histograms)
+   - Outputs: `templates/$ERA/$CHANNEL/$MASSPOINT/Shape/$METHOD/shapes.root`
+
+5. **Validation** (sub-step 3):
+   ```bash
+   checkTemplates.py --era $ERA --channel $CHANNEL \
+       --masspoint $MASSPOINT --method $METHOD
+   ```
+   - Validates histogram integrity
+   - Checks for negative bins/integrals
+   - Outputs: validation plots in `validation/` subdirectory
+
+6. **Datacard Generation** (sub-step 4):
+   ```bash
+   printDatacard.py --era $ERA --channel $CHANNEL \
+       --masspoint $MASSPOINT --method $METHOD
+   ```
+   - Generates HiggsCombine datacard
+   - Creates RooFit workspace for signal
+   - Outputs: `datacard.txt`, `fit_result.root`, `signal_fit.png`
+
+7. **Optional ParticleNet Plotting** (if METHOD=ParticleNet):
+   ```bash
+   plotScores.py --era $ERA --channel $CHANNEL \
+       --masspoint $MASSPOINT --method $METHOD
+   ```
+
+**Outputs**:
+
+```
+samples/$ERA/$CHANNEL/$MASSPOINT/Baseline/
+├── nonprompt.root
+├── diboson.root
+├── ttX.root
+├── conversion.root
+├── others.root
+└── $MASSPOINT.root
+
+templates/$ERA/$CHANNEL/$MASSPOINT/Shape/$METHOD/
+├── shapes.root              # All histogram templates
+├── datacard.txt             # HiggsCombine input
+├── fit_result.root          # Signal fit workspace
+├── signal_fit.png           # Diagnostic plot
+└── validation/              # QA plots
+```
+
+**Example Usage**:
+
+```bash
+# Process 2022 data for SR1E2Mu channel
+./scripts/prepareCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet
+
+# Process all Run2 eras
+for era in 2016preVFP 2016postVFP 2017 2018; do
+    ./scripts/prepareCombine.sh $era SR1E2Mu MHc130_MA90 ParticleNet
+done
+```
+
+**Exit Codes**:
+- `0`: Success
+- Non-zero: Error in one of the sub-steps
+
+**Dependencies**:
+- Python scripts: `preprocess.py`, `makeBinnedTemplates.py`, `checkTemplates.py`, `printDatacard.py`
+- C++ library: `lib/libSignalRegionStudy.so`
+- Input data: `$WORKDIR/SKNanoOutput/SignalRegion/$ERA/`
+
+---
+
+### `runCombine.sh`
+
+**Location**: `scripts/runCombine.sh`
+
+**Purpose**: Execute HiggsCombine statistical framework
+
+**Syntax**:
+```bash
+./scripts/runCombine.sh <ERA> <CHANNEL> <MASSPOINT> <METHOD>
+```
+
+**Parameters**:
+
+| Parameter | Type | Description | Valid Values |
+|-----------|------|-------------|--------------|
+| `ERA` | String | Data-taking period or combination | `2016preVFP`, `2016postVFP`, `2017`, `2018`, `2022`, `2022EE`, `2023`, `2023BPix`, **`FullRun2`** |
+| `CHANNEL` | String | Analysis channel or combination | `SR1E2Mu`, `SR3Mu`, **`Combined`** |
+| `MASSPOINT` | String | Signal hypothesis | Same as `prepareCombine.sh` |
+| `METHOD` | String | Discrimination method | `Baseline`, `ParticleNet` |
+
+**Special Parameter Values**:
+- `ERA=FullRun2`: Combines all Run2 eras (2016preVFP + 2016postVFP + 2017 + 2018)
+- `CHANNEL=Combined`: Merges SR1E2Mu + SR3Mu channels using `combineCards.py`
+
+**Execution Steps**:
+
+1. **Environment Check**:
+   ```bash
+   if [ -z "$WORKDIR" ]; then
+       echo "Error: WORKDIR is not set. Please run 'source setup.sh' first."
+       exit 1
+   fi
+   ```
+
+2. **Navigate to Template Directory**:
+   ```bash
+   BASEDIR="templates/$ERA/$CHANNEL/$MASSPOINT/Shape/$METHOD"
+   cd $BASEDIR
+   ```
+
+3. **Card Combination** (if needed):
+
+   For **Combined** channel:
+   ```bash
+   combineCards.py \
+       ch1=../../../SR1E2Mu/$MASSPOINT/Shape/$METHOD/datacard.txt \
+       ch2=../../../SR3Mu/$MASSPOINT/Shape/$METHOD/datacard.txt \
+       > datacard.txt
+   ```
+
+   For **FullRun2** era:
+   ```bash
+   combineCards.py \
+       era1=../../../../../2016preVFP/$CHANNEL/$MASSPOINT/Shape/$METHOD/datacard.txt \
+       era2=../../../../../2016postVFP/$CHANNEL/$MASSPOINT/Shape/$METHOD/datacard.txt \
+       era3=../../../../../2017/$CHANNEL/$MASSPOINT/Shape/$METHOD/datacard.txt \
+       era4=../../../../../2018/$CHANNEL/$MASSPOINT/Shape/$METHOD/datacard.txt \
+       > datacard.txt
+   ```
+
+4. **Create RooWorkspace**:
+   ```bash
+   text2workspace.py datacard.txt -o workspace.root
+   ```
+   - Converts datacard to RooFit workspace
+   - Builds full probability model
+
+5. **Fit Diagnostics**:
+   ```bash
+   combine -M FitDiagnostics workspace.root
+   ```
+   - Performs maximum likelihood fit
+   - Generates pre-fit and post-fit shapes
+   - Output: `higgsCombineTest.FitDiagnostics.mH120.root`
+
+6. **Asymptotic Limits**:
+   ```bash
+   combine -M AsymptoticLimits workspace.root -t -1
+   ```
+   - Calculates expected limits (Asimov dataset)
+   - Uses CLs method
+   - Output: `higgsCombineTest.AsymptoticLimits.mH120.root`
+
+7. **Return to Working Directory**:
+   ```bash
+   cd $WORKDIR
+   ```
+
+**Commented-Out Advanced Methods** (lines 46-54):
+
+```bash
+# HybridNew method (toy-based limits)
+# combine -M HybridNew workspace.root --LHCmode LHC-limits -T 500 -m 120
+
+# Impact analysis
+# combineTool.py -M Impacts -d workspace.root -m 120 --doInitialFit --robustFit 1
+# combineTool.py -M Impacts -d workspace.root -m 120 --doFits --robustFit 1
+# plotImpacts.py -i impacts.json -o impacts
+```
+
+**Outputs**:
+
+```
+templates/$ERA/$CHANNEL/$MASSPOINT/Shape/$METHOD/
+├── workspace.root                                    # RooFit workspace
+├── higgsCombineTest.FitDiagnostics.mH120.root       # Fit results
+└── higgsCombineTest.AsymptoticLimits.mH120.root     # Limit values
+```
+
+**Example Usage**:
+
+```bash
+# Single era, single channel
+./scripts/runCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet
+
+# Combined channel (requires both channels prepared)
+./scripts/prepareCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet
+./scripts/prepareCombine.sh 2022 SR3Mu MHc130_MA90 ParticleNet
+./scripts/runCombine.sh 2022 Combined MHc130_MA90 ParticleNet
+
+# FullRun2 (requires all eras prepared)
+for era in 2016preVFP 2016postVFP 2017 2018; do
+    ./scripts/prepareCombine.sh $era SR1E2Mu MHc130_MA90 ParticleNet
+    ./scripts/runCombine.sh $era SR1E2Mu MHc130_MA90 ParticleNet
+done
+./scripts/runCombine.sh FullRun2 SR1E2Mu MHc130_MA90 ParticleNet
+```
+
+**Exit Codes**:
+- `0`: Success
+- `1`: WORKDIR not set
+- Non-zero: Combine command failed
+
+**Dependencies**:
+- Must run `prepareCombine.sh` first
+- HiggsCombine tools: `text2workspace.py`, `combine`
+- For combinations: `combineCards.py`
+- CMSSW environment (`cmsenv` in setup.sh)
+
+---
+
+### `runCombineWrapper.sh`
+
+**Location**: `scripts/runCombineWrapper.sh`
+
+**Purpose**: Orchestrate complete workflow for single masspoint across all eras and channels
+
+**Syntax**:
+```bash
+./scripts/runCombineWrapper.sh <MASSPOINT> <METHOD>
+```
+
+**Parameters**:
+
+| Parameter | Type | Description | Valid Values |
+|-----------|------|-------------|--------------|
+| `MASSPOINT` | String | Signal hypothesis | Same as above |
+| `METHOD` | String | Discrimination method | `Baseline`, `ParticleNet` |
+
+**Execution Flow**:
+
+1. **Environment Setup**:
+   ```bash
+   cd /data9/Users/choij/workspace/ChargedHiggsAnalysisV3/SignalRegionStudy
+   source setup.sh
+   ```
+   **Note**: Line 26 contains hardcoded path - should use `$WORKDIR` instead
+
+2. **Define Eras**:
+   ```bash
+   ERAs=("2016preVFP" "2016postVFP" "2017" "2018")
+   ```
+
+3. **Process SR1E2Mu Channel** (all eras):
+   ```bash
+   for era in ${ERAs[@]}; do
+       ./scripts/prepareCombine.sh $era SR1E2Mu $MASSPOINT $METHOD
+       ./scripts/runCombine.sh $era SR1E2Mu $MASSPOINT $METHOD
+   done
+   ```
+
+4. **Process SR3Mu Channel** (all eras):
+   ```bash
+   for era in ${ERAs[@]}; do
+       ./scripts/prepareCombine.sh $era SR3Mu $MASSPOINT $METHOD
+       ./scripts/runCombine.sh $era SR3Mu $MASSPOINT $METHOD
+   done
+   ```
+
+5. **Process Combined Channels** (all eras):
+   ```bash
+   for era in ${ERAs[@]}; do
+       ./scripts/runCombine.sh $era Combined $MASSPOINT $METHOD
+   done
+   ```
+
+6. **Process FullRun2 Combinations**:
+   ```bash
+   ./scripts/runCombine.sh FullRun2 SR1E2Mu $MASSPOINT $METHOD
+   ./scripts/runCombine.sh FullRun2 SR3Mu $MASSPOINT $METHOD
+   ./scripts/runCombine.sh FullRun2 Combined $MASSPOINT $METHOD
+   ```
+
+**Total Executions**: 15 combinations per masspoint
+- 8 individual era×channel combinations
+- 4 combined channel (per era)
+- 3 FullRun2 combinations
+
+**Example Usage**:
+
+```bash
+# Process single masspoint through all combinations
+./scripts/runCombineWrapper.sh MHc130_MA90 ParticleNet
+
+# Process multiple masspoints in parallel (via doThis.sh)
+parallel -j 18 "./scripts/runCombineWrapper.sh" {1} {2} \
+    ::: MHc100_MA95 MHc130_MA90 MHc160_MA85 ::: "ParticleNet"
+```
+
+**Runtime**: ~30-60 minutes per masspoint
+
+**Resource Requirements**:
+- **CPU**: 1 core per wrapper instance
+- **RAM**: 2-4 GB per instance
+- **Disk**: 5-10 GB per masspoint (all eras/channels)
+
+**Exit Codes**:
+- `0`: Success
+- Non-zero: Error in one of the sub-scripts
+
+**Known Issues**:
+- **Line 26**: Hardcoded absolute path - breaks for other users
+  ```bash
+  # Current (problematic):
+  cd /data9/Users/choij/workspace/ChargedHiggsAnalysisV3/SignalRegionStudy
+
+  # Suggested fix:
+  cd $WORKDIR/SignalRegionStudy
+  ```
+
+**Dependencies**:
+- `prepareCombine.sh`
+- `runCombine.sh`
+- All dependencies of above scripts
+
+---
+
+### Shell Script Best Practices
+
+#### 1. Error Handling
+
+**Check exit codes**:
+```bash
+./scripts/prepareCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet
+if [ $? -ne 0 ]; then
+    echo "Error: prepareCombine.sh failed"
+    exit 1
+fi
+```
+
+**Validate inputs**:
+```bash
+# Check era is valid
+if [[ ! " 2016preVFP 2016postVFP 2017 2018 2022 2022EE 2023 2023BPix FullRun2 " =~ " $ERA " ]]; then
+    echo "Error: Invalid ERA: $ERA"
+    exit 1
+fi
+```
+
+#### 2. Logging
+
+**Redirect output**:
+```bash
+# Save logs
+./scripts/prepareCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet \
+    > logs/prepare_2022_SR1E2Mu_MHc130_MA90.log 2>&1
+```
+
+**Track progress**:
+```bash
+# Monitor in real-time
+tail -f logs/prepare_2022_SR1E2Mu_MHc130_MA90.log
+```
+
+#### 3. Parallel Execution
+
+**GNU parallel**:
+```bash
+# Process multiple eras in parallel
+parallel -j 4 "./scripts/prepareCombine.sh" {1} SR1E2Mu MHc130_MA90 ParticleNet \
+    ::: 2016preVFP 2016postVFP 2017 2018
+```
+
+**Resource management**:
+```bash
+# Limit concurrent jobs based on available RAM
+NCORES=$(nproc)
+MEM_PER_JOB=4  # GB
+AVAILABLE_MEM=$(free -g | awk '/^Mem:/{print $7}')
+MAX_JOBS=$((AVAILABLE_MEM / MEM_PER_JOB))
+JOBS=$(($NCORES < $MAX_JOBS ? $NCORES : $MAX_JOBS))
+
+parallel -j $JOBS "./scripts/runCombineWrapper.sh" {1} ParticleNet \
+    ::: MHc100_MA95 MHc130_MA90 MHc160_MA85
+```
+
+#### 4. Debugging
+
+**Dry run mode**:
+```bash
+# Add to scripts for debugging
+DRY_RUN=${DRY_RUN:-false}
+
+if [ "$DRY_RUN" = "true" ]; then
+    echo "Would execute: preprocess.py --era $ERA ..."
+else
+    preprocess.py --era $ERA ...
+fi
+
+# Usage:
+DRY_RUN=true ./scripts/prepareCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet
+```
+
+**Verbose output**:
+```bash
+# Add to scripts
+set -x  # Print each command before execution
+set -e  # Exit on first error
+
+# Or run with bash -x
+bash -x ./scripts/prepareCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet
+```
+
+#### 5. Configuration Management
+
+**Use environment variables**:
+```bash
+# config.sh
+export DEFAULT_METHOD="ParticleNet"
+export MASSPOINTS=("MHc100_MA95" "MHc130_MA90" "MHc160_MA85")
+export RUN2_ERAS=("2016preVFP" "2016postVFP" "2017" "2018")
+
+# In scripts:
+source config.sh
+for mp in "${MASSPOINTS[@]}"; do
+    ./scripts/runCombineWrapper.sh $mp $DEFAULT_METHOD
+done
 ```
 
 ---

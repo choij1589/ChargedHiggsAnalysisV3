@@ -370,7 +370,7 @@ def make_background_stack(shapes_file):
         "era": args.era,
         "CoM": get_CoM_energy(args.era),
         "channel": f"{args.channel}",
-        "xTitle": "|A mass - m_{A}^{fit}| [GeV]",
+        "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
         "yTitle": "Events",
         "rTitle": "Data / Pred",
         "maxDigits": 3,

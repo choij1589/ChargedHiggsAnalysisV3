@@ -6,6 +6,34 @@ import ROOT
 import json
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 
+def calculate_chi2_with_scale(h_obs, h_exp, scale_factor):
+    """
+    Calculate chi-squared test with scaled uncertainties on h_exp.
+
+    Args:
+        h_obs: Observed histogram
+        h_exp: Expected histogram
+        scale_factor: Scale factor to apply to h_exp uncertainties
+
+    Returns:
+        tuple: (chi2, ndf)
+    """
+    chi2 = 0.0
+    ndf = 0
+    for bin in range(1, h_obs.GetNbinsX() + 1):
+        obs_bin = h_obs.GetBinContent(bin)
+        exp_bin = h_exp.GetBinContent(bin)
+        obs_err = h_obs.GetBinError(bin)
+        exp_err = h_exp.GetBinError(bin) * scale_factor
+
+        if exp_bin > 0:
+            sigma2 = obs_err**2 + exp_err**2
+            if sigma2 > 0:
+                chi2 += (obs_bin - exp_bin)**2 / sigma2
+                ndf += 1
+
+    return chi2, ndf
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--channel", required=True, type=str, help="Run1E2Mu / Run3Mu")
@@ -100,10 +128,59 @@ exp = h_exp.Integral(0, h_exp.GetNbinsX()+1)
 
 # Calculate difference and store in JSON format
 difference = (obs - exp) / exp if exp != 0 else float('inf')
+
+# Calculate chi-squared test
+chi2 = 0.0
+ndf = 0
+for bin in range(1, h_obs.GetNbinsX() + 1):
+    obs_bin = h_obs.GetBinContent(bin)
+    exp_bin = h_exp.GetBinContent(bin)
+    obs_err = h_obs.GetBinError(bin)
+    exp_err = h_exp.GetBinError(bin)
+
+    # Only include bins with non-zero expected value
+    if exp_bin > 0:
+        # Combined uncertainty: σ² = σ_obs² + σ_exp²
+        sigma2 = obs_err**2 + exp_err**2
+        if sigma2 > 0:
+            chi2 += (obs_bin - exp_bin)**2 / sigma2
+            ndf += 1
+
+# Subtract 1 for degrees of freedom (no fit parameters, but general convention)
+# Actually, for a simple comparison without fitting, ndf = number of bins used
+# Keep ndf as is (number of bins)
+
+# Calculate p-value using ROOT's TMath
+p_value = ROOT.TMath.Prob(chi2, ndf) if ndf > 0 else 0.0
+
+# Find optimal uncertainty scale factor for closure
+# Search for scale that gives chi2/ndf closest to 1.0
+best_scale = 1.0
+best_diff = abs(chi2/ndf - 1.0) if ndf > 0 else float('inf')
+
+for scale in [i * 0.05 for i in range(2, 101)]:  # 0.1 to 5.0 in steps of 0.05
+    chi2_scaled, ndf_scaled = calculate_chi2_with_scale(h_obs, h_exp, scale)
+    if ndf_scaled > 0:
+        chi2_per_ndf = chi2_scaled / ndf_scaled
+        diff = abs(chi2_per_ndf - 1.0)
+        if diff < best_diff:
+            best_diff = diff
+            best_scale = scale
+
+# Calculate recommended systematic uncertainty
+# This is the additional uncertainty needed for closure
+recommended_systematic = abs(best_scale - 1.0) * 100  # in percent
+
 results = {
     "observed": obs,
     "expected": exp,
     "difference": difference,
+    "chi2": chi2,
+    "ndf": ndf,
+    "chi2_per_ndf": chi2/ndf if ndf > 0 else 0.0,
+    "p_value": p_value,
+    "closure_uncertainty_scale": best_scale,
+    "recommended_systematic_pct": recommended_systematic,
 }
 
 # Save results to JSON file
@@ -125,6 +202,16 @@ os.makedirs(os.path.dirname(output_path), exist_ok=True)
 # Create and draw the comparison plot
 plotter = ComparisonCanvas(h_obs, BKGs, config)
 plotter.drawPadUp()
+
+# Add chi-squared test results to the plot
+plotter.canv.cd(1)
+chi2_text = f"#chi^{{2}}/ndf = {chi2:.2f}/{ndf}"
+syst_text = f"Closure syst: #pm{recommended_systematic:.1f}%"
+# Need to import CMS for drawing text
+import cmsstyle as CMS
+CMS.drawText(chi2_text, posX=0.20, posY=0.62, font=42, align=0, size=0.04)
+#CMS.drawText(syst_text, posX=0.20, posY=0.57, font=42, align=0, size=0.04)
+
 plotter.drawPadDown()
 plotter.canv.SaveAs(output_path)
 

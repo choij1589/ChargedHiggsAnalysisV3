@@ -23,7 +23,7 @@ if [ -z "$masspoint" ] || [ -z "$method" ]; then
 fi
 
 # Set up environment
-SCRIPT_DIR="/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/SignalRegionStudy"
+SCRIPT_DIR="/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SignalRegionStudy"
 cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/setup.sh"
 

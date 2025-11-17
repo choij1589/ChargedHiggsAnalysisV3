@@ -49,6 +49,10 @@ private:
     double convSF, convSFerr;
     double mass, mass1, mass2, MT1, MT2, score_0, score_1, score_2, score_3, weight;
     int fold;
+
+    // Helper methods for mass point extraction
+    int extractMHc(const TString &signal) const;
+    int extractMA(const TString &signal) const;
 };
 
 #endif

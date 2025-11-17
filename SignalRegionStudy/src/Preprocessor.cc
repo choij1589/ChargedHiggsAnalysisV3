@@ -84,10 +84,17 @@ void Preprocessor::fillOutTree(const TString &sampleName, const TString &signal,
             mass = mass1;
             outTree->Fill();
         } else if (channel.Contains("3Mu")) {
-            if (MT1 < MT2) {
-                mass = mass1;
+            // Extract mass point parameters
+            int mHc = extractMHc(signal);
+            int mA = extractMA(signal);
+
+            // New selection algorithm based on mass point thresholds
+            // For MHc >= 100 AND MA >= 60: use max(mass1, mass2)
+            // Otherwise: use min(mass1, mass2)
+            if (mHc >= 100 && mA >= 60) {
+                mass = (mass1 > mass2) ? mass1 : mass2;  // max
             } else {
-                mass = mass2;
+                mass = (mass1 < mass2) ? mass1 : mass2;  // min
             }
             outTree->Fill();
         } else {
@@ -95,4 +102,21 @@ void Preprocessor::fillOutTree(const TString &sampleName, const TString &signal,
             exit(EXIT_FAILURE);
         }
     }
+}
+
+int Preprocessor::extractMHc(const TString &signal) const {
+    // Extract MHc value from string like "MHc130_MA90"
+    if (!signal.Contains("MHc")) return -1;
+    TString temp = signal;
+    temp.Remove(0, temp.Index("MHc") + 3);  // Remove up to and including "MHc"
+    if (temp.Contains("_")) temp.Remove(temp.Index("_"));  // Remove everything after "_"
+    return temp.Atoi();
+}
+
+int Preprocessor::extractMA(const TString &signal) const {
+    // Extract MA value from string like "MHc130_MA90"
+    if (!signal.Contains("MA")) return -1;
+    TString temp = signal;
+    temp.Remove(0, temp.Index("MA") + 2);  // Remove up to and including "MA"
+    return temp.Atoi();
 }

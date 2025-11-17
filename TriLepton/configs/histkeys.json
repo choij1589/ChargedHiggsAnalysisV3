@@ -906,35 +906,68 @@
     "rebin": 5,
     "logy": false
   },
-  "stack/pt": {
-    "xTitle": "p_{T}(#mu^{+}#mu^{-}) [GeV]",
+  "pair_lowM/pt": {
+    "xTitle": "p_{T}(#mu^{+}#mu^{-})_{<} [GeV]",
     "yTitle": "Events",
     "xRange": [0.0, 300.0],
     "rRange": [0.0, 2.0],
     "rebin": 10,
     "logy": false
   },
-  "stack/eta": {
-    "xTitle": "#eta(#mu^{+}#mu^{-})",
+  "pair_lowM/eta": {
+    "xTitle": "#eta(#mu^{+}#mu^{-})_{<}",
     "yTitle": "Events",
     "xRange": [-5.0, 5.0],
     "rRange": [0.0, 2.0],
     "rebin": 5,
     "logy": false
   },
-  "stack/phi": {
-    "xTitle": "#phi(#mu^{+}#mu^{-})",
+  "pair_lowM/phi": {
+    "xTitle": "#phi(#mu^{+}#mu^{-})_{<}",
     "yTitle": "Events",
     "xRange": [-3.2, 3.2],
     "rRange": [0.0, 2.0],
     "rebin": 4,
     "logy": false
   },
-  "stack/mass": {
-    "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
+  "pair_lowM/mass": {
+    "xTitle": "M(#mu^{+}#mu^{-})_{<} [GeV]",
     "yTitle": "Events",
     "xRange": [12.0, 200.0],
     "rRange": [0.0, 2.0],
+    "rebin": 5,
+    "logy": false
+  },
+  "pair_highM/pt": {
+    "xTitle": "p_{T}(#mu^{+}#mu^{-})_{>} [GeV]",
+    "yTitle": "Events",
+    "xRange": [0.0, 300.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 10,
+    "logy": false
+  },
+  "pair_highM/eta": {
+    "xTitle": "#eta(#mu^{+}#mu^{-})_{>}",
+    "yTitle": "Events",
+    "xRange": [-5.0, 5.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 5,
+    "logy": false
+  },
+  "pair_highM/phi": {
+    "xTitle": "#phi(#mu^{+}#mu^{-})_{>}",
+    "yTitle": "Events",
+    "xRange": [-3.2, 3.2],
+    "rRange": [0.0, 2.0],
+    "rebin": 4,
+    "logy": false
+  },
+  "pair_highM/mass": {
+    "xTitle": "M(#mu^{+}#mu^{-})_{>} [GeV]",
+    "yTitle": "Events",
+    "xRange": [12.0, 200.0],
+    "rRange": [0.0, 2.0],
+    "rebin": 5,
     "logy": false
   },
   "ZCand/mass": {

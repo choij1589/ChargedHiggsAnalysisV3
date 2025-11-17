@@ -21,6 +21,7 @@ import sys
 import json
 import argparse
 import numpy as np
+import shutil
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
@@ -106,6 +107,7 @@ def get_iteration_statistics(iteration_dir: Path) -> Optional[Dict]:
     valid_losses = []
     best_train_losses = []
     best_valid_losses = []
+    model_data_list = []  # Store (idx, valid_loss) for finding best model
 
     for idx in model_indices:
         json_path = json_dir / f"model{idx}.json"
@@ -125,11 +127,15 @@ def get_iteration_statistics(iteration_dir: Path) -> Optional[Dict]:
         if best_train is not None and best_valid is not None:
             best_train_losses.append(best_train)
             best_valid_losses.append(best_valid)
+            model_data_list.append((idx, best_valid))
 
     # Check if we have any valid data
     if not best_train_losses or not best_valid_losses:
         print(f"Warning: No valid loss data found in {iteration_dir}")
         return None
+
+    # Find best model (minimum validation loss)
+    best_model_idx, best_model_valid_loss = min(model_data_list, key=lambda x: x[1])
 
     # Compute statistics
     stats = {
@@ -143,7 +149,9 @@ def get_iteration_statistics(iteration_dir: Path) -> Optional[Dict]:
         'max_train_loss': float(np.max(best_train_losses)),
         'max_valid_loss': float(np.max(best_valid_losses)),
         'median_train_loss': float(np.median(best_train_losses)),
-        'median_valid_loss': float(np.median(best_valid_losses))
+        'median_valid_loss': float(np.median(best_valid_losses)),
+        'best_model_idx': best_model_idx,
+        'best_model_valid_loss': best_model_valid_loss
     }
 
     return stats
@@ -334,6 +342,79 @@ def save_summary_json(summary: Dict, output_path: str):
     print(f"Saved summary to: {output_path}")
 
 
+def copy_best_model(base_path: Path, last_iteration_dir: Path, best_model_idx: int):
+    """
+    Copy the best model from the last iteration to best_model/ subdirectory.
+
+    Args:
+        base_path: Base path for the signal/channel (e.g., GAOptim_bjets/Run1E2Mu/multiclass/TTToHcToWAToMuMu-MHc130_MA100)
+        last_iteration_dir: Path to the last GA iteration directory
+        best_model_idx: Index of the best model to copy
+    """
+    # Create best_model directory
+    best_model_dir = base_path / "best_model"
+    os.makedirs(best_model_dir, exist_ok=True)
+
+    # Source files
+    model_pt_src = last_iteration_dir / "models" / f"model{best_model_idx}.pt"
+    model_json_src = last_iteration_dir / "json" / f"model{best_model_idx}.json"
+
+    # Destination files (renamed)
+    model_pt_dst = best_model_dir / "model.pt"
+    model_json_dst = best_model_dir / "model_info.json"
+
+    # Check if source files exist
+    if not model_pt_src.exists():
+        raise FileNotFoundError(f"Model checkpoint not found: {model_pt_src}")
+    if not model_json_src.exists():
+        raise FileNotFoundError(f"Model JSON not found: {model_json_src}")
+
+    # Copy and rename model files
+    shutil.copy2(model_pt_src, model_pt_dst)
+    shutil.copy2(model_json_src, model_json_dst)
+
+    # Copy validation plots
+    plots_dir = last_iteration_dir / "plots"
+    copied_plots = []
+
+    if plots_dir.exists():
+        # Define plot types to copy
+        plot_types = [
+            "confusion_matrix",
+            "ks_test_heatmap",
+            "roc_curves",
+            "score_distributions_grid",
+            "training_curves"
+        ]
+
+        for plot_type in plot_types:
+            plot_src = plots_dir / f"model{best_model_idx}_{plot_type}.png"
+            if plot_src.exists():
+                # Remove model{N}_ prefix in destination filename
+                plot_dst = best_model_dir / f"{plot_type}.png"
+                shutil.copy2(plot_src, plot_dst)
+                copied_plots.append(plot_dst.name)
+            else:
+                print(f"Warning: Plot not found: {plot_src}")
+
+    print()
+    print("="*70)
+    print("Best Model Identification")
+    print("="*70)
+    print(f"Best model from last iteration: model{best_model_idx}")
+    print(f"Copied to: {best_model_dir}")
+    print(f"")
+    print(f"Model files:")
+    print(f"  - {model_pt_dst.name}")
+    print(f"  - {model_json_dst.name}")
+    if copied_plots:
+        print(f"")
+        print(f"Validation plots ({len(copied_plots)}):")
+        for plot in copied_plots:
+            print(f"  - {plot}")
+    print("="*70)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Summarize GA optimization loss evolution across iterations'
@@ -368,13 +449,16 @@ def main():
         print("="*70)
         print("Summary Statistics")
         print("="*70)
-        for iter_data in summary['iterations']:
+        for i, iter_data in enumerate(summary['iterations']):
+            is_last = (i == len(summary['iterations']) - 1)
             print(f"Iteration {iter_data['iteration']}:")
             print(f"  Models: {iter_data['num_models']}")
             print(f"  Mean Train Loss: {iter_data['mean_train_loss']:.4f} ± {iter_data['std_train_loss']:.4f}")
             print(f"  Mean Valid Loss: {iter_data['mean_valid_loss']:.4f} ± {iter_data['std_valid_loss']:.4f}")
             print(f"  Best Train Loss: {iter_data['min_train_loss']:.4f}")
             print(f"  Best Valid Loss: {iter_data['min_valid_loss']:.4f}")
+            if is_last:
+                print(f"  Best Model: model{iter_data['best_model_idx']} (valid_loss={iter_data['best_model_valid_loss']:.4f})")
             print()
         print("="*70)
 
@@ -387,6 +471,15 @@ def main():
         # Create plot
         plot_output = base_path / "ga_loss_evolution.png"
         create_loss_evolution_plot(summary, str(plot_output))
+
+        # Copy best model from last iteration
+        if summary['iterations']:
+            last_iter_data = summary['iterations'][-1]
+            last_iter_num = last_iter_data['iteration']
+            best_model_idx = last_iter_data['best_model_idx']
+
+            last_iteration_dir = base_path / f"GA-iter{last_iter_num}"
+            copy_best_model(base_path, last_iteration_dir, best_model_idx)
 
         print()
         print("="*70)

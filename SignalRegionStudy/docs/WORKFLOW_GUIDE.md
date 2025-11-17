@@ -835,6 +835,389 @@ Significance: 1.85σ
 
 ---
 
+### Workflow 8: Automated Template Preparation and Combine Execution
+
+**Use Case**: Simplified workflow using shell script automation
+
+This workflow uses the provided shell scripts that automate the 4-step template creation process and combine execution.
+
+#### Stage 1: Template Preparation (`prepareCombine.sh`)
+
+```bash
+#!/bin/bash
+# Automated template creation (runs 4 steps internally)
+
+ERA="2022"
+CHANNEL="SR1E2Mu"
+MASSPOINT="MHc130_MA90"
+METHOD="ParticleNet"
+
+./scripts/prepareCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+```
+
+**What It Does (Internally)**:
+1. **Preprocessing**: `preprocess.py --era $ERA --channel $CHANNEL --signal $MASSPOINT --method Baseline`
+2. **Template Creation**: `makeBinnedTemplates.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD`
+3. **Validation**: `checkTemplates.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD`
+4. **Datacard Generation**: `printDatacard.py --era $ERA --channel $CHANNEL --masspoint $MASSPOINT --method $METHOD`
+
+**Output**:
+```
+templates/2022/SR1E2Mu/MHc130_MA90/Shape/ParticleNet/
+├── shapes.root              # All histogram templates (~159)
+├── datacard.txt             # HiggsCombine input
+├── fit_result.root          # Signal fit workspace
+├── signal_fit.png           # Fit diagnostic plot
+└── validation/              # QA plots
+    ├── nonprompt_mass.png
+    ├── diboson_mass.png
+    └── ...
+```
+
+#### Stage 2: Statistical Analysis (`runCombine.sh`)
+
+```bash
+#!/bin/bash
+# Execute HiggsCombine analysis
+
+./scripts/runCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+```
+
+**What It Does**:
+1. **Create RooWorkspace**: `text2workspace.py datacard.txt -o workspace.root`
+2. **Fit Diagnostics**: `combine -M FitDiagnostics workspace.root`
+3. **Asymptotic Limits**: `combine -M AsymptoticLimits workspace.root -t -1`
+
+**Output**:
+```
+templates/2022/SR1E2Mu/MHc130_MA90/Shape/ParticleNet/
+├── workspace.root                                 # Full probability model
+├── higgsCombineTest.FitDiagnostics.mH120.root    # Fit results
+└── higgsCombineTest.AsymptoticLimits.mH120.root  # Limit values
+```
+
+#### Special Channel/Era Combinations
+
+**Combined Channel** (SR1E2Mu + SR3Mu merger):
+```bash
+# Must run individual channels first
+./scripts/prepareCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet
+./scripts/prepareCombine.sh 2022 SR3Mu MHc130_MA90 ParticleNet
+
+# Then run combined (no prepareCombine needed)
+./scripts/runCombine.sh 2022 Combined MHc130_MA90 ParticleNet
+# Uses combineCards.py internally
+```
+
+**FullRun2 Era** (all Run2 eras merger):
+```bash
+# Must run all individual eras first
+for era in 2016preVFP 2016postVFP 2017 2018; do
+    ./scripts/prepareCombine.sh $era SR1E2Mu MHc130_MA90 ParticleNet
+    ./scripts/runCombine.sh $era SR1E2Mu MHc130_MA90 ParticleNet
+done
+
+# Then run FullRun2 combination
+./scripts/runCombine.sh FullRun2 SR1E2Mu MHc130_MA90 ParticleNet
+# Uses combineCards.py internally
+```
+
+#### Complete Example: Single Masspoint, Full Analysis
+
+```bash
+#!/bin/bash
+# complete_analysis.sh
+
+MASSPOINT="MHc130_MA90"
+METHOD="ParticleNet"
+
+# Process all Run2 eras
+for era in 2016preVFP 2016postVFP 2017 2018; do
+    echo "Processing $era..."
+
+    # SR1E2Mu channel
+    ./scripts/prepareCombine.sh $era SR1E2Mu $MASSPOINT $METHOD
+    ./scripts/runCombine.sh $era SR1E2Mu $MASSPOINT $METHOD
+
+    # SR3Mu channel
+    ./scripts/prepareCombine.sh $era SR3Mu $MASSPOINT $METHOD
+    ./scripts/runCombine.sh $era SR3Mu $MASSPOINT $METHOD
+
+    # Combined channel
+    ./scripts/runCombine.sh $era Combined $MASSPOINT $METHOD
+done
+
+# FullRun2 combinations
+./scripts/runCombine.sh FullRun2 SR1E2Mu $MASSPOINT $METHOD
+./scripts/runCombine.sh FullRun2 SR3Mu $MASSPOINT $METHOD
+./scripts/runCombine.sh FullRun2 Combined $MASSPOINT $METHOD
+
+echo "Analysis complete!"
+echo "Results: templates/FullRun2/Combined/$MASSPOINT/Shape/$METHOD/"
+```
+
+**Extracting Results**:
+```bash
+# View limits
+root -l templates/FullRun2/Combined/MHc130_MA90/Shape/ParticleNet/higgsCombineTest.AsymptoticLimits.mH120.root
+
+# In ROOT:
+limit->Scan("quantileExpected:limit")
+# Output shows:
+# quantileExpected = -1.0:  <observed limit>
+# quantileExpected = 0.025: <expected -2σ>
+# quantileExpected = 0.16:  <expected -1σ>
+# quantileExpected = 0.50:  <expected median>
+# quantileExpected = 0.84:  <expected +1σ>
+# quantileExpected = 0.975: <expected +2σ>
+```
+
+→ **[Complete Combine Workflow Guide](COMBINE_WORKFLOW.md)** for detailed documentation
+
+---
+
+### Workflow 9: Batch Processing Multiple Masspoints
+
+**Use Case**: Process all signal hypotheses in parallel
+
+This workflow processes multiple masspoints efficiently using GNU parallel.
+
+#### Option 1: Using `runCombineWrapper.sh` (Single Masspoint, All Combinations)
+
+**Purpose**: Process one masspoint across all eras and channels
+
+```bash
+#!/bin/bash
+# Process MHc130_MA90 through all combinations
+
+MASSPOINT="MHc130_MA90"
+METHOD="ParticleNet"
+
+./scripts/runCombineWrapper.sh $MASSPOINT $METHOD
+```
+
+**What It Executes** (15 combinations total):
+```
+Individual eras × channels (8):
+├─ 2016preVFP/SR1E2Mu → prepareCombine + runCombine
+├─ 2016preVFP/SR3Mu → prepareCombine + runCombine
+├─ 2016postVFP/SR1E2Mu → prepareCombine + runCombine
+├─ 2016postVFP/SR3Mu → prepareCombine + runCombine
+├─ 2017/SR1E2Mu → prepareCombine + runCombine
+├─ 2017/SR3Mu → prepareCombine + runCombine
+├─ 2018/SR1E2Mu → prepareCombine + runCombine
+└─ 2018/SR3Mu → prepareCombine + runCombine
+
+Combined channels (4):
+├─ 2016preVFP/Combined → runCombine (card merge)
+├─ 2016postVFP/Combined → runCombine (card merge)
+├─ 2017/Combined → runCombine (card merge)
+└─ 2018/Combined → runCombine (card merge)
+
+FullRun2 combinations (3):
+├─ FullRun2/SR1E2Mu → runCombine (era merge)
+├─ FullRun2/SR3Mu → runCombine (era merge)
+└─ FullRun2/Combined → runCombine (era + channel merge)
+```
+
+**Runtime**: ~30-60 minutes per masspoint
+
+#### Option 2: Using `doThis.sh` (All Masspoints in Parallel)
+
+**Purpose**: Process all masspoints simultaneously
+
+```bash
+#!/bin/bash
+# Edit doThis.sh to configure masspoints
+
+# Example masspoints list
+MASSPOINTs=(
+    "MHc100_MA95"
+    "MHc115_MA87"
+    "MHc130_MA90"
+    "MHc145_MA92"
+    "MHc160_MA85"
+    "MHc160_MA98"
+)
+
+# Launch parallel processing (18 concurrent jobs)
+parallel -j 18 "./scripts/runCombineWrapper.sh" {1} {2} \
+    ::: "${MASSPOINTs[@]}" ::: "ParticleNet"
+```
+
+**Resource Requirements**:
+
+| Resource | Per Job | 18 Jobs Total |
+|----------|---------|---------------|
+| **CPU cores** | 1 | 18 |
+| **RAM** | 2-4 GB | 36-72 GB |
+| **Disk I/O** | Moderate | High |
+| **Runtime** | 30-60 min | 30-60 min |
+
+**Monitoring Progress**:
+
+```bash
+# Check running jobs
+ps aux | grep prepareCombine
+
+# Count completed datacards
+find templates/ -name "datacard.txt" | wc -l
+# Expected: 15 × (number of masspoints)
+
+# Count completed combine outputs
+find templates/ -name "higgsCombineTest.AsymptoticLimits.mH120.root" | wc -l
+
+# Monitor disk usage
+watch -n 60 'du -sh templates/'
+```
+
+#### Complete Batch Workflow with Result Collection
+
+```bash
+#!/bin/bash
+# batch_analysis_with_results.sh
+
+# 1. Define masspoints
+MASSPOINTs=(
+    "MHc100_MA95"
+    "MHc130_MA90"
+    "MHc160_MA85"
+)
+
+METHOD="ParticleNet"
+
+# 2. Launch parallel processing
+echo "Starting batch processing..."
+parallel -j 18 "./scripts/runCombineWrapper.sh" {1} {2} \
+    ::: "${MASSPOINTs[@]}" ::: "$METHOD"
+
+# 3. Wait for completion
+wait
+
+# 4. Collect results
+echo "Collecting results..."
+python python/collectLimits.py \
+    --era FullRun2 \
+    --channel Combined \
+    --method $METHOD \
+    --output limits_summary.json
+
+# 5. Generate plots
+python python/plotLimits.py \
+    --input limits_summary.json \
+    --output plots/limits_vs_mass.pdf
+
+echo "Analysis complete!"
+echo "Results: limits_summary.json"
+echo "Plots: plots/limits_vs_mass.pdf"
+```
+
+**Example Result Collection Script**:
+
+```python
+#!/usr/bin/env python3
+# collectLimits.py
+
+import ROOT
+import json
+import sys
+
+def extract_limits(root_file):
+    """Extract limit values from combine output"""
+    f = ROOT.TFile(root_file)
+    if not f or f.IsZombie():
+        return None
+
+    tree = f.Get("limit")
+    if not tree:
+        return None
+
+    limits = {}
+    for entry in tree:
+        quantile = entry.quantileExpected
+        limit_val = entry.limit
+
+        if quantile < 0:
+            limits['observed'] = limit_val
+        elif abs(quantile - 0.025) < 0.01:
+            limits['exp_m2sigma'] = limit_val
+        elif abs(quantile - 0.16) < 0.01:
+            limits['exp_m1sigma'] = limit_val
+        elif abs(quantile - 0.5) < 0.01:
+            limits['exp_median'] = limit_val
+        elif abs(quantile - 0.84) < 0.01:
+            limits['exp_p1sigma'] = limit_val
+        elif abs(quantile - 0.975) < 0.01:
+            limits['exp_p2sigma'] = limit_val
+
+    return limits
+
+# Main execution
+masspoints = [
+    "MHc100_MA95", "MHc115_MA87", "MHc130_MA90",
+    "MHc145_MA92", "MHc160_MA85", "MHc160_MA98"
+]
+
+results = {}
+for mp in masspoints:
+    limit_file = f"templates/FullRun2/Combined/{mp}/Shape/ParticleNet/higgsCombineTest.AsymptoticLimits.mH120.root"
+    print(f"Processing {mp}...")
+
+    limits = extract_limits(limit_file)
+    if limits:
+        results[mp] = limits
+        print(f"  Expected limit: {limits['exp_median']:.2f}")
+    else:
+        print(f"  WARNING: Could not extract limits")
+
+# Save results
+with open("limits_summary.json", "w") as f:
+    json.dump(results, f, indent=2)
+
+print(f"\nResults saved to limits_summary.json")
+print(f"Processed {len(results)}/{len(masspoints)} masspoints")
+```
+
+**Best Practices**:
+
+1. **Test Single Masspoint First**:
+   ```bash
+   # Before running all masspoints
+   ./scripts/runCombineWrapper.sh MHc130_MA90 ParticleNet
+   # Verify outputs look correct
+   ```
+
+2. **Monitor Resources**:
+   ```bash
+   # Check available disk space
+   df -h $PWD
+
+   # Monitor memory usage
+   htop
+   ```
+
+3. **Use Screen/Tmux for Long Jobs**:
+   ```bash
+   # Start screen session
+   screen -S batch_combine
+
+   # Run analysis
+   ./doThis.sh
+
+   # Detach: Ctrl+A, D
+   # Reattach: screen -r batch_combine
+   ```
+
+4. **Backup Intermediate Results**:
+   ```bash
+   # After template creation
+   tar -czf templates_$(date +%Y%m%d).tar.gz templates/
+   ```
+
+→ **[Complete Combine Workflow Guide](COMBINE_WORKFLOW.md)** for advanced batch processing and troubleshooting
+
+---
+
 ## Troubleshooting
 
 ### Common Issues and Solutions

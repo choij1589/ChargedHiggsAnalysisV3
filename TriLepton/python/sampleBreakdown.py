@@ -2,12 +2,18 @@
 """
 sampleBreakdown.py
 
-Extract event counts and errors (statistical and systematic separately) for all samples
-using the fixed histogram 'jets/size'. Outputs results to JSON format.
+Extract event counts and errors (statistical and systematic separately) for all samples.
+
+Histogram selection:
+- 1E2Mu SR/ZFake channels: 'pair/mass' by default, or 'pair_onZ/mass' with --onZ flag
+- 3Mu SR/ZFake channels: 'pair_lowM/mass' by default, or 'pair_lowM_onZ/mass' with --onZ flag
+- Control regions (ZG/WZ): 'ZCand/mass' always (--onZ flag not supported)
 
 Usage:
     python python/sampleBreakdown.py --era Run2 --channel SR1E2Mu
     python python/sampleBreakdown.py --era 2017 --channel SR3Mu --exclude WZSF
+    python python/sampleBreakdown.py --era 2016postVFP --channel SR1E2Mu --onZ
+    python python/sampleBreakdown.py --era 2016postVFP --channel ZG1E2Mu
 """
 
 import sys
@@ -26,6 +32,18 @@ sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 
 from plotter import get_era_list, get_CoM_energy
 from HistoUtils import load_histogram, sum_histograms, load_era_configs, get_sample_lists, merge_systematics
+
+
+def load_signal_config():
+    """Load signal mass points from configuration file."""
+    config_path = f"{WORKDIR}/TriLepton/configs/signals.json"
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Signal configuration not found: {config_path}")
+
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+
+    return config.get("signals", [])
 
 
 def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name=None):
@@ -126,6 +144,47 @@ def load_systematic_variations(era, sample, channel, histkey, systematics, analy
     return hSysts if hSysts else None
 
 
+def validate_era_systematics(era_systematics, era_list):
+    """
+    Validate that all eras in era_list have identical systematic sources.
+    Raises ValueError if systematics differ across eras.
+
+    Args:
+        era_systematics: Dictionary mapping era to systematic dict
+        era_list: List of eras to validate
+
+    Raises:
+        ValueError: If systematic sources differ across eras
+    """
+    if len(era_list) <= 1:
+        return  # Nothing to validate
+
+    # Get reference systematics from first era
+    ref_era = era_list[0]
+    if ref_era not in era_systematics:
+        raise ValueError(f"Reference era {ref_era} not found in ERA_SYSTEMATICS")
+
+    ref_systs = set(era_systematics[ref_era].keys())
+
+    # Compare all other eras
+    for era in era_list[1:]:
+        if era not in era_systematics:
+            raise ValueError(f"Era {era} not found in ERA_SYSTEMATICS")
+
+        era_systs = set(era_systematics[era].keys())
+
+        if era_systs != ref_systs:
+            missing_in_era = ref_systs - era_systs
+            extra_in_era = era_systs - ref_systs
+
+            error_msg = f"Systematic sources differ between {ref_era} and {era}:\n"
+            if missing_in_era:
+                error_msg += f"  Missing in {era}: {sorted(missing_in_era)}\n"
+            if extra_in_era:
+                error_msg += f"  Extra in {era}: {sorted(extra_in_era)}\n"
+            raise ValueError(error_msg)
+
+
 def sum_sample_errors(error_dicts):
     """
     Sum errors from multiple samples in quadrature (for category totals).
@@ -167,16 +226,73 @@ def sum_sample_errors(error_dicts):
 
 def get_conv_scale_factor(era_list, sample, channel):
     """
-    Get conversion scale factor for ZG channels.
+    Get conversion scale factor for ZG channels, applied to conversion samples only.
     Returns (scale, relative_uncertainty).
+
+    The scale factor corrects for conversion lepton identification efficiency differences
+    between data and MC in the ZG control region.
+
+    For multi-era (Run2/Run3), loads individual era SFs and returns weighted average.
+    Uncertainty is calculated from envelope of all systematic variations.
     """
     if not channel.startswith("ZG"):
         return 1.0, 0.0
 
-    # Load from conversion SF measurement
-    # For now, return placeholder - to be implemented when conversion SF is measured
-    # This should load from configs/conversionSF.json or similar
-    return 1.0, 0.0
+    # Load conversion SFs for each era
+    scales = []
+    uncertainties = []
+
+    for era in era_list:
+        conv_sf_path = f"{WORKDIR}/TriLepton/results/{channel}/{era}/ConvSF.json"
+        if not os.path.exists(conv_sf_path):
+            print(f"[WARNING] Conversion SF not found: {conv_sf_path}")
+            continue
+
+        try:
+            with open(conv_sf_path, 'r') as f:
+                conv_data = json.load(f)
+
+            # Find central value
+            central_sf = None
+            syst_values = []
+
+            for correction in conv_data.get("corrections", []):
+                name = correction.get("name", "")
+                value = float(correction["data"]["expression"])
+
+                if "Central" in name:
+                    central_sf = value
+                else:
+                    # Collect all systematic variations for uncertainty calculation
+                    syst_values.append(value)
+
+            if central_sf is None:
+                print(f"[WARNING] No central SF found in {conv_sf_path}")
+                continue
+
+            # Calculate uncertainty from envelope of systematics
+            if syst_values:
+                max_variation = max(abs(v - central_sf) for v in syst_values)
+                rel_unc = max_variation / central_sf if central_sf != 0 else 0.0
+            else:
+                rel_unc = 0.0
+
+            scales.append(central_sf)
+            uncertainties.append(rel_unc)
+
+        except Exception as e:
+            print(f"[WARNING] Failed to load conversion SF from {conv_sf_path}: {e}")
+            continue
+
+    # Return weighted average (for now, simple average since we don't have luminosity weights here)
+    # TODO: Implement luminosity-weighted average for Run2/Run3
+    if scales:
+        avg_scale = sum(scales) / len(scales)
+        avg_unc = sqrt(sum(u**2 for u in uncertainties)) / len(uncertainties) if uncertainties else 0.0
+        return avg_scale, avg_unc
+    else:
+        print(f"[WARNING] No conversion SFs loaded for {channel}, using scale=1.0")
+        return 1.0, 0.0
 
 
 def main():
@@ -189,10 +305,30 @@ def main():
                        help="Exclude systematics: WZSF, ConvSF, or Syst")
     parser.add_argument("--blind", action="store_true",
                        help="Blind data")
+    parser.add_argument("--onZ", action="store_true",
+                       help="Use pair_onZ/mass histogram (subset with Z mass window, only for SR/ZFake channels)")
     args = parser.parse_args()
 
-    # Fixed histogram key
-    HISTKEY = "jets/size"
+    # Determine if this is a control region channel
+    is_control_region = args.channel.startswith("ZG") or args.channel.startswith("WZ")
+
+    # Deprecate --onZ flag for control regions
+    if args.onZ and is_control_region:
+        raise ValueError(f"--onZ flag is not supported for control region channels (ZG, WZ). "
+                        f"Control regions use ZCand/mass by default.")
+
+    # Histogram key selection:
+    # - Control regions (ZG, WZ): ZCand/mass
+    # - 1E2Mu SR/ZFake: pair/mass by default, or pair_onZ/mass with --onZ flag
+    # - 3Mu SR/ZFake: pair_lowM/mass by default, or pair_lowM_onZ/mass with --onZ flag
+    if is_control_region:
+        HISTKEY = "ZCand/mass"
+    elif "1E2Mu" in args.channel:
+        HISTKEY = "pair_onZ/mass" if args.onZ else "pair/mass"
+    elif "3Mu" in args.channel:
+        HISTKEY = "pair_lowM_onZ/mass" if args.onZ else "pair_lowM/mass"
+    else:
+        raise ValueError(f"Cannot determine histogram key for channel: {args.channel}")
 
     # Check channel validity
     if args.channel not in ["SR1E2Mu", "SR3Mu", "ZFake1E2Mu", "ZFake3Mu", "ZG1E2Mu", "ZG3Mu", "WZ1E2Mu", "WZ3Mu"]:
@@ -238,6 +374,10 @@ def main():
     DATAPERIODs, MC_CATEGORIES, MCList = get_sample_lists(ERA_SAMPLES, ["nonprompt", "conv", "ttX", "diboson", "others"])
     SYSTEMATICS = merge_systematics(ERA_SYSTEMATICS)
 
+    # Validate that systematics are consistent across eras (unless systematics are excluded)
+    if len(era_list) > 1 and not (args.exclude == "Syst"):
+        validate_era_systematics(ERA_SYSTEMATICS, era_list)
+
     # Unpack MC categories
     nonprompt = MC_CATEGORIES["nonprompt"]
 
@@ -258,6 +398,7 @@ def main():
         "data": None,
         "samples": {},
         "categories": {},
+        "total_background": None,
         "signals": {}
     }
 
@@ -328,7 +469,8 @@ def main():
     mc_hists = {}
     for sample in MCList:
         era_hists = []
-        all_era_systs = []
+        # Dictionary to track systematic variations per source: {syst_name: {'up': [h_up_era1, ...], 'down': [h_down_era1, ...]}}
+        syst_variations = {}
 
         for era in era_list:
             if era not in ERA_SAMPLES:
@@ -342,23 +484,31 @@ def main():
 
                 # Load systematic variations (unless excluded)
                 if not args.exclude or args.exclude != "Syst":
-                    # Use era-specific systematics
-                    era_systs = ERA_SYSTEMATICS.get(era, [])
+                    # Use era-specific systematics (validated to be consistent across eras)
+                    era_systs = ERA_SYSTEMATICS.get(era, {})
                     if era_systs:
                         hSysts = load_systematic_variations(era, sample, args.channel,
                                                            HISTKEY, era_systs, ANALYZER, FLAG, False)
                         if hSysts:
-                            all_era_systs.append(hSysts)
+                            # Store up/down variations for each systematic source
+                            for syst_name, h_up, h_down in hSysts:
+                                if syst_name not in syst_variations:
+                                    syst_variations[syst_name] = {'up': [], 'down': []}
+                                syst_variations[syst_name]['up'].append(h_up)
+                                syst_variations[syst_name]['down'].append(h_down)
 
         if era_hists:
             h_total = sum_histograms(era_hists, f"{sample}_total")
 
-            # For multi-era: we sum the central histograms, but systematics are tricky
-            # Simplified approach: use systs from first era only for multi-era
-            # Proper approach would require summing all up/down variations separately
-            combined_systs = all_era_systs[0] if len(all_era_systs) == 1 else None
-            if len(all_era_systs) > 1:
-                print(f"[WARNING] Multi-era systematic handling for {sample} simplified (using first era only)")
+            # Sum systematic variations across eras
+            combined_systs = None
+            if syst_variations:
+                combined_systs = []
+                for syst_name, variations in syst_variations.items():
+                    h_up_total = sum_histograms(variations['up'], f"{sample}_{syst_name}_up")
+                    h_down_total = sum_histograms(variations['down'], f"{sample}_{syst_name}_down")
+                    if h_up_total and h_down_total:
+                        combined_systs.append((syst_name, h_up_total, h_down_total))
 
             # Determine rate uncertainty
             rate_unc = 0.0
@@ -367,8 +517,8 @@ def main():
                 rate_unc = 0.20  # 20% WZ uncertainty
                 rate_unc_name = "WZ_rate"
 
-            # Apply conversion scale factor if needed
-            if args.channel.startswith("ZG") and not (args.exclude == "ConvSF"):
+            # Apply conversion scale factor if needed (only for conversion samples in ZG channels)
+            if args.channel.startswith("ZG") and not (args.exclude == "ConvSF") and sample in MC_CATEGORIES["conv"]:
                 scale, rel_unc = get_conv_scale_factor(era_list, sample, args.channel)
                 if scale != 1.0:
                     h_total.Scale(scale)
@@ -399,18 +549,26 @@ def main():
                 [output["samples"][s] for s in cat_sample_names])
             print(f"[INFO]   {category}: {output['categories'][category]['events']:.2f} events")
 
+    # Calculate total background
+    if output["categories"]:
+        output["total_background"] = sum_sample_errors(list(output["categories"].values()))
+        print(f"[INFO] Total background: {output['total_background']['events']:.2f} events")
+    else:
+        output["total_background"] = None
+
     # ===== 5. Load signal histograms (if SR channel) =====
     if args.channel.startswith("SR"):
         print("[INFO] Loading signal histograms...")
-        SIGNALS = ["MHc100_MA95", "MHc115_MA87", "MHc130_MA90",
-                   "MHc145_MA92", "MHc160_MA85", "MHc160_MA98"]
+        SIGNALS = load_signal_config()
+        print(f"[INFO] Found {len(SIGNALS)} signal mass points in configuration")
 
         for signal_mass in SIGNALS:
             era_signal_hists = []
             for era in era_list:
                 if era not in ERA_SAMPLES:
                     continue
-                file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}/{era}/Skim_TriLep_{signal_mass}.root"
+                signal_name = f"TTToHcToWAToMuMu-{signal_mass}"
+                file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}_RunSyst/{era}/{signal_name}.root"
                 hist_path = f"{args.channel}/Central/{HISTKEY}"
                 h = load_histogram(file_path, hist_path, era)
                 if h:
@@ -423,8 +581,9 @@ def main():
 
     # ===== 6. Save to JSON =====
     syst_tag = f"No{args.exclude}" if args.exclude else "Central"
+    onZ_tag = "_onZ" if args.onZ else ""
     json_dir = f"{WORKDIR}/TriLepton/results/{args.era}/{args.channel}"
-    json_filename = f"sample_breakdown_{syst_tag}.json"
+    json_filename = f"sample_breakdown_{syst_tag}{onZ_tag}.json"
     json_path = f"{json_dir}/{json_filename}"
 
     os.makedirs(json_dir, exist_ok=True)

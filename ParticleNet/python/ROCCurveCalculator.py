@@ -143,6 +143,10 @@ class ROCCurveCalculator:
         tpr = np.clip(tpr, 0, 1)
         fpr = np.clip(fpr, 0, 1)
 
+        # Drop intermediate collinear points to reduce curve complexity
+        # This makes dashed lines visible and improves rendering performance
+        fpr, tpr = self.drop_intermediate(fpr, tpr)
+
         # Calculate AUC using trapezoidal rule
         auc = self.compute_auc(fpr, tpr)
 
@@ -168,6 +172,77 @@ class ROCCurveCalculator:
         auc = np.trapz(tpr_sorted, fpr_sorted)
 
         return float(np.clip(auc, 0, 1))
+
+    def drop_intermediate(self, fpr: np.ndarray, tpr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Drop intermediate points that lie on a straight line.
+
+        This reduces the number of points in the ROC curve while preserving
+        the exact curve shape and AUC. It keeps only the "corner" points where
+        the curve changes direction, matching sklearn's drop_intermediate=True behavior.
+
+        Args:
+            fpr: False positive rate array
+            tpr: True positive rate array
+
+        Returns:
+            fpr_reduced: FPR array with intermediate points removed
+            tpr_reduced: TPR array with intermediate points removed
+        """
+        if len(fpr) <= 2:
+            return fpr, tpr
+
+        # Always keep first and last points
+        keep_mask = np.zeros(len(fpr), dtype=bool)
+        keep_mask[0] = True
+        keep_mask[-1] = True
+
+        # For each intermediate point, check if it's collinear with neighbors
+        for i in range(1, len(fpr) - 1):
+            # Calculate slopes: (y2-y1)/(x2-x1)
+            # Point is NOT collinear if slopes differ
+            dx1 = fpr[i] - fpr[i-1]
+            dy1 = tpr[i] - tpr[i-1]
+            dx2 = fpr[i+1] - fpr[i]
+            dy2 = tpr[i+1] - tpr[i]
+
+            # Use cross product to check collinearity (avoids division by zero)
+            # Points are collinear if cross product is zero
+            cross_product = dy1 * dx2 - dy2 * dx1
+
+            # Keep point if it's NOT collinear (cross product non-zero)
+            # Use small epsilon for numerical stability
+            if abs(cross_product) > 1e-10:
+                keep_mask[i] = True
+
+        return fpr[keep_mask], tpr[keep_mask]
+
+    def get_lighter_color(self, color_idx: int, lightness: float = 0.5) -> int:
+        """
+        Create a lighter version of a color from the PALETTE.
+
+        Args:
+            color_idx: ROOT color index from PALETTE
+            lightness: Amount to lighten (0.0 = original, 1.0 = white)
+                      Default 0.5 creates a nice pastel shade
+
+        Returns:
+            New ROOT color index for the lighter color
+        """
+        # Get RGB components from the original color
+        color = ROOT.gROOT.GetColor(color_idx)
+        if color is None:
+            return color_idx
+
+        r, g, b = color.GetRed(), color.GetGreen(), color.GetBlue()
+
+        # Lighten by interpolating towards white (1.0, 1.0, 1.0)
+        r_light = r + (1.0 - r) * lightness
+        g_light = g + (1.0 - g) * lightness
+        b_light = b + (1.0 - b) * lightness
+
+        # Create and return new color
+        return ROOT.TColor.GetColor(r_light, g_light, b_light)
 
     def plot_multiclass_rocs(self, y_true_train: np.ndarray, y_scores_train: np.ndarray,
                             weights_train: np.ndarray,
@@ -233,16 +308,14 @@ class ROCCurveCalculator:
         diag_graph = ROOT.TGraph(2)
         diag_graph.SetPoint(0, 0, 1)
         diag_graph.SetPoint(1, 1, 0)
-        diag_graph.SetLineColor(ROOT.kGray+2)
-        diag_graph.SetLineWidth(1)
-        diag_graph.SetLineStyle(2)  # Dashed
-        diag_graph.Draw("L SAME")
+        CMS.cmsObjectDraw(diag_graph, "L", LineColor=ROOT.kGray+2, LineWidth=1, LineStyle=2)
         all_graphs.append(diag_graph)
 
         # Process each background class
         for bg_class in [1, 2, 3]:  # Background classes
             # Use color specific to this background class
             bg_color = PALETTE[bg_class]
+            bg_color_light = self.get_lighter_color(bg_color, lightness=0.5)  # Lighter shade for train
             bg_name = class_names[bg_class]
 
             # ===== TRAIN ROC =====
@@ -267,10 +340,8 @@ class ROCCurveCalculator:
             for i in range(n_points):
                 roc_graph_train.SetPoint(i, tpr_train[i], 1 - fpr_train[i])
 
-            roc_graph_train.SetLineColor(bg_color)
-            roc_graph_train.SetLineWidth(2)
-            roc_graph_train.SetLineStyle(1)  # Solid line for train
-            roc_graph_train.Draw("L SAME")
+            # Train: lighter color, solid line
+            CMS.cmsObjectDraw(roc_graph_train, "L", LineColor=bg_color_light, LineWidth=2, LineStyle=ROOT.kSolid)
             all_graphs.append(roc_graph_train)
 
             # ===== TEST ROC =====
@@ -293,10 +364,8 @@ class ROCCurveCalculator:
             for i in range(n_points):
                 roc_graph_test.SetPoint(i, tpr_test[i], 1 - fpr_test[i])
 
-            roc_graph_test.SetLineColor(bg_color)
-            roc_graph_test.SetLineWidth(2)
-            roc_graph_test.SetLineStyle(2)  # Dashed line for test
-            roc_graph_test.Draw("L SAME")
+            # Test: full color, solid line
+            CMS.cmsObjectDraw(roc_graph_test, "L", LineColor=bg_color, LineWidth=2, LineStyle=ROOT.kSolid)
             all_graphs.append(roc_graph_test)
 
             # Add to legend

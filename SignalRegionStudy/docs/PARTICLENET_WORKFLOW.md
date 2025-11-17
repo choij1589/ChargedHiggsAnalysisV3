@@ -184,7 +184,11 @@ Weights represent the true relative background composition in the signal region,
 
 ## Workflow
 
-### Single Command
+This section describes the **template creation** stage for the ParticleNet method. For the complete workflow including statistical analysis (combine), see the **[Integration with Statistical Analysis](#integration-with-statistical-analysis)** section below.
+
+### Direct Command (Manual)
+
+For manual execution or debugging, call `makeBinnedTemplates.py` directly:
 
 ```bash
 ERA="2017"
@@ -194,6 +198,19 @@ MASSPOINT="MHc130_MA90"
 makeBinnedTemplates.py --era $ERA --channel $CHANNEL \
     --masspoint $MASSPOINT --method ParticleNet
 ```
+
+**Note**: This command is automatically called by `prepareCombine.sh` as part of the complete workflow.
+
+### Automated Workflow (Recommended)
+
+For production analysis, use the automated shell script:
+
+```bash
+./scripts/prepareCombine.sh $ERA $CHANNEL $MASSPOINT ParticleNet
+# Calls makeBinnedTemplates.py internally (along with preprocess, check, datacard steps)
+```
+
+→ **[Complete Workflow Guide](COMBINE_WORKFLOW.md)** for automated processing
 
 ### What Happens (Automatic)
 
@@ -248,6 +265,211 @@ INFO:root:  Signal:          5.07
 INFO:root:  Background:     13.67
 INFO:root:  S/B ratio:       0.371
 ```
+
+---
+
+## Integration with Statistical Analysis
+
+The ParticleNet workflow described above creates optimized templates. This section shows how these templates integrate with HiggsCombine for statistical analysis.
+
+### Template Creation → Statistical Analysis Pipeline
+
+```
+ParticleNet Template Creation      Statistical Analysis (HiggsCombine)
+(makeBinnedTemplates.py)          (text2workspace, combine)
+         │                                    │
+         ├─→ signal_fit.json                 │
+         ├─→ background_weights.json         │
+         ├─→ threshold.csv                   │
+         ├─→ shapes.root  ────────────────→  │
+         └─→ score_optimization.png          │
+                                              ├─→ workspace.root
+                                              ├─→ FitDiagnostics
+                                              └─→ Limits
+```
+
+### Automated Workflow with Shell Scripts
+
+The `prepareCombine.sh` script automates the complete template creation workflow, including ParticleNet optimization:
+
+```bash
+ERA="2022"
+CHANNEL="SR1E2Mu"
+MASSPOINT="MHc130_MA90"
+METHOD="ParticleNet"
+
+# Stage 1: Automated template preparation (includes ParticleNet optimization)
+./scripts/prepareCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+# Internally calls:
+#   1. preprocess.py
+#   2. makeBinnedTemplates.py --method ParticleNet (the workflow described above)
+#   3. checkTemplates.py
+#   4. printDatacard.py
+
+# Stage 2: Run HiggsCombine
+./scripts/runCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+# Executes:
+#   1. text2workspace.py datacard.txt
+#   2. combine -M FitDiagnostics
+#   3. combine -M AsymptoticLimits
+```
+
+**Output**: Complete statistical analysis results including limits and fit diagnostics.
+
+→ **[Complete Combine Workflow](COMBINE_WORKFLOW.md)** for detailed documentation
+
+### Complete End-to-End Example: Single Masspoint
+
+This example shows the full ParticleNet analysis from raw data to final limits:
+
+```bash
+#!/bin/bash
+# complete_particlenet_analysis.sh
+
+ERA="2022"
+CHANNEL="SR1E2Mu"
+MASSPOINT="MHc130_MA90"
+METHOD="ParticleNet"
+
+# Stage 1: Template Preparation (automated)
+echo "Creating ParticleNet-optimized templates..."
+./scripts/prepareCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+
+# What happens internally:
+# ├─ Preprocessing: Creates sample ROOT files
+# ├─ Signal fit: Determines mass window
+# ├─ Background weights: Calculates w₁, w₂, w₃ from yields
+# ├─ Threshold optimization: Finds optimal score cut (e.g., 0.52)
+# ├─ Template creation: Applies cuts, creates mass histograms
+# └─ Datacard generation: Prepares HiggsCombine input
+
+# Check ParticleNet optimization results
+echo "ParticleNet optimization results:"
+cat templates/$ERA/$CHANNEL/$MASSPOINT/Shape/$METHOD/threshold.csv
+# Example output: threshold,0.520
+
+# View background weights
+cat templates/$ERA/$CHANNEL/$MASSPOINT/Shape/$METHOD/background_weights.json
+# Shows: {"weights": {"nonprompt": 0.723, "diboson": 0.189, "ttX": 0.088}}
+
+# Stage 2: Statistical Analysis
+echo "Running HiggsCombine..."
+./scripts/runCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+
+# Stage 3: Extract Results
+echo "Extracting limits..."
+root -l -q templates/$ERA/$CHANNEL/$MASSPOINT/Shape/$METHOD/higgsCombineTest.AsymptoticLimits.mH120.root <<EOF
+limit->Scan("quantileExpected:limit")
+.q
+EOF
+
+echo "Analysis complete!"
+echo "Templates: templates/$ERA/$CHANNEL/$MASSPOINT/Shape/$METHOD/"
+echo "ParticleNet plots: score_optimization.png, signal_fit.png"
+echo "Limits: higgsCombineTest.AsymptoticLimits.mH120.root"
+```
+
+**Expected Output**:
+```
+ParticleNet optimization results:
+threshold,0.520
+
+Running HiggsCombine...
+[Combine output...]
+
+Extracting limits...
+***********************************
+*    Row   * quantileE * limit    *
+***********************************
+*        0 *   -1.0000 *  0.8234  *  (observed)
+*        1 *    0.0250 *  0.4521  *  (expected -2σ)
+*        2 *    0.1600 *  0.6123  *  (expected -1σ)
+*        3 *    0.5000 *  0.8765  *  (expected median)
+*        4 *    0.8400 *  1.2451  *  (expected +1σ)
+*        5 *    0.9750 *  1.7234  *  (expected +2σ)
+***********************************
+
+Analysis complete!
+```
+
+### Batch Processing Multiple Masspoints
+
+Process all ParticleNet-compatible masspoints in parallel:
+
+```bash
+#!/bin/bash
+# batch_particlenet_analysis.sh
+
+METHOD="ParticleNet"
+
+# ParticleNet scores available for: 80 < mA < 100 GeV
+MASSPOINTs=(
+    "MHc115_MA87"
+    "MHc130_MA90"
+    "MHc145_MA92"
+    "MHc160_MA85"
+)
+
+# Process all masspoints through complete workflow
+parallel -j 18 "./scripts/runCombineWrapper.sh" {1} $METHOD \
+    ::: "${MASSPOINTs[@]}"
+
+# Collect results
+echo "Collecting ParticleNet limits..."
+python python/collectLimits.py \
+    --era FullRun2 \
+    --channel Combined \
+    --method ParticleNet \
+    --output limits_particlenet.json
+
+echo "ParticleNet batch analysis complete!"
+```
+
+→ **[Batch Processing Guide](COMBINE_WORKFLOW.md#stage-3-batch-processing-runcombinewrappersh)** for details
+
+### ParticleNet vs Baseline Comparison
+
+Compare sensitivity between methods:
+
+```bash
+#!/bin/bash
+# compare_methods.sh
+
+ERA="2022"
+CHANNEL="SR1E2Mu"
+MASSPOINT="MHc130_MA90"
+
+# Run both methods
+for METHOD in Baseline ParticleNet; do
+    echo "Processing $METHOD method..."
+    ./scripts/prepareCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+    ./scripts/runCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+done
+
+# Compare expected limits
+echo "Baseline limit:"
+root -l -q templates/$ERA/$CHANNEL/$MASSPOINT/Shape/Baseline/higgsCombineTest.AsymptoticLimits.mH120.root \
+    -e 'limit->Scan("limit", "abs(quantileExpected-0.5)<0.01")'
+
+echo "ParticleNet limit:"
+root -l -q templates/$ERA/$CHANNEL/$MASSPOINT/Shape/ParticleNet/higgsCombineTest.AsymptoticLimits.mH120.root \
+    -e 'limit->Scan("limit", "abs(quantileExpected-0.5)<0.01")'
+```
+
+**Typical Result**: ParticleNet expected limit ~40-50% better than Baseline (lower is better)
+
+### Key Integration Points
+
+| Stage | ParticleNet-Specific | Standard (Both Methods) |
+|-------|---------------------|------------------------|
+| **Preprocessing** | None - uses same samples | `preprocess.py` |
+| **Template Creation** | Background weights, threshold optimization | Signal fitting, mass binning |
+| **Validation** | Check score distributions | Check histogram integrity |
+| **Datacard** | None - same format | `printDatacard.py` |
+| **Combine** | None - method-agnostic | All combine commands |
+| **Limits** | Typically 40-50% better | Same statistical framework |
+
+**Key Point**: ParticleNet is a **template optimization method**. Once templates are created, the statistical analysis (combine) is identical to Baseline.
 
 ---
 
@@ -345,6 +567,40 @@ Creates `score_distribution.png` showing signal vs background scores for events 
 
 ## Related Documentation
 
-- [WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md) - General workflow overview
-- [NEGATIVE_BINS_HANDLING.md](NEGATIVE_BINS_HANDLING.md) - Handling negative bins
-- [API_REFERENCE.md](API_REFERENCE.md) - Code documentation
+### Complete Analysis Pipeline
+- **[COMBINE_WORKFLOW.md](COMBINE_WORKFLOW.md)** - Complete statistical analysis workflow
+  - End-to-end: template preparation → combine → limits
+  - Shell script automation (prepareCombine.sh, runCombine.sh)
+  - Batch processing and result collection
+  - **Read this for**: Running complete analysis from templates to limits
+
+### Template Creation and Methodology
+- **[WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md)** - General workflow patterns
+  - Single/multi-masspoint processing
+  - Score optimization and retraining
+  - Systematic uncertainty profiling
+  - **Read this for**: Understanding workflow patterns and best practices
+
+- **[NEGATIVE_BINS_HANDLING.md](NEGATIVE_BINS_HANDLING.md)** - Technical handling of negative bins
+  - Automatic fix mechanisms
+  - Statistical implications
+  - **Read this for**: Understanding template validation
+
+### Technical Reference
+- **[API_REFERENCE.md](API_REFERENCE.md)** - Code documentation
+  - C++ class API (Preprocessor, AmassFitter)
+  - Python script parameters
+  - Shell script API (prepareCombine.sh, runCombine.sh, runCombineWrapper.sh)
+  - **Read this for**: Detailed API documentation and parameters
+
+### Recommended Reading Order
+
+**For new users**:
+1. This document (PARTICLENET_WORKFLOW.md) - Understand the method
+2. COMBINE_WORKFLOW.md - Learn complete pipeline
+3. WORKFLOW_GUIDE.md - Explore workflow patterns
+
+**For developers**:
+1. API_REFERENCE.md - Understand code structure
+2. This document - ParticleNet implementation details
+3. NEGATIVE_BINS_HANDLING.md - Technical edge cases

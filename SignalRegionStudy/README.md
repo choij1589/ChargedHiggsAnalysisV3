@@ -29,8 +29,15 @@
   - Standard single/multi-masspoint processing
   - Score optimization and retraining
   - Systematic uncertainty profiling
-  - Full statistical analysis pipeline
+  - Template creation pipeline
   - Troubleshooting and performance tips
+
+- **[COMBINE_WORKFLOW.md](docs/COMBINE_WORKFLOW.md)** - Complete statistical analysis workflow
+  - End-to-end combine execution guide
+  - Template preparation (prepareCombine.sh)
+  - Statistical analysis (runCombine.sh)
+  - Batch processing and automation
+  - Result extraction and interpretation
 
 - **[BUILD_NOTES.md](docs/BUILD_NOTES.md)** - Build system and troubleshooting
   - Environment requirements
@@ -227,25 +234,92 @@ printDatacard.py --era $ERA --channel $CHANNEL \
 
 ---
 
-## Prepare Datacards and Input Shapes
+## Running Combine Analysis
 
-Currently supporting template-based shape analysis only:
+### Complete Workflow Overview
+
+The statistical analysis consists of **3 stages**:
+
+1. **Template Preparation** - Create datacards and shapes
+2. **Statistical Analysis** - Run HiggsCombine
+3. **Batch Processing** - Automate across masspoints
+
+### Quick Start: Single Masspoint
 
 ```bash
-./scripts/prepareCombine.sh $ERA $CHANNEL $MASSPOINT
+# Stage 1: Prepare templates (4 sub-steps internally)
+./scripts/prepareCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+# → Creates: templates/$ERA/$CHANNEL/$MASSPOINT/Shape/$METHOD/datacard.txt
+
+# Stage 2: Run HiggsCombine
+./scripts/runCombine.sh $ERA $CHANNEL $MASSPOINT $METHOD
+# → Creates: higgsCombineTest.AsymptoticLimits.mH120.root
+
+# Example:
+./scripts/prepareCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet
+./scripts/runCombine.sh 2022 SR1E2Mu MHc130_MA90 ParticleNet
 ```
 
-**Channels**:
-- Input: `Skim1E2Mu`, `Skim3Mu`
-- Output: `SR1E2Mu`, `SR3Mu`
+### Batch Processing: All Masspoints
 
-**Output Structure**:
+```bash
+# Stage 3: Process all masspoints in parallel (18 jobs)
+# Edit doThis.sh to configure masspoints list
+./doThis.sh
+
+# Or process single masspoint, all eras/channels
+./scripts/runCombineWrapper.sh MHc130_MA90 ParticleNet
+```
+
+### Script Parameters
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `ERA` | 2016preVFP, 2016postVFP, 2017, 2018, 2022, 2022EE, 2023, 2023BPix, **FullRun2** | Data-taking period |
+| `CHANNEL` | SR1E2Mu, SR3Mu, **Combined** | Analysis channel |
+| `MASSPOINT` | MHc100_MA95, MHc130_MA90, MHc160_MA85, etc. | Signal hypothesis |
+| `METHOD` | Baseline, ParticleNet | Discrimination method |
+
+**Special values**:
+- `ERA=FullRun2` - Combines all Run2 eras (2016preVFP + 2016postVFP + 2017 + 2018)
+- `CHANNEL=Combined` - Merges SR1E2Mu + SR3Mu channels
+
+### Output Structure
+
 ```
 templates/{era}/{channel}/{masspoint}/Shape/{method}/
-├── datacard.txt      # Combine input
-├── shapes.root       # All histograms
-└── validation/       # Diagnostic plots
+├── shapes.root                                # All histogram templates (~159)
+├── datacard.txt                               # HiggsCombine input
+├── fit_result.root                            # Signal fit workspace
+├── workspace.root                             # Full probability model
+├── higgsCombineTest.FitDiagnostics.mH120.root    # Fit results
+├── higgsCombineTest.AsymptoticLimits.mH120.root  # Limit values
+└── validation/                                # Diagnostic plots
 ```
+
+### Understanding Results
+
+Extract limits from combine output:
+
+```bash
+# View limit tree
+root -l templates/FullRun2/Combined/MHc130_MA90/Shape/ParticleNet/higgsCombineTest.AsymptoticLimits.mH120.root
+
+# In ROOT:
+limit->Scan("quantileExpected:limit")
+# Shows: expected ±1σ, ±2σ bands and observed limit
+```
+
+### Quick Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "combineTool.py: command not found" | Install CombineHarvester in CMSSW |
+| "Fit quality is not good" | Run `checkTemplates.py` to validate inputs |
+| "Expected limit > 100" | No sensitivity to this mass point (not an error) |
+| "Datacard not found for Combined" | Run prepareCombine.sh for SR1E2Mu and SR3Mu first |
+
+→ **[Complete Combine Workflow Guide](docs/COMBINE_WORKFLOW.md)** for detailed instructions, advanced usage, and troubleshooting
 
 ---
 
