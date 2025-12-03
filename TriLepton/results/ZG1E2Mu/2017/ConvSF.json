@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "description": "Conversion scale factors for ZG1E2Mu 2017. Measured in ZG control region. Nonprompt uncertainty: ±25%",
+  "description": ". Measured in ZG control region. Nonprompt uncertainty: see configs/nonprompt.json",
   "corrections": [
     {
       "name": "ConvSF_ZG1E2Mu_2017_Central",
@@ -14,7 +14,41 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8329088266068251",
+        "expression": "0.8139144418289891",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG1E2Mu_2017_statistical_up",
+      "description": "Conversion scale factor for ZG1E2Mu 2017 (statistical_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.8594821322042542",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG1E2Mu_2017_statistical_down",
+      "description": "Conversion scale factor for ZG1E2Mu 2017 (statistical_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.768346751453724",
         "parser": "TFormula",
         "variables": []
       }
@@ -31,7 +65,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8371983176510225",
+        "expression": "0.818160524122428",
         "parser": "TFormula",
         "variables": []
       }
@@ -48,7 +82,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8286906977365358",
+        "expression": "0.8097397414402266",
         "parser": "TFormula",
         "variables": []
       }
@@ -65,7 +99,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8547499381241992",
+        "expression": "0.8354965504442824",
         "parser": "TFormula",
         "variables": []
       }
@@ -82,7 +116,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8121980429578847",
+        "expression": "0.7932984638891164",
         "parser": "TFormula",
         "variables": []
       }
@@ -99,7 +133,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8322631631871662",
+        "expression": "0.8132694626872615",
         "parser": "TFormula",
         "variables": []
       }
@@ -116,7 +150,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8335548547410723",
+        "expression": "0.8145597810292539",
         "parser": "TFormula",
         "variables": []
       }
@@ -133,7 +167,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8274571451364466",
+        "expression": "0.8084816532722697",
         "parser": "TFormula",
         "variables": []
       }
@@ -150,7 +184,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.838416484935197",
+        "expression": "0.8194028446300547",
         "parser": "TFormula",
         "variables": []
       }
@@ -167,7 +201,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8193664267836422",
+        "expression": "0.8005358233938609",
         "parser": "TFormula",
         "variables": []
       }
@@ -184,7 +218,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8468747553195779",
+        "expression": "0.8277114664267032",
         "parser": "TFormula",
         "variables": []
       }
@@ -201,7 +235,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8027216165753529",
+        "expression": "0.7840494783004857",
         "parser": "TFormula",
         "variables": []
       }
@@ -218,7 +252,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8631529326580265",
+        "expression": "0.8438412839103514",
         "parser": "TFormula",
         "variables": []
       }
@@ -235,7 +269,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8521961996241656",
+        "expression": "0.8339299064979404",
         "parser": "TFormula",
         "variables": []
       }
@@ -252,7 +286,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8295755272606784",
+        "expression": "0.8095932067833809",
         "parser": "TFormula",
         "variables": []
       }
@@ -269,7 +303,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8464320849197925",
+        "expression": "0.8273037456967365",
         "parser": "TFormula",
         "variables": []
       }
@@ -286,7 +320,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8192889419815066",
+        "expression": "0.8001578334886523",
         "parser": "TFormula",
         "variables": []
       }
@@ -303,7 +337,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8337850996779164",
+        "expression": "0.8148080378681294",
         "parser": "TFormula",
         "variables": []
       }
@@ -320,7 +354,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.831403773796833",
+        "expression": "0.8123839972059858",
         "parser": "TFormula",
         "variables": []
       }
@@ -337,7 +371,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8320073597863512",
+        "expression": "0.8130633282656691",
         "parser": "TFormula",
         "variables": []
       }
@@ -354,7 +388,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8337054050037883",
+        "expression": "0.8147014397746409",
         "parser": "TFormula",
         "variables": []
       }
@@ -371,7 +405,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8330957618627624",
+        "expression": "0.8140971511541646",
         "parser": "TFormula",
         "variables": []
       }
@@ -388,7 +422,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8330035687703866",
+        "expression": "0.8140069792399953",
         "parser": "TFormula",
         "variables": []
       }
@@ -405,7 +439,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8338241703166349",
+        "expression": "0.8144864847351927",
         "parser": "TFormula",
         "variables": []
       }
@@ -422,7 +456,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.848380037771117",
+        "expression": "0.8289160937683842",
         "parser": "TFormula",
         "variables": []
       }
@@ -439,7 +473,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8333589257616387",
+        "expression": "0.8143652963654427",
         "parser": "TFormula",
         "variables": []
       }
@@ -456,7 +490,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8324535830884682",
+        "expression": "0.813458492419153",
         "parser": "TFormula",
         "variables": []
       }
@@ -473,7 +507,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8331737524666162",
+        "expression": "0.8141786081005645",
         "parser": "TFormula",
         "variables": []
       }
@@ -490,7 +524,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8326424106908912",
+        "expression": "0.8136488020381646",
         "parser": "TFormula",
         "variables": []
       }
@@ -507,7 +541,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.833390305062589",
+        "expression": "0.814394248635731",
         "parser": "TFormula",
         "variables": []
       }
@@ -524,7 +558,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8324274469638577",
+        "expression": "0.8134347323845766",
         "parser": "TFormula",
         "variables": []
       }
@@ -541,7 +575,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8332529773911539",
+        "expression": "0.8142573539600102",
         "parser": "TFormula",
         "variables": []
       }
@@ -558,7 +592,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.832564732460879",
+        "expression": "0.8135715852548373",
         "parser": "TFormula",
         "variables": []
       }
@@ -575,7 +609,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.7544032810000236",
+        "expression": "0.7336227865230446",
         "parser": "TFormula",
         "variables": []
       }
@@ -592,7 +626,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.9114143722136265",
+        "expression": "0.8942060971349335",
         "parser": "TFormula",
         "variables": []
       }
@@ -609,7 +643,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.8822701707998702",
+        "expression": "0.8630974508370348",
         "parser": "TFormula",
         "variables": []
       }
@@ -626,7 +660,41 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.7835474824137799",
+        "expression": "0.7647314328209434",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG1E2Mu_2017_total_up",
+      "description": "Conversion scale factor for ZG1E2Mu 2017 (total_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.918519091309737",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG1E2Mu_2017_total_down",
+      "description": "Conversion scale factor for ZG1E2Mu 2017 (total_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.7093097923482412",
         "parser": "TFormula",
         "variables": []
       }

@@ -23,7 +23,7 @@ if [ -z "$masspoint" ] || [ -z "$method" ]; then
 fi
 
 # Set up environment
-SCRIPT_DIR="/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SignalRegionStudy"
+SCRIPT_DIR="/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/SignalRegionStudy"
 cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/setup.sh"
 
@@ -36,7 +36,7 @@ echo "Running combine workflow for $masspoint with method $method"
 echo "Processing SR1E2Mu channel..."
 for era in ${ERAs[@]}; do
     echo "  Era: $era"
-    "$SCRIPT_DIR/scripts/prepareCombine.sh" $era SR1E2Mu $masspoint $method
+    #"$SCRIPT_DIR/scripts/prepareCombine.sh" $era SR1E2Mu $masspoint $method
     "$SCRIPT_DIR/scripts/runCombine.sh" $era SR1E2Mu $masspoint $method
 done
 
@@ -44,7 +44,7 @@ done
 echo "Processing SR3Mu channel..."
 for era in ${ERAs[@]}; do
     echo "  Era: $era"
-    "$SCRIPT_DIR/scripts/prepareCombine.sh" $era SR3Mu $masspoint $method
+    #"$SCRIPT_DIR/scripts/prepareCombine.sh" $era SR3Mu $masspoint $method
     "$SCRIPT_DIR/scripts/runCombine.sh" $era SR3Mu $masspoint $method
 done
 
