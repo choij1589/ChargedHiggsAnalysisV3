@@ -1,0 +1,66 @@
+{
+  "description": "Mass-Decorrelated ParticleNet training configuration with DisCo loss",
+  "version": "1.0",
+
+  "training_parameters": {
+    "train_folds": [0, 1, 2],
+    "valid_folds": [3],
+    "test_folds": [4],
+    "max_epochs": 3,
+    "batch_size": 512,
+    "dropout_p": 0.4,
+    "early_stopping_patience": 10,
+    "loss_type": "disco",
+    "balance_weights": true,
+    "max_events_per_fold_per_class": 50000,
+    "comment": "DisCo loss for mass decorrelation. train_folds for training, valid_folds for early stopping, test_folds for final evaluation."
+  },
+
+  "disco_parameters": {
+    "disco_lambda": 0.1,
+    "comment": "disco_lambda: weight for DisCo regularization term. Higher values = stronger decorrelation but may hurt classification performance."
+  },
+
+  "model_config": {
+    "default_model": "ParticleNet",
+    "nNodes": 128,
+    "comment": "Node features: [E, Px, Py, Pz, charge, isMuon, isElectron, isJet, isBjet] (9 features)"
+  },
+
+  "optimization_config": {
+    "optimizer": "Adam",
+    "initLR": 0.0002,
+    "weight_decay": 4e-05,
+    "scheduler": "CyclicLR",
+    "comment": "Valid optimizers: Adam, RMSprop, Adadelta. Valid schedulers: StepLR, ExponentialLR, CyclicLR, ReduceLROnPlateau"
+  },
+
+  "background_config": {
+    "mode": "groups",
+    "background_groups": {
+      "nonprompt": ["TTLL_powheg"],
+      "diboson": ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"],
+      "ttX": ["TTZToLLNuNu", "tZq"]
+    },
+    "backgrounds_list": [],
+    "comment": "mode: 'groups' for physics-motivated grouping, 'individual' for each background as separate class."
+  },
+
+  "dataset_config": {
+    "signal_prefix": "TTToHcToWAToMuMu-",
+    "background_prefix": "Skim_TriLep_",
+    "comment": "B-jets are separate particles (no btagScore). Dataset includes mass1, mass2 for decorrelation."
+  },
+
+  "system_config": {
+    "device": "cuda",
+    "pilot": true,
+    "debug": false,
+    "comment": "device: 'cpu', 'cuda', or 'cuda:X' for specific GPU. pilot=true uses small test datasets."
+  },
+
+  "output_config": {
+    "results_dir": "results",
+    "comment": "Output directory within ParticleNetMD/"
+  }
+}
