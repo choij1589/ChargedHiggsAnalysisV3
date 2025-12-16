@@ -27,7 +27,6 @@ if [[ $CHANNEL == "EMU" ]]; then
         "bjets/3/pt" "bjets/3/eta" "bjets/3/phi"
         "nPVsGood"
     )
-    histkeys=("nPVsGood")
     exclude=("" "L1Prefire" "PileupReweight" "MuonIDSF" "ElectronIDSF"  "EMuTrigSF" "BtagSF_HFcorr")
     export -f draw_plot
     parallel -j 12 draw_plot ::: "${histkeys[@]}" ::: "${exclude[@]}"
@@ -48,7 +47,6 @@ elif [[ $CHANNEL == "DIMU" ]]; then
         "bjets/3/pt" "bjets/3/eta" "bjets/3/phi"
         "nPVsGood"
     )
-    histkeys=("nPVsGood")
     exclude=("" "L1Prefire" "PileupReweight" "MuonIDSF" "DblMuTrigSF")
     export -f draw_plot
     parallel -j 12 draw_plot ::: "${histkeys[@]}" ::: "${exclude[@]}"
