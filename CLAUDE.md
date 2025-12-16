@@ -8,10 +8,10 @@ ChargedHiggsAnalysisV3 is a physics analysis framework for charged Higgs particl
 
 ## Environment Setup
 
-**CRITICAL**: Always source the setup script before any work:
 ```bash
 source setup.sh
 ```
+**CRITICAL**setup.sh already done before launching `claude`.
 
 ## Project Architecture
 
@@ -49,8 +49,10 @@ ModuleName/
 **MeasTrigEff/**: Trigger efficiency measurements using reference trigger method
 **MeasFakeRate/**: Fake rate measurements using tight-to-loose method (Default for current fake rate)
 **MeasFakeRateV2/**: Same as MeasFakeRate but not using absolute eta bins for Run3
+**MeasFakeRateV3/**: Same as MeasFakeRate but using finer low ptCorr bins for muons and electrons -> Current baseline.
 **MeasJetTagEff/**: Jet tagging efficiency measurements
 **TriggerStrategy/**: Trigger strategy optimization studies
+**SignalRegionStudy/**: Final limit extraction using Combine -> Current baseline.
 
 ## Key Development Commands
 
