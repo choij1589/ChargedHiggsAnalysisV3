@@ -132,7 +132,6 @@ class MultiClassParticleNet(torch.nn.Module):
         x = F.dropout(x, p=self.dropout_p, training=self.training)
         x = self.output(x)
 
-        # Return logits (no softmax) - loss function applies softmax internally
         return x
 
 

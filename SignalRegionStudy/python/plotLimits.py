@@ -75,7 +75,7 @@ if args.method == "Baseline":
     y_max = max(graphs['values'] + list(obs_ref)) * 1.5
 
     canv = CMS.cmsCanvas("limit", 15., 155., 0., y_max,
-                         "m_{A} [GeV]", "95% CL limit on #sigma_{sig} [fb]",
+                         "m_{A} [GeV]", "95% CL limit on B_{sig} [fb]",
                          square=True, iPos=11, extraSpace=0.01)
     canv.cd()
 
@@ -122,7 +122,7 @@ elif args.method == "ParticleNet":
     y_max = max(all_values) * 1.5
 
     canv = CMS.cmsCanvas("limit", 15., 155., 0., y_max,
-                         "m_{A} [GeV]", "95% CL limit on #sigma_{sig} [fb]",
+                         "m_{A} [GeV]", "95% CL limit on B_{sig} [fb]",
                          square=True, iPos=11, extraSpace=0.01)
     canv.cd()
 

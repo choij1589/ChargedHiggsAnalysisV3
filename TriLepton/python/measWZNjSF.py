@@ -49,6 +49,7 @@ elif args.channel == "WZCombined":
 
 json_samplegroup = json.load(open(f"configs/samplegroup.json"))
 json_systematics = json.load(open(f"configs/systematics.json"))
+json_nonprompt = json.load(open(f"configs/nonprompt.json"))
 
 def get_hist_data(channels, era):
     """Get data histogram for one or more channels"""
@@ -80,10 +81,16 @@ def get_hist_data(channels, era):
     hist.SetDirectory(0)
     return hist
 
-def get_hist_nonprompt(channels, era):
+def get_hist_nonprompt(channels, era, syst="Central"):
     """Get nonprompt histogram for one or more channels"""
     if isinstance(channels, str):
         channels = [channels]
+    
+    # Infer run from era
+    if era in ["Run2", "2016preVFP", "2016postVFP", "2017", "2018"]:
+        run = "Run2"
+    else:
+        run = "Run3"
     
     hist = None
     for channel in channels:
@@ -96,6 +103,7 @@ def get_hist_nonprompt(channels, era):
             raise ValueError(f"Unknown channel: {channel}")
         
         nonprompt = json_samplegroup[era][channel.replace("WZ", "")]["nonprompt"]
+        h_channel = None
         for sample in nonprompt:
             file_path = f"{WORKDIR}/SKNanoOutput/CRMatrixSelector/{flag}/{era}/Skim_TriLep_{sample}.root"
             assert os.path.exists(file_path), f"file {file_path} does not exist"
@@ -103,11 +111,31 @@ def get_hist_nonprompt(channels, era):
             h = f.Get(f"{channel}/Central/jets/size")
             h.SetDirectory(0)
             f.Close()
-            if hist is None:
-                hist = h.Clone("hist")
-                hist.SetDirectory(0)
+            if h_channel is None:
+                h_channel = h.Clone(f"hist_{channel}")
+                h_channel.SetDirectory(0)
             else:
-                hist.Add(h)
+                h_channel.Add(h)
+        
+        # Apply systematic variation if needed
+        if syst in ["nonprompt_up", "nonprompt_down"]:
+            try:
+                uncertainty = json_nonprompt[run][flag]
+                if syst == "nonprompt_up":
+                    scale_factor = 1.0 + uncertainty
+                else:
+                    scale_factor = 1.0 - uncertainty
+                h_channel.Scale(scale_factor)
+                logging.debug(f"Applied {syst} to {channel}: factor {scale_factor:.3f} (unc {uncertainty})")
+            except KeyError:
+                logging.warning(f"No nonprompt uncertainty found for {run}/{flag}, using 1.0")
+
+        if hist is None:
+            hist = h_channel.Clone("hist")
+            hist.SetDirectory(0)
+        else:
+            hist.Add(h_channel)
+
     hist.SetDirectory(0)
     return hist
 
@@ -301,12 +329,18 @@ def get_systematics_for_channel(channels, run):
             print(f"Channel-specific systematics for {'+'.join(channel_names)} (using Central for irrelevant channels): {sorted(channel_specific)}")
     
     # Add nonprompt systematics (manual variations)
-    nonprompt_uncertainty = 0.25 if run == "Run2" else 0.35  # 25% for Run2, 35% for Run3
+    # nonprompt_uncertainty is now handled via configs/nonprompt.json per channel
     systematics["nonprompt"] = ["nonprompt_up", "nonprompt_down"]
-    
-    # Add prompt systematics (combination of all MC systematics + statistical)
+
+    # Add statistical systematics (symmetric, uncorrelated bin-by-bin from CR measurement)
+    systematics["statistical"] = ["statistical_up", "statistical_down"]
+
+    # Add prompt systematics (combination of all MC systematics)
     systematics["prompt"] = ["prompt_uncertainty"]
-    
+
+    # Add total systematics (quadrature sum of statistical + nonprompt + prompt)
+    systematics["total"] = ["total_up", "total_down"]
+
     return systematics
 
 def calculate_scale_factors(channels, eralist, samplename_WZ, max_nj, syst="Central", run="Run3"):
@@ -326,7 +360,7 @@ def calculate_scale_factors(channels, eralist, samplename_WZ, max_nj, syst="Cent
     for era in eralist:
         # Data doesn't have systematic variations
         h_data = get_hist_data(channels, era); h_data_total = add_hist("data", h_data_total, h_data)
-        h_nonprompt = get_hist_nonprompt(channels, era); h_nonprompt_total = add_hist("nonprompt", h_nonprompt_total, h_nonprompt)
+        h_nonprompt = get_hist_nonprompt(channels, era, syst); h_nonprompt_total = add_hist("nonprompt", h_nonprompt_total, h_nonprompt)
         
         # MC samples use Central for nonprompt systematics, otherwise use the specified systematic
         h_WZ = get_hist_by_name(channels, era, samplename_WZ, mc_syst); h_WZ_total = add_hist("WZ", h_WZ_total, h_WZ)
@@ -334,18 +368,6 @@ def calculate_scale_factors(channels, eralist, samplename_WZ, max_nj, syst="Cent
         h_conv = get_hist_mc(channels, era, "conv", mc_syst); h_conv_total = add_hist("conv", h_conv_total, h_conv)
         h_ttX = get_hist_mc(channels, era, "ttX", mc_syst); h_ttX_total = add_hist("ttX", h_ttX_total, h_ttX)
         h_others = get_hist_mc(channels, era, "others", mc_syst); h_others_total = add_hist("others", h_others_total, h_others)
-    
-    # Apply nonprompt systematic variation if needed
-    if is_nonprompt_syst:
-        nonprompt_uncertainty = 0.25 if run == "Run2" else 0.35  # 25% for Run2, 35% for Run3
-        if syst == "nonprompt_up":
-            scale_factor = 1.0 + nonprompt_uncertainty
-        elif syst == "nonprompt_down":
-            scale_factor = 1.0 - nonprompt_uncertainty
-        
-        # Scale the nonprompt histogram
-        h_nonprompt_total.Scale(scale_factor)
-        print(f"  Applied {nonprompt_uncertainty*100:.0f}% variation to nonprompt: scale factor = {scale_factor:.3f}")
     
     # Merge high nJet bins for all histograms
     if syst == "Central":
@@ -369,24 +391,27 @@ def calculate_scale_factors(channels, eralist, samplename_WZ, max_nj, syst="Cent
     
     return SF
 
-def extract_histogram_data(SF, max_nj):
-    """Extract histogram data for correctionlib format"""
+def extract_histogram_data_with_errors(SF, max_nj):
+    """Extract histogram data including statistical errors for correctionlib format"""
     bin_contents = []
+    bin_errors = []
     bin_labels = []
-    
+
     # Extract bin data and create labels
     for i in range(1, SF.GetNbinsX() + 1):
         content = SF.GetBinContent(i)
-        
+        error = SF.GetBinError(i)
+
         # Only include bins with non-zero content (skip merged empty bins)
         if content != 0 or i <= max_nj + 1:
             bin_contents.append(float(content))
-            
+            bin_errors.append(float(error))
+
             # Create appropriate bin labels
             njet = i - 1  # Bin 1 = 0 jets, Bin 2 = 1 jet, etc.
             bin_labels.append(f"{min(njet, max_nj)}j")
-    
-    return bin_contents, bin_labels
+
+    return bin_contents, bin_errors, bin_labels
 
 def create_correction(name, description, bin_contents, bin_labels):
     """Create a correctionlib Correction object using binning with clamping"""
@@ -427,17 +452,17 @@ def create_correction(name, description, bin_contents, bin_labels):
     return correction
 
 def calculate_prompt_uncertainty(sf_central_data, systematics_data, max_nj):
-    """Calculate symmetric prompt uncertainty: sqrt(stat^2 + max(up, down)^2) for each systematic"""
+    """Calculate symmetric prompt uncertainty: sqrt(sum of squared max deviations) for each systematic"""
     # Get central values and bin labels
     central_contents, bin_labels = sf_central_data
     nbins = len(central_contents)
-    
+
     # Calculate systematic uncertainty for each bin (symmetric)
     syst_squared = [0.0] * nbins
-    
-    # Loop over all systematic sources except nonprompt and prompt
+
+    # Loop over all systematic sources except nonprompt, prompt, and statistical
     for syst_name, variations in systematics_data.items():
-        if syst_name in ["nonprompt", "prompt"]:
+        if syst_name in ["nonprompt", "prompt", "statistical"]:
             continue
         
         # For each systematic source, find up and down variations
@@ -447,8 +472,8 @@ def calculate_prompt_uncertainty(sf_central_data, systematics_data, max_nj):
         for var_name, var_data in variations.items():
             if var_data is None:
                 continue
-                
-            var_contents, _ = var_data
+
+            var_contents, var_errors, var_labels = var_data
             
             if "_Up" in var_name or "up" in var_name:
                 up_variations.append(var_contents)
@@ -484,8 +509,10 @@ def calculate_prompt_uncertainty(sf_central_data, systematics_data, max_nj):
     # Create up and down variations with symmetric uncertainty
     prompt_up_contents = [central_contents[i] + syst_uncertainty[i] for i in range(nbins)]
     prompt_down_contents = [central_contents[i] - syst_uncertainty[i] for i in range(nbins)]
-    
-    return (prompt_up_contents, bin_labels), (prompt_down_contents, bin_labels)
+
+    # Return with zero errors (errors only meaningful for central)
+    zero_errors = [0.0] * nbins
+    return (prompt_up_contents, zero_errors, bin_labels), (prompt_down_contents, zero_errors, bin_labels)
 
 def main():
     # Calculate central scale factors
@@ -496,16 +523,32 @@ def main():
     # Get systematic variations for this channel/run
     systematics = get_systematics_for_channel(CHANNELS, RUN)
     
-    # Extract central scale factors
-    central_data = extract_histogram_data(SF_central, max_nj)
-    
-    # Store all systematic variations  
+    # Extract central scale factors with errors
+    central_contents, central_errors, bin_labels = extract_histogram_data_with_errors(SF_central, max_nj)
+    central_data = (central_contents, bin_labels)
+
+    # Create symmetric statistical variations
+    print(f"Creating statistical systematic variations...")
+    stat_up_contents = [central_contents[i] + central_errors[i] for i in range(len(central_contents))]
+    stat_down_contents = [central_contents[i] - central_errors[i] for i in range(len(central_contents))]
+    print(f"  Statistical uncertainties (bin-by-bin, symmetric):")
+    for i, label in enumerate(bin_labels):
+        rel_error = 100 * central_errors[i] / central_contents[i] if central_contents[i] != 0 else 0
+        print(f"    {label}: ±{central_errors[i]:.4f} ({rel_error:.1f}%)")
+
+    # Store all systematic variations
     systematics_data = {}
-    
+
+    # Add statistical variations with zero errors (errors only in central)
+    systematics_data["statistical"] = {
+        "statistical_up": (stat_up_contents, [0.0]*len(central_contents), bin_labels),
+        "statistical_down": (stat_down_contents, [0.0]*len(central_contents), bin_labels)
+    }
+
     # Calculate scale factors for each systematic variation
     for syst_name, variations in systematics.items():
-        if syst_name == "prompt":
-            # Skip prompt for now, will calculate it after all other systematics
+        if syst_name in ["prompt", "statistical", "total"]:
+            # Skip prompt, statistical, and total (calculated later from other systematics)
             continue
             
         print(f"Calculating {syst_name} systematic variations...")
@@ -515,30 +558,69 @@ def main():
             try:
                 print(f"  Processing {variation}...")
                 SF_syst = calculate_scale_factors(CHANNELS, eralist, samplename_WZ, max_nj, variation, RUN)
-                systematics_data[syst_name][variation] = extract_histogram_data(SF_syst, max_nj)
+                systematics_data[syst_name][variation] = extract_histogram_data_with_errors(SF_syst, max_nj)
             except Exception as e:
                 print(f"  WARNING: Failed to process {variation}: {e}")
                 # Set to None to indicate missing data
                 systematics_data[syst_name][variation] = None
     
-    # Calculate prompt systematic uncertainty (combination of all MC systematics + statistical)
+    # Calculate prompt systematic uncertainty (combination of all MC systematics, excluding statistical)
     print("Calculating prompt systematic variations...")
     try:
         prompt_up_data, prompt_down_data = calculate_prompt_uncertainty(
-            central_data, 
-            systematics_data, 
+            central_data,
+            systematics_data,
             max_nj
         )
         systematics_data["prompt"] = {
             "prompt_up": prompt_up_data,
             "prompt_down": prompt_down_data
         }
-        print("  Combined symmetric uncertainties: sqrt(stat^2 + max(up,down)^2) for each systematic")
+        print("  Combined symmetric uncertainties: sqrt(sum of squared max deviations) for each MC systematic")
     except Exception as e:
         print(f"  WARNING: Failed to calculate prompt variations: {e}")
         systematics_data["prompt"] = {
             "prompt_up": None,
             "prompt_down": None
+        }
+
+    # Calculate total uncertainty (quadrature sum of statistical + nonprompt + prompt) bin-by-bin
+    print("Calculating total systematic variations...")
+    try:
+        nbins = len(central_contents)
+        stat_up_data = systematics_data["statistical"]["statistical_up"]
+        nonprompt_up_data = systematics_data["nonprompt"]["nonprompt_up"]
+        prompt_up_data = systematics_data["prompt"]["prompt_up"]
+
+        total_up_contents = []
+        total_down_contents = []
+        total_uncs = []
+
+        for i in range(nbins):
+            stat_unc = abs(stat_up_data[0][i] - central_contents[i])
+            nonprompt_unc = abs(nonprompt_up_data[0][i] - central_contents[i])
+            prompt_unc = abs(prompt_up_data[0][i] - central_contents[i])
+            total_unc = sqrt(stat_unc**2 + nonprompt_unc**2 + prompt_unc**2)
+
+            total_up_contents.append(central_contents[i] + total_unc)
+            total_down_contents.append(central_contents[i] - total_unc)
+            total_uncs.append(total_unc)
+
+        zero_errors = [0.0] * nbins
+        systematics_data["total"] = {
+            "total_up": (total_up_contents, zero_errors, bin_labels),
+            "total_down": (total_down_contents, zero_errors, bin_labels)
+        }
+
+        print(f"  Total uncertainties (bin-by-bin):")
+        for i, label in enumerate(bin_labels):
+            rel_unc = 100 * total_uncs[i] / central_contents[i] if central_contents[i] != 0 else 0
+            print(f"    {label}: ±{total_uncs[i]:.4f} ({rel_unc:.1f}%)")
+    except Exception as e:
+        print(f"  WARNING: Failed to calculate total variations: {e}")
+        systematics_data["total"] = {
+            "total_up": None,
+            "total_down": None
         }
     
     # Create correctionlib format
@@ -559,7 +641,7 @@ def main():
         for var_name, var_data in variations.items():
             if var_data is None:
                 continue
-            var_contents, var_labels = var_data
+            var_contents, var_errors, var_labels = var_data
             syst_corr = create_correction(
                 name=f"WZNjetsSF_{args.channel}_{args.era}_{var_name}",
                 description=f"WZ N-jets scale factors for {args.channel} {args.era} ({var_name})",
@@ -569,11 +651,7 @@ def main():
             corrections.append(syst_corr)
     
     # Create correction set
-    nonprompt_uncertainty = 0.25 if RUN == "Run2" else 0.35
-    description = f"WZ N-jets scale factors for {args.channel} {args.era}"
-    if len(CHANNELS) > 1:
-        description += f" (combined {'+'.join(CHANNELS)})"
-    description += f". Nonprompt uncertainty: ±{nonprompt_uncertainty*100:.0f}%"
+    description = "Nonprompt uncertainty: see configs/nonprompt.json"
     
     cset = cs.CorrectionSet(
         schema_version=2,
@@ -589,14 +667,18 @@ def main():
     with open(OUTPUTPATH, 'w') as f:
         f.write(cset.model_dump_json(exclude_unset=True, indent=2))
     
-    print(f"Correctionlib-compatible scale factors saved to: {OUTPUTPATH}")
+    print(f"\nCorrectionlib-compatible scale factors saved to: {OUTPUTPATH}")
     total_variations = sum(len(v) for v in systematics.values())
     print(f"Created {len(corrections)} corrections ({len(systematics)} systematic sources)")
     print(f"Combined channels: {'+'.join(CHANNELS) if len(CHANNELS) > 1 else CHANNELS[0]}")
     print(f"Binning: 0j, 1j, 2j, {max_nj}j (with clamping for >={max_nj}j)")
-    print(f"Nonprompt uncertainty: ±{nonprompt_uncertainty*100:.0f}% ({RUN})")
+    print(f"\nSystematic uncertainties:")
+    print(f"  - Nonprompt: channel-specific (see configs/nonprompt.json)")
+    print(f"  - Statistical: symmetric, uncorrelated bin-by-bin from CR measurement")
+    print(f"  - Prompt: envelope of all MC systematics (excluding nonprompt and statistical)")
+    print(f"  - Total: quadrature sum of statistical + nonprompt + prompt (bin-by-bin)")
     if len(CHANNELS) > 1:
-        print(f"Statistical precision improved by combining {len(CHANNELS)} channels")
+        print(f"\nStatistical precision improved by combining {len(CHANNELS)} channels")
         print(f"Note: Channel-specific systematics use Central values for irrelevant channels")
 
 if __name__ == "__main__":

@@ -31,7 +31,8 @@ elif args.method == "ParticleNet":
 else:
     raise ValueError("Invalid method")
 REFERENCE_XSEC = 5.0  # fb
-TTBAR_XEC_13TEV = 832.0e3  # fb
+TTBAR_XEC_13TEV = 833.9e3  # fb
+TTBAR_XEC_13p6TEV = 923.6e3 # fb
 
 
 def parseAsymptoticLimit(masspoint, method):

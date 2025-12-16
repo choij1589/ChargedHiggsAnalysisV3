@@ -21,6 +21,7 @@ MASSPOINTs=(MHc130_MA90 MHc130_MA100 MHc160_MA85 MHc100_MA95 MHc115_MA87 MHc145_
 for MASSPOINT in ${MASSPOINTs[@]}; do
     echo $MASSPOINT
     TO="../SKNanoAnalyzer/data/Run3_v13_Run2_v9/Run2/Combined/Classifiers/ParticleNet/${MASSPOINT}/"
+    mv $TO $TO_backup_$(date +%Y%m%d_%H%M%S)
     mkdir -p $TO
     cp -r  "$INPUT/Combined/multiclass/TTToHcToWAToMuMu-${MASSPOINT}/best_model" $TO/
 done

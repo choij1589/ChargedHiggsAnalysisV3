@@ -15,7 +15,8 @@ MASSPOINTs=(
     "MHc160_MA15" "MHc160_MA50" "MHc160_MA85" "MHc160_MA98" "MHc160_MA120" "MHc160_MA135" "MHc160_MA155"
 )
 #MPForOptimized=("MHc100_MA95" "MHc130_MA90" "MHc160_MA85" "MHc115_MA87" "MHc145_MA92", "MHc160_MA98")
-MPForOptimized=("MHc145_MA92")
+MASSPOINTs=("MHc70_MA15" "MHc100_MA60" "MHc130_MA90" "MHc160_MA155")
+MPForOptimized=("MHc130_MA90")
 # No longer need combine function - using wrapper script instead
 
 echo "Cleaning up"
@@ -24,5 +25,5 @@ echo "Cleaning up"
 
 # Use the wrapper script with parallel
 # The wrapper script handles all environment setup internally
-#parallel -j 18 "$SCRIPT_DIR/scripts/runCombineWrapper.sh" {1} {2} ::: "${MASSPOINTs[@]}" ::: "Baseline"
-parallel -j 18 "$SCRIPT_DIR/scripts/runCombineWrapper.sh" {1} {2} ::: "${MPForOptimized[@]}" ::: "ParticleNet"
+parallel -j 18 "$SCRIPT_DIR/scripts/runCombineWrapper.sh" {1} {2} ::: "${MASSPOINTs[@]}" ::: "Baseline"
+parallel -j 6 "$SCRIPT_DIR/scripts/runCombineWrapper.sh" {1} {2} ::: "${MPForOptimized[@]}" ::: "ParticleNet"
