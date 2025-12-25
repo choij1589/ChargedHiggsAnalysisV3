@@ -1,0 +1,31 @@
+# HTCondor submission template for HybridNew toy generation
+#
+# Usage:
+#   condor_submit condor_template.sub
+#
+
+universe = vanilla
+executable = $(script)
+arguments = $(args)
+
+output = $(outdir)/condor_$(Cluster)_$(Process).out
+error = $(outdir)/condor_$(Cluster)_$(Process).err
+log = $(outdir)/condor.log
+
+request_cpus = 1
+request_memory = 2GB
+request_disk = 1GB
+
++JobFlavour = "$(flavour)"
+
+# For CERN lxplus with SLC7/EL8
++SingularityImage = "/cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw/el8:amd64"
+
+# File transfer
+transfer_input_files = $(input_files)
+transfer_output_files = $(output_files)
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+
+# Queue jobs
+queue

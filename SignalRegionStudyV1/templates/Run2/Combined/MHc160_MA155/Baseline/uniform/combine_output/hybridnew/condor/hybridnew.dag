@@ -1,0 +1,1669 @@
+# HybridNew DAG workflow
+# Generated for MHc160_MA155 (Run2/Combined/Baseline/uniform)
+
+# Step 1: Create workspace
+JOB workspace workspace.sub
+
+# Step 2: Generate toys
+JOB toy_r0.1000_s1000 toy.sub
+VARS toy_r0.1000_s1000 r_value="0.1000" seed="1000"
+JOB toy_r0.1000_s1001 toy.sub
+VARS toy_r0.1000_s1001 r_value="0.1000" seed="1001"
+JOB toy_r0.1000_s1002 toy.sub
+VARS toy_r0.1000_s1002 r_value="0.1000" seed="1002"
+JOB toy_r0.1000_s1003 toy.sub
+VARS toy_r0.1000_s1003 r_value="0.1000" seed="1003"
+JOB toy_r0.1000_s1004 toy.sub
+VARS toy_r0.1000_s1004 r_value="0.1000" seed="1004"
+JOB toy_r0.1000_s1005 toy.sub
+VARS toy_r0.1000_s1005 r_value="0.1000" seed="1005"
+JOB toy_r0.1000_s1006 toy.sub
+VARS toy_r0.1000_s1006 r_value="0.1000" seed="1006"
+JOB toy_r0.1000_s1007 toy.sub
+VARS toy_r0.1000_s1007 r_value="0.1000" seed="1007"
+JOB toy_r0.1000_s1008 toy.sub
+VARS toy_r0.1000_s1008 r_value="0.1000" seed="1008"
+JOB toy_r0.1000_s1009 toy.sub
+VARS toy_r0.1000_s1009 r_value="0.1000" seed="1009"
+JOB toy_r0.1200_s1000 toy.sub
+VARS toy_r0.1200_s1000 r_value="0.1200" seed="1000"
+JOB toy_r0.1200_s1001 toy.sub
+VARS toy_r0.1200_s1001 r_value="0.1200" seed="1001"
+JOB toy_r0.1200_s1002 toy.sub
+VARS toy_r0.1200_s1002 r_value="0.1200" seed="1002"
+JOB toy_r0.1200_s1003 toy.sub
+VARS toy_r0.1200_s1003 r_value="0.1200" seed="1003"
+JOB toy_r0.1200_s1004 toy.sub
+VARS toy_r0.1200_s1004 r_value="0.1200" seed="1004"
+JOB toy_r0.1200_s1005 toy.sub
+VARS toy_r0.1200_s1005 r_value="0.1200" seed="1005"
+JOB toy_r0.1200_s1006 toy.sub
+VARS toy_r0.1200_s1006 r_value="0.1200" seed="1006"
+JOB toy_r0.1200_s1007 toy.sub
+VARS toy_r0.1200_s1007 r_value="0.1200" seed="1007"
+JOB toy_r0.1200_s1008 toy.sub
+VARS toy_r0.1200_s1008 r_value="0.1200" seed="1008"
+JOB toy_r0.1200_s1009 toy.sub
+VARS toy_r0.1200_s1009 r_value="0.1200" seed="1009"
+JOB toy_r0.1400_s1000 toy.sub
+VARS toy_r0.1400_s1000 r_value="0.1400" seed="1000"
+JOB toy_r0.1400_s1001 toy.sub
+VARS toy_r0.1400_s1001 r_value="0.1400" seed="1001"
+JOB toy_r0.1400_s1002 toy.sub
+VARS toy_r0.1400_s1002 r_value="0.1400" seed="1002"
+JOB toy_r0.1400_s1003 toy.sub
+VARS toy_r0.1400_s1003 r_value="0.1400" seed="1003"
+JOB toy_r0.1400_s1004 toy.sub
+VARS toy_r0.1400_s1004 r_value="0.1400" seed="1004"
+JOB toy_r0.1400_s1005 toy.sub
+VARS toy_r0.1400_s1005 r_value="0.1400" seed="1005"
+JOB toy_r0.1400_s1006 toy.sub
+VARS toy_r0.1400_s1006 r_value="0.1400" seed="1006"
+JOB toy_r0.1400_s1007 toy.sub
+VARS toy_r0.1400_s1007 r_value="0.1400" seed="1007"
+JOB toy_r0.1400_s1008 toy.sub
+VARS toy_r0.1400_s1008 r_value="0.1400" seed="1008"
+JOB toy_r0.1400_s1009 toy.sub
+VARS toy_r0.1400_s1009 r_value="0.1400" seed="1009"
+JOB toy_r0.1600_s1000 toy.sub
+VARS toy_r0.1600_s1000 r_value="0.1600" seed="1000"
+JOB toy_r0.1600_s1001 toy.sub
+VARS toy_r0.1600_s1001 r_value="0.1600" seed="1001"
+JOB toy_r0.1600_s1002 toy.sub
+VARS toy_r0.1600_s1002 r_value="0.1600" seed="1002"
+JOB toy_r0.1600_s1003 toy.sub
+VARS toy_r0.1600_s1003 r_value="0.1600" seed="1003"
+JOB toy_r0.1600_s1004 toy.sub
+VARS toy_r0.1600_s1004 r_value="0.1600" seed="1004"
+JOB toy_r0.1600_s1005 toy.sub
+VARS toy_r0.1600_s1005 r_value="0.1600" seed="1005"
+JOB toy_r0.1600_s1006 toy.sub
+VARS toy_r0.1600_s1006 r_value="0.1600" seed="1006"
+JOB toy_r0.1600_s1007 toy.sub
+VARS toy_r0.1600_s1007 r_value="0.1600" seed="1007"
+JOB toy_r0.1600_s1008 toy.sub
+VARS toy_r0.1600_s1008 r_value="0.1600" seed="1008"
+JOB toy_r0.1600_s1009 toy.sub
+VARS toy_r0.1600_s1009 r_value="0.1600" seed="1009"
+JOB toy_r0.1800_s1000 toy.sub
+VARS toy_r0.1800_s1000 r_value="0.1800" seed="1000"
+JOB toy_r0.1800_s1001 toy.sub
+VARS toy_r0.1800_s1001 r_value="0.1800" seed="1001"
+JOB toy_r0.1800_s1002 toy.sub
+VARS toy_r0.1800_s1002 r_value="0.1800" seed="1002"
+JOB toy_r0.1800_s1003 toy.sub
+VARS toy_r0.1800_s1003 r_value="0.1800" seed="1003"
+JOB toy_r0.1800_s1004 toy.sub
+VARS toy_r0.1800_s1004 r_value="0.1800" seed="1004"
+JOB toy_r0.1800_s1005 toy.sub
+VARS toy_r0.1800_s1005 r_value="0.1800" seed="1005"
+JOB toy_r0.1800_s1006 toy.sub
+VARS toy_r0.1800_s1006 r_value="0.1800" seed="1006"
+JOB toy_r0.1800_s1007 toy.sub
+VARS toy_r0.1800_s1007 r_value="0.1800" seed="1007"
+JOB toy_r0.1800_s1008 toy.sub
+VARS toy_r0.1800_s1008 r_value="0.1800" seed="1008"
+JOB toy_r0.1800_s1009 toy.sub
+VARS toy_r0.1800_s1009 r_value="0.1800" seed="1009"
+JOB toy_r0.2000_s1000 toy.sub
+VARS toy_r0.2000_s1000 r_value="0.2000" seed="1000"
+JOB toy_r0.2000_s1001 toy.sub
+VARS toy_r0.2000_s1001 r_value="0.2000" seed="1001"
+JOB toy_r0.2000_s1002 toy.sub
+VARS toy_r0.2000_s1002 r_value="0.2000" seed="1002"
+JOB toy_r0.2000_s1003 toy.sub
+VARS toy_r0.2000_s1003 r_value="0.2000" seed="1003"
+JOB toy_r0.2000_s1004 toy.sub
+VARS toy_r0.2000_s1004 r_value="0.2000" seed="1004"
+JOB toy_r0.2000_s1005 toy.sub
+VARS toy_r0.2000_s1005 r_value="0.2000" seed="1005"
+JOB toy_r0.2000_s1006 toy.sub
+VARS toy_r0.2000_s1006 r_value="0.2000" seed="1006"
+JOB toy_r0.2000_s1007 toy.sub
+VARS toy_r0.2000_s1007 r_value="0.2000" seed="1007"
+JOB toy_r0.2000_s1008 toy.sub
+VARS toy_r0.2000_s1008 r_value="0.2000" seed="1008"
+JOB toy_r0.2000_s1009 toy.sub
+VARS toy_r0.2000_s1009 r_value="0.2000" seed="1009"
+JOB toy_r0.2200_s1000 toy.sub
+VARS toy_r0.2200_s1000 r_value="0.2200" seed="1000"
+JOB toy_r0.2200_s1001 toy.sub
+VARS toy_r0.2200_s1001 r_value="0.2200" seed="1001"
+JOB toy_r0.2200_s1002 toy.sub
+VARS toy_r0.2200_s1002 r_value="0.2200" seed="1002"
+JOB toy_r0.2200_s1003 toy.sub
+VARS toy_r0.2200_s1003 r_value="0.2200" seed="1003"
+JOB toy_r0.2200_s1004 toy.sub
+VARS toy_r0.2200_s1004 r_value="0.2200" seed="1004"
+JOB toy_r0.2200_s1005 toy.sub
+VARS toy_r0.2200_s1005 r_value="0.2200" seed="1005"
+JOB toy_r0.2200_s1006 toy.sub
+VARS toy_r0.2200_s1006 r_value="0.2200" seed="1006"
+JOB toy_r0.2200_s1007 toy.sub
+VARS toy_r0.2200_s1007 r_value="0.2200" seed="1007"
+JOB toy_r0.2200_s1008 toy.sub
+VARS toy_r0.2200_s1008 r_value="0.2200" seed="1008"
+JOB toy_r0.2200_s1009 toy.sub
+VARS toy_r0.2200_s1009 r_value="0.2200" seed="1009"
+JOB toy_r0.2400_s1000 toy.sub
+VARS toy_r0.2400_s1000 r_value="0.2400" seed="1000"
+JOB toy_r0.2400_s1001 toy.sub
+VARS toy_r0.2400_s1001 r_value="0.2400" seed="1001"
+JOB toy_r0.2400_s1002 toy.sub
+VARS toy_r0.2400_s1002 r_value="0.2400" seed="1002"
+JOB toy_r0.2400_s1003 toy.sub
+VARS toy_r0.2400_s1003 r_value="0.2400" seed="1003"
+JOB toy_r0.2400_s1004 toy.sub
+VARS toy_r0.2400_s1004 r_value="0.2400" seed="1004"
+JOB toy_r0.2400_s1005 toy.sub
+VARS toy_r0.2400_s1005 r_value="0.2400" seed="1005"
+JOB toy_r0.2400_s1006 toy.sub
+VARS toy_r0.2400_s1006 r_value="0.2400" seed="1006"
+JOB toy_r0.2400_s1007 toy.sub
+VARS toy_r0.2400_s1007 r_value="0.2400" seed="1007"
+JOB toy_r0.2400_s1008 toy.sub
+VARS toy_r0.2400_s1008 r_value="0.2400" seed="1008"
+JOB toy_r0.2400_s1009 toy.sub
+VARS toy_r0.2400_s1009 r_value="0.2400" seed="1009"
+JOB toy_r0.2600_s1000 toy.sub
+VARS toy_r0.2600_s1000 r_value="0.2600" seed="1000"
+JOB toy_r0.2600_s1001 toy.sub
+VARS toy_r0.2600_s1001 r_value="0.2600" seed="1001"
+JOB toy_r0.2600_s1002 toy.sub
+VARS toy_r0.2600_s1002 r_value="0.2600" seed="1002"
+JOB toy_r0.2600_s1003 toy.sub
+VARS toy_r0.2600_s1003 r_value="0.2600" seed="1003"
+JOB toy_r0.2600_s1004 toy.sub
+VARS toy_r0.2600_s1004 r_value="0.2600" seed="1004"
+JOB toy_r0.2600_s1005 toy.sub
+VARS toy_r0.2600_s1005 r_value="0.2600" seed="1005"
+JOB toy_r0.2600_s1006 toy.sub
+VARS toy_r0.2600_s1006 r_value="0.2600" seed="1006"
+JOB toy_r0.2600_s1007 toy.sub
+VARS toy_r0.2600_s1007 r_value="0.2600" seed="1007"
+JOB toy_r0.2600_s1008 toy.sub
+VARS toy_r0.2600_s1008 r_value="0.2600" seed="1008"
+JOB toy_r0.2600_s1009 toy.sub
+VARS toy_r0.2600_s1009 r_value="0.2600" seed="1009"
+JOB toy_r0.2800_s1000 toy.sub
+VARS toy_r0.2800_s1000 r_value="0.2800" seed="1000"
+JOB toy_r0.2800_s1001 toy.sub
+VARS toy_r0.2800_s1001 r_value="0.2800" seed="1001"
+JOB toy_r0.2800_s1002 toy.sub
+VARS toy_r0.2800_s1002 r_value="0.2800" seed="1002"
+JOB toy_r0.2800_s1003 toy.sub
+VARS toy_r0.2800_s1003 r_value="0.2800" seed="1003"
+JOB toy_r0.2800_s1004 toy.sub
+VARS toy_r0.2800_s1004 r_value="0.2800" seed="1004"
+JOB toy_r0.2800_s1005 toy.sub
+VARS toy_r0.2800_s1005 r_value="0.2800" seed="1005"
+JOB toy_r0.2800_s1006 toy.sub
+VARS toy_r0.2800_s1006 r_value="0.2800" seed="1006"
+JOB toy_r0.2800_s1007 toy.sub
+VARS toy_r0.2800_s1007 r_value="0.2800" seed="1007"
+JOB toy_r0.2800_s1008 toy.sub
+VARS toy_r0.2800_s1008 r_value="0.2800" seed="1008"
+JOB toy_r0.2800_s1009 toy.sub
+VARS toy_r0.2800_s1009 r_value="0.2800" seed="1009"
+JOB toy_r0.3000_s1000 toy.sub
+VARS toy_r0.3000_s1000 r_value="0.3000" seed="1000"
+JOB toy_r0.3000_s1001 toy.sub
+VARS toy_r0.3000_s1001 r_value="0.3000" seed="1001"
+JOB toy_r0.3000_s1002 toy.sub
+VARS toy_r0.3000_s1002 r_value="0.3000" seed="1002"
+JOB toy_r0.3000_s1003 toy.sub
+VARS toy_r0.3000_s1003 r_value="0.3000" seed="1003"
+JOB toy_r0.3000_s1004 toy.sub
+VARS toy_r0.3000_s1004 r_value="0.3000" seed="1004"
+JOB toy_r0.3000_s1005 toy.sub
+VARS toy_r0.3000_s1005 r_value="0.3000" seed="1005"
+JOB toy_r0.3000_s1006 toy.sub
+VARS toy_r0.3000_s1006 r_value="0.3000" seed="1006"
+JOB toy_r0.3000_s1007 toy.sub
+VARS toy_r0.3000_s1007 r_value="0.3000" seed="1007"
+JOB toy_r0.3000_s1008 toy.sub
+VARS toy_r0.3000_s1008 r_value="0.3000" seed="1008"
+JOB toy_r0.3000_s1009 toy.sub
+VARS toy_r0.3000_s1009 r_value="0.3000" seed="1009"
+JOB toy_r0.3200_s1000 toy.sub
+VARS toy_r0.3200_s1000 r_value="0.3200" seed="1000"
+JOB toy_r0.3200_s1001 toy.sub
+VARS toy_r0.3200_s1001 r_value="0.3200" seed="1001"
+JOB toy_r0.3200_s1002 toy.sub
+VARS toy_r0.3200_s1002 r_value="0.3200" seed="1002"
+JOB toy_r0.3200_s1003 toy.sub
+VARS toy_r0.3200_s1003 r_value="0.3200" seed="1003"
+JOB toy_r0.3200_s1004 toy.sub
+VARS toy_r0.3200_s1004 r_value="0.3200" seed="1004"
+JOB toy_r0.3200_s1005 toy.sub
+VARS toy_r0.3200_s1005 r_value="0.3200" seed="1005"
+JOB toy_r0.3200_s1006 toy.sub
+VARS toy_r0.3200_s1006 r_value="0.3200" seed="1006"
+JOB toy_r0.3200_s1007 toy.sub
+VARS toy_r0.3200_s1007 r_value="0.3200" seed="1007"
+JOB toy_r0.3200_s1008 toy.sub
+VARS toy_r0.3200_s1008 r_value="0.3200" seed="1008"
+JOB toy_r0.3200_s1009 toy.sub
+VARS toy_r0.3200_s1009 r_value="0.3200" seed="1009"
+JOB toy_r0.3400_s1000 toy.sub
+VARS toy_r0.3400_s1000 r_value="0.3400" seed="1000"
+JOB toy_r0.3400_s1001 toy.sub
+VARS toy_r0.3400_s1001 r_value="0.3400" seed="1001"
+JOB toy_r0.3400_s1002 toy.sub
+VARS toy_r0.3400_s1002 r_value="0.3400" seed="1002"
+JOB toy_r0.3400_s1003 toy.sub
+VARS toy_r0.3400_s1003 r_value="0.3400" seed="1003"
+JOB toy_r0.3400_s1004 toy.sub
+VARS toy_r0.3400_s1004 r_value="0.3400" seed="1004"
+JOB toy_r0.3400_s1005 toy.sub
+VARS toy_r0.3400_s1005 r_value="0.3400" seed="1005"
+JOB toy_r0.3400_s1006 toy.sub
+VARS toy_r0.3400_s1006 r_value="0.3400" seed="1006"
+JOB toy_r0.3400_s1007 toy.sub
+VARS toy_r0.3400_s1007 r_value="0.3400" seed="1007"
+JOB toy_r0.3400_s1008 toy.sub
+VARS toy_r0.3400_s1008 r_value="0.3400" seed="1008"
+JOB toy_r0.3400_s1009 toy.sub
+VARS toy_r0.3400_s1009 r_value="0.3400" seed="1009"
+JOB toy_r0.3600_s1000 toy.sub
+VARS toy_r0.3600_s1000 r_value="0.3600" seed="1000"
+JOB toy_r0.3600_s1001 toy.sub
+VARS toy_r0.3600_s1001 r_value="0.3600" seed="1001"
+JOB toy_r0.3600_s1002 toy.sub
+VARS toy_r0.3600_s1002 r_value="0.3600" seed="1002"
+JOB toy_r0.3600_s1003 toy.sub
+VARS toy_r0.3600_s1003 r_value="0.3600" seed="1003"
+JOB toy_r0.3600_s1004 toy.sub
+VARS toy_r0.3600_s1004 r_value="0.3600" seed="1004"
+JOB toy_r0.3600_s1005 toy.sub
+VARS toy_r0.3600_s1005 r_value="0.3600" seed="1005"
+JOB toy_r0.3600_s1006 toy.sub
+VARS toy_r0.3600_s1006 r_value="0.3600" seed="1006"
+JOB toy_r0.3600_s1007 toy.sub
+VARS toy_r0.3600_s1007 r_value="0.3600" seed="1007"
+JOB toy_r0.3600_s1008 toy.sub
+VARS toy_r0.3600_s1008 r_value="0.3600" seed="1008"
+JOB toy_r0.3600_s1009 toy.sub
+VARS toy_r0.3600_s1009 r_value="0.3600" seed="1009"
+JOB toy_r0.3800_s1000 toy.sub
+VARS toy_r0.3800_s1000 r_value="0.3800" seed="1000"
+JOB toy_r0.3800_s1001 toy.sub
+VARS toy_r0.3800_s1001 r_value="0.3800" seed="1001"
+JOB toy_r0.3800_s1002 toy.sub
+VARS toy_r0.3800_s1002 r_value="0.3800" seed="1002"
+JOB toy_r0.3800_s1003 toy.sub
+VARS toy_r0.3800_s1003 r_value="0.3800" seed="1003"
+JOB toy_r0.3800_s1004 toy.sub
+VARS toy_r0.3800_s1004 r_value="0.3800" seed="1004"
+JOB toy_r0.3800_s1005 toy.sub
+VARS toy_r0.3800_s1005 r_value="0.3800" seed="1005"
+JOB toy_r0.3800_s1006 toy.sub
+VARS toy_r0.3800_s1006 r_value="0.3800" seed="1006"
+JOB toy_r0.3800_s1007 toy.sub
+VARS toy_r0.3800_s1007 r_value="0.3800" seed="1007"
+JOB toy_r0.3800_s1008 toy.sub
+VARS toy_r0.3800_s1008 r_value="0.3800" seed="1008"
+JOB toy_r0.3800_s1009 toy.sub
+VARS toy_r0.3800_s1009 r_value="0.3800" seed="1009"
+JOB toy_r0.4000_s1000 toy.sub
+VARS toy_r0.4000_s1000 r_value="0.4000" seed="1000"
+JOB toy_r0.4000_s1001 toy.sub
+VARS toy_r0.4000_s1001 r_value="0.4000" seed="1001"
+JOB toy_r0.4000_s1002 toy.sub
+VARS toy_r0.4000_s1002 r_value="0.4000" seed="1002"
+JOB toy_r0.4000_s1003 toy.sub
+VARS toy_r0.4000_s1003 r_value="0.4000" seed="1003"
+JOB toy_r0.4000_s1004 toy.sub
+VARS toy_r0.4000_s1004 r_value="0.4000" seed="1004"
+JOB toy_r0.4000_s1005 toy.sub
+VARS toy_r0.4000_s1005 r_value="0.4000" seed="1005"
+JOB toy_r0.4000_s1006 toy.sub
+VARS toy_r0.4000_s1006 r_value="0.4000" seed="1006"
+JOB toy_r0.4000_s1007 toy.sub
+VARS toy_r0.4000_s1007 r_value="0.4000" seed="1007"
+JOB toy_r0.4000_s1008 toy.sub
+VARS toy_r0.4000_s1008 r_value="0.4000" seed="1008"
+JOB toy_r0.4000_s1009 toy.sub
+VARS toy_r0.4000_s1009 r_value="0.4000" seed="1009"
+JOB toy_r0.4200_s1000 toy.sub
+VARS toy_r0.4200_s1000 r_value="0.4200" seed="1000"
+JOB toy_r0.4200_s1001 toy.sub
+VARS toy_r0.4200_s1001 r_value="0.4200" seed="1001"
+JOB toy_r0.4200_s1002 toy.sub
+VARS toy_r0.4200_s1002 r_value="0.4200" seed="1002"
+JOB toy_r0.4200_s1003 toy.sub
+VARS toy_r0.4200_s1003 r_value="0.4200" seed="1003"
+JOB toy_r0.4200_s1004 toy.sub
+VARS toy_r0.4200_s1004 r_value="0.4200" seed="1004"
+JOB toy_r0.4200_s1005 toy.sub
+VARS toy_r0.4200_s1005 r_value="0.4200" seed="1005"
+JOB toy_r0.4200_s1006 toy.sub
+VARS toy_r0.4200_s1006 r_value="0.4200" seed="1006"
+JOB toy_r0.4200_s1007 toy.sub
+VARS toy_r0.4200_s1007 r_value="0.4200" seed="1007"
+JOB toy_r0.4200_s1008 toy.sub
+VARS toy_r0.4200_s1008 r_value="0.4200" seed="1008"
+JOB toy_r0.4200_s1009 toy.sub
+VARS toy_r0.4200_s1009 r_value="0.4200" seed="1009"
+JOB toy_r0.4400_s1000 toy.sub
+VARS toy_r0.4400_s1000 r_value="0.4400" seed="1000"
+JOB toy_r0.4400_s1001 toy.sub
+VARS toy_r0.4400_s1001 r_value="0.4400" seed="1001"
+JOB toy_r0.4400_s1002 toy.sub
+VARS toy_r0.4400_s1002 r_value="0.4400" seed="1002"
+JOB toy_r0.4400_s1003 toy.sub
+VARS toy_r0.4400_s1003 r_value="0.4400" seed="1003"
+JOB toy_r0.4400_s1004 toy.sub
+VARS toy_r0.4400_s1004 r_value="0.4400" seed="1004"
+JOB toy_r0.4400_s1005 toy.sub
+VARS toy_r0.4400_s1005 r_value="0.4400" seed="1005"
+JOB toy_r0.4400_s1006 toy.sub
+VARS toy_r0.4400_s1006 r_value="0.4400" seed="1006"
+JOB toy_r0.4400_s1007 toy.sub
+VARS toy_r0.4400_s1007 r_value="0.4400" seed="1007"
+JOB toy_r0.4400_s1008 toy.sub
+VARS toy_r0.4400_s1008 r_value="0.4400" seed="1008"
+JOB toy_r0.4400_s1009 toy.sub
+VARS toy_r0.4400_s1009 r_value="0.4400" seed="1009"
+JOB toy_r0.4600_s1000 toy.sub
+VARS toy_r0.4600_s1000 r_value="0.4600" seed="1000"
+JOB toy_r0.4600_s1001 toy.sub
+VARS toy_r0.4600_s1001 r_value="0.4600" seed="1001"
+JOB toy_r0.4600_s1002 toy.sub
+VARS toy_r0.4600_s1002 r_value="0.4600" seed="1002"
+JOB toy_r0.4600_s1003 toy.sub
+VARS toy_r0.4600_s1003 r_value="0.4600" seed="1003"
+JOB toy_r0.4600_s1004 toy.sub
+VARS toy_r0.4600_s1004 r_value="0.4600" seed="1004"
+JOB toy_r0.4600_s1005 toy.sub
+VARS toy_r0.4600_s1005 r_value="0.4600" seed="1005"
+JOB toy_r0.4600_s1006 toy.sub
+VARS toy_r0.4600_s1006 r_value="0.4600" seed="1006"
+JOB toy_r0.4600_s1007 toy.sub
+VARS toy_r0.4600_s1007 r_value="0.4600" seed="1007"
+JOB toy_r0.4600_s1008 toy.sub
+VARS toy_r0.4600_s1008 r_value="0.4600" seed="1008"
+JOB toy_r0.4600_s1009 toy.sub
+VARS toy_r0.4600_s1009 r_value="0.4600" seed="1009"
+JOB toy_r0.4800_s1000 toy.sub
+VARS toy_r0.4800_s1000 r_value="0.4800" seed="1000"
+JOB toy_r0.4800_s1001 toy.sub
+VARS toy_r0.4800_s1001 r_value="0.4800" seed="1001"
+JOB toy_r0.4800_s1002 toy.sub
+VARS toy_r0.4800_s1002 r_value="0.4800" seed="1002"
+JOB toy_r0.4800_s1003 toy.sub
+VARS toy_r0.4800_s1003 r_value="0.4800" seed="1003"
+JOB toy_r0.4800_s1004 toy.sub
+VARS toy_r0.4800_s1004 r_value="0.4800" seed="1004"
+JOB toy_r0.4800_s1005 toy.sub
+VARS toy_r0.4800_s1005 r_value="0.4800" seed="1005"
+JOB toy_r0.4800_s1006 toy.sub
+VARS toy_r0.4800_s1006 r_value="0.4800" seed="1006"
+JOB toy_r0.4800_s1007 toy.sub
+VARS toy_r0.4800_s1007 r_value="0.4800" seed="1007"
+JOB toy_r0.4800_s1008 toy.sub
+VARS toy_r0.4800_s1008 r_value="0.4800" seed="1008"
+JOB toy_r0.4800_s1009 toy.sub
+VARS toy_r0.4800_s1009 r_value="0.4800" seed="1009"
+JOB toy_r0.5000_s1000 toy.sub
+VARS toy_r0.5000_s1000 r_value="0.5000" seed="1000"
+JOB toy_r0.5000_s1001 toy.sub
+VARS toy_r0.5000_s1001 r_value="0.5000" seed="1001"
+JOB toy_r0.5000_s1002 toy.sub
+VARS toy_r0.5000_s1002 r_value="0.5000" seed="1002"
+JOB toy_r0.5000_s1003 toy.sub
+VARS toy_r0.5000_s1003 r_value="0.5000" seed="1003"
+JOB toy_r0.5000_s1004 toy.sub
+VARS toy_r0.5000_s1004 r_value="0.5000" seed="1004"
+JOB toy_r0.5000_s1005 toy.sub
+VARS toy_r0.5000_s1005 r_value="0.5000" seed="1005"
+JOB toy_r0.5000_s1006 toy.sub
+VARS toy_r0.5000_s1006 r_value="0.5000" seed="1006"
+JOB toy_r0.5000_s1007 toy.sub
+VARS toy_r0.5000_s1007 r_value="0.5000" seed="1007"
+JOB toy_r0.5000_s1008 toy.sub
+VARS toy_r0.5000_s1008 r_value="0.5000" seed="1008"
+JOB toy_r0.5000_s1009 toy.sub
+VARS toy_r0.5000_s1009 r_value="0.5000" seed="1009"
+JOB toy_r0.5200_s1000 toy.sub
+VARS toy_r0.5200_s1000 r_value="0.5200" seed="1000"
+JOB toy_r0.5200_s1001 toy.sub
+VARS toy_r0.5200_s1001 r_value="0.5200" seed="1001"
+JOB toy_r0.5200_s1002 toy.sub
+VARS toy_r0.5200_s1002 r_value="0.5200" seed="1002"
+JOB toy_r0.5200_s1003 toy.sub
+VARS toy_r0.5200_s1003 r_value="0.5200" seed="1003"
+JOB toy_r0.5200_s1004 toy.sub
+VARS toy_r0.5200_s1004 r_value="0.5200" seed="1004"
+JOB toy_r0.5200_s1005 toy.sub
+VARS toy_r0.5200_s1005 r_value="0.5200" seed="1005"
+JOB toy_r0.5200_s1006 toy.sub
+VARS toy_r0.5200_s1006 r_value="0.5200" seed="1006"
+JOB toy_r0.5200_s1007 toy.sub
+VARS toy_r0.5200_s1007 r_value="0.5200" seed="1007"
+JOB toy_r0.5200_s1008 toy.sub
+VARS toy_r0.5200_s1008 r_value="0.5200" seed="1008"
+JOB toy_r0.5200_s1009 toy.sub
+VARS toy_r0.5200_s1009 r_value="0.5200" seed="1009"
+JOB toy_r0.5400_s1000 toy.sub
+VARS toy_r0.5400_s1000 r_value="0.5400" seed="1000"
+JOB toy_r0.5400_s1001 toy.sub
+VARS toy_r0.5400_s1001 r_value="0.5400" seed="1001"
+JOB toy_r0.5400_s1002 toy.sub
+VARS toy_r0.5400_s1002 r_value="0.5400" seed="1002"
+JOB toy_r0.5400_s1003 toy.sub
+VARS toy_r0.5400_s1003 r_value="0.5400" seed="1003"
+JOB toy_r0.5400_s1004 toy.sub
+VARS toy_r0.5400_s1004 r_value="0.5400" seed="1004"
+JOB toy_r0.5400_s1005 toy.sub
+VARS toy_r0.5400_s1005 r_value="0.5400" seed="1005"
+JOB toy_r0.5400_s1006 toy.sub
+VARS toy_r0.5400_s1006 r_value="0.5400" seed="1006"
+JOB toy_r0.5400_s1007 toy.sub
+VARS toy_r0.5400_s1007 r_value="0.5400" seed="1007"
+JOB toy_r0.5400_s1008 toy.sub
+VARS toy_r0.5400_s1008 r_value="0.5400" seed="1008"
+JOB toy_r0.5400_s1009 toy.sub
+VARS toy_r0.5400_s1009 r_value="0.5400" seed="1009"
+JOB toy_r0.5600_s1000 toy.sub
+VARS toy_r0.5600_s1000 r_value="0.5600" seed="1000"
+JOB toy_r0.5600_s1001 toy.sub
+VARS toy_r0.5600_s1001 r_value="0.5600" seed="1001"
+JOB toy_r0.5600_s1002 toy.sub
+VARS toy_r0.5600_s1002 r_value="0.5600" seed="1002"
+JOB toy_r0.5600_s1003 toy.sub
+VARS toy_r0.5600_s1003 r_value="0.5600" seed="1003"
+JOB toy_r0.5600_s1004 toy.sub
+VARS toy_r0.5600_s1004 r_value="0.5600" seed="1004"
+JOB toy_r0.5600_s1005 toy.sub
+VARS toy_r0.5600_s1005 r_value="0.5600" seed="1005"
+JOB toy_r0.5600_s1006 toy.sub
+VARS toy_r0.5600_s1006 r_value="0.5600" seed="1006"
+JOB toy_r0.5600_s1007 toy.sub
+VARS toy_r0.5600_s1007 r_value="0.5600" seed="1007"
+JOB toy_r0.5600_s1008 toy.sub
+VARS toy_r0.5600_s1008 r_value="0.5600" seed="1008"
+JOB toy_r0.5600_s1009 toy.sub
+VARS toy_r0.5600_s1009 r_value="0.5600" seed="1009"
+JOB toy_r0.5800_s1000 toy.sub
+VARS toy_r0.5800_s1000 r_value="0.5800" seed="1000"
+JOB toy_r0.5800_s1001 toy.sub
+VARS toy_r0.5800_s1001 r_value="0.5800" seed="1001"
+JOB toy_r0.5800_s1002 toy.sub
+VARS toy_r0.5800_s1002 r_value="0.5800" seed="1002"
+JOB toy_r0.5800_s1003 toy.sub
+VARS toy_r0.5800_s1003 r_value="0.5800" seed="1003"
+JOB toy_r0.5800_s1004 toy.sub
+VARS toy_r0.5800_s1004 r_value="0.5800" seed="1004"
+JOB toy_r0.5800_s1005 toy.sub
+VARS toy_r0.5800_s1005 r_value="0.5800" seed="1005"
+JOB toy_r0.5800_s1006 toy.sub
+VARS toy_r0.5800_s1006 r_value="0.5800" seed="1006"
+JOB toy_r0.5800_s1007 toy.sub
+VARS toy_r0.5800_s1007 r_value="0.5800" seed="1007"
+JOB toy_r0.5800_s1008 toy.sub
+VARS toy_r0.5800_s1008 r_value="0.5800" seed="1008"
+JOB toy_r0.5800_s1009 toy.sub
+VARS toy_r0.5800_s1009 r_value="0.5800" seed="1009"
+JOB toy_r0.6000_s1000 toy.sub
+VARS toy_r0.6000_s1000 r_value="0.6000" seed="1000"
+JOB toy_r0.6000_s1001 toy.sub
+VARS toy_r0.6000_s1001 r_value="0.6000" seed="1001"
+JOB toy_r0.6000_s1002 toy.sub
+VARS toy_r0.6000_s1002 r_value="0.6000" seed="1002"
+JOB toy_r0.6000_s1003 toy.sub
+VARS toy_r0.6000_s1003 r_value="0.6000" seed="1003"
+JOB toy_r0.6000_s1004 toy.sub
+VARS toy_r0.6000_s1004 r_value="0.6000" seed="1004"
+JOB toy_r0.6000_s1005 toy.sub
+VARS toy_r0.6000_s1005 r_value="0.6000" seed="1005"
+JOB toy_r0.6000_s1006 toy.sub
+VARS toy_r0.6000_s1006 r_value="0.6000" seed="1006"
+JOB toy_r0.6000_s1007 toy.sub
+VARS toy_r0.6000_s1007 r_value="0.6000" seed="1007"
+JOB toy_r0.6000_s1008 toy.sub
+VARS toy_r0.6000_s1008 r_value="0.6000" seed="1008"
+JOB toy_r0.6000_s1009 toy.sub
+VARS toy_r0.6000_s1009 r_value="0.6000" seed="1009"
+JOB toy_r0.6200_s1000 toy.sub
+VARS toy_r0.6200_s1000 r_value="0.6200" seed="1000"
+JOB toy_r0.6200_s1001 toy.sub
+VARS toy_r0.6200_s1001 r_value="0.6200" seed="1001"
+JOB toy_r0.6200_s1002 toy.sub
+VARS toy_r0.6200_s1002 r_value="0.6200" seed="1002"
+JOB toy_r0.6200_s1003 toy.sub
+VARS toy_r0.6200_s1003 r_value="0.6200" seed="1003"
+JOB toy_r0.6200_s1004 toy.sub
+VARS toy_r0.6200_s1004 r_value="0.6200" seed="1004"
+JOB toy_r0.6200_s1005 toy.sub
+VARS toy_r0.6200_s1005 r_value="0.6200" seed="1005"
+JOB toy_r0.6200_s1006 toy.sub
+VARS toy_r0.6200_s1006 r_value="0.6200" seed="1006"
+JOB toy_r0.6200_s1007 toy.sub
+VARS toy_r0.6200_s1007 r_value="0.6200" seed="1007"
+JOB toy_r0.6200_s1008 toy.sub
+VARS toy_r0.6200_s1008 r_value="0.6200" seed="1008"
+JOB toy_r0.6200_s1009 toy.sub
+VARS toy_r0.6200_s1009 r_value="0.6200" seed="1009"
+JOB toy_r0.6400_s1000 toy.sub
+VARS toy_r0.6400_s1000 r_value="0.6400" seed="1000"
+JOB toy_r0.6400_s1001 toy.sub
+VARS toy_r0.6400_s1001 r_value="0.6400" seed="1001"
+JOB toy_r0.6400_s1002 toy.sub
+VARS toy_r0.6400_s1002 r_value="0.6400" seed="1002"
+JOB toy_r0.6400_s1003 toy.sub
+VARS toy_r0.6400_s1003 r_value="0.6400" seed="1003"
+JOB toy_r0.6400_s1004 toy.sub
+VARS toy_r0.6400_s1004 r_value="0.6400" seed="1004"
+JOB toy_r0.6400_s1005 toy.sub
+VARS toy_r0.6400_s1005 r_value="0.6400" seed="1005"
+JOB toy_r0.6400_s1006 toy.sub
+VARS toy_r0.6400_s1006 r_value="0.6400" seed="1006"
+JOB toy_r0.6400_s1007 toy.sub
+VARS toy_r0.6400_s1007 r_value="0.6400" seed="1007"
+JOB toy_r0.6400_s1008 toy.sub
+VARS toy_r0.6400_s1008 r_value="0.6400" seed="1008"
+JOB toy_r0.6400_s1009 toy.sub
+VARS toy_r0.6400_s1009 r_value="0.6400" seed="1009"
+JOB toy_r0.6600_s1000 toy.sub
+VARS toy_r0.6600_s1000 r_value="0.6600" seed="1000"
+JOB toy_r0.6600_s1001 toy.sub
+VARS toy_r0.6600_s1001 r_value="0.6600" seed="1001"
+JOB toy_r0.6600_s1002 toy.sub
+VARS toy_r0.6600_s1002 r_value="0.6600" seed="1002"
+JOB toy_r0.6600_s1003 toy.sub
+VARS toy_r0.6600_s1003 r_value="0.6600" seed="1003"
+JOB toy_r0.6600_s1004 toy.sub
+VARS toy_r0.6600_s1004 r_value="0.6600" seed="1004"
+JOB toy_r0.6600_s1005 toy.sub
+VARS toy_r0.6600_s1005 r_value="0.6600" seed="1005"
+JOB toy_r0.6600_s1006 toy.sub
+VARS toy_r0.6600_s1006 r_value="0.6600" seed="1006"
+JOB toy_r0.6600_s1007 toy.sub
+VARS toy_r0.6600_s1007 r_value="0.6600" seed="1007"
+JOB toy_r0.6600_s1008 toy.sub
+VARS toy_r0.6600_s1008 r_value="0.6600" seed="1008"
+JOB toy_r0.6600_s1009 toy.sub
+VARS toy_r0.6600_s1009 r_value="0.6600" seed="1009"
+JOB toy_r0.6800_s1000 toy.sub
+VARS toy_r0.6800_s1000 r_value="0.6800" seed="1000"
+JOB toy_r0.6800_s1001 toy.sub
+VARS toy_r0.6800_s1001 r_value="0.6800" seed="1001"
+JOB toy_r0.6800_s1002 toy.sub
+VARS toy_r0.6800_s1002 r_value="0.6800" seed="1002"
+JOB toy_r0.6800_s1003 toy.sub
+VARS toy_r0.6800_s1003 r_value="0.6800" seed="1003"
+JOB toy_r0.6800_s1004 toy.sub
+VARS toy_r0.6800_s1004 r_value="0.6800" seed="1004"
+JOB toy_r0.6800_s1005 toy.sub
+VARS toy_r0.6800_s1005 r_value="0.6800" seed="1005"
+JOB toy_r0.6800_s1006 toy.sub
+VARS toy_r0.6800_s1006 r_value="0.6800" seed="1006"
+JOB toy_r0.6800_s1007 toy.sub
+VARS toy_r0.6800_s1007 r_value="0.6800" seed="1007"
+JOB toy_r0.6800_s1008 toy.sub
+VARS toy_r0.6800_s1008 r_value="0.6800" seed="1008"
+JOB toy_r0.6800_s1009 toy.sub
+VARS toy_r0.6800_s1009 r_value="0.6800" seed="1009"
+JOB toy_r0.7000_s1000 toy.sub
+VARS toy_r0.7000_s1000 r_value="0.7000" seed="1000"
+JOB toy_r0.7000_s1001 toy.sub
+VARS toy_r0.7000_s1001 r_value="0.7000" seed="1001"
+JOB toy_r0.7000_s1002 toy.sub
+VARS toy_r0.7000_s1002 r_value="0.7000" seed="1002"
+JOB toy_r0.7000_s1003 toy.sub
+VARS toy_r0.7000_s1003 r_value="0.7000" seed="1003"
+JOB toy_r0.7000_s1004 toy.sub
+VARS toy_r0.7000_s1004 r_value="0.7000" seed="1004"
+JOB toy_r0.7000_s1005 toy.sub
+VARS toy_r0.7000_s1005 r_value="0.7000" seed="1005"
+JOB toy_r0.7000_s1006 toy.sub
+VARS toy_r0.7000_s1006 r_value="0.7000" seed="1006"
+JOB toy_r0.7000_s1007 toy.sub
+VARS toy_r0.7000_s1007 r_value="0.7000" seed="1007"
+JOB toy_r0.7000_s1008 toy.sub
+VARS toy_r0.7000_s1008 r_value="0.7000" seed="1008"
+JOB toy_r0.7000_s1009 toy.sub
+VARS toy_r0.7000_s1009 r_value="0.7000" seed="1009"
+JOB toy_r0.7200_s1000 toy.sub
+VARS toy_r0.7200_s1000 r_value="0.7200" seed="1000"
+JOB toy_r0.7200_s1001 toy.sub
+VARS toy_r0.7200_s1001 r_value="0.7200" seed="1001"
+JOB toy_r0.7200_s1002 toy.sub
+VARS toy_r0.7200_s1002 r_value="0.7200" seed="1002"
+JOB toy_r0.7200_s1003 toy.sub
+VARS toy_r0.7200_s1003 r_value="0.7200" seed="1003"
+JOB toy_r0.7200_s1004 toy.sub
+VARS toy_r0.7200_s1004 r_value="0.7200" seed="1004"
+JOB toy_r0.7200_s1005 toy.sub
+VARS toy_r0.7200_s1005 r_value="0.7200" seed="1005"
+JOB toy_r0.7200_s1006 toy.sub
+VARS toy_r0.7200_s1006 r_value="0.7200" seed="1006"
+JOB toy_r0.7200_s1007 toy.sub
+VARS toy_r0.7200_s1007 r_value="0.7200" seed="1007"
+JOB toy_r0.7200_s1008 toy.sub
+VARS toy_r0.7200_s1008 r_value="0.7200" seed="1008"
+JOB toy_r0.7200_s1009 toy.sub
+VARS toy_r0.7200_s1009 r_value="0.7200" seed="1009"
+JOB toy_r0.7400_s1000 toy.sub
+VARS toy_r0.7400_s1000 r_value="0.7400" seed="1000"
+JOB toy_r0.7400_s1001 toy.sub
+VARS toy_r0.7400_s1001 r_value="0.7400" seed="1001"
+JOB toy_r0.7400_s1002 toy.sub
+VARS toy_r0.7400_s1002 r_value="0.7400" seed="1002"
+JOB toy_r0.7400_s1003 toy.sub
+VARS toy_r0.7400_s1003 r_value="0.7400" seed="1003"
+JOB toy_r0.7400_s1004 toy.sub
+VARS toy_r0.7400_s1004 r_value="0.7400" seed="1004"
+JOB toy_r0.7400_s1005 toy.sub
+VARS toy_r0.7400_s1005 r_value="0.7400" seed="1005"
+JOB toy_r0.7400_s1006 toy.sub
+VARS toy_r0.7400_s1006 r_value="0.7400" seed="1006"
+JOB toy_r0.7400_s1007 toy.sub
+VARS toy_r0.7400_s1007 r_value="0.7400" seed="1007"
+JOB toy_r0.7400_s1008 toy.sub
+VARS toy_r0.7400_s1008 r_value="0.7400" seed="1008"
+JOB toy_r0.7400_s1009 toy.sub
+VARS toy_r0.7400_s1009 r_value="0.7400" seed="1009"
+JOB toy_r0.7600_s1000 toy.sub
+VARS toy_r0.7600_s1000 r_value="0.7600" seed="1000"
+JOB toy_r0.7600_s1001 toy.sub
+VARS toy_r0.7600_s1001 r_value="0.7600" seed="1001"
+JOB toy_r0.7600_s1002 toy.sub
+VARS toy_r0.7600_s1002 r_value="0.7600" seed="1002"
+JOB toy_r0.7600_s1003 toy.sub
+VARS toy_r0.7600_s1003 r_value="0.7600" seed="1003"
+JOB toy_r0.7600_s1004 toy.sub
+VARS toy_r0.7600_s1004 r_value="0.7600" seed="1004"
+JOB toy_r0.7600_s1005 toy.sub
+VARS toy_r0.7600_s1005 r_value="0.7600" seed="1005"
+JOB toy_r0.7600_s1006 toy.sub
+VARS toy_r0.7600_s1006 r_value="0.7600" seed="1006"
+JOB toy_r0.7600_s1007 toy.sub
+VARS toy_r0.7600_s1007 r_value="0.7600" seed="1007"
+JOB toy_r0.7600_s1008 toy.sub
+VARS toy_r0.7600_s1008 r_value="0.7600" seed="1008"
+JOB toy_r0.7600_s1009 toy.sub
+VARS toy_r0.7600_s1009 r_value="0.7600" seed="1009"
+JOB toy_r0.7800_s1000 toy.sub
+VARS toy_r0.7800_s1000 r_value="0.7800" seed="1000"
+JOB toy_r0.7800_s1001 toy.sub
+VARS toy_r0.7800_s1001 r_value="0.7800" seed="1001"
+JOB toy_r0.7800_s1002 toy.sub
+VARS toy_r0.7800_s1002 r_value="0.7800" seed="1002"
+JOB toy_r0.7800_s1003 toy.sub
+VARS toy_r0.7800_s1003 r_value="0.7800" seed="1003"
+JOB toy_r0.7800_s1004 toy.sub
+VARS toy_r0.7800_s1004 r_value="0.7800" seed="1004"
+JOB toy_r0.7800_s1005 toy.sub
+VARS toy_r0.7800_s1005 r_value="0.7800" seed="1005"
+JOB toy_r0.7800_s1006 toy.sub
+VARS toy_r0.7800_s1006 r_value="0.7800" seed="1006"
+JOB toy_r0.7800_s1007 toy.sub
+VARS toy_r0.7800_s1007 r_value="0.7800" seed="1007"
+JOB toy_r0.7800_s1008 toy.sub
+VARS toy_r0.7800_s1008 r_value="0.7800" seed="1008"
+JOB toy_r0.7800_s1009 toy.sub
+VARS toy_r0.7800_s1009 r_value="0.7800" seed="1009"
+JOB toy_r0.8000_s1000 toy.sub
+VARS toy_r0.8000_s1000 r_value="0.8000" seed="1000"
+JOB toy_r0.8000_s1001 toy.sub
+VARS toy_r0.8000_s1001 r_value="0.8000" seed="1001"
+JOB toy_r0.8000_s1002 toy.sub
+VARS toy_r0.8000_s1002 r_value="0.8000" seed="1002"
+JOB toy_r0.8000_s1003 toy.sub
+VARS toy_r0.8000_s1003 r_value="0.8000" seed="1003"
+JOB toy_r0.8000_s1004 toy.sub
+VARS toy_r0.8000_s1004 r_value="0.8000" seed="1004"
+JOB toy_r0.8000_s1005 toy.sub
+VARS toy_r0.8000_s1005 r_value="0.8000" seed="1005"
+JOB toy_r0.8000_s1006 toy.sub
+VARS toy_r0.8000_s1006 r_value="0.8000" seed="1006"
+JOB toy_r0.8000_s1007 toy.sub
+VARS toy_r0.8000_s1007 r_value="0.8000" seed="1007"
+JOB toy_r0.8000_s1008 toy.sub
+VARS toy_r0.8000_s1008 r_value="0.8000" seed="1008"
+JOB toy_r0.8000_s1009 toy.sub
+VARS toy_r0.8000_s1009 r_value="0.8000" seed="1009"
+JOB toy_r0.8200_s1000 toy.sub
+VARS toy_r0.8200_s1000 r_value="0.8200" seed="1000"
+JOB toy_r0.8200_s1001 toy.sub
+VARS toy_r0.8200_s1001 r_value="0.8200" seed="1001"
+JOB toy_r0.8200_s1002 toy.sub
+VARS toy_r0.8200_s1002 r_value="0.8200" seed="1002"
+JOB toy_r0.8200_s1003 toy.sub
+VARS toy_r0.8200_s1003 r_value="0.8200" seed="1003"
+JOB toy_r0.8200_s1004 toy.sub
+VARS toy_r0.8200_s1004 r_value="0.8200" seed="1004"
+JOB toy_r0.8200_s1005 toy.sub
+VARS toy_r0.8200_s1005 r_value="0.8200" seed="1005"
+JOB toy_r0.8200_s1006 toy.sub
+VARS toy_r0.8200_s1006 r_value="0.8200" seed="1006"
+JOB toy_r0.8200_s1007 toy.sub
+VARS toy_r0.8200_s1007 r_value="0.8200" seed="1007"
+JOB toy_r0.8200_s1008 toy.sub
+VARS toy_r0.8200_s1008 r_value="0.8200" seed="1008"
+JOB toy_r0.8200_s1009 toy.sub
+VARS toy_r0.8200_s1009 r_value="0.8200" seed="1009"
+JOB toy_r0.8400_s1000 toy.sub
+VARS toy_r0.8400_s1000 r_value="0.8400" seed="1000"
+JOB toy_r0.8400_s1001 toy.sub
+VARS toy_r0.8400_s1001 r_value="0.8400" seed="1001"
+JOB toy_r0.8400_s1002 toy.sub
+VARS toy_r0.8400_s1002 r_value="0.8400" seed="1002"
+JOB toy_r0.8400_s1003 toy.sub
+VARS toy_r0.8400_s1003 r_value="0.8400" seed="1003"
+JOB toy_r0.8400_s1004 toy.sub
+VARS toy_r0.8400_s1004 r_value="0.8400" seed="1004"
+JOB toy_r0.8400_s1005 toy.sub
+VARS toy_r0.8400_s1005 r_value="0.8400" seed="1005"
+JOB toy_r0.8400_s1006 toy.sub
+VARS toy_r0.8400_s1006 r_value="0.8400" seed="1006"
+JOB toy_r0.8400_s1007 toy.sub
+VARS toy_r0.8400_s1007 r_value="0.8400" seed="1007"
+JOB toy_r0.8400_s1008 toy.sub
+VARS toy_r0.8400_s1008 r_value="0.8400" seed="1008"
+JOB toy_r0.8400_s1009 toy.sub
+VARS toy_r0.8400_s1009 r_value="0.8400" seed="1009"
+JOB toy_r0.8600_s1000 toy.sub
+VARS toy_r0.8600_s1000 r_value="0.8600" seed="1000"
+JOB toy_r0.8600_s1001 toy.sub
+VARS toy_r0.8600_s1001 r_value="0.8600" seed="1001"
+JOB toy_r0.8600_s1002 toy.sub
+VARS toy_r0.8600_s1002 r_value="0.8600" seed="1002"
+JOB toy_r0.8600_s1003 toy.sub
+VARS toy_r0.8600_s1003 r_value="0.8600" seed="1003"
+JOB toy_r0.8600_s1004 toy.sub
+VARS toy_r0.8600_s1004 r_value="0.8600" seed="1004"
+JOB toy_r0.8600_s1005 toy.sub
+VARS toy_r0.8600_s1005 r_value="0.8600" seed="1005"
+JOB toy_r0.8600_s1006 toy.sub
+VARS toy_r0.8600_s1006 r_value="0.8600" seed="1006"
+JOB toy_r0.8600_s1007 toy.sub
+VARS toy_r0.8600_s1007 r_value="0.8600" seed="1007"
+JOB toy_r0.8600_s1008 toy.sub
+VARS toy_r0.8600_s1008 r_value="0.8600" seed="1008"
+JOB toy_r0.8600_s1009 toy.sub
+VARS toy_r0.8600_s1009 r_value="0.8600" seed="1009"
+JOB toy_r0.8800_s1000 toy.sub
+VARS toy_r0.8800_s1000 r_value="0.8800" seed="1000"
+JOB toy_r0.8800_s1001 toy.sub
+VARS toy_r0.8800_s1001 r_value="0.8800" seed="1001"
+JOB toy_r0.8800_s1002 toy.sub
+VARS toy_r0.8800_s1002 r_value="0.8800" seed="1002"
+JOB toy_r0.8800_s1003 toy.sub
+VARS toy_r0.8800_s1003 r_value="0.8800" seed="1003"
+JOB toy_r0.8800_s1004 toy.sub
+VARS toy_r0.8800_s1004 r_value="0.8800" seed="1004"
+JOB toy_r0.8800_s1005 toy.sub
+VARS toy_r0.8800_s1005 r_value="0.8800" seed="1005"
+JOB toy_r0.8800_s1006 toy.sub
+VARS toy_r0.8800_s1006 r_value="0.8800" seed="1006"
+JOB toy_r0.8800_s1007 toy.sub
+VARS toy_r0.8800_s1007 r_value="0.8800" seed="1007"
+JOB toy_r0.8800_s1008 toy.sub
+VARS toy_r0.8800_s1008 r_value="0.8800" seed="1008"
+JOB toy_r0.8800_s1009 toy.sub
+VARS toy_r0.8800_s1009 r_value="0.8800" seed="1009"
+JOB toy_r0.9000_s1000 toy.sub
+VARS toy_r0.9000_s1000 r_value="0.9000" seed="1000"
+JOB toy_r0.9000_s1001 toy.sub
+VARS toy_r0.9000_s1001 r_value="0.9000" seed="1001"
+JOB toy_r0.9000_s1002 toy.sub
+VARS toy_r0.9000_s1002 r_value="0.9000" seed="1002"
+JOB toy_r0.9000_s1003 toy.sub
+VARS toy_r0.9000_s1003 r_value="0.9000" seed="1003"
+JOB toy_r0.9000_s1004 toy.sub
+VARS toy_r0.9000_s1004 r_value="0.9000" seed="1004"
+JOB toy_r0.9000_s1005 toy.sub
+VARS toy_r0.9000_s1005 r_value="0.9000" seed="1005"
+JOB toy_r0.9000_s1006 toy.sub
+VARS toy_r0.9000_s1006 r_value="0.9000" seed="1006"
+JOB toy_r0.9000_s1007 toy.sub
+VARS toy_r0.9000_s1007 r_value="0.9000" seed="1007"
+JOB toy_r0.9000_s1008 toy.sub
+VARS toy_r0.9000_s1008 r_value="0.9000" seed="1008"
+JOB toy_r0.9000_s1009 toy.sub
+VARS toy_r0.9000_s1009 r_value="0.9000" seed="1009"
+JOB toy_r0.9200_s1000 toy.sub
+VARS toy_r0.9200_s1000 r_value="0.9200" seed="1000"
+JOB toy_r0.9200_s1001 toy.sub
+VARS toy_r0.9200_s1001 r_value="0.9200" seed="1001"
+JOB toy_r0.9200_s1002 toy.sub
+VARS toy_r0.9200_s1002 r_value="0.9200" seed="1002"
+JOB toy_r0.9200_s1003 toy.sub
+VARS toy_r0.9200_s1003 r_value="0.9200" seed="1003"
+JOB toy_r0.9200_s1004 toy.sub
+VARS toy_r0.9200_s1004 r_value="0.9200" seed="1004"
+JOB toy_r0.9200_s1005 toy.sub
+VARS toy_r0.9200_s1005 r_value="0.9200" seed="1005"
+JOB toy_r0.9200_s1006 toy.sub
+VARS toy_r0.9200_s1006 r_value="0.9200" seed="1006"
+JOB toy_r0.9200_s1007 toy.sub
+VARS toy_r0.9200_s1007 r_value="0.9200" seed="1007"
+JOB toy_r0.9200_s1008 toy.sub
+VARS toy_r0.9200_s1008 r_value="0.9200" seed="1008"
+JOB toy_r0.9200_s1009 toy.sub
+VARS toy_r0.9200_s1009 r_value="0.9200" seed="1009"
+JOB toy_r0.9400_s1000 toy.sub
+VARS toy_r0.9400_s1000 r_value="0.9400" seed="1000"
+JOB toy_r0.9400_s1001 toy.sub
+VARS toy_r0.9400_s1001 r_value="0.9400" seed="1001"
+JOB toy_r0.9400_s1002 toy.sub
+VARS toy_r0.9400_s1002 r_value="0.9400" seed="1002"
+JOB toy_r0.9400_s1003 toy.sub
+VARS toy_r0.9400_s1003 r_value="0.9400" seed="1003"
+JOB toy_r0.9400_s1004 toy.sub
+VARS toy_r0.9400_s1004 r_value="0.9400" seed="1004"
+JOB toy_r0.9400_s1005 toy.sub
+VARS toy_r0.9400_s1005 r_value="0.9400" seed="1005"
+JOB toy_r0.9400_s1006 toy.sub
+VARS toy_r0.9400_s1006 r_value="0.9400" seed="1006"
+JOB toy_r0.9400_s1007 toy.sub
+VARS toy_r0.9400_s1007 r_value="0.9400" seed="1007"
+JOB toy_r0.9400_s1008 toy.sub
+VARS toy_r0.9400_s1008 r_value="0.9400" seed="1008"
+JOB toy_r0.9400_s1009 toy.sub
+VARS toy_r0.9400_s1009 r_value="0.9400" seed="1009"
+JOB toy_r0.9600_s1000 toy.sub
+VARS toy_r0.9600_s1000 r_value="0.9600" seed="1000"
+JOB toy_r0.9600_s1001 toy.sub
+VARS toy_r0.9600_s1001 r_value="0.9600" seed="1001"
+JOB toy_r0.9600_s1002 toy.sub
+VARS toy_r0.9600_s1002 r_value="0.9600" seed="1002"
+JOB toy_r0.9600_s1003 toy.sub
+VARS toy_r0.9600_s1003 r_value="0.9600" seed="1003"
+JOB toy_r0.9600_s1004 toy.sub
+VARS toy_r0.9600_s1004 r_value="0.9600" seed="1004"
+JOB toy_r0.9600_s1005 toy.sub
+VARS toy_r0.9600_s1005 r_value="0.9600" seed="1005"
+JOB toy_r0.9600_s1006 toy.sub
+VARS toy_r0.9600_s1006 r_value="0.9600" seed="1006"
+JOB toy_r0.9600_s1007 toy.sub
+VARS toy_r0.9600_s1007 r_value="0.9600" seed="1007"
+JOB toy_r0.9600_s1008 toy.sub
+VARS toy_r0.9600_s1008 r_value="0.9600" seed="1008"
+JOB toy_r0.9600_s1009 toy.sub
+VARS toy_r0.9600_s1009 r_value="0.9600" seed="1009"
+JOB toy_r0.9800_s1000 toy.sub
+VARS toy_r0.9800_s1000 r_value="0.9800" seed="1000"
+JOB toy_r0.9800_s1001 toy.sub
+VARS toy_r0.9800_s1001 r_value="0.9800" seed="1001"
+JOB toy_r0.9800_s1002 toy.sub
+VARS toy_r0.9800_s1002 r_value="0.9800" seed="1002"
+JOB toy_r0.9800_s1003 toy.sub
+VARS toy_r0.9800_s1003 r_value="0.9800" seed="1003"
+JOB toy_r0.9800_s1004 toy.sub
+VARS toy_r0.9800_s1004 r_value="0.9800" seed="1004"
+JOB toy_r0.9800_s1005 toy.sub
+VARS toy_r0.9800_s1005 r_value="0.9800" seed="1005"
+JOB toy_r0.9800_s1006 toy.sub
+VARS toy_r0.9800_s1006 r_value="0.9800" seed="1006"
+JOB toy_r0.9800_s1007 toy.sub
+VARS toy_r0.9800_s1007 r_value="0.9800" seed="1007"
+JOB toy_r0.9800_s1008 toy.sub
+VARS toy_r0.9800_s1008 r_value="0.9800" seed="1008"
+JOB toy_r0.9800_s1009 toy.sub
+VARS toy_r0.9800_s1009 r_value="0.9800" seed="1009"
+JOB toy_r1.0000_s1000 toy.sub
+VARS toy_r1.0000_s1000 r_value="1.0000" seed="1000"
+JOB toy_r1.0000_s1001 toy.sub
+VARS toy_r1.0000_s1001 r_value="1.0000" seed="1001"
+JOB toy_r1.0000_s1002 toy.sub
+VARS toy_r1.0000_s1002 r_value="1.0000" seed="1002"
+JOB toy_r1.0000_s1003 toy.sub
+VARS toy_r1.0000_s1003 r_value="1.0000" seed="1003"
+JOB toy_r1.0000_s1004 toy.sub
+VARS toy_r1.0000_s1004 r_value="1.0000" seed="1004"
+JOB toy_r1.0000_s1005 toy.sub
+VARS toy_r1.0000_s1005 r_value="1.0000" seed="1005"
+JOB toy_r1.0000_s1006 toy.sub
+VARS toy_r1.0000_s1006 r_value="1.0000" seed="1006"
+JOB toy_r1.0000_s1007 toy.sub
+VARS toy_r1.0000_s1007 r_value="1.0000" seed="1007"
+JOB toy_r1.0000_s1008 toy.sub
+VARS toy_r1.0000_s1008 r_value="1.0000" seed="1008"
+JOB toy_r1.0000_s1009 toy.sub
+VARS toy_r1.0000_s1009 r_value="1.0000" seed="1009"
+JOB toy_r1.0200_s1000 toy.sub
+VARS toy_r1.0200_s1000 r_value="1.0200" seed="1000"
+JOB toy_r1.0200_s1001 toy.sub
+VARS toy_r1.0200_s1001 r_value="1.0200" seed="1001"
+JOB toy_r1.0200_s1002 toy.sub
+VARS toy_r1.0200_s1002 r_value="1.0200" seed="1002"
+JOB toy_r1.0200_s1003 toy.sub
+VARS toy_r1.0200_s1003 r_value="1.0200" seed="1003"
+JOB toy_r1.0200_s1004 toy.sub
+VARS toy_r1.0200_s1004 r_value="1.0200" seed="1004"
+JOB toy_r1.0200_s1005 toy.sub
+VARS toy_r1.0200_s1005 r_value="1.0200" seed="1005"
+JOB toy_r1.0200_s1006 toy.sub
+VARS toy_r1.0200_s1006 r_value="1.0200" seed="1006"
+JOB toy_r1.0200_s1007 toy.sub
+VARS toy_r1.0200_s1007 r_value="1.0200" seed="1007"
+JOB toy_r1.0200_s1008 toy.sub
+VARS toy_r1.0200_s1008 r_value="1.0200" seed="1008"
+JOB toy_r1.0200_s1009 toy.sub
+VARS toy_r1.0200_s1009 r_value="1.0200" seed="1009"
+JOB toy_r1.0400_s1000 toy.sub
+VARS toy_r1.0400_s1000 r_value="1.0400" seed="1000"
+JOB toy_r1.0400_s1001 toy.sub
+VARS toy_r1.0400_s1001 r_value="1.0400" seed="1001"
+JOB toy_r1.0400_s1002 toy.sub
+VARS toy_r1.0400_s1002 r_value="1.0400" seed="1002"
+JOB toy_r1.0400_s1003 toy.sub
+VARS toy_r1.0400_s1003 r_value="1.0400" seed="1003"
+JOB toy_r1.0400_s1004 toy.sub
+VARS toy_r1.0400_s1004 r_value="1.0400" seed="1004"
+JOB toy_r1.0400_s1005 toy.sub
+VARS toy_r1.0400_s1005 r_value="1.0400" seed="1005"
+JOB toy_r1.0400_s1006 toy.sub
+VARS toy_r1.0400_s1006 r_value="1.0400" seed="1006"
+JOB toy_r1.0400_s1007 toy.sub
+VARS toy_r1.0400_s1007 r_value="1.0400" seed="1007"
+JOB toy_r1.0400_s1008 toy.sub
+VARS toy_r1.0400_s1008 r_value="1.0400" seed="1008"
+JOB toy_r1.0400_s1009 toy.sub
+VARS toy_r1.0400_s1009 r_value="1.0400" seed="1009"
+JOB toy_r1.0600_s1000 toy.sub
+VARS toy_r1.0600_s1000 r_value="1.0600" seed="1000"
+JOB toy_r1.0600_s1001 toy.sub
+VARS toy_r1.0600_s1001 r_value="1.0600" seed="1001"
+JOB toy_r1.0600_s1002 toy.sub
+VARS toy_r1.0600_s1002 r_value="1.0600" seed="1002"
+JOB toy_r1.0600_s1003 toy.sub
+VARS toy_r1.0600_s1003 r_value="1.0600" seed="1003"
+JOB toy_r1.0600_s1004 toy.sub
+VARS toy_r1.0600_s1004 r_value="1.0600" seed="1004"
+JOB toy_r1.0600_s1005 toy.sub
+VARS toy_r1.0600_s1005 r_value="1.0600" seed="1005"
+JOB toy_r1.0600_s1006 toy.sub
+VARS toy_r1.0600_s1006 r_value="1.0600" seed="1006"
+JOB toy_r1.0600_s1007 toy.sub
+VARS toy_r1.0600_s1007 r_value="1.0600" seed="1007"
+JOB toy_r1.0600_s1008 toy.sub
+VARS toy_r1.0600_s1008 r_value="1.0600" seed="1008"
+JOB toy_r1.0600_s1009 toy.sub
+VARS toy_r1.0600_s1009 r_value="1.0600" seed="1009"
+JOB toy_r1.0800_s1000 toy.sub
+VARS toy_r1.0800_s1000 r_value="1.0800" seed="1000"
+JOB toy_r1.0800_s1001 toy.sub
+VARS toy_r1.0800_s1001 r_value="1.0800" seed="1001"
+JOB toy_r1.0800_s1002 toy.sub
+VARS toy_r1.0800_s1002 r_value="1.0800" seed="1002"
+JOB toy_r1.0800_s1003 toy.sub
+VARS toy_r1.0800_s1003 r_value="1.0800" seed="1003"
+JOB toy_r1.0800_s1004 toy.sub
+VARS toy_r1.0800_s1004 r_value="1.0800" seed="1004"
+JOB toy_r1.0800_s1005 toy.sub
+VARS toy_r1.0800_s1005 r_value="1.0800" seed="1005"
+JOB toy_r1.0800_s1006 toy.sub
+VARS toy_r1.0800_s1006 r_value="1.0800" seed="1006"
+JOB toy_r1.0800_s1007 toy.sub
+VARS toy_r1.0800_s1007 r_value="1.0800" seed="1007"
+JOB toy_r1.0800_s1008 toy.sub
+VARS toy_r1.0800_s1008 r_value="1.0800" seed="1008"
+JOB toy_r1.0800_s1009 toy.sub
+VARS toy_r1.0800_s1009 r_value="1.0800" seed="1009"
+JOB toy_r1.1000_s1000 toy.sub
+VARS toy_r1.1000_s1000 r_value="1.1000" seed="1000"
+JOB toy_r1.1000_s1001 toy.sub
+VARS toy_r1.1000_s1001 r_value="1.1000" seed="1001"
+JOB toy_r1.1000_s1002 toy.sub
+VARS toy_r1.1000_s1002 r_value="1.1000" seed="1002"
+JOB toy_r1.1000_s1003 toy.sub
+VARS toy_r1.1000_s1003 r_value="1.1000" seed="1003"
+JOB toy_r1.1000_s1004 toy.sub
+VARS toy_r1.1000_s1004 r_value="1.1000" seed="1004"
+JOB toy_r1.1000_s1005 toy.sub
+VARS toy_r1.1000_s1005 r_value="1.1000" seed="1005"
+JOB toy_r1.1000_s1006 toy.sub
+VARS toy_r1.1000_s1006 r_value="1.1000" seed="1006"
+JOB toy_r1.1000_s1007 toy.sub
+VARS toy_r1.1000_s1007 r_value="1.1000" seed="1007"
+JOB toy_r1.1000_s1008 toy.sub
+VARS toy_r1.1000_s1008 r_value="1.1000" seed="1008"
+JOB toy_r1.1000_s1009 toy.sub
+VARS toy_r1.1000_s1009 r_value="1.1000" seed="1009"
+JOB toy_r1.1200_s1000 toy.sub
+VARS toy_r1.1200_s1000 r_value="1.1200" seed="1000"
+JOB toy_r1.1200_s1001 toy.sub
+VARS toy_r1.1200_s1001 r_value="1.1200" seed="1001"
+JOB toy_r1.1200_s1002 toy.sub
+VARS toy_r1.1200_s1002 r_value="1.1200" seed="1002"
+JOB toy_r1.1200_s1003 toy.sub
+VARS toy_r1.1200_s1003 r_value="1.1200" seed="1003"
+JOB toy_r1.1200_s1004 toy.sub
+VARS toy_r1.1200_s1004 r_value="1.1200" seed="1004"
+JOB toy_r1.1200_s1005 toy.sub
+VARS toy_r1.1200_s1005 r_value="1.1200" seed="1005"
+JOB toy_r1.1200_s1006 toy.sub
+VARS toy_r1.1200_s1006 r_value="1.1200" seed="1006"
+JOB toy_r1.1200_s1007 toy.sub
+VARS toy_r1.1200_s1007 r_value="1.1200" seed="1007"
+JOB toy_r1.1200_s1008 toy.sub
+VARS toy_r1.1200_s1008 r_value="1.1200" seed="1008"
+JOB toy_r1.1200_s1009 toy.sub
+VARS toy_r1.1200_s1009 r_value="1.1200" seed="1009"
+JOB toy_r1.1400_s1000 toy.sub
+VARS toy_r1.1400_s1000 r_value="1.1400" seed="1000"
+JOB toy_r1.1400_s1001 toy.sub
+VARS toy_r1.1400_s1001 r_value="1.1400" seed="1001"
+JOB toy_r1.1400_s1002 toy.sub
+VARS toy_r1.1400_s1002 r_value="1.1400" seed="1002"
+JOB toy_r1.1400_s1003 toy.sub
+VARS toy_r1.1400_s1003 r_value="1.1400" seed="1003"
+JOB toy_r1.1400_s1004 toy.sub
+VARS toy_r1.1400_s1004 r_value="1.1400" seed="1004"
+JOB toy_r1.1400_s1005 toy.sub
+VARS toy_r1.1400_s1005 r_value="1.1400" seed="1005"
+JOB toy_r1.1400_s1006 toy.sub
+VARS toy_r1.1400_s1006 r_value="1.1400" seed="1006"
+JOB toy_r1.1400_s1007 toy.sub
+VARS toy_r1.1400_s1007 r_value="1.1400" seed="1007"
+JOB toy_r1.1400_s1008 toy.sub
+VARS toy_r1.1400_s1008 r_value="1.1400" seed="1008"
+JOB toy_r1.1400_s1009 toy.sub
+VARS toy_r1.1400_s1009 r_value="1.1400" seed="1009"
+JOB toy_r1.1600_s1000 toy.sub
+VARS toy_r1.1600_s1000 r_value="1.1600" seed="1000"
+JOB toy_r1.1600_s1001 toy.sub
+VARS toy_r1.1600_s1001 r_value="1.1600" seed="1001"
+JOB toy_r1.1600_s1002 toy.sub
+VARS toy_r1.1600_s1002 r_value="1.1600" seed="1002"
+JOB toy_r1.1600_s1003 toy.sub
+VARS toy_r1.1600_s1003 r_value="1.1600" seed="1003"
+JOB toy_r1.1600_s1004 toy.sub
+VARS toy_r1.1600_s1004 r_value="1.1600" seed="1004"
+JOB toy_r1.1600_s1005 toy.sub
+VARS toy_r1.1600_s1005 r_value="1.1600" seed="1005"
+JOB toy_r1.1600_s1006 toy.sub
+VARS toy_r1.1600_s1006 r_value="1.1600" seed="1006"
+JOB toy_r1.1600_s1007 toy.sub
+VARS toy_r1.1600_s1007 r_value="1.1600" seed="1007"
+JOB toy_r1.1600_s1008 toy.sub
+VARS toy_r1.1600_s1008 r_value="1.1600" seed="1008"
+JOB toy_r1.1600_s1009 toy.sub
+VARS toy_r1.1600_s1009 r_value="1.1600" seed="1009"
+JOB toy_r1.1800_s1000 toy.sub
+VARS toy_r1.1800_s1000 r_value="1.1800" seed="1000"
+JOB toy_r1.1800_s1001 toy.sub
+VARS toy_r1.1800_s1001 r_value="1.1800" seed="1001"
+JOB toy_r1.1800_s1002 toy.sub
+VARS toy_r1.1800_s1002 r_value="1.1800" seed="1002"
+JOB toy_r1.1800_s1003 toy.sub
+VARS toy_r1.1800_s1003 r_value="1.1800" seed="1003"
+JOB toy_r1.1800_s1004 toy.sub
+VARS toy_r1.1800_s1004 r_value="1.1800" seed="1004"
+JOB toy_r1.1800_s1005 toy.sub
+VARS toy_r1.1800_s1005 r_value="1.1800" seed="1005"
+JOB toy_r1.1800_s1006 toy.sub
+VARS toy_r1.1800_s1006 r_value="1.1800" seed="1006"
+JOB toy_r1.1800_s1007 toy.sub
+VARS toy_r1.1800_s1007 r_value="1.1800" seed="1007"
+JOB toy_r1.1800_s1008 toy.sub
+VARS toy_r1.1800_s1008 r_value="1.1800" seed="1008"
+JOB toy_r1.1800_s1009 toy.sub
+VARS toy_r1.1800_s1009 r_value="1.1800" seed="1009"
+JOB toy_r1.2000_s1000 toy.sub
+VARS toy_r1.2000_s1000 r_value="1.2000" seed="1000"
+JOB toy_r1.2000_s1001 toy.sub
+VARS toy_r1.2000_s1001 r_value="1.2000" seed="1001"
+JOB toy_r1.2000_s1002 toy.sub
+VARS toy_r1.2000_s1002 r_value="1.2000" seed="1002"
+JOB toy_r1.2000_s1003 toy.sub
+VARS toy_r1.2000_s1003 r_value="1.2000" seed="1003"
+JOB toy_r1.2000_s1004 toy.sub
+VARS toy_r1.2000_s1004 r_value="1.2000" seed="1004"
+JOB toy_r1.2000_s1005 toy.sub
+VARS toy_r1.2000_s1005 r_value="1.2000" seed="1005"
+JOB toy_r1.2000_s1006 toy.sub
+VARS toy_r1.2000_s1006 r_value="1.2000" seed="1006"
+JOB toy_r1.2000_s1007 toy.sub
+VARS toy_r1.2000_s1007 r_value="1.2000" seed="1007"
+JOB toy_r1.2000_s1008 toy.sub
+VARS toy_r1.2000_s1008 r_value="1.2000" seed="1008"
+JOB toy_r1.2000_s1009 toy.sub
+VARS toy_r1.2000_s1009 r_value="1.2000" seed="1009"
+JOB toy_r1.2200_s1000 toy.sub
+VARS toy_r1.2200_s1000 r_value="1.2200" seed="1000"
+JOB toy_r1.2200_s1001 toy.sub
+VARS toy_r1.2200_s1001 r_value="1.2200" seed="1001"
+JOB toy_r1.2200_s1002 toy.sub
+VARS toy_r1.2200_s1002 r_value="1.2200" seed="1002"
+JOB toy_r1.2200_s1003 toy.sub
+VARS toy_r1.2200_s1003 r_value="1.2200" seed="1003"
+JOB toy_r1.2200_s1004 toy.sub
+VARS toy_r1.2200_s1004 r_value="1.2200" seed="1004"
+JOB toy_r1.2200_s1005 toy.sub
+VARS toy_r1.2200_s1005 r_value="1.2200" seed="1005"
+JOB toy_r1.2200_s1006 toy.sub
+VARS toy_r1.2200_s1006 r_value="1.2200" seed="1006"
+JOB toy_r1.2200_s1007 toy.sub
+VARS toy_r1.2200_s1007 r_value="1.2200" seed="1007"
+JOB toy_r1.2200_s1008 toy.sub
+VARS toy_r1.2200_s1008 r_value="1.2200" seed="1008"
+JOB toy_r1.2200_s1009 toy.sub
+VARS toy_r1.2200_s1009 r_value="1.2200" seed="1009"
+JOB toy_r1.2400_s1000 toy.sub
+VARS toy_r1.2400_s1000 r_value="1.2400" seed="1000"
+JOB toy_r1.2400_s1001 toy.sub
+VARS toy_r1.2400_s1001 r_value="1.2400" seed="1001"
+JOB toy_r1.2400_s1002 toy.sub
+VARS toy_r1.2400_s1002 r_value="1.2400" seed="1002"
+JOB toy_r1.2400_s1003 toy.sub
+VARS toy_r1.2400_s1003 r_value="1.2400" seed="1003"
+JOB toy_r1.2400_s1004 toy.sub
+VARS toy_r1.2400_s1004 r_value="1.2400" seed="1004"
+JOB toy_r1.2400_s1005 toy.sub
+VARS toy_r1.2400_s1005 r_value="1.2400" seed="1005"
+JOB toy_r1.2400_s1006 toy.sub
+VARS toy_r1.2400_s1006 r_value="1.2400" seed="1006"
+JOB toy_r1.2400_s1007 toy.sub
+VARS toy_r1.2400_s1007 r_value="1.2400" seed="1007"
+JOB toy_r1.2400_s1008 toy.sub
+VARS toy_r1.2400_s1008 r_value="1.2400" seed="1008"
+JOB toy_r1.2400_s1009 toy.sub
+VARS toy_r1.2400_s1009 r_value="1.2400" seed="1009"
+JOB toy_r1.2600_s1000 toy.sub
+VARS toy_r1.2600_s1000 r_value="1.2600" seed="1000"
+JOB toy_r1.2600_s1001 toy.sub
+VARS toy_r1.2600_s1001 r_value="1.2600" seed="1001"
+JOB toy_r1.2600_s1002 toy.sub
+VARS toy_r1.2600_s1002 r_value="1.2600" seed="1002"
+JOB toy_r1.2600_s1003 toy.sub
+VARS toy_r1.2600_s1003 r_value="1.2600" seed="1003"
+JOB toy_r1.2600_s1004 toy.sub
+VARS toy_r1.2600_s1004 r_value="1.2600" seed="1004"
+JOB toy_r1.2600_s1005 toy.sub
+VARS toy_r1.2600_s1005 r_value="1.2600" seed="1005"
+JOB toy_r1.2600_s1006 toy.sub
+VARS toy_r1.2600_s1006 r_value="1.2600" seed="1006"
+JOB toy_r1.2600_s1007 toy.sub
+VARS toy_r1.2600_s1007 r_value="1.2600" seed="1007"
+JOB toy_r1.2600_s1008 toy.sub
+VARS toy_r1.2600_s1008 r_value="1.2600" seed="1008"
+JOB toy_r1.2600_s1009 toy.sub
+VARS toy_r1.2600_s1009 r_value="1.2600" seed="1009"
+JOB toy_r1.2800_s1000 toy.sub
+VARS toy_r1.2800_s1000 r_value="1.2800" seed="1000"
+JOB toy_r1.2800_s1001 toy.sub
+VARS toy_r1.2800_s1001 r_value="1.2800" seed="1001"
+JOB toy_r1.2800_s1002 toy.sub
+VARS toy_r1.2800_s1002 r_value="1.2800" seed="1002"
+JOB toy_r1.2800_s1003 toy.sub
+VARS toy_r1.2800_s1003 r_value="1.2800" seed="1003"
+JOB toy_r1.2800_s1004 toy.sub
+VARS toy_r1.2800_s1004 r_value="1.2800" seed="1004"
+JOB toy_r1.2800_s1005 toy.sub
+VARS toy_r1.2800_s1005 r_value="1.2800" seed="1005"
+JOB toy_r1.2800_s1006 toy.sub
+VARS toy_r1.2800_s1006 r_value="1.2800" seed="1006"
+JOB toy_r1.2800_s1007 toy.sub
+VARS toy_r1.2800_s1007 r_value="1.2800" seed="1007"
+JOB toy_r1.2800_s1008 toy.sub
+VARS toy_r1.2800_s1008 r_value="1.2800" seed="1008"
+JOB toy_r1.2800_s1009 toy.sub
+VARS toy_r1.2800_s1009 r_value="1.2800" seed="1009"
+JOB toy_r1.3000_s1000 toy.sub
+VARS toy_r1.3000_s1000 r_value="1.3000" seed="1000"
+JOB toy_r1.3000_s1001 toy.sub
+VARS toy_r1.3000_s1001 r_value="1.3000" seed="1001"
+JOB toy_r1.3000_s1002 toy.sub
+VARS toy_r1.3000_s1002 r_value="1.3000" seed="1002"
+JOB toy_r1.3000_s1003 toy.sub
+VARS toy_r1.3000_s1003 r_value="1.3000" seed="1003"
+JOB toy_r1.3000_s1004 toy.sub
+VARS toy_r1.3000_s1004 r_value="1.3000" seed="1004"
+JOB toy_r1.3000_s1005 toy.sub
+VARS toy_r1.3000_s1005 r_value="1.3000" seed="1005"
+JOB toy_r1.3000_s1006 toy.sub
+VARS toy_r1.3000_s1006 r_value="1.3000" seed="1006"
+JOB toy_r1.3000_s1007 toy.sub
+VARS toy_r1.3000_s1007 r_value="1.3000" seed="1007"
+JOB toy_r1.3000_s1008 toy.sub
+VARS toy_r1.3000_s1008 r_value="1.3000" seed="1008"
+JOB toy_r1.3000_s1009 toy.sub
+VARS toy_r1.3000_s1009 r_value="1.3000" seed="1009"
+JOB toy_r1.3200_s1000 toy.sub
+VARS toy_r1.3200_s1000 r_value="1.3200" seed="1000"
+JOB toy_r1.3200_s1001 toy.sub
+VARS toy_r1.3200_s1001 r_value="1.3200" seed="1001"
+JOB toy_r1.3200_s1002 toy.sub
+VARS toy_r1.3200_s1002 r_value="1.3200" seed="1002"
+JOB toy_r1.3200_s1003 toy.sub
+VARS toy_r1.3200_s1003 r_value="1.3200" seed="1003"
+JOB toy_r1.3200_s1004 toy.sub
+VARS toy_r1.3200_s1004 r_value="1.3200" seed="1004"
+JOB toy_r1.3200_s1005 toy.sub
+VARS toy_r1.3200_s1005 r_value="1.3200" seed="1005"
+JOB toy_r1.3200_s1006 toy.sub
+VARS toy_r1.3200_s1006 r_value="1.3200" seed="1006"
+JOB toy_r1.3200_s1007 toy.sub
+VARS toy_r1.3200_s1007 r_value="1.3200" seed="1007"
+JOB toy_r1.3200_s1008 toy.sub
+VARS toy_r1.3200_s1008 r_value="1.3200" seed="1008"
+JOB toy_r1.3200_s1009 toy.sub
+VARS toy_r1.3200_s1009 r_value="1.3200" seed="1009"
+JOB toy_r1.3400_s1000 toy.sub
+VARS toy_r1.3400_s1000 r_value="1.3400" seed="1000"
+JOB toy_r1.3400_s1001 toy.sub
+VARS toy_r1.3400_s1001 r_value="1.3400" seed="1001"
+JOB toy_r1.3400_s1002 toy.sub
+VARS toy_r1.3400_s1002 r_value="1.3400" seed="1002"
+JOB toy_r1.3400_s1003 toy.sub
+VARS toy_r1.3400_s1003 r_value="1.3400" seed="1003"
+JOB toy_r1.3400_s1004 toy.sub
+VARS toy_r1.3400_s1004 r_value="1.3400" seed="1004"
+JOB toy_r1.3400_s1005 toy.sub
+VARS toy_r1.3400_s1005 r_value="1.3400" seed="1005"
+JOB toy_r1.3400_s1006 toy.sub
+VARS toy_r1.3400_s1006 r_value="1.3400" seed="1006"
+JOB toy_r1.3400_s1007 toy.sub
+VARS toy_r1.3400_s1007 r_value="1.3400" seed="1007"
+JOB toy_r1.3400_s1008 toy.sub
+VARS toy_r1.3400_s1008 r_value="1.3400" seed="1008"
+JOB toy_r1.3400_s1009 toy.sub
+VARS toy_r1.3400_s1009 r_value="1.3400" seed="1009"
+JOB toy_r1.3600_s1000 toy.sub
+VARS toy_r1.3600_s1000 r_value="1.3600" seed="1000"
+JOB toy_r1.3600_s1001 toy.sub
+VARS toy_r1.3600_s1001 r_value="1.3600" seed="1001"
+JOB toy_r1.3600_s1002 toy.sub
+VARS toy_r1.3600_s1002 r_value="1.3600" seed="1002"
+JOB toy_r1.3600_s1003 toy.sub
+VARS toy_r1.3600_s1003 r_value="1.3600" seed="1003"
+JOB toy_r1.3600_s1004 toy.sub
+VARS toy_r1.3600_s1004 r_value="1.3600" seed="1004"
+JOB toy_r1.3600_s1005 toy.sub
+VARS toy_r1.3600_s1005 r_value="1.3600" seed="1005"
+JOB toy_r1.3600_s1006 toy.sub
+VARS toy_r1.3600_s1006 r_value="1.3600" seed="1006"
+JOB toy_r1.3600_s1007 toy.sub
+VARS toy_r1.3600_s1007 r_value="1.3600" seed="1007"
+JOB toy_r1.3600_s1008 toy.sub
+VARS toy_r1.3600_s1008 r_value="1.3600" seed="1008"
+JOB toy_r1.3600_s1009 toy.sub
+VARS toy_r1.3600_s1009 r_value="1.3600" seed="1009"
+JOB toy_r1.3800_s1000 toy.sub
+VARS toy_r1.3800_s1000 r_value="1.3800" seed="1000"
+JOB toy_r1.3800_s1001 toy.sub
+VARS toy_r1.3800_s1001 r_value="1.3800" seed="1001"
+JOB toy_r1.3800_s1002 toy.sub
+VARS toy_r1.3800_s1002 r_value="1.3800" seed="1002"
+JOB toy_r1.3800_s1003 toy.sub
+VARS toy_r1.3800_s1003 r_value="1.3800" seed="1003"
+JOB toy_r1.3800_s1004 toy.sub
+VARS toy_r1.3800_s1004 r_value="1.3800" seed="1004"
+JOB toy_r1.3800_s1005 toy.sub
+VARS toy_r1.3800_s1005 r_value="1.3800" seed="1005"
+JOB toy_r1.3800_s1006 toy.sub
+VARS toy_r1.3800_s1006 r_value="1.3800" seed="1006"
+JOB toy_r1.3800_s1007 toy.sub
+VARS toy_r1.3800_s1007 r_value="1.3800" seed="1007"
+JOB toy_r1.3800_s1008 toy.sub
+VARS toy_r1.3800_s1008 r_value="1.3800" seed="1008"
+JOB toy_r1.3800_s1009 toy.sub
+VARS toy_r1.3800_s1009 r_value="1.3800" seed="1009"
+JOB toy_r1.4000_s1000 toy.sub
+VARS toy_r1.4000_s1000 r_value="1.4000" seed="1000"
+JOB toy_r1.4000_s1001 toy.sub
+VARS toy_r1.4000_s1001 r_value="1.4000" seed="1001"
+JOB toy_r1.4000_s1002 toy.sub
+VARS toy_r1.4000_s1002 r_value="1.4000" seed="1002"
+JOB toy_r1.4000_s1003 toy.sub
+VARS toy_r1.4000_s1003 r_value="1.4000" seed="1003"
+JOB toy_r1.4000_s1004 toy.sub
+VARS toy_r1.4000_s1004 r_value="1.4000" seed="1004"
+JOB toy_r1.4000_s1005 toy.sub
+VARS toy_r1.4000_s1005 r_value="1.4000" seed="1005"
+JOB toy_r1.4000_s1006 toy.sub
+VARS toy_r1.4000_s1006 r_value="1.4000" seed="1006"
+JOB toy_r1.4000_s1007 toy.sub
+VARS toy_r1.4000_s1007 r_value="1.4000" seed="1007"
+JOB toy_r1.4000_s1008 toy.sub
+VARS toy_r1.4000_s1008 r_value="1.4000" seed="1008"
+JOB toy_r1.4000_s1009 toy.sub
+VARS toy_r1.4000_s1009 r_value="1.4000" seed="1009"
+JOB toy_r1.4200_s1000 toy.sub
+VARS toy_r1.4200_s1000 r_value="1.4200" seed="1000"
+JOB toy_r1.4200_s1001 toy.sub
+VARS toy_r1.4200_s1001 r_value="1.4200" seed="1001"
+JOB toy_r1.4200_s1002 toy.sub
+VARS toy_r1.4200_s1002 r_value="1.4200" seed="1002"
+JOB toy_r1.4200_s1003 toy.sub
+VARS toy_r1.4200_s1003 r_value="1.4200" seed="1003"
+JOB toy_r1.4200_s1004 toy.sub
+VARS toy_r1.4200_s1004 r_value="1.4200" seed="1004"
+JOB toy_r1.4200_s1005 toy.sub
+VARS toy_r1.4200_s1005 r_value="1.4200" seed="1005"
+JOB toy_r1.4200_s1006 toy.sub
+VARS toy_r1.4200_s1006 r_value="1.4200" seed="1006"
+JOB toy_r1.4200_s1007 toy.sub
+VARS toy_r1.4200_s1007 r_value="1.4200" seed="1007"
+JOB toy_r1.4200_s1008 toy.sub
+VARS toy_r1.4200_s1008 r_value="1.4200" seed="1008"
+JOB toy_r1.4200_s1009 toy.sub
+VARS toy_r1.4200_s1009 r_value="1.4200" seed="1009"
+JOB toy_r1.4400_s1000 toy.sub
+VARS toy_r1.4400_s1000 r_value="1.4400" seed="1000"
+JOB toy_r1.4400_s1001 toy.sub
+VARS toy_r1.4400_s1001 r_value="1.4400" seed="1001"
+JOB toy_r1.4400_s1002 toy.sub
+VARS toy_r1.4400_s1002 r_value="1.4400" seed="1002"
+JOB toy_r1.4400_s1003 toy.sub
+VARS toy_r1.4400_s1003 r_value="1.4400" seed="1003"
+JOB toy_r1.4400_s1004 toy.sub
+VARS toy_r1.4400_s1004 r_value="1.4400" seed="1004"
+JOB toy_r1.4400_s1005 toy.sub
+VARS toy_r1.4400_s1005 r_value="1.4400" seed="1005"
+JOB toy_r1.4400_s1006 toy.sub
+VARS toy_r1.4400_s1006 r_value="1.4400" seed="1006"
+JOB toy_r1.4400_s1007 toy.sub
+VARS toy_r1.4400_s1007 r_value="1.4400" seed="1007"
+JOB toy_r1.4400_s1008 toy.sub
+VARS toy_r1.4400_s1008 r_value="1.4400" seed="1008"
+JOB toy_r1.4400_s1009 toy.sub
+VARS toy_r1.4400_s1009 r_value="1.4400" seed="1009"
+JOB toy_r1.4600_s1000 toy.sub
+VARS toy_r1.4600_s1000 r_value="1.4600" seed="1000"
+JOB toy_r1.4600_s1001 toy.sub
+VARS toy_r1.4600_s1001 r_value="1.4600" seed="1001"
+JOB toy_r1.4600_s1002 toy.sub
+VARS toy_r1.4600_s1002 r_value="1.4600" seed="1002"
+JOB toy_r1.4600_s1003 toy.sub
+VARS toy_r1.4600_s1003 r_value="1.4600" seed="1003"
+JOB toy_r1.4600_s1004 toy.sub
+VARS toy_r1.4600_s1004 r_value="1.4600" seed="1004"
+JOB toy_r1.4600_s1005 toy.sub
+VARS toy_r1.4600_s1005 r_value="1.4600" seed="1005"
+JOB toy_r1.4600_s1006 toy.sub
+VARS toy_r1.4600_s1006 r_value="1.4600" seed="1006"
+JOB toy_r1.4600_s1007 toy.sub
+VARS toy_r1.4600_s1007 r_value="1.4600" seed="1007"
+JOB toy_r1.4600_s1008 toy.sub
+VARS toy_r1.4600_s1008 r_value="1.4600" seed="1008"
+JOB toy_r1.4600_s1009 toy.sub
+VARS toy_r1.4600_s1009 r_value="1.4600" seed="1009"
+JOB toy_r1.4800_s1000 toy.sub
+VARS toy_r1.4800_s1000 r_value="1.4800" seed="1000"
+JOB toy_r1.4800_s1001 toy.sub
+VARS toy_r1.4800_s1001 r_value="1.4800" seed="1001"
+JOB toy_r1.4800_s1002 toy.sub
+VARS toy_r1.4800_s1002 r_value="1.4800" seed="1002"
+JOB toy_r1.4800_s1003 toy.sub
+VARS toy_r1.4800_s1003 r_value="1.4800" seed="1003"
+JOB toy_r1.4800_s1004 toy.sub
+VARS toy_r1.4800_s1004 r_value="1.4800" seed="1004"
+JOB toy_r1.4800_s1005 toy.sub
+VARS toy_r1.4800_s1005 r_value="1.4800" seed="1005"
+JOB toy_r1.4800_s1006 toy.sub
+VARS toy_r1.4800_s1006 r_value="1.4800" seed="1006"
+JOB toy_r1.4800_s1007 toy.sub
+VARS toy_r1.4800_s1007 r_value="1.4800" seed="1007"
+JOB toy_r1.4800_s1008 toy.sub
+VARS toy_r1.4800_s1008 r_value="1.4800" seed="1008"
+JOB toy_r1.4800_s1009 toy.sub
+VARS toy_r1.4800_s1009 r_value="1.4800" seed="1009"
+JOB toy_r1.5000_s1000 toy.sub
+VARS toy_r1.5000_s1000 r_value="1.5000" seed="1000"
+JOB toy_r1.5000_s1001 toy.sub
+VARS toy_r1.5000_s1001 r_value="1.5000" seed="1001"
+JOB toy_r1.5000_s1002 toy.sub
+VARS toy_r1.5000_s1002 r_value="1.5000" seed="1002"
+JOB toy_r1.5000_s1003 toy.sub
+VARS toy_r1.5000_s1003 r_value="1.5000" seed="1003"
+JOB toy_r1.5000_s1004 toy.sub
+VARS toy_r1.5000_s1004 r_value="1.5000" seed="1004"
+JOB toy_r1.5000_s1005 toy.sub
+VARS toy_r1.5000_s1005 r_value="1.5000" seed="1005"
+JOB toy_r1.5000_s1006 toy.sub
+VARS toy_r1.5000_s1006 r_value="1.5000" seed="1006"
+JOB toy_r1.5000_s1007 toy.sub
+VARS toy_r1.5000_s1007 r_value="1.5000" seed="1007"
+JOB toy_r1.5000_s1008 toy.sub
+VARS toy_r1.5000_s1008 r_value="1.5000" seed="1008"
+JOB toy_r1.5000_s1009 toy.sub
+VARS toy_r1.5000_s1009 r_value="1.5000" seed="1009"
+JOB toy_r1.5200_s1000 toy.sub
+VARS toy_r1.5200_s1000 r_value="1.5200" seed="1000"
+JOB toy_r1.5200_s1001 toy.sub
+VARS toy_r1.5200_s1001 r_value="1.5200" seed="1001"
+JOB toy_r1.5200_s1002 toy.sub
+VARS toy_r1.5200_s1002 r_value="1.5200" seed="1002"
+JOB toy_r1.5200_s1003 toy.sub
+VARS toy_r1.5200_s1003 r_value="1.5200" seed="1003"
+JOB toy_r1.5200_s1004 toy.sub
+VARS toy_r1.5200_s1004 r_value="1.5200" seed="1004"
+JOB toy_r1.5200_s1005 toy.sub
+VARS toy_r1.5200_s1005 r_value="1.5200" seed="1005"
+JOB toy_r1.5200_s1006 toy.sub
+VARS toy_r1.5200_s1006 r_value="1.5200" seed="1006"
+JOB toy_r1.5200_s1007 toy.sub
+VARS toy_r1.5200_s1007 r_value="1.5200" seed="1007"
+JOB toy_r1.5200_s1008 toy.sub
+VARS toy_r1.5200_s1008 r_value="1.5200" seed="1008"
+JOB toy_r1.5200_s1009 toy.sub
+VARS toy_r1.5200_s1009 r_value="1.5200" seed="1009"
+JOB toy_r1.5400_s1000 toy.sub
+VARS toy_r1.5400_s1000 r_value="1.5400" seed="1000"
+JOB toy_r1.5400_s1001 toy.sub
+VARS toy_r1.5400_s1001 r_value="1.5400" seed="1001"
+JOB toy_r1.5400_s1002 toy.sub
+VARS toy_r1.5400_s1002 r_value="1.5400" seed="1002"
+JOB toy_r1.5400_s1003 toy.sub
+VARS toy_r1.5400_s1003 r_value="1.5400" seed="1003"
+JOB toy_r1.5400_s1004 toy.sub
+VARS toy_r1.5400_s1004 r_value="1.5400" seed="1004"
+JOB toy_r1.5400_s1005 toy.sub
+VARS toy_r1.5400_s1005 r_value="1.5400" seed="1005"
+JOB toy_r1.5400_s1006 toy.sub
+VARS toy_r1.5400_s1006 r_value="1.5400" seed="1006"
+JOB toy_r1.5400_s1007 toy.sub
+VARS toy_r1.5400_s1007 r_value="1.5400" seed="1007"
+JOB toy_r1.5400_s1008 toy.sub
+VARS toy_r1.5400_s1008 r_value="1.5400" seed="1008"
+JOB toy_r1.5400_s1009 toy.sub
+VARS toy_r1.5400_s1009 r_value="1.5400" seed="1009"
+JOB toy_r1.5600_s1000 toy.sub
+VARS toy_r1.5600_s1000 r_value="1.5600" seed="1000"
+JOB toy_r1.5600_s1001 toy.sub
+VARS toy_r1.5600_s1001 r_value="1.5600" seed="1001"
+JOB toy_r1.5600_s1002 toy.sub
+VARS toy_r1.5600_s1002 r_value="1.5600" seed="1002"
+JOB toy_r1.5600_s1003 toy.sub
+VARS toy_r1.5600_s1003 r_value="1.5600" seed="1003"
+JOB toy_r1.5600_s1004 toy.sub
+VARS toy_r1.5600_s1004 r_value="1.5600" seed="1004"
+JOB toy_r1.5600_s1005 toy.sub
+VARS toy_r1.5600_s1005 r_value="1.5600" seed="1005"
+JOB toy_r1.5600_s1006 toy.sub
+VARS toy_r1.5600_s1006 r_value="1.5600" seed="1006"
+JOB toy_r1.5600_s1007 toy.sub
+VARS toy_r1.5600_s1007 r_value="1.5600" seed="1007"
+JOB toy_r1.5600_s1008 toy.sub
+VARS toy_r1.5600_s1008 r_value="1.5600" seed="1008"
+JOB toy_r1.5600_s1009 toy.sub
+VARS toy_r1.5600_s1009 r_value="1.5600" seed="1009"
+JOB toy_r1.5800_s1000 toy.sub
+VARS toy_r1.5800_s1000 r_value="1.5800" seed="1000"
+JOB toy_r1.5800_s1001 toy.sub
+VARS toy_r1.5800_s1001 r_value="1.5800" seed="1001"
+JOB toy_r1.5800_s1002 toy.sub
+VARS toy_r1.5800_s1002 r_value="1.5800" seed="1002"
+JOB toy_r1.5800_s1003 toy.sub
+VARS toy_r1.5800_s1003 r_value="1.5800" seed="1003"
+JOB toy_r1.5800_s1004 toy.sub
+VARS toy_r1.5800_s1004 r_value="1.5800" seed="1004"
+JOB toy_r1.5800_s1005 toy.sub
+VARS toy_r1.5800_s1005 r_value="1.5800" seed="1005"
+JOB toy_r1.5800_s1006 toy.sub
+VARS toy_r1.5800_s1006 r_value="1.5800" seed="1006"
+JOB toy_r1.5800_s1007 toy.sub
+VARS toy_r1.5800_s1007 r_value="1.5800" seed="1007"
+JOB toy_r1.5800_s1008 toy.sub
+VARS toy_r1.5800_s1008 r_value="1.5800" seed="1008"
+JOB toy_r1.5800_s1009 toy.sub
+VARS toy_r1.5800_s1009 r_value="1.5800" seed="1009"
+JOB toy_r1.6000_s1000 toy.sub
+VARS toy_r1.6000_s1000 r_value="1.6000" seed="1000"
+JOB toy_r1.6000_s1001 toy.sub
+VARS toy_r1.6000_s1001 r_value="1.6000" seed="1001"
+JOB toy_r1.6000_s1002 toy.sub
+VARS toy_r1.6000_s1002 r_value="1.6000" seed="1002"
+JOB toy_r1.6000_s1003 toy.sub
+VARS toy_r1.6000_s1003 r_value="1.6000" seed="1003"
+JOB toy_r1.6000_s1004 toy.sub
+VARS toy_r1.6000_s1004 r_value="1.6000" seed="1004"
+JOB toy_r1.6000_s1005 toy.sub
+VARS toy_r1.6000_s1005 r_value="1.6000" seed="1005"
+JOB toy_r1.6000_s1006 toy.sub
+VARS toy_r1.6000_s1006 r_value="1.6000" seed="1006"
+JOB toy_r1.6000_s1007 toy.sub
+VARS toy_r1.6000_s1007 r_value="1.6000" seed="1007"
+JOB toy_r1.6000_s1008 toy.sub
+VARS toy_r1.6000_s1008 r_value="1.6000" seed="1008"
+JOB toy_r1.6000_s1009 toy.sub
+VARS toy_r1.6000_s1009 r_value="1.6000" seed="1009"
+JOB toy_r1.6200_s1000 toy.sub
+VARS toy_r1.6200_s1000 r_value="1.6200" seed="1000"
+JOB toy_r1.6200_s1001 toy.sub
+VARS toy_r1.6200_s1001 r_value="1.6200" seed="1001"
+JOB toy_r1.6200_s1002 toy.sub
+VARS toy_r1.6200_s1002 r_value="1.6200" seed="1002"
+JOB toy_r1.6200_s1003 toy.sub
+VARS toy_r1.6200_s1003 r_value="1.6200" seed="1003"
+JOB toy_r1.6200_s1004 toy.sub
+VARS toy_r1.6200_s1004 r_value="1.6200" seed="1004"
+JOB toy_r1.6200_s1005 toy.sub
+VARS toy_r1.6200_s1005 r_value="1.6200" seed="1005"
+JOB toy_r1.6200_s1006 toy.sub
+VARS toy_r1.6200_s1006 r_value="1.6200" seed="1006"
+JOB toy_r1.6200_s1007 toy.sub
+VARS toy_r1.6200_s1007 r_value="1.6200" seed="1007"
+JOB toy_r1.6200_s1008 toy.sub
+VARS toy_r1.6200_s1008 r_value="1.6200" seed="1008"
+JOB toy_r1.6200_s1009 toy.sub
+VARS toy_r1.6200_s1009 r_value="1.6200" seed="1009"
+JOB toy_r1.6400_s1000 toy.sub
+VARS toy_r1.6400_s1000 r_value="1.6400" seed="1000"
+JOB toy_r1.6400_s1001 toy.sub
+VARS toy_r1.6400_s1001 r_value="1.6400" seed="1001"
+JOB toy_r1.6400_s1002 toy.sub
+VARS toy_r1.6400_s1002 r_value="1.6400" seed="1002"
+JOB toy_r1.6400_s1003 toy.sub
+VARS toy_r1.6400_s1003 r_value="1.6400" seed="1003"
+JOB toy_r1.6400_s1004 toy.sub
+VARS toy_r1.6400_s1004 r_value="1.6400" seed="1004"
+JOB toy_r1.6400_s1005 toy.sub
+VARS toy_r1.6400_s1005 r_value="1.6400" seed="1005"
+JOB toy_r1.6400_s1006 toy.sub
+VARS toy_r1.6400_s1006 r_value="1.6400" seed="1006"
+JOB toy_r1.6400_s1007 toy.sub
+VARS toy_r1.6400_s1007 r_value="1.6400" seed="1007"
+JOB toy_r1.6400_s1008 toy.sub
+VARS toy_r1.6400_s1008 r_value="1.6400" seed="1008"
+JOB toy_r1.6400_s1009 toy.sub
+VARS toy_r1.6400_s1009 r_value="1.6400" seed="1009"
+JOB toy_r1.6600_s1000 toy.sub
+VARS toy_r1.6600_s1000 r_value="1.6600" seed="1000"
+JOB toy_r1.6600_s1001 toy.sub
+VARS toy_r1.6600_s1001 r_value="1.6600" seed="1001"
+JOB toy_r1.6600_s1002 toy.sub
+VARS toy_r1.6600_s1002 r_value="1.6600" seed="1002"
+JOB toy_r1.6600_s1003 toy.sub
+VARS toy_r1.6600_s1003 r_value="1.6600" seed="1003"
+JOB toy_r1.6600_s1004 toy.sub
+VARS toy_r1.6600_s1004 r_value="1.6600" seed="1004"
+JOB toy_r1.6600_s1005 toy.sub
+VARS toy_r1.6600_s1005 r_value="1.6600" seed="1005"
+JOB toy_r1.6600_s1006 toy.sub
+VARS toy_r1.6600_s1006 r_value="1.6600" seed="1006"
+JOB toy_r1.6600_s1007 toy.sub
+VARS toy_r1.6600_s1007 r_value="1.6600" seed="1007"
+JOB toy_r1.6600_s1008 toy.sub
+VARS toy_r1.6600_s1008 r_value="1.6600" seed="1008"
+JOB toy_r1.6600_s1009 toy.sub
+VARS toy_r1.6600_s1009 r_value="1.6600" seed="1009"
+JOB toy_r1.6800_s1000 toy.sub
+VARS toy_r1.6800_s1000 r_value="1.6800" seed="1000"
+JOB toy_r1.6800_s1001 toy.sub
+VARS toy_r1.6800_s1001 r_value="1.6800" seed="1001"
+JOB toy_r1.6800_s1002 toy.sub
+VARS toy_r1.6800_s1002 r_value="1.6800" seed="1002"
+JOB toy_r1.6800_s1003 toy.sub
+VARS toy_r1.6800_s1003 r_value="1.6800" seed="1003"
+JOB toy_r1.6800_s1004 toy.sub
+VARS toy_r1.6800_s1004 r_value="1.6800" seed="1004"
+JOB toy_r1.6800_s1005 toy.sub
+VARS toy_r1.6800_s1005 r_value="1.6800" seed="1005"
+JOB toy_r1.6800_s1006 toy.sub
+VARS toy_r1.6800_s1006 r_value="1.6800" seed="1006"
+JOB toy_r1.6800_s1007 toy.sub
+VARS toy_r1.6800_s1007 r_value="1.6800" seed="1007"
+JOB toy_r1.6800_s1008 toy.sub
+VARS toy_r1.6800_s1008 r_value="1.6800" seed="1008"
+JOB toy_r1.6800_s1009 toy.sub
+VARS toy_r1.6800_s1009 r_value="1.6800" seed="1009"
+JOB toy_r1.7000_s1000 toy.sub
+VARS toy_r1.7000_s1000 r_value="1.7000" seed="1000"
+JOB toy_r1.7000_s1001 toy.sub
+VARS toy_r1.7000_s1001 r_value="1.7000" seed="1001"
+JOB toy_r1.7000_s1002 toy.sub
+VARS toy_r1.7000_s1002 r_value="1.7000" seed="1002"
+JOB toy_r1.7000_s1003 toy.sub
+VARS toy_r1.7000_s1003 r_value="1.7000" seed="1003"
+JOB toy_r1.7000_s1004 toy.sub
+VARS toy_r1.7000_s1004 r_value="1.7000" seed="1004"
+JOB toy_r1.7000_s1005 toy.sub
+VARS toy_r1.7000_s1005 r_value="1.7000" seed="1005"
+JOB toy_r1.7000_s1006 toy.sub
+VARS toy_r1.7000_s1006 r_value="1.7000" seed="1006"
+JOB toy_r1.7000_s1007 toy.sub
+VARS toy_r1.7000_s1007 r_value="1.7000" seed="1007"
+JOB toy_r1.7000_s1008 toy.sub
+VARS toy_r1.7000_s1008 r_value="1.7000" seed="1008"
+JOB toy_r1.7000_s1009 toy.sub
+VARS toy_r1.7000_s1009 r_value="1.7000" seed="1009"
+JOB toy_r1.7200_s1000 toy.sub
+VARS toy_r1.7200_s1000 r_value="1.7200" seed="1000"
+JOB toy_r1.7200_s1001 toy.sub
+VARS toy_r1.7200_s1001 r_value="1.7200" seed="1001"
+JOB toy_r1.7200_s1002 toy.sub
+VARS toy_r1.7200_s1002 r_value="1.7200" seed="1002"
+JOB toy_r1.7200_s1003 toy.sub
+VARS toy_r1.7200_s1003 r_value="1.7200" seed="1003"
+JOB toy_r1.7200_s1004 toy.sub
+VARS toy_r1.7200_s1004 r_value="1.7200" seed="1004"
+JOB toy_r1.7200_s1005 toy.sub
+VARS toy_r1.7200_s1005 r_value="1.7200" seed="1005"
+JOB toy_r1.7200_s1006 toy.sub
+VARS toy_r1.7200_s1006 r_value="1.7200" seed="1006"
+JOB toy_r1.7200_s1007 toy.sub
+VARS toy_r1.7200_s1007 r_value="1.7200" seed="1007"
+JOB toy_r1.7200_s1008 toy.sub
+VARS toy_r1.7200_s1008 r_value="1.7200" seed="1008"
+JOB toy_r1.7200_s1009 toy.sub
+VARS toy_r1.7200_s1009 r_value="1.7200" seed="1009"
+
+# Step 3: Merge toy results
+JOB merge merge.sub
+
+# Step 4: Extract limits
+JOB exp0.025 extract.sub
+VARS exp0.025 quantile="0.025" name="exp0.025"
+JOB exp0.160 extract.sub
+VARS exp0.160 quantile="0.160" name="exp0.160"
+JOB exp0.500 extract.sub
+VARS exp0.500 quantile="0.500" name="exp0.500"
+JOB exp0.840 extract.sub
+VARS exp0.840 quantile="0.840" name="exp0.840"
+JOB exp0.975 extract.sub
+VARS exp0.975 quantile="0.975" name="exp0.975"
+JOB observed extract.sub
+VARS observed quantile="observed" name="obs"
+
+# Dependencies
+PARENT workspace CHILD toy_r0.1000_s1000 toy_r0.1000_s1001 toy_r0.1000_s1002 toy_r0.1000_s1003 toy_r0.1000_s1004 toy_r0.1000_s1005 toy_r0.1000_s1006 toy_r0.1000_s1007 toy_r0.1000_s1008 toy_r0.1000_s1009 toy_r0.1200_s1000 toy_r0.1200_s1001 toy_r0.1200_s1002 toy_r0.1200_s1003 toy_r0.1200_s1004 toy_r0.1200_s1005 toy_r0.1200_s1006 toy_r0.1200_s1007 toy_r0.1200_s1008 toy_r0.1200_s1009 toy_r0.1400_s1000 toy_r0.1400_s1001 toy_r0.1400_s1002 toy_r0.1400_s1003 toy_r0.1400_s1004 toy_r0.1400_s1005 toy_r0.1400_s1006 toy_r0.1400_s1007 toy_r0.1400_s1008 toy_r0.1400_s1009 toy_r0.1600_s1000 toy_r0.1600_s1001 toy_r0.1600_s1002 toy_r0.1600_s1003 toy_r0.1600_s1004 toy_r0.1600_s1005 toy_r0.1600_s1006 toy_r0.1600_s1007 toy_r0.1600_s1008 toy_r0.1600_s1009 toy_r0.1800_s1000 toy_r0.1800_s1001 toy_r0.1800_s1002 toy_r0.1800_s1003 toy_r0.1800_s1004 toy_r0.1800_s1005 toy_r0.1800_s1006 toy_r0.1800_s1007 toy_r0.1800_s1008 toy_r0.1800_s1009 toy_r0.2000_s1000 toy_r0.2000_s1001 toy_r0.2000_s1002 toy_r0.2000_s1003 toy_r0.2000_s1004 toy_r0.2000_s1005 toy_r0.2000_s1006 toy_r0.2000_s1007 toy_r0.2000_s1008 toy_r0.2000_s1009 toy_r0.2200_s1000 toy_r0.2200_s1001 toy_r0.2200_s1002 toy_r0.2200_s1003 toy_r0.2200_s1004 toy_r0.2200_s1005 toy_r0.2200_s1006 toy_r0.2200_s1007 toy_r0.2200_s1008 toy_r0.2200_s1009 toy_r0.2400_s1000 toy_r0.2400_s1001 toy_r0.2400_s1002 toy_r0.2400_s1003 toy_r0.2400_s1004 toy_r0.2400_s1005 toy_r0.2400_s1006 toy_r0.2400_s1007 toy_r0.2400_s1008 toy_r0.2400_s1009 toy_r0.2600_s1000 toy_r0.2600_s1001 toy_r0.2600_s1002 toy_r0.2600_s1003 toy_r0.2600_s1004 toy_r0.2600_s1005 toy_r0.2600_s1006 toy_r0.2600_s1007 toy_r0.2600_s1008 toy_r0.2600_s1009 toy_r0.2800_s1000 toy_r0.2800_s1001 toy_r0.2800_s1002 toy_r0.2800_s1003 toy_r0.2800_s1004 toy_r0.2800_s1005 toy_r0.2800_s1006 toy_r0.2800_s1007 toy_r0.2800_s1008 toy_r0.2800_s1009 toy_r0.3000_s1000 toy_r0.3000_s1001 toy_r0.3000_s1002 toy_r0.3000_s1003 toy_r0.3000_s1004 toy_r0.3000_s1005 toy_r0.3000_s1006 toy_r0.3000_s1007 toy_r0.3000_s1008 toy_r0.3000_s1009 toy_r0.3200_s1000 toy_r0.3200_s1001 toy_r0.3200_s1002 toy_r0.3200_s1003 toy_r0.3200_s1004 toy_r0.3200_s1005 toy_r0.3200_s1006 toy_r0.3200_s1007 toy_r0.3200_s1008 toy_r0.3200_s1009 toy_r0.3400_s1000 toy_r0.3400_s1001 toy_r0.3400_s1002 toy_r0.3400_s1003 toy_r0.3400_s1004 toy_r0.3400_s1005 toy_r0.3400_s1006 toy_r0.3400_s1007 toy_r0.3400_s1008 toy_r0.3400_s1009 toy_r0.3600_s1000 toy_r0.3600_s1001 toy_r0.3600_s1002 toy_r0.3600_s1003 toy_r0.3600_s1004 toy_r0.3600_s1005 toy_r0.3600_s1006 toy_r0.3600_s1007 toy_r0.3600_s1008 toy_r0.3600_s1009 toy_r0.3800_s1000 toy_r0.3800_s1001 toy_r0.3800_s1002 toy_r0.3800_s1003 toy_r0.3800_s1004 toy_r0.3800_s1005 toy_r0.3800_s1006 toy_r0.3800_s1007 toy_r0.3800_s1008 toy_r0.3800_s1009 toy_r0.4000_s1000 toy_r0.4000_s1001 toy_r0.4000_s1002 toy_r0.4000_s1003 toy_r0.4000_s1004 toy_r0.4000_s1005 toy_r0.4000_s1006 toy_r0.4000_s1007 toy_r0.4000_s1008 toy_r0.4000_s1009 toy_r0.4200_s1000 toy_r0.4200_s1001 toy_r0.4200_s1002 toy_r0.4200_s1003 toy_r0.4200_s1004 toy_r0.4200_s1005 toy_r0.4200_s1006 toy_r0.4200_s1007 toy_r0.4200_s1008 toy_r0.4200_s1009 toy_r0.4400_s1000 toy_r0.4400_s1001 toy_r0.4400_s1002 toy_r0.4400_s1003 toy_r0.4400_s1004 toy_r0.4400_s1005 toy_r0.4400_s1006 toy_r0.4400_s1007 toy_r0.4400_s1008 toy_r0.4400_s1009 toy_r0.4600_s1000 toy_r0.4600_s1001 toy_r0.4600_s1002 toy_r0.4600_s1003 toy_r0.4600_s1004 toy_r0.4600_s1005 toy_r0.4600_s1006 toy_r0.4600_s1007 toy_r0.4600_s1008 toy_r0.4600_s1009 toy_r0.4800_s1000 toy_r0.4800_s1001 toy_r0.4800_s1002 toy_r0.4800_s1003 toy_r0.4800_s1004 toy_r0.4800_s1005 toy_r0.4800_s1006 toy_r0.4800_s1007 toy_r0.4800_s1008 toy_r0.4800_s1009 toy_r0.5000_s1000 toy_r0.5000_s1001 toy_r0.5000_s1002 toy_r0.5000_s1003 toy_r0.5000_s1004 toy_r0.5000_s1005 toy_r0.5000_s1006 toy_r0.5000_s1007 toy_r0.5000_s1008 toy_r0.5000_s1009 toy_r0.5200_s1000 toy_r0.5200_s1001 toy_r0.5200_s1002 toy_r0.5200_s1003 toy_r0.5200_s1004 toy_r0.5200_s1005 toy_r0.5200_s1006 toy_r0.5200_s1007 toy_r0.5200_s1008 toy_r0.5200_s1009 toy_r0.5400_s1000 toy_r0.5400_s1001 toy_r0.5400_s1002 toy_r0.5400_s1003 toy_r0.5400_s1004 toy_r0.5400_s1005 toy_r0.5400_s1006 toy_r0.5400_s1007 toy_r0.5400_s1008 toy_r0.5400_s1009 toy_r0.5600_s1000 toy_r0.5600_s1001 toy_r0.5600_s1002 toy_r0.5600_s1003 toy_r0.5600_s1004 toy_r0.5600_s1005 toy_r0.5600_s1006 toy_r0.5600_s1007 toy_r0.5600_s1008 toy_r0.5600_s1009 toy_r0.5800_s1000 toy_r0.5800_s1001 toy_r0.5800_s1002 toy_r0.5800_s1003 toy_r0.5800_s1004 toy_r0.5800_s1005 toy_r0.5800_s1006 toy_r0.5800_s1007 toy_r0.5800_s1008 toy_r0.5800_s1009 toy_r0.6000_s1000 toy_r0.6000_s1001 toy_r0.6000_s1002 toy_r0.6000_s1003 toy_r0.6000_s1004 toy_r0.6000_s1005 toy_r0.6000_s1006 toy_r0.6000_s1007 toy_r0.6000_s1008 toy_r0.6000_s1009 toy_r0.6200_s1000 toy_r0.6200_s1001 toy_r0.6200_s1002 toy_r0.6200_s1003 toy_r0.6200_s1004 toy_r0.6200_s1005 toy_r0.6200_s1006 toy_r0.6200_s1007 toy_r0.6200_s1008 toy_r0.6200_s1009 toy_r0.6400_s1000 toy_r0.6400_s1001 toy_r0.6400_s1002 toy_r0.6400_s1003 toy_r0.6400_s1004 toy_r0.6400_s1005 toy_r0.6400_s1006 toy_r0.6400_s1007 toy_r0.6400_s1008 toy_r0.6400_s1009 toy_r0.6600_s1000 toy_r0.6600_s1001 toy_r0.6600_s1002 toy_r0.6600_s1003 toy_r0.6600_s1004 toy_r0.6600_s1005 toy_r0.6600_s1006 toy_r0.6600_s1007 toy_r0.6600_s1008 toy_r0.6600_s1009 toy_r0.6800_s1000 toy_r0.6800_s1001 toy_r0.6800_s1002 toy_r0.6800_s1003 toy_r0.6800_s1004 toy_r0.6800_s1005 toy_r0.6800_s1006 toy_r0.6800_s1007 toy_r0.6800_s1008 toy_r0.6800_s1009 toy_r0.7000_s1000 toy_r0.7000_s1001 toy_r0.7000_s1002 toy_r0.7000_s1003 toy_r0.7000_s1004 toy_r0.7000_s1005 toy_r0.7000_s1006 toy_r0.7000_s1007 toy_r0.7000_s1008 toy_r0.7000_s1009 toy_r0.7200_s1000 toy_r0.7200_s1001 toy_r0.7200_s1002 toy_r0.7200_s1003 toy_r0.7200_s1004 toy_r0.7200_s1005 toy_r0.7200_s1006 toy_r0.7200_s1007 toy_r0.7200_s1008 toy_r0.7200_s1009 toy_r0.7400_s1000 toy_r0.7400_s1001 toy_r0.7400_s1002 toy_r0.7400_s1003 toy_r0.7400_s1004 toy_r0.7400_s1005 toy_r0.7400_s1006 toy_r0.7400_s1007 toy_r0.7400_s1008 toy_r0.7400_s1009 toy_r0.7600_s1000 toy_r0.7600_s1001 toy_r0.7600_s1002 toy_r0.7600_s1003 toy_r0.7600_s1004 toy_r0.7600_s1005 toy_r0.7600_s1006 toy_r0.7600_s1007 toy_r0.7600_s1008 toy_r0.7600_s1009 toy_r0.7800_s1000 toy_r0.7800_s1001 toy_r0.7800_s1002 toy_r0.7800_s1003 toy_r0.7800_s1004 toy_r0.7800_s1005 toy_r0.7800_s1006 toy_r0.7800_s1007 toy_r0.7800_s1008 toy_r0.7800_s1009 toy_r0.8000_s1000 toy_r0.8000_s1001 toy_r0.8000_s1002 toy_r0.8000_s1003 toy_r0.8000_s1004 toy_r0.8000_s1005 toy_r0.8000_s1006 toy_r0.8000_s1007 toy_r0.8000_s1008 toy_r0.8000_s1009 toy_r0.8200_s1000 toy_r0.8200_s1001 toy_r0.8200_s1002 toy_r0.8200_s1003 toy_r0.8200_s1004 toy_r0.8200_s1005 toy_r0.8200_s1006 toy_r0.8200_s1007 toy_r0.8200_s1008 toy_r0.8200_s1009 toy_r0.8400_s1000 toy_r0.8400_s1001 toy_r0.8400_s1002 toy_r0.8400_s1003 toy_r0.8400_s1004 toy_r0.8400_s1005 toy_r0.8400_s1006 toy_r0.8400_s1007 toy_r0.8400_s1008 toy_r0.8400_s1009 toy_r0.8600_s1000 toy_r0.8600_s1001 toy_r0.8600_s1002 toy_r0.8600_s1003 toy_r0.8600_s1004 toy_r0.8600_s1005 toy_r0.8600_s1006 toy_r0.8600_s1007 toy_r0.8600_s1008 toy_r0.8600_s1009 toy_r0.8800_s1000 toy_r0.8800_s1001 toy_r0.8800_s1002 toy_r0.8800_s1003 toy_r0.8800_s1004 toy_r0.8800_s1005 toy_r0.8800_s1006 toy_r0.8800_s1007 toy_r0.8800_s1008 toy_r0.8800_s1009 toy_r0.9000_s1000 toy_r0.9000_s1001 toy_r0.9000_s1002 toy_r0.9000_s1003 toy_r0.9000_s1004 toy_r0.9000_s1005 toy_r0.9000_s1006 toy_r0.9000_s1007 toy_r0.9000_s1008 toy_r0.9000_s1009 toy_r0.9200_s1000 toy_r0.9200_s1001 toy_r0.9200_s1002 toy_r0.9200_s1003 toy_r0.9200_s1004 toy_r0.9200_s1005 toy_r0.9200_s1006 toy_r0.9200_s1007 toy_r0.9200_s1008 toy_r0.9200_s1009 toy_r0.9400_s1000 toy_r0.9400_s1001 toy_r0.9400_s1002 toy_r0.9400_s1003 toy_r0.9400_s1004 toy_r0.9400_s1005 toy_r0.9400_s1006 toy_r0.9400_s1007 toy_r0.9400_s1008 toy_r0.9400_s1009 toy_r0.9600_s1000 toy_r0.9600_s1001 toy_r0.9600_s1002 toy_r0.9600_s1003 toy_r0.9600_s1004 toy_r0.9600_s1005 toy_r0.9600_s1006 toy_r0.9600_s1007 toy_r0.9600_s1008 toy_r0.9600_s1009 toy_r0.9800_s1000 toy_r0.9800_s1001 toy_r0.9800_s1002 toy_r0.9800_s1003 toy_r0.9800_s1004 toy_r0.9800_s1005 toy_r0.9800_s1006 toy_r0.9800_s1007 toy_r0.9800_s1008 toy_r0.9800_s1009 toy_r1.0000_s1000 toy_r1.0000_s1001 toy_r1.0000_s1002 toy_r1.0000_s1003 toy_r1.0000_s1004 toy_r1.0000_s1005 toy_r1.0000_s1006 toy_r1.0000_s1007 toy_r1.0000_s1008 toy_r1.0000_s1009 toy_r1.0200_s1000 toy_r1.0200_s1001 toy_r1.0200_s1002 toy_r1.0200_s1003 toy_r1.0200_s1004 toy_r1.0200_s1005 toy_r1.0200_s1006 toy_r1.0200_s1007 toy_r1.0200_s1008 toy_r1.0200_s1009 toy_r1.0400_s1000 toy_r1.0400_s1001 toy_r1.0400_s1002 toy_r1.0400_s1003 toy_r1.0400_s1004 toy_r1.0400_s1005 toy_r1.0400_s1006 toy_r1.0400_s1007 toy_r1.0400_s1008 toy_r1.0400_s1009 toy_r1.0600_s1000 toy_r1.0600_s1001 toy_r1.0600_s1002 toy_r1.0600_s1003 toy_r1.0600_s1004 toy_r1.0600_s1005 toy_r1.0600_s1006 toy_r1.0600_s1007 toy_r1.0600_s1008 toy_r1.0600_s1009 toy_r1.0800_s1000 toy_r1.0800_s1001 toy_r1.0800_s1002 toy_r1.0800_s1003 toy_r1.0800_s1004 toy_r1.0800_s1005 toy_r1.0800_s1006 toy_r1.0800_s1007 toy_r1.0800_s1008 toy_r1.0800_s1009 toy_r1.1000_s1000 toy_r1.1000_s1001 toy_r1.1000_s1002 toy_r1.1000_s1003 toy_r1.1000_s1004 toy_r1.1000_s1005 toy_r1.1000_s1006 toy_r1.1000_s1007 toy_r1.1000_s1008 toy_r1.1000_s1009 toy_r1.1200_s1000 toy_r1.1200_s1001 toy_r1.1200_s1002 toy_r1.1200_s1003 toy_r1.1200_s1004 toy_r1.1200_s1005 toy_r1.1200_s1006 toy_r1.1200_s1007 toy_r1.1200_s1008 toy_r1.1200_s1009 toy_r1.1400_s1000 toy_r1.1400_s1001 toy_r1.1400_s1002 toy_r1.1400_s1003 toy_r1.1400_s1004 toy_r1.1400_s1005 toy_r1.1400_s1006 toy_r1.1400_s1007 toy_r1.1400_s1008 toy_r1.1400_s1009 toy_r1.1600_s1000 toy_r1.1600_s1001 toy_r1.1600_s1002 toy_r1.1600_s1003 toy_r1.1600_s1004 toy_r1.1600_s1005 toy_r1.1600_s1006 toy_r1.1600_s1007 toy_r1.1600_s1008 toy_r1.1600_s1009 toy_r1.1800_s1000 toy_r1.1800_s1001 toy_r1.1800_s1002 toy_r1.1800_s1003 toy_r1.1800_s1004 toy_r1.1800_s1005 toy_r1.1800_s1006 toy_r1.1800_s1007 toy_r1.1800_s1008 toy_r1.1800_s1009 toy_r1.2000_s1000 toy_r1.2000_s1001 toy_r1.2000_s1002 toy_r1.2000_s1003 toy_r1.2000_s1004 toy_r1.2000_s1005 toy_r1.2000_s1006 toy_r1.2000_s1007 toy_r1.2000_s1008 toy_r1.2000_s1009 toy_r1.2200_s1000 toy_r1.2200_s1001 toy_r1.2200_s1002 toy_r1.2200_s1003 toy_r1.2200_s1004 toy_r1.2200_s1005 toy_r1.2200_s1006 toy_r1.2200_s1007 toy_r1.2200_s1008 toy_r1.2200_s1009 toy_r1.2400_s1000 toy_r1.2400_s1001 toy_r1.2400_s1002 toy_r1.2400_s1003 toy_r1.2400_s1004 toy_r1.2400_s1005 toy_r1.2400_s1006 toy_r1.2400_s1007 toy_r1.2400_s1008 toy_r1.2400_s1009 toy_r1.2600_s1000 toy_r1.2600_s1001 toy_r1.2600_s1002 toy_r1.2600_s1003 toy_r1.2600_s1004 toy_r1.2600_s1005 toy_r1.2600_s1006 toy_r1.2600_s1007 toy_r1.2600_s1008 toy_r1.2600_s1009 toy_r1.2800_s1000 toy_r1.2800_s1001 toy_r1.2800_s1002 toy_r1.2800_s1003 toy_r1.2800_s1004 toy_r1.2800_s1005 toy_r1.2800_s1006 toy_r1.2800_s1007 toy_r1.2800_s1008 toy_r1.2800_s1009 toy_r1.3000_s1000 toy_r1.3000_s1001 toy_r1.3000_s1002 toy_r1.3000_s1003 toy_r1.3000_s1004 toy_r1.3000_s1005 toy_r1.3000_s1006 toy_r1.3000_s1007 toy_r1.3000_s1008 toy_r1.3000_s1009 toy_r1.3200_s1000 toy_r1.3200_s1001 toy_r1.3200_s1002 toy_r1.3200_s1003 toy_r1.3200_s1004 toy_r1.3200_s1005 toy_r1.3200_s1006 toy_r1.3200_s1007 toy_r1.3200_s1008 toy_r1.3200_s1009 toy_r1.3400_s1000 toy_r1.3400_s1001 toy_r1.3400_s1002 toy_r1.3400_s1003 toy_r1.3400_s1004 toy_r1.3400_s1005 toy_r1.3400_s1006 toy_r1.3400_s1007 toy_r1.3400_s1008 toy_r1.3400_s1009 toy_r1.3600_s1000 toy_r1.3600_s1001 toy_r1.3600_s1002 toy_r1.3600_s1003 toy_r1.3600_s1004 toy_r1.3600_s1005 toy_r1.3600_s1006 toy_r1.3600_s1007 toy_r1.3600_s1008 toy_r1.3600_s1009 toy_r1.3800_s1000 toy_r1.3800_s1001 toy_r1.3800_s1002 toy_r1.3800_s1003 toy_r1.3800_s1004 toy_r1.3800_s1005 toy_r1.3800_s1006 toy_r1.3800_s1007 toy_r1.3800_s1008 toy_r1.3800_s1009 toy_r1.4000_s1000 toy_r1.4000_s1001 toy_r1.4000_s1002 toy_r1.4000_s1003 toy_r1.4000_s1004 toy_r1.4000_s1005 toy_r1.4000_s1006 toy_r1.4000_s1007 toy_r1.4000_s1008 toy_r1.4000_s1009 toy_r1.4200_s1000 toy_r1.4200_s1001 toy_r1.4200_s1002 toy_r1.4200_s1003 toy_r1.4200_s1004 toy_r1.4200_s1005 toy_r1.4200_s1006 toy_r1.4200_s1007 toy_r1.4200_s1008 toy_r1.4200_s1009 toy_r1.4400_s1000 toy_r1.4400_s1001 toy_r1.4400_s1002 toy_r1.4400_s1003 toy_r1.4400_s1004 toy_r1.4400_s1005 toy_r1.4400_s1006 toy_r1.4400_s1007 toy_r1.4400_s1008 toy_r1.4400_s1009 toy_r1.4600_s1000 toy_r1.4600_s1001 toy_r1.4600_s1002 toy_r1.4600_s1003 toy_r1.4600_s1004 toy_r1.4600_s1005 toy_r1.4600_s1006 toy_r1.4600_s1007 toy_r1.4600_s1008 toy_r1.4600_s1009 toy_r1.4800_s1000 toy_r1.4800_s1001 toy_r1.4800_s1002 toy_r1.4800_s1003 toy_r1.4800_s1004 toy_r1.4800_s1005 toy_r1.4800_s1006 toy_r1.4800_s1007 toy_r1.4800_s1008 toy_r1.4800_s1009 toy_r1.5000_s1000 toy_r1.5000_s1001 toy_r1.5000_s1002 toy_r1.5000_s1003 toy_r1.5000_s1004 toy_r1.5000_s1005 toy_r1.5000_s1006 toy_r1.5000_s1007 toy_r1.5000_s1008 toy_r1.5000_s1009 toy_r1.5200_s1000 toy_r1.5200_s1001 toy_r1.5200_s1002 toy_r1.5200_s1003 toy_r1.5200_s1004 toy_r1.5200_s1005 toy_r1.5200_s1006 toy_r1.5200_s1007 toy_r1.5200_s1008 toy_r1.5200_s1009 toy_r1.5400_s1000 toy_r1.5400_s1001 toy_r1.5400_s1002 toy_r1.5400_s1003 toy_r1.5400_s1004 toy_r1.5400_s1005 toy_r1.5400_s1006 toy_r1.5400_s1007 toy_r1.5400_s1008 toy_r1.5400_s1009 toy_r1.5600_s1000 toy_r1.5600_s1001 toy_r1.5600_s1002 toy_r1.5600_s1003 toy_r1.5600_s1004 toy_r1.5600_s1005 toy_r1.5600_s1006 toy_r1.5600_s1007 toy_r1.5600_s1008 toy_r1.5600_s1009 toy_r1.5800_s1000 toy_r1.5800_s1001 toy_r1.5800_s1002 toy_r1.5800_s1003 toy_r1.5800_s1004 toy_r1.5800_s1005 toy_r1.5800_s1006 toy_r1.5800_s1007 toy_r1.5800_s1008 toy_r1.5800_s1009 toy_r1.6000_s1000 toy_r1.6000_s1001 toy_r1.6000_s1002 toy_r1.6000_s1003 toy_r1.6000_s1004 toy_r1.6000_s1005 toy_r1.6000_s1006 toy_r1.6000_s1007 toy_r1.6000_s1008 toy_r1.6000_s1009 toy_r1.6200_s1000 toy_r1.6200_s1001 toy_r1.6200_s1002 toy_r1.6200_s1003 toy_r1.6200_s1004 toy_r1.6200_s1005 toy_r1.6200_s1006 toy_r1.6200_s1007 toy_r1.6200_s1008 toy_r1.6200_s1009 toy_r1.6400_s1000 toy_r1.6400_s1001 toy_r1.6400_s1002 toy_r1.6400_s1003 toy_r1.6400_s1004 toy_r1.6400_s1005 toy_r1.6400_s1006 toy_r1.6400_s1007 toy_r1.6400_s1008 toy_r1.6400_s1009 toy_r1.6600_s1000 toy_r1.6600_s1001 toy_r1.6600_s1002 toy_r1.6600_s1003 toy_r1.6600_s1004 toy_r1.6600_s1005 toy_r1.6600_s1006 toy_r1.6600_s1007 toy_r1.6600_s1008 toy_r1.6600_s1009 toy_r1.6800_s1000 toy_r1.6800_s1001 toy_r1.6800_s1002 toy_r1.6800_s1003 toy_r1.6800_s1004 toy_r1.6800_s1005 toy_r1.6800_s1006 toy_r1.6800_s1007 toy_r1.6800_s1008 toy_r1.6800_s1009 toy_r1.7000_s1000 toy_r1.7000_s1001 toy_r1.7000_s1002 toy_r1.7000_s1003 toy_r1.7000_s1004 toy_r1.7000_s1005 toy_r1.7000_s1006 toy_r1.7000_s1007 toy_r1.7000_s1008 toy_r1.7000_s1009 toy_r1.7200_s1000 toy_r1.7200_s1001 toy_r1.7200_s1002 toy_r1.7200_s1003 toy_r1.7200_s1004 toy_r1.7200_s1005 toy_r1.7200_s1006 toy_r1.7200_s1007 toy_r1.7200_s1008 toy_r1.7200_s1009
+PARENT toy_r0.1000_s1000 toy_r0.1000_s1001 toy_r0.1000_s1002 toy_r0.1000_s1003 toy_r0.1000_s1004 toy_r0.1000_s1005 toy_r0.1000_s1006 toy_r0.1000_s1007 toy_r0.1000_s1008 toy_r0.1000_s1009 toy_r0.1200_s1000 toy_r0.1200_s1001 toy_r0.1200_s1002 toy_r0.1200_s1003 toy_r0.1200_s1004 toy_r0.1200_s1005 toy_r0.1200_s1006 toy_r0.1200_s1007 toy_r0.1200_s1008 toy_r0.1200_s1009 toy_r0.1400_s1000 toy_r0.1400_s1001 toy_r0.1400_s1002 toy_r0.1400_s1003 toy_r0.1400_s1004 toy_r0.1400_s1005 toy_r0.1400_s1006 toy_r0.1400_s1007 toy_r0.1400_s1008 toy_r0.1400_s1009 toy_r0.1600_s1000 toy_r0.1600_s1001 toy_r0.1600_s1002 toy_r0.1600_s1003 toy_r0.1600_s1004 toy_r0.1600_s1005 toy_r0.1600_s1006 toy_r0.1600_s1007 toy_r0.1600_s1008 toy_r0.1600_s1009 toy_r0.1800_s1000 toy_r0.1800_s1001 toy_r0.1800_s1002 toy_r0.1800_s1003 toy_r0.1800_s1004 toy_r0.1800_s1005 toy_r0.1800_s1006 toy_r0.1800_s1007 toy_r0.1800_s1008 toy_r0.1800_s1009 toy_r0.2000_s1000 toy_r0.2000_s1001 toy_r0.2000_s1002 toy_r0.2000_s1003 toy_r0.2000_s1004 toy_r0.2000_s1005 toy_r0.2000_s1006 toy_r0.2000_s1007 toy_r0.2000_s1008 toy_r0.2000_s1009 toy_r0.2200_s1000 toy_r0.2200_s1001 toy_r0.2200_s1002 toy_r0.2200_s1003 toy_r0.2200_s1004 toy_r0.2200_s1005 toy_r0.2200_s1006 toy_r0.2200_s1007 toy_r0.2200_s1008 toy_r0.2200_s1009 toy_r0.2400_s1000 toy_r0.2400_s1001 toy_r0.2400_s1002 toy_r0.2400_s1003 toy_r0.2400_s1004 toy_r0.2400_s1005 toy_r0.2400_s1006 toy_r0.2400_s1007 toy_r0.2400_s1008 toy_r0.2400_s1009 toy_r0.2600_s1000 toy_r0.2600_s1001 toy_r0.2600_s1002 toy_r0.2600_s1003 toy_r0.2600_s1004 toy_r0.2600_s1005 toy_r0.2600_s1006 toy_r0.2600_s1007 toy_r0.2600_s1008 toy_r0.2600_s1009 toy_r0.2800_s1000 toy_r0.2800_s1001 toy_r0.2800_s1002 toy_r0.2800_s1003 toy_r0.2800_s1004 toy_r0.2800_s1005 toy_r0.2800_s1006 toy_r0.2800_s1007 toy_r0.2800_s1008 toy_r0.2800_s1009 toy_r0.3000_s1000 toy_r0.3000_s1001 toy_r0.3000_s1002 toy_r0.3000_s1003 toy_r0.3000_s1004 toy_r0.3000_s1005 toy_r0.3000_s1006 toy_r0.3000_s1007 toy_r0.3000_s1008 toy_r0.3000_s1009 toy_r0.3200_s1000 toy_r0.3200_s1001 toy_r0.3200_s1002 toy_r0.3200_s1003 toy_r0.3200_s1004 toy_r0.3200_s1005 toy_r0.3200_s1006 toy_r0.3200_s1007 toy_r0.3200_s1008 toy_r0.3200_s1009 toy_r0.3400_s1000 toy_r0.3400_s1001 toy_r0.3400_s1002 toy_r0.3400_s1003 toy_r0.3400_s1004 toy_r0.3400_s1005 toy_r0.3400_s1006 toy_r0.3400_s1007 toy_r0.3400_s1008 toy_r0.3400_s1009 toy_r0.3600_s1000 toy_r0.3600_s1001 toy_r0.3600_s1002 toy_r0.3600_s1003 toy_r0.3600_s1004 toy_r0.3600_s1005 toy_r0.3600_s1006 toy_r0.3600_s1007 toy_r0.3600_s1008 toy_r0.3600_s1009 toy_r0.3800_s1000 toy_r0.3800_s1001 toy_r0.3800_s1002 toy_r0.3800_s1003 toy_r0.3800_s1004 toy_r0.3800_s1005 toy_r0.3800_s1006 toy_r0.3800_s1007 toy_r0.3800_s1008 toy_r0.3800_s1009 toy_r0.4000_s1000 toy_r0.4000_s1001 toy_r0.4000_s1002 toy_r0.4000_s1003 toy_r0.4000_s1004 toy_r0.4000_s1005 toy_r0.4000_s1006 toy_r0.4000_s1007 toy_r0.4000_s1008 toy_r0.4000_s1009 toy_r0.4200_s1000 toy_r0.4200_s1001 toy_r0.4200_s1002 toy_r0.4200_s1003 toy_r0.4200_s1004 toy_r0.4200_s1005 toy_r0.4200_s1006 toy_r0.4200_s1007 toy_r0.4200_s1008 toy_r0.4200_s1009 toy_r0.4400_s1000 toy_r0.4400_s1001 toy_r0.4400_s1002 toy_r0.4400_s1003 toy_r0.4400_s1004 toy_r0.4400_s1005 toy_r0.4400_s1006 toy_r0.4400_s1007 toy_r0.4400_s1008 toy_r0.4400_s1009 toy_r0.4600_s1000 toy_r0.4600_s1001 toy_r0.4600_s1002 toy_r0.4600_s1003 toy_r0.4600_s1004 toy_r0.4600_s1005 toy_r0.4600_s1006 toy_r0.4600_s1007 toy_r0.4600_s1008 toy_r0.4600_s1009 toy_r0.4800_s1000 toy_r0.4800_s1001 toy_r0.4800_s1002 toy_r0.4800_s1003 toy_r0.4800_s1004 toy_r0.4800_s1005 toy_r0.4800_s1006 toy_r0.4800_s1007 toy_r0.4800_s1008 toy_r0.4800_s1009 toy_r0.5000_s1000 toy_r0.5000_s1001 toy_r0.5000_s1002 toy_r0.5000_s1003 toy_r0.5000_s1004 toy_r0.5000_s1005 toy_r0.5000_s1006 toy_r0.5000_s1007 toy_r0.5000_s1008 toy_r0.5000_s1009 toy_r0.5200_s1000 toy_r0.5200_s1001 toy_r0.5200_s1002 toy_r0.5200_s1003 toy_r0.5200_s1004 toy_r0.5200_s1005 toy_r0.5200_s1006 toy_r0.5200_s1007 toy_r0.5200_s1008 toy_r0.5200_s1009 toy_r0.5400_s1000 toy_r0.5400_s1001 toy_r0.5400_s1002 toy_r0.5400_s1003 toy_r0.5400_s1004 toy_r0.5400_s1005 toy_r0.5400_s1006 toy_r0.5400_s1007 toy_r0.5400_s1008 toy_r0.5400_s1009 toy_r0.5600_s1000 toy_r0.5600_s1001 toy_r0.5600_s1002 toy_r0.5600_s1003 toy_r0.5600_s1004 toy_r0.5600_s1005 toy_r0.5600_s1006 toy_r0.5600_s1007 toy_r0.5600_s1008 toy_r0.5600_s1009 toy_r0.5800_s1000 toy_r0.5800_s1001 toy_r0.5800_s1002 toy_r0.5800_s1003 toy_r0.5800_s1004 toy_r0.5800_s1005 toy_r0.5800_s1006 toy_r0.5800_s1007 toy_r0.5800_s1008 toy_r0.5800_s1009 toy_r0.6000_s1000 toy_r0.6000_s1001 toy_r0.6000_s1002 toy_r0.6000_s1003 toy_r0.6000_s1004 toy_r0.6000_s1005 toy_r0.6000_s1006 toy_r0.6000_s1007 toy_r0.6000_s1008 toy_r0.6000_s1009 toy_r0.6200_s1000 toy_r0.6200_s1001 toy_r0.6200_s1002 toy_r0.6200_s1003 toy_r0.6200_s1004 toy_r0.6200_s1005 toy_r0.6200_s1006 toy_r0.6200_s1007 toy_r0.6200_s1008 toy_r0.6200_s1009 toy_r0.6400_s1000 toy_r0.6400_s1001 toy_r0.6400_s1002 toy_r0.6400_s1003 toy_r0.6400_s1004 toy_r0.6400_s1005 toy_r0.6400_s1006 toy_r0.6400_s1007 toy_r0.6400_s1008 toy_r0.6400_s1009 toy_r0.6600_s1000 toy_r0.6600_s1001 toy_r0.6600_s1002 toy_r0.6600_s1003 toy_r0.6600_s1004 toy_r0.6600_s1005 toy_r0.6600_s1006 toy_r0.6600_s1007 toy_r0.6600_s1008 toy_r0.6600_s1009 toy_r0.6800_s1000 toy_r0.6800_s1001 toy_r0.6800_s1002 toy_r0.6800_s1003 toy_r0.6800_s1004 toy_r0.6800_s1005 toy_r0.6800_s1006 toy_r0.6800_s1007 toy_r0.6800_s1008 toy_r0.6800_s1009 toy_r0.7000_s1000 toy_r0.7000_s1001 toy_r0.7000_s1002 toy_r0.7000_s1003 toy_r0.7000_s1004 toy_r0.7000_s1005 toy_r0.7000_s1006 toy_r0.7000_s1007 toy_r0.7000_s1008 toy_r0.7000_s1009 toy_r0.7200_s1000 toy_r0.7200_s1001 toy_r0.7200_s1002 toy_r0.7200_s1003 toy_r0.7200_s1004 toy_r0.7200_s1005 toy_r0.7200_s1006 toy_r0.7200_s1007 toy_r0.7200_s1008 toy_r0.7200_s1009 toy_r0.7400_s1000 toy_r0.7400_s1001 toy_r0.7400_s1002 toy_r0.7400_s1003 toy_r0.7400_s1004 toy_r0.7400_s1005 toy_r0.7400_s1006 toy_r0.7400_s1007 toy_r0.7400_s1008 toy_r0.7400_s1009 toy_r0.7600_s1000 toy_r0.7600_s1001 toy_r0.7600_s1002 toy_r0.7600_s1003 toy_r0.7600_s1004 toy_r0.7600_s1005 toy_r0.7600_s1006 toy_r0.7600_s1007 toy_r0.7600_s1008 toy_r0.7600_s1009 toy_r0.7800_s1000 toy_r0.7800_s1001 toy_r0.7800_s1002 toy_r0.7800_s1003 toy_r0.7800_s1004 toy_r0.7800_s1005 toy_r0.7800_s1006 toy_r0.7800_s1007 toy_r0.7800_s1008 toy_r0.7800_s1009 toy_r0.8000_s1000 toy_r0.8000_s1001 toy_r0.8000_s1002 toy_r0.8000_s1003 toy_r0.8000_s1004 toy_r0.8000_s1005 toy_r0.8000_s1006 toy_r0.8000_s1007 toy_r0.8000_s1008 toy_r0.8000_s1009 toy_r0.8200_s1000 toy_r0.8200_s1001 toy_r0.8200_s1002 toy_r0.8200_s1003 toy_r0.8200_s1004 toy_r0.8200_s1005 toy_r0.8200_s1006 toy_r0.8200_s1007 toy_r0.8200_s1008 toy_r0.8200_s1009 toy_r0.8400_s1000 toy_r0.8400_s1001 toy_r0.8400_s1002 toy_r0.8400_s1003 toy_r0.8400_s1004 toy_r0.8400_s1005 toy_r0.8400_s1006 toy_r0.8400_s1007 toy_r0.8400_s1008 toy_r0.8400_s1009 toy_r0.8600_s1000 toy_r0.8600_s1001 toy_r0.8600_s1002 toy_r0.8600_s1003 toy_r0.8600_s1004 toy_r0.8600_s1005 toy_r0.8600_s1006 toy_r0.8600_s1007 toy_r0.8600_s1008 toy_r0.8600_s1009 toy_r0.8800_s1000 toy_r0.8800_s1001 toy_r0.8800_s1002 toy_r0.8800_s1003 toy_r0.8800_s1004 toy_r0.8800_s1005 toy_r0.8800_s1006 toy_r0.8800_s1007 toy_r0.8800_s1008 toy_r0.8800_s1009 toy_r0.9000_s1000 toy_r0.9000_s1001 toy_r0.9000_s1002 toy_r0.9000_s1003 toy_r0.9000_s1004 toy_r0.9000_s1005 toy_r0.9000_s1006 toy_r0.9000_s1007 toy_r0.9000_s1008 toy_r0.9000_s1009 toy_r0.9200_s1000 toy_r0.9200_s1001 toy_r0.9200_s1002 toy_r0.9200_s1003 toy_r0.9200_s1004 toy_r0.9200_s1005 toy_r0.9200_s1006 toy_r0.9200_s1007 toy_r0.9200_s1008 toy_r0.9200_s1009 toy_r0.9400_s1000 toy_r0.9400_s1001 toy_r0.9400_s1002 toy_r0.9400_s1003 toy_r0.9400_s1004 toy_r0.9400_s1005 toy_r0.9400_s1006 toy_r0.9400_s1007 toy_r0.9400_s1008 toy_r0.9400_s1009 toy_r0.9600_s1000 toy_r0.9600_s1001 toy_r0.9600_s1002 toy_r0.9600_s1003 toy_r0.9600_s1004 toy_r0.9600_s1005 toy_r0.9600_s1006 toy_r0.9600_s1007 toy_r0.9600_s1008 toy_r0.9600_s1009 toy_r0.9800_s1000 toy_r0.9800_s1001 toy_r0.9800_s1002 toy_r0.9800_s1003 toy_r0.9800_s1004 toy_r0.9800_s1005 toy_r0.9800_s1006 toy_r0.9800_s1007 toy_r0.9800_s1008 toy_r0.9800_s1009 toy_r1.0000_s1000 toy_r1.0000_s1001 toy_r1.0000_s1002 toy_r1.0000_s1003 toy_r1.0000_s1004 toy_r1.0000_s1005 toy_r1.0000_s1006 toy_r1.0000_s1007 toy_r1.0000_s1008 toy_r1.0000_s1009 toy_r1.0200_s1000 toy_r1.0200_s1001 toy_r1.0200_s1002 toy_r1.0200_s1003 toy_r1.0200_s1004 toy_r1.0200_s1005 toy_r1.0200_s1006 toy_r1.0200_s1007 toy_r1.0200_s1008 toy_r1.0200_s1009 toy_r1.0400_s1000 toy_r1.0400_s1001 toy_r1.0400_s1002 toy_r1.0400_s1003 toy_r1.0400_s1004 toy_r1.0400_s1005 toy_r1.0400_s1006 toy_r1.0400_s1007 toy_r1.0400_s1008 toy_r1.0400_s1009 toy_r1.0600_s1000 toy_r1.0600_s1001 toy_r1.0600_s1002 toy_r1.0600_s1003 toy_r1.0600_s1004 toy_r1.0600_s1005 toy_r1.0600_s1006 toy_r1.0600_s1007 toy_r1.0600_s1008 toy_r1.0600_s1009 toy_r1.0800_s1000 toy_r1.0800_s1001 toy_r1.0800_s1002 toy_r1.0800_s1003 toy_r1.0800_s1004 toy_r1.0800_s1005 toy_r1.0800_s1006 toy_r1.0800_s1007 toy_r1.0800_s1008 toy_r1.0800_s1009 toy_r1.1000_s1000 toy_r1.1000_s1001 toy_r1.1000_s1002 toy_r1.1000_s1003 toy_r1.1000_s1004 toy_r1.1000_s1005 toy_r1.1000_s1006 toy_r1.1000_s1007 toy_r1.1000_s1008 toy_r1.1000_s1009 toy_r1.1200_s1000 toy_r1.1200_s1001 toy_r1.1200_s1002 toy_r1.1200_s1003 toy_r1.1200_s1004 toy_r1.1200_s1005 toy_r1.1200_s1006 toy_r1.1200_s1007 toy_r1.1200_s1008 toy_r1.1200_s1009 toy_r1.1400_s1000 toy_r1.1400_s1001 toy_r1.1400_s1002 toy_r1.1400_s1003 toy_r1.1400_s1004 toy_r1.1400_s1005 toy_r1.1400_s1006 toy_r1.1400_s1007 toy_r1.1400_s1008 toy_r1.1400_s1009 toy_r1.1600_s1000 toy_r1.1600_s1001 toy_r1.1600_s1002 toy_r1.1600_s1003 toy_r1.1600_s1004 toy_r1.1600_s1005 toy_r1.1600_s1006 toy_r1.1600_s1007 toy_r1.1600_s1008 toy_r1.1600_s1009 toy_r1.1800_s1000 toy_r1.1800_s1001 toy_r1.1800_s1002 toy_r1.1800_s1003 toy_r1.1800_s1004 toy_r1.1800_s1005 toy_r1.1800_s1006 toy_r1.1800_s1007 toy_r1.1800_s1008 toy_r1.1800_s1009 toy_r1.2000_s1000 toy_r1.2000_s1001 toy_r1.2000_s1002 toy_r1.2000_s1003 toy_r1.2000_s1004 toy_r1.2000_s1005 toy_r1.2000_s1006 toy_r1.2000_s1007 toy_r1.2000_s1008 toy_r1.2000_s1009 toy_r1.2200_s1000 toy_r1.2200_s1001 toy_r1.2200_s1002 toy_r1.2200_s1003 toy_r1.2200_s1004 toy_r1.2200_s1005 toy_r1.2200_s1006 toy_r1.2200_s1007 toy_r1.2200_s1008 toy_r1.2200_s1009 toy_r1.2400_s1000 toy_r1.2400_s1001 toy_r1.2400_s1002 toy_r1.2400_s1003 toy_r1.2400_s1004 toy_r1.2400_s1005 toy_r1.2400_s1006 toy_r1.2400_s1007 toy_r1.2400_s1008 toy_r1.2400_s1009 toy_r1.2600_s1000 toy_r1.2600_s1001 toy_r1.2600_s1002 toy_r1.2600_s1003 toy_r1.2600_s1004 toy_r1.2600_s1005 toy_r1.2600_s1006 toy_r1.2600_s1007 toy_r1.2600_s1008 toy_r1.2600_s1009 toy_r1.2800_s1000 toy_r1.2800_s1001 toy_r1.2800_s1002 toy_r1.2800_s1003 toy_r1.2800_s1004 toy_r1.2800_s1005 toy_r1.2800_s1006 toy_r1.2800_s1007 toy_r1.2800_s1008 toy_r1.2800_s1009 toy_r1.3000_s1000 toy_r1.3000_s1001 toy_r1.3000_s1002 toy_r1.3000_s1003 toy_r1.3000_s1004 toy_r1.3000_s1005 toy_r1.3000_s1006 toy_r1.3000_s1007 toy_r1.3000_s1008 toy_r1.3000_s1009 toy_r1.3200_s1000 toy_r1.3200_s1001 toy_r1.3200_s1002 toy_r1.3200_s1003 toy_r1.3200_s1004 toy_r1.3200_s1005 toy_r1.3200_s1006 toy_r1.3200_s1007 toy_r1.3200_s1008 toy_r1.3200_s1009 toy_r1.3400_s1000 toy_r1.3400_s1001 toy_r1.3400_s1002 toy_r1.3400_s1003 toy_r1.3400_s1004 toy_r1.3400_s1005 toy_r1.3400_s1006 toy_r1.3400_s1007 toy_r1.3400_s1008 toy_r1.3400_s1009 toy_r1.3600_s1000 toy_r1.3600_s1001 toy_r1.3600_s1002 toy_r1.3600_s1003 toy_r1.3600_s1004 toy_r1.3600_s1005 toy_r1.3600_s1006 toy_r1.3600_s1007 toy_r1.3600_s1008 toy_r1.3600_s1009 toy_r1.3800_s1000 toy_r1.3800_s1001 toy_r1.3800_s1002 toy_r1.3800_s1003 toy_r1.3800_s1004 toy_r1.3800_s1005 toy_r1.3800_s1006 toy_r1.3800_s1007 toy_r1.3800_s1008 toy_r1.3800_s1009 toy_r1.4000_s1000 toy_r1.4000_s1001 toy_r1.4000_s1002 toy_r1.4000_s1003 toy_r1.4000_s1004 toy_r1.4000_s1005 toy_r1.4000_s1006 toy_r1.4000_s1007 toy_r1.4000_s1008 toy_r1.4000_s1009 toy_r1.4200_s1000 toy_r1.4200_s1001 toy_r1.4200_s1002 toy_r1.4200_s1003 toy_r1.4200_s1004 toy_r1.4200_s1005 toy_r1.4200_s1006 toy_r1.4200_s1007 toy_r1.4200_s1008 toy_r1.4200_s1009 toy_r1.4400_s1000 toy_r1.4400_s1001 toy_r1.4400_s1002 toy_r1.4400_s1003 toy_r1.4400_s1004 toy_r1.4400_s1005 toy_r1.4400_s1006 toy_r1.4400_s1007 toy_r1.4400_s1008 toy_r1.4400_s1009 toy_r1.4600_s1000 toy_r1.4600_s1001 toy_r1.4600_s1002 toy_r1.4600_s1003 toy_r1.4600_s1004 toy_r1.4600_s1005 toy_r1.4600_s1006 toy_r1.4600_s1007 toy_r1.4600_s1008 toy_r1.4600_s1009 toy_r1.4800_s1000 toy_r1.4800_s1001 toy_r1.4800_s1002 toy_r1.4800_s1003 toy_r1.4800_s1004 toy_r1.4800_s1005 toy_r1.4800_s1006 toy_r1.4800_s1007 toy_r1.4800_s1008 toy_r1.4800_s1009 toy_r1.5000_s1000 toy_r1.5000_s1001 toy_r1.5000_s1002 toy_r1.5000_s1003 toy_r1.5000_s1004 toy_r1.5000_s1005 toy_r1.5000_s1006 toy_r1.5000_s1007 toy_r1.5000_s1008 toy_r1.5000_s1009 toy_r1.5200_s1000 toy_r1.5200_s1001 toy_r1.5200_s1002 toy_r1.5200_s1003 toy_r1.5200_s1004 toy_r1.5200_s1005 toy_r1.5200_s1006 toy_r1.5200_s1007 toy_r1.5200_s1008 toy_r1.5200_s1009 toy_r1.5400_s1000 toy_r1.5400_s1001 toy_r1.5400_s1002 toy_r1.5400_s1003 toy_r1.5400_s1004 toy_r1.5400_s1005 toy_r1.5400_s1006 toy_r1.5400_s1007 toy_r1.5400_s1008 toy_r1.5400_s1009 toy_r1.5600_s1000 toy_r1.5600_s1001 toy_r1.5600_s1002 toy_r1.5600_s1003 toy_r1.5600_s1004 toy_r1.5600_s1005 toy_r1.5600_s1006 toy_r1.5600_s1007 toy_r1.5600_s1008 toy_r1.5600_s1009 toy_r1.5800_s1000 toy_r1.5800_s1001 toy_r1.5800_s1002 toy_r1.5800_s1003 toy_r1.5800_s1004 toy_r1.5800_s1005 toy_r1.5800_s1006 toy_r1.5800_s1007 toy_r1.5800_s1008 toy_r1.5800_s1009 toy_r1.6000_s1000 toy_r1.6000_s1001 toy_r1.6000_s1002 toy_r1.6000_s1003 toy_r1.6000_s1004 toy_r1.6000_s1005 toy_r1.6000_s1006 toy_r1.6000_s1007 toy_r1.6000_s1008 toy_r1.6000_s1009 toy_r1.6200_s1000 toy_r1.6200_s1001 toy_r1.6200_s1002 toy_r1.6200_s1003 toy_r1.6200_s1004 toy_r1.6200_s1005 toy_r1.6200_s1006 toy_r1.6200_s1007 toy_r1.6200_s1008 toy_r1.6200_s1009 toy_r1.6400_s1000 toy_r1.6400_s1001 toy_r1.6400_s1002 toy_r1.6400_s1003 toy_r1.6400_s1004 toy_r1.6400_s1005 toy_r1.6400_s1006 toy_r1.6400_s1007 toy_r1.6400_s1008 toy_r1.6400_s1009 toy_r1.6600_s1000 toy_r1.6600_s1001 toy_r1.6600_s1002 toy_r1.6600_s1003 toy_r1.6600_s1004 toy_r1.6600_s1005 toy_r1.6600_s1006 toy_r1.6600_s1007 toy_r1.6600_s1008 toy_r1.6600_s1009 toy_r1.6800_s1000 toy_r1.6800_s1001 toy_r1.6800_s1002 toy_r1.6800_s1003 toy_r1.6800_s1004 toy_r1.6800_s1005 toy_r1.6800_s1006 toy_r1.6800_s1007 toy_r1.6800_s1008 toy_r1.6800_s1009 toy_r1.7000_s1000 toy_r1.7000_s1001 toy_r1.7000_s1002 toy_r1.7000_s1003 toy_r1.7000_s1004 toy_r1.7000_s1005 toy_r1.7000_s1006 toy_r1.7000_s1007 toy_r1.7000_s1008 toy_r1.7000_s1009 toy_r1.7200_s1000 toy_r1.7200_s1001 toy_r1.7200_s1002 toy_r1.7200_s1003 toy_r1.7200_s1004 toy_r1.7200_s1005 toy_r1.7200_s1006 toy_r1.7200_s1007 toy_r1.7200_s1008 toy_r1.7200_s1009 CHILD merge
+PARENT merge CHILD exp0.025 exp0.160 exp0.500 exp0.840 exp0.975 observed

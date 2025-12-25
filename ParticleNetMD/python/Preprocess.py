@@ -66,7 +66,7 @@ def getEdgeIndices(nodeList, k=4):
 
     return (torch.tensor(edgeIndex, dtype=torch.long), torch.tensor(edgeAttribute, dtype=torch.float))
 
-def evtToGraph(nodeList, weight, sample_info, era, mass1, mass2, k=4):
+def evtToGraph(nodeList, weight, sample_info, era, mass1, mass2, has_bjet, k=4):
     """
     Convert event node list to PyTorch Geometric Data object.
 
@@ -77,6 +77,7 @@ def evtToGraph(nodeList, weight, sample_info, era, mass1, mass2, k=4):
         era: Data era string
         mass1: First OS muon pair mass (smaller)
         mass2: Second OS muon pair mass (larger), -1 if only one pair
+        has_bjet: Float (1.0 if event has b-jets, 0.0 otherwise)
         k: Number of nearest neighbors for edge construction
 
     Returns:
@@ -107,10 +108,11 @@ def evtToGraph(nodeList, weight, sample_info, era, mass1, mass2, k=4):
                 sample_info=sample_info,
                 era=era,
                 mass1=torch.tensor([mass1], dtype=torch.float),
-                mass2=torch.tensor([mass2], dtype=torch.float))
+                mass2=torch.tensor([mass2], dtype=torch.float),
+                has_bjet=torch.tensor([has_bjet], dtype=torch.float))
     return data
 
-def rtfileToDataList(rtfile, sample_name, channel, era, maxSize=-1, nFolds=5):
+def rtfileToDataList(rtfile, sample_name, channel, era, is_diboson=False, maxSize=-1, nFolds=5):
     """
     Convert ROOT file to list of PyTorch Geometric Data objects.
 
@@ -119,18 +121,39 @@ def rtfileToDataList(rtfile, sample_name, channel, era, maxSize=-1, nFolds=5):
         sample_name: MC sample name (e.g., "TTToHcToWAToMuMu-MHc130MA100", "Skim_TriLep_TTLL_powheg")
         channel: Channel name (e.g., "Run1E2Mu", "Run3Mu")
         era: Data era (2016preVFP, 2016postVFP, 2017, 2018)
+        is_diboson: Whether sample is diboson (WZ, ZZ) - relaxes b-jet requirement
         maxSize: Maximum number of events to process (-1 for all)
         nFolds: Number of cross-validation folds
 
     Note:
         Node features: [E, Px, Py, Pz, charge, isMuon, isElectron, isJet, isBjet]
         B-jets are separate particles (no btagScore in features)
+        For diboson samples, b-jet requirement is relaxed for DisCo decorrelation.
     """
     dataList = [[] for _ in range(nFolds)]
     for evt in rtfile.Events:
         muons = getMuons(evt)
         electrons = getElectrons(evt)
         jets, bjets = getJets(evt)
+
+        # Validate lepton count matches channel requirement
+        if channel == "Run3Mu":
+            if len(muons) != 3 or len(electrons) != 0:
+                continue
+        elif channel == "Run1E2Mu":
+            if len(muons) != 2 or len(electrons) != 1:
+                continue
+        else:
+            raise ValueError(f"Unknown channel: {channel}")
+
+        # Compute has_bjet flag for DisCo decorrelation
+        has_bjet = 1.0 if len(bjets) > 0 else 0.0
+
+        # Require at least one b-jet (except for diboson samples)
+        # Diboson samples keep events without b-jets for DisCo decorrelation
+        if len(bjets) == 0 and not is_diboson:
+            continue
+
         METv = Particle(evt.METvPt, 0., evt.METvPhi, 0.)
         METvPt = evt.METvPt
         nJets = evt.nJets
@@ -159,8 +182,8 @@ def rtfileToDataList(rtfile, sample_name, channel, era, maxSize=-1, nFolds=5):
                             obj.Charge(), obj.IsMuon(), obj.IsElectron(),
                             obj.IsJet(), obj.IsBjet()])
 
-        # Create graph with weight, sample info, and masses
-        data = evtToGraph(nodeList, weight, sample_info, era, mass1, mass2)
+        # Create graph with weight, sample info, masses, and bjet flag
+        data = evtToGraph(nodeList, weight, sample_info, era, mass1, mass2, has_bjet)
 
         # Get a random number and save folds (deterministic based on METvPt)
         randGen = TRandom3()

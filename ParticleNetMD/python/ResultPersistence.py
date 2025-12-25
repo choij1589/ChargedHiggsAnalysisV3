@@ -17,7 +17,6 @@ import ROOT
 
 from DataPipeline import DataPipeline
 from TrainingUtilities import extract_weights_from_batch
-from BjetSubsetUtils import has_bjet_in_event
 
 
 class ResultPersistence:
@@ -58,7 +57,6 @@ class ResultPersistence:
         tree = ROOT.TTree("Events", "Multi-class training results")
 
         # Define branches dynamically based on background configuration
-        score_branches = {}
         score_arrays = {}
 
         # Signal score (always present)
@@ -76,13 +74,11 @@ class ResultPersistence:
         train_mask = array("B", [False])
         valid_mask = array("B", [False])
         test_mask = array("B", [False])
-        has_bjet = array("B", [False])
 
         tree.Branch("true_label", true_label, "true_label/I")
         tree.Branch("train_mask", train_mask, "train_mask/O")
         tree.Branch("valid_mask", valid_mask, "valid_mask/O")
         tree.Branch("test_mask", test_mask, "test_mask/O")
-        tree.Branch("has_bjet", has_bjet, "has_bjet/O")
 
         # Weight branches for class imbalance analysis
         event_weight = array("f", [0.])
@@ -94,23 +90,27 @@ class ResultPersistence:
         tree.Branch("mass1", mass1_arr, "mass1/F")
         tree.Branch("mass2", mass2_arr, "mass2/F")
 
+        # B-jet flag for decorrelation analysis
+        has_bjet_arr = array("f", [0.])
+        tree.Branch("has_bjet", has_bjet_arr, "has_bjet/F")
+
         # Save predictions for all data splits
         self._save_split_predictions(model, data_pipeline.train_loader, device, tree,
-                                   score_arrays, true_label, event_weight, has_bjet,
+                                   score_arrays, true_label, event_weight,
                                    train_mask, valid_mask, test_mask,
-                                   mass1_arr, mass2_arr,
+                                   mass1_arr, mass2_arr, has_bjet_arr,
                                    is_train=True)
 
         self._save_split_predictions(model, data_pipeline.valid_loader, device, tree,
-                                   score_arrays, true_label, event_weight, has_bjet,
+                                   score_arrays, true_label, event_weight,
                                    train_mask, valid_mask, test_mask,
-                                   mass1_arr, mass2_arr,
+                                   mass1_arr, mass2_arr, has_bjet_arr,
                                    is_valid=True)
 
         self._save_split_predictions(model, data_pipeline.test_loader, device, tree,
-                                   score_arrays, true_label, event_weight, has_bjet,
+                                   score_arrays, true_label, event_weight,
                                    train_mask, valid_mask, test_mask,
-                                   mass1_arr, mass2_arr,
+                                   mass1_arr, mass2_arr, has_bjet_arr,
                                    is_test=True)
 
         # Write and close file
@@ -161,9 +161,9 @@ class ResultPersistence:
     def _save_split_predictions(self, model: torch.nn.Module, data_loader,
                                device: torch.device, tree: ROOT.TTree,
                                score_arrays: Dict[str, array], true_label: array,
-                               event_weight: array, has_bjet: array,
+                               event_weight: array,
                                train_mask: array, valid_mask: array, test_mask: array,
-                               mass1_arr: array, mass2_arr: array,
+                               mass1_arr: array, mass2_arr: array, has_bjet_arr: array,
                                is_train: bool = False, is_valid: bool = False,
                                is_test: bool = False) -> None:
         """Save predictions for a specific data split."""
@@ -195,9 +195,8 @@ class ResultPersistence:
                 batch_mass1 = batch.mass1.cpu().squeeze()
                 batch_mass2 = batch.mass2.cpu().squeeze()
 
-                # Extract node features for each event in batch
-                # batch.batch indicates which nodes belong to which event
-                batch_node_indices = batch.batch.cpu()
+                # Extract has_bjet values from batch (for b-jet decorrelation analysis)
+                batch_has_bjet = batch.has_bjet.cpu().squeeze()
 
                 for i, (label, scores) in enumerate(zip(batch.y, out)):
                     true_label[0] = int(label.cpu().numpy())
@@ -217,11 +216,8 @@ class ResultPersistence:
                     mass1_arr[0] = float(batch_mass1[i].numpy()) if batch_mass1.dim() > 0 else float(batch_mass1.numpy())
                     mass2_arr[0] = float(batch_mass2[i].numpy()) if batch_mass2.dim() > 0 else float(batch_mass2.numpy())
 
-                    # Calculate and save has_bjet flag
-                    # Extract node features for this event
-                    event_node_mask = (batch_node_indices == i)
-                    event_node_features = batch.x[event_node_mask]
-                    has_bjet[0] = has_bjet_in_event(event_node_features)
+                    # Save has_bjet for b-jet decorrelation analysis
+                    has_bjet_arr[0] = float(batch_has_bjet[i].numpy()) if batch_has_bjet.dim() > 0 else float(batch_has_bjet.numpy())
 
                     tree.Fill()
 
@@ -407,7 +403,8 @@ class ResultPersistence:
             'batch_size': 1024,
             'loss_type': self.config.args.loss_type,
             'train_folds': getattr(self.config.args, 'train_folds', [0, 1, 2]),
-            'valid_folds': getattr(self.config.args, 'valid_folds', [3])
+            'valid_folds': getattr(self.config.args, 'valid_folds', [3]),
+            'test_folds': getattr(self.config.args, 'test_folds', [4])
         }
 
         # Add DisCo-specific parameters if applicable

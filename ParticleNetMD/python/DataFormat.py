@@ -100,8 +100,11 @@ def getMuons(evt):
                     evt.MuonEtaColl,
                     evt.MuonPhiColl,
                     evt.MuonMassColl,
-                    evt.MuonChargeColl)
-    for pt, eta, phi, mass, charge in muons_zip:
+                    evt.MuonChargeColl,
+                    evt.MuonIsTightColl)
+    for pt, eta, phi, mass, charge, isTight in muons_zip:
+        if not isTight:
+            continue
         thisMuon = Muon(pt, eta, phi, mass)
         thisMuon.SetCharge(charge)
         muons.append(thisMuon)
@@ -113,8 +116,11 @@ def getElectrons(evt):
                         evt.ElectronEtaColl,
                         evt.ElectronPhiColl,
                         evt.ElectronMassColl,
-                        evt.ElectronChargeColl)
-    for pt, eta, phi, mass, charge in electrons_zip:
+                        evt.ElectronChargeColl,
+                        evt.ElectronIsTightColl)
+    for pt, eta, phi, mass, charge, isTight in electrons_zip:
+        if not isTight:
+            continue
         thisElectron = Electron(pt, eta, phi, mass)
         thisElectron.SetCharge(charge)
         electrons.append(thisElectron)

@@ -84,6 +84,7 @@ class DataPipeline:
                     test_folds = self.config.args.test_folds
 
                     # Load training data with subsampling
+                    logging.info(f"--- Loading TRAIN data (folds {train_folds}) ---")
                     self.train_data = self.loader.load_multiclass_with_subsampling(
                         signal_sample=self.config.signal_full_name,
                         background_groups=background_groups_full,
@@ -96,6 +97,7 @@ class DataPipeline:
                     )
 
                     # Load validation data with subsampling
+                    logging.info(f"--- Loading VALID data (folds {valid_folds}) ---")
                     self.valid_data = self.loader.load_multiclass_with_subsampling(
                         signal_sample=self.config.signal_full_name,
                         background_groups=background_groups_full,
@@ -108,6 +110,7 @@ class DataPipeline:
                     )
 
                     # Load test data with subsampling
+                    logging.info(f"--- Loading TEST data (folds {test_folds}) ---")
                     self.test_data = self.loader.load_multiclass_with_subsampling(
                         signal_sample=self.config.signal_full_name,
                         background_groups=background_groups_full,
@@ -120,6 +123,7 @@ class DataPipeline:
                     )
                 else:
                     # Use original path without subsampling (backward compatibility)
+                    logging.info(f"--- Loading TRAIN/VALID/TEST data (fold {self.config.args.fold}) ---")
                     self.train_data, self.valid_data, self.test_data = self.loader.create_grouped_multiclass_training_splits(
                         signal_sample=self.config.signal_full_name,
                         background_groups=background_groups_full,
@@ -136,6 +140,7 @@ class DataPipeline:
                 if use_subsampling:
                     logging.warning("Subsampling is only supported with grouped backgrounds mode. Falling back to standard loading.")
 
+                logging.info(f"--- Loading TRAIN/VALID/TEST data (fold {self.config.args.fold}) ---")
                 self.train_data, self.valid_data, self.test_data = self.loader.create_multiclass_training_splits(
                     signal_sample=self.config.signal_full_name,
                     background_samples=self.config.background_full_names,

@@ -265,24 +265,28 @@ class DiScoWeightedLoss(nn.Module):
     Weighted cross-entropy with Distance Correlation (DisCo) regularization.
 
     L_total = L_CE + disco_lambda * (DisCo(score, mass1) + DisCo(score, mass2))
+                   + disco_lambda_bjet * DisCo(score, has_bjet) [diboson only]
 
     This encourages the classifier to be independent of the di-muon mass,
-    preventing mass sculpting in background estimation.
+    preventing mass sculpting in background estimation. For diboson samples,
+    additional decorrelation from b-jet presence prevents domain shift.
 
     Reference: Kasieczka et al. "DisCo: Learning-based classification
     discriminatively constrained on decorrelation" (2020)
     """
 
-    def __init__(self, disco_lambda=0.1, reduction='mean'):
+    def __init__(self, disco_lambda=0.1, disco_lambda_bjet=0.2, reduction='mean'):
         """
         Initialize DisCo weighted loss.
 
         Args:
-            disco_lambda: Weight for DisCo regularization term
+            disco_lambda: Weight for mass DisCo regularization term
+            disco_lambda_bjet: Weight for b-jet DisCo regularization (diboson only)
             reduction: Specifies reduction to apply to output
         """
         super(DiScoWeightedLoss, self).__init__()
         self.disco_lambda = disco_lambda
+        self.disco_lambda_bjet = disco_lambda_bjet
         self.reduction = reduction
         self.base_loss = WeightedCrossEntropyLoss(reduction='none')
 
@@ -291,8 +295,9 @@ class DiScoWeightedLoss(nn.Module):
         self.last_disco_term = 0.0
         self.last_disco1 = 0.0
         self.last_disco2 = 0.0
+        self.last_disco_bjet = 0.0
 
-    def forward(self, logits, target, weight, mass1, mass2):
+    def forward(self, logits, target, weight, mass1, mass2, has_bjet):
         """
         Forward pass with DisCo regularization.
 
@@ -302,6 +307,7 @@ class DiScoWeightedLoss(nn.Module):
             weight: Per-event weights (N,)
             mass1: First OS muon pair mass (N,)
             mass2: Second OS muon pair mass (N,), -1 for 1e2mu events
+            has_bjet: Binary flag for b-jet presence (N,)
 
         Returns:
             Combined loss value (CE + DisCo regularization)
@@ -335,29 +341,37 @@ class DiScoWeightedLoss(nn.Module):
         else:
             disco2 = torch.tensor(0.0, device=logits.device)
 
-        # Combined DisCo term
+        # Combined DisCo term for mass decorrelation
         disco_term = disco1 + disco2
+
+        # DisCo penalty for has_bjet (all samples)
+        # For non-diboson samples where has_bjet is always 1, DisCo=0 (no variance in Y)
+        # For diboson samples where has_bjet varies, DisCo is computed normally
+        # distance_correlation already returns 0 for n < 2
+        disco_bjet = distance_correlation(scores, has_bjet, weight)
 
         # Apply reduction
         if self.reduction == 'mean':
             ce_mean = ce_loss.sum() / weight.sum().clamp(min=1e-8)
-            total_loss = ce_mean + self.disco_lambda * disco_term
+            total_loss = ce_mean + self.disco_lambda * disco_term + self.disco_lambda_bjet * disco_bjet
 
             # Store decomposed losses for tracking
             self.last_ce_loss = ce_mean.item()
             self.last_disco_term = disco_term.item()
             self.last_disco1 = disco1.item() if isinstance(disco1, torch.Tensor) else disco1
             self.last_disco2 = disco2.item() if isinstance(disco2, torch.Tensor) else disco2
+            self.last_disco_bjet = disco_bjet.item() if isinstance(disco_bjet, torch.Tensor) else disco_bjet
 
             return total_loss
         elif self.reduction == 'sum':
-            total_loss = ce_loss.sum() + self.disco_lambda * disco_term * weight.sum()
+            total_loss = ce_loss.sum() + self.disco_lambda * disco_term * weight.sum() + self.disco_lambda_bjet * disco_bjet * weight.sum()
 
             # Store decomposed losses
             self.last_ce_loss = ce_loss.sum().item()
             self.last_disco_term = disco_term.item()
             self.last_disco1 = disco1.item() if isinstance(disco1, torch.Tensor) else disco1
             self.last_disco2 = disco2.item() if isinstance(disco2, torch.Tensor) else disco2
+            self.last_disco_bjet = disco_bjet.item() if isinstance(disco_bjet, torch.Tensor) else disco_bjet
 
             return total_loss
         else:
@@ -366,8 +380,9 @@ class DiScoWeightedLoss(nn.Module):
             self.last_disco_term = disco_term.item()
             self.last_disco1 = disco1.item() if isinstance(disco1, torch.Tensor) else disco1
             self.last_disco2 = disco2.item() if isinstance(disco2, torch.Tensor) else disco2
+            self.last_disco_bjet = disco_bjet.item() if isinstance(disco_bjet, torch.Tensor) else disco_bjet
 
-            return ce_loss + self.disco_lambda * disco_term
+            return ce_loss + self.disco_lambda * disco_term + self.disco_lambda_bjet * disco_bjet
 
     def get_decomposed_losses(self):
         """
@@ -379,6 +394,7 @@ class DiScoWeightedLoss(nn.Module):
                 - 'disco_term': Total DisCo regularization term (before lambda weighting)
                 - 'disco1': DisCo term for mass1
                 - 'disco2': DisCo term for mass2
+                - 'disco_bjet': DisCo term for b-jet (diboson only)
                 - 'disco_weighted': DisCo term after lambda weighting
         """
         return {
@@ -386,6 +402,7 @@ class DiScoWeightedLoss(nn.Module):
             'disco_term': self.last_disco_term,
             'disco1': self.last_disco1,
             'disco2': self.last_disco2,
+            'disco_bjet': self.last_disco_bjet,
             'disco_weighted': self.last_disco_term * self.disco_lambda
         }
 
@@ -437,6 +454,10 @@ if __name__ == "__main__":
     mass2 = torch.abs(torch.randn(batch_size)) * 50 + 20
     mass2[batch_size//2:] = -1  # Half are 1e2mu events (no mass2)
 
+    # Create dummy has_bjet for DisCo test (mix of 0 and 1 for diboson-like behavior)
+    has_bjet = torch.ones(batch_size)
+    has_bjet[:batch_size//3] = 0  # Some events without b-jets (diboson-like)
+
     print("Testing weighted loss functions...")
     print(f"Batch size: {batch_size}, Classes: {num_classes}")
     print(f"Targets: {targets}")
@@ -467,7 +488,7 @@ if __name__ == "__main__":
     # Test DiScoWeightedLoss
     print("\n4. DiScoWeightedLoss:")
     loss_fn = DiScoWeightedLoss(disco_lambda=0.1)
-    loss = loss_fn(predictions, targets, weights, mass1, mass2)
+    loss = loss_fn(predictions, targets, weights, mass1, mass2, has_bjet)
     print(f"   Loss: {loss.item():.4f}")
 
     # Test distance correlation directly
@@ -481,7 +502,7 @@ if __name__ == "__main__":
     for loss_type in ['weighted_ce', 'sample_normalized', 'focal', 'disco']:
         loss_fn = create_loss_function(loss_type, num_classes=num_classes)
         if loss_type == 'disco':
-            loss = loss_fn(predictions, targets, weights, mass1, mass2)
+            loss = loss_fn(predictions, targets, weights, mass1, mass2, has_bjet)
         else:
             loss = loss_fn(predictions, targets, weights)
         print(f"   {loss_type}: {loss.item():.4f}")

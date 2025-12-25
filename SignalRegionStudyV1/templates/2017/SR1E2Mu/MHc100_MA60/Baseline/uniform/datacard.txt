@@ -1,0 +1,45 @@
+# Datacard for B2G-25-013
+# Era: 2017, Channel: SR1E2Mu, Signal: MHc100_MA60
+# Method: Baseline, Binning: uniform
+
+imax 1 number of bins
+jmax 3 number of backgrounds
+kmax * number of nuisance parameters
+--------------------------------------------------------------------------------
+shapes * * shapes.root $PROCESS $PROCESS_$SYSTEMATIC
+shapes signal * shapes.root MHc100_MA60 MHc100_MA60_$SYSTEMATIC
+--------------------------------------------------------------------------------
+bin          SR1E2Mu
+observation  16.7876
+--------------------------------------------------------------------------------
+bin          SR1E2Mu        SR1E2Mu        SR1E2Mu        SR1E2Mu        
+process      signal         nonprompt      ttX            others         
+process      0              1              2              3              
+rate         -1             -1             -1             -1             
+--------------------------------------------------------------------------------
+lumi_2017                                          lnN     1.008          -              -              1.008          
+lumi_13TeV                                         lnN     1.020          -              -              1.020          
+CMS_pileup_13TeV                                   shape   1              -              -              1              
+CMS_l1_prefiring_2017                              shape   1              -              -              1              
+CMS_scale_m                                        shape   1              -              -              1              
+CMS_eff_m_id                                       shape   1              -              -              1              
+CMS_scale_e                                        shape   1              -              -              1              
+CMS_res_e                                          shape   1              -              -              1              
+CMS_eff_e_id                                       shape   1              -              -              1              
+CMS_eff_e_trigger_2017                             shape   1              -              -              1              
+CMS_scale_j                                        shape   1              -              -              1              
+CMS_res_j_2017                                     shape   1              -              -              1              
+CMS_eff_j_PUJET_id_2017                            shape   1              -              -              1              
+CMS_scale_met_unclustered_energy_2017              shape   1              -              -              1              
+CMS_btag_fixedWP_incl_light_correlated             shape   1              -              -              1              
+CMS_btag_fixedWP_incl_light_uncorrelated_2017      shape   1              -              -              1              
+CMS_btag_fixedWP_mujets_bc_correlated              shape   1              -              -              1              
+CMS_btag_fixedWP_mujets_bc_uncorrelated_2017       shape   1              -              -              1              
+CMS_B2G25013_Norm_nonprompt_2017                   shape   -              1              -              -              
+CMS_B2G25013_Norm_others                           shape   -              -              -              1              
+QCDscale_BSMsignal                                 shape   1              -              -              -              
+pdf_00                                             shape   1              -              -              -              
+pdf_alphas                                         shape   1              -              -              -              
+ps_isr                                             shape   1              -              -              -              
+ps_fsr                                             shape   1              -              -              -              
+SR1E2Mu autoMCStats 10

@@ -95,6 +95,20 @@ class MultiClassParticleNet(torch.nn.Module):
         self.dropout_p = dropout_p
         self.num_classes = num_classes
 
+        # Apply Xavier initialization
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize weights using Xavier initialization."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.BatchNorm1d):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
+
     def forward(self, x: torch.Tensor, edge_index: torch.Tensor,
                 graph_input: torch.Tensor, batch: torch.Tensor = None) -> torch.Tensor:
         """

@@ -180,11 +180,12 @@ def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
         # Extract weights for loss function
         weights = extract_weights_from_batch(batch)
 
-        # Compute weighted loss (with or without mass for DisCo)
+        # Compute weighted loss (with or without mass/bjet for DisCo)
         if loss_requires_mass:
             mass1 = batch.mass1.squeeze()
             mass2 = batch.mass2.squeeze()
-            loss = loss_fn(logits, batch.y, weights, mass1, mass2)
+            has_bjet = batch.has_bjet.squeeze()
+            loss = loss_fn(logits, batch.y, weights, mass1, mass2, has_bjet)
         else:
             loss = loss_fn(logits, batch.y, weights)
 
@@ -279,11 +280,12 @@ def evaluate_model(model, data_loader, loss_fn, device, use_groups=False, num_cl
             # Extract weights for loss function
             weights = extract_weights_from_batch(batch)
 
-            # Compute loss (with or without mass for DisCo)
+            # Compute loss (with or without mass/bjet for DisCo)
             if loss_requires_mass:
                 mass1 = batch.mass1.squeeze()
                 mass2 = batch.mass2.squeeze()
-                loss = loss_fn(logits, batch.y, weights, mass1, mass2)
+                has_bjet = batch.has_bjet.squeeze()
+                loss = loss_fn(logits, batch.y, weights, mass1, mass2, has_bjet)
             else:
                 loss = loss_fn(logits, batch.y, weights)
 

@@ -63,9 +63,10 @@ class Config:
         self.args.balance = train_params['balance_weights']
         self.args.max_events_per_fold_per_class = train_params.get('max_events_per_fold_per_class')
 
-        # DisCo parameters (for mass decorrelation)
+        # DisCo parameters (for mass and b-jet decorrelation)
         disco_params = self.sgl_config.config.get('disco_parameters', {})
         self.args.disco_lambda = disco_params.get('disco_lambda', 0.1)
+        self.args.disco_lambda_bjet = disco_params.get('disco_lambda_bjet', 0.2)
 
         # Model configuration
         self.args.model = model_config['default_model']
@@ -183,7 +184,7 @@ class Config:
         logging.info(f"Optimization: {self.args.optimizer} (LR: {self.args.initLR}, decay: {self.args.weight_decay})")
         logging.info(f"Schedule: {self.args.scheduler}, Loss: {self.args.loss_type}")
         if self.args.loss_type == 'disco':
-            logging.info(f"DisCo lambda: {self.args.disco_lambda}")
+            logging.info(f"DisCo lambda (mass): {self.args.disco_lambda}, (bjet): {self.args.disco_lambda_bjet}")
         logging.info(f"Classes: {self.num_classes}, Device: {self.args.device}")
         logging.info(f"Batch size: {self.args.batch_size}, Max epochs: {self.args.max_epochs}")
         logging.info(f"Pilot mode: {self.args.pilot}, Balance: {self.args.balance}")
@@ -243,7 +244,7 @@ def main():
     # Setup logging based on debug flag
     logging.basicConfig(
         level=logging.DEBUG if config.args.debug else logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
+        format='%(levelname)s - %(message)s'
     )
 
     # Log comprehensive configuration
@@ -300,24 +301,19 @@ def main():
         test_results = orchestrator.evaluate_final_performance()
         training_results.update(test_results)
 
-        # 9. B-Jet Subset Evaluation
-        logging.info("Evaluating performance on b-jet subset...")
-        bjet_results = orchestrator.evaluate_bjet_subset_performance()
-        training_results['bjet_subset_results'] = bjet_results
-
-        # 10. Save Training Summary
+        # 9. Save Training Summary
         orchestrator.save_training_summary(summary_path)
 
-        # 11. Save Predictions to ROOT Tree
+        # 10. Save Predictions to ROOT Tree
         model = orchestrator.get_model()
         device = orchestrator.device
         persistence.save_predictions_to_root(model, data_pipeline, device, tree_path)
 
-        # 12. Save Performance Metrics
+        # 11. Save Performance Metrics
         persistence.save_performance_summary(training_results, model_name, output_path)
         persistence.save_model_info(model, model_name, output_path)
 
-        # 13. Save GA-compatible JSON (for visualizeGAIteration.py compatibility)
+        # 12. Save GA-compatible JSON (for visualizeGAIteration.py compatibility)
         persistence.save_ga_compatible_json(training_results, model_name, output_path)
 
         # Final Summary

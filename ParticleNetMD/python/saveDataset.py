@@ -21,20 +21,26 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--sample", required=True, type=str, help="MC sample name")
 parser.add_argument("--sample-type", required=True, choices=["signal", "background"], help="sample type")
 parser.add_argument("--channel", required=True, type=str, help="channel")
-parser.add_argument("--pilot", action="store_true", default=False, help="pilot mode")
 parser.add_argument("--debug", action="store_true", default=False, help="debug mode")
 args = parser.parse_args()
 
 # Check arguments
-valid_channels = ["Run1E2Mu", "Run3Mu", "Combined"]
+# Note: "Combined" is handled by DynamicDatasetLoader (loads Run1E2Mu + Run3Mu on the fly)
+valid_channels = ["Run1E2Mu", "Run3Mu"]
 
 if args.channel not in valid_channels:
-    raise ValueError(f"Invalid channel {args.channel}. Valid options: {valid_channels}")
+    raise ValueError(f"Invalid channel {args.channel}. Valid options: {valid_channels}\n"
+                     "Note: 'Combined' is handled by DynamicDatasetLoader at training time.")
 
-# No validation of sample names - use MC sample names directly
+# Detect if sample is diboson (WZ or ZZ) for conditional b-jet requirement
+is_diboson = any(x in args.sample for x in ["WZTo3LNu", "ZZTo4L"])
 
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 WORKDIR = os.environ["WORKDIR"]
+
+if is_diboson:
+    logging.info(f"Diboson sample detected: {args.sample}")
+    logging.info("B-jet requirement relaxed for DisCo decorrelation")
 
 # Initialize dataset statistics dictionary
 dataset_stats = {
@@ -42,31 +48,21 @@ dataset_stats = {
     "sample": args.sample,
     "sample_type": args.sample_type,
     "channel": args.channel,
-    "pilot_mode": args.pilot,
+    "is_diboson": is_diboson,
     "node_features": "[E, Px, Py, Pz, charge, isMuon, isElectron, isJet, isBjet]",
     "mass_decorrelation": True,
+    "bjet_requirement_relaxed": is_diboson,
     "eras": {},
     "folds": {},
     "total_events": 0,
     "total_weight": 0.0
 }
 
-# Load dataset parameters
-maxSize = 10000 if args.pilot else -1
+# Dataset parameters (no subsampling - save all events)
 nFolds = 5
-maxSizeForEra = {
-    "2016preVFP": int(maxSize / 7) if maxSize > 0 else -1,
-    "2016postVFP": int(maxSize / 7) if maxSize > 0 else -1,
-    "2017": int(maxSize * (2/7)) if maxSize > 0 else -1,
-    "2018": int(maxSize * (3/7)) if maxSize > 0 else -1
-}
-logging.debug(maxSizeForEra)
 
 # Initialize data lists
 dataList = [[] for _ in range(nFolds)]
-
-# Process channels to process
-channels_to_process = ["Run1E2Mu", "Run3Mu"] if args.channel == "Combined" else [args.channel]
 
 # Process data for each era
 for era in ["2016preVFP", "2016postVFP", "2017", "2018"]:
@@ -74,33 +70,35 @@ for era in ["2016preVFP", "2016postVFP", "2017", "2018"]:
     if era not in dataset_stats["eras"]:
         dataset_stats["eras"][era] = {"events": 0, "total_weight": 0.0}
 
-    for channel in channels_to_process:
-        # Use sample name directly as filename (no mapping needed)
-        file_path = f"{WORKDIR}/SKNanoOutput/EvtTreeProducer/{channel}/{era}/{args.sample}.root"
+    # Use sample name directly as filename (no mapping needed)
+    file_path = f"{WORKDIR}/SKNanoOutput/EvtTreeProducer/{args.channel}/{era}/{args.sample}.root"
 
-        if os.path.exists(file_path):
-            logging.info(f"Processing {file_path}")
-            rt = ROOT.TFile.Open(file_path)
+    if os.path.exists(file_path):
+        logging.info(f"Processing {file_path}")
+        rt = ROOT.TFile.Open(file_path)
 
-            # Convert events to graph data (with masses for decorrelation)
-            sampleDataTmp = rtfileToDataList(rt, args.sample, channel, era,
-                                           maxSize=maxSizeForEra[era], nFolds=nFolds)
-            rt.Close()
+        # Convert events to graph data (with masses for decorrelation)
+        # is_diboson flag relaxes b-jet requirement for DisCo decorrelation
+        # No subsampling here - save all events, subsample at training time
+        sampleDataTmp = rtfileToDataList(rt, args.sample, args.channel, era,
+                                       is_diboson=is_diboson,
+                                       maxSize=-1, nFolds=nFolds)
+        rt.Close()
 
-            # Merge into main data list
-            for i in range(nFolds):
-                dataList[i] += sampleDataTmp[i]
+        # Merge into main data list
+        for i in range(nFolds):
+            dataList[i] += sampleDataTmp[i]
 
-            # Calculate statistics
-            total_events = sum(len(fold) for fold in sampleDataTmp)
-            total_weight = sum(sum(data.weight.item() for data in fold) for fold in sampleDataTmp)
+        # Calculate statistics
+        total_events = sum(len(fold) for fold in sampleDataTmp)
+        total_weight = sum(sum(data.weight.item() for data in fold) for fold in sampleDataTmp)
 
-            dataset_stats["eras"][era]["events"] += total_events
-            dataset_stats["eras"][era]["total_weight"] += total_weight
+        dataset_stats["eras"][era]["events"] += total_events
+        dataset_stats["eras"][era]["total_weight"] += total_weight
 
-            logging.info(f"Loaded {total_events} events (total weight: {total_weight:.2f}) from {era}/{channel}")
-        else:
-            logging.warning(f"File not found: {file_path}")
+        logging.info(f"Loaded {total_events} events (total weight: {total_weight:.2f}) from {era}/{args.channel}")
+    else:
+        logging.warning(f"File not found: {file_path}")
 
 # Calculate fold statistics
 for i in range(nFolds):
@@ -122,9 +120,6 @@ if args.sample_type == "signal":
     baseDir = f"{WORKDIR}/ParticleNetMD/dataset/samples/signals/{args.sample}"
 else:
     baseDir = f"{WORKDIR}/ParticleNetMD/dataset/samples/backgrounds/{args.sample}"
-
-if args.pilot:
-    baseDir += "_pilot"
 
 logging.info(f"Saving dataset to {baseDir}")
 os.makedirs(baseDir, exist_ok=True)

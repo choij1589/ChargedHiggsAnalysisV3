@@ -42,7 +42,7 @@ def parseAsymptoticLimit(masspoint, method):
     branching_ratios = {}
     try:
         for idx, entry in enumerate(limit):
-            branching_ratios[idx] = entry.limit * REFERENCE_XSEC / TTBAR_XEC_13TEV
+            branching_ratios[idx] = entry.limit * REFERENCE_XSEC / TTBAR_XEC_13TEV / (2*0.5456) ## 2 for charge conjugation, 0.5456 for non-hadronic decay of two W bosons
     except Exception as e:
         print(masspoint)
         raise ValueError(e)

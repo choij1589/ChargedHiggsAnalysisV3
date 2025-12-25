@@ -23,7 +23,7 @@ def create_graphs(limits_dict):
     n = len(x)
 
     # Extract limit values
-    limits = {key: array('d', [limits_dict[mp][key] for mp in mass_points])
+    limits = {key: array('d', [limits_dict[mp][key]/(2*0.5456) for mp in mass_points])
               for key in ["obs", "exp0", "exp-1", "exp-2", "exp+1", "exp+2"]}
 
     # Create graphs
