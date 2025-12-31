@@ -40,7 +40,7 @@ function preprocess_particleNet() {
 export -f preprocess_baseline
 export -f preprocess_particleNet
 
-#parallel -j 16 preprocess_baseline {} {} {} ::: "${ERAs[@]}" ::: "${CHANNELs[@]}" ::: "${MASSPOINTs[@]}"
+parallel -j 16 preprocess_baseline {} {} {} ::: "${ERAs[@]}" ::: "${CHANNELs[@]}" ::: "${MASSPOINTs[@]}"
 
 # ParticleNet: SR3Mu depends on SR1E2Mu fit results, so process SR1E2Mu first
 # Function signature: preprocess_particleNet(channel, era, masspoint)
