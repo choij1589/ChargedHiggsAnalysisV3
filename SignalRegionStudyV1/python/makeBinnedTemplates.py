@@ -5,7 +5,7 @@ Generate binned histogram templates for HiggsCombine from preprocessed ROOT file
 This script creates shape-based templates with systematic variations for limit setting.
 Supports two binning methods:
 - uniform (default): 15 uniform bins in [mA - 5*sigma_voigt, mA + 5*sigma_voigt]
-- sigma: Non-uniform sigma-based bins at [-10, -6, -4, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 4, 6, 10] * sigma_voigt
+- extended: Same 15 uniform bins as uniform, plus extended bins at [-10, -7, -5] and [+5, +7, +10] * sigma_voigt
 
 Features:
 - A mass fitting to extract signal parameters
@@ -14,7 +14,7 @@ Features:
 
 Usage:
     python makeBinnedTemplates.py --era 2018 --channel SR1E2Mu --masspoint MHc130_MA90 --method Baseline
-    python makeBinnedTemplates.py --era 2018 --channel SR1E2Mu --masspoint MHc130_MA90 --method Baseline --binning sigma
+    python makeBinnedTemplates.py --era 2018 --channel SR1E2Mu --masspoint MHc130_MA90 --method Baseline --binning extended
 """
 import os
 import re
@@ -34,8 +34,8 @@ def parse_args():
     parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
     parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
     parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet, etc.)")
-    parser.add_argument("--binning", default="uniform", choices=["uniform", "sigma"],
-                        help="Binning method: 'uniform' (15 bins, default) or 'sigma' (non-uniform)")
+    parser.add_argument("--binning", default="uniform", choices=["uniform", "extended"],
+                        help="Binning method: 'uniform' (15 bins, default) or 'extended' (15 bins + tails)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args()
 
@@ -170,7 +170,7 @@ def get_output_tree_name(syst_name, variation):
 def get_mass_window(mA, width, sigma, binning="uniform"):
     """Calculate mass window based on binning type. Returns (mass_min, mass_max)."""
     voigt_width = sqrt(width**2 + sigma**2)
-    if binning == "sigma":
+    if binning == "extended":
         return mA - 10 * voigt_width, mA + 10 * voigt_width
     else:  # uniform (default)
         return mA - 5 * voigt_width, mA + 5 * voigt_width
@@ -188,14 +188,22 @@ def calculateFixedBins(mA, width, sigma):
     return bin_edges
 
 
-def calculateSigmaBins(mA, width, sigma):
-    """Generate non-uniform sigma-based bin edges at [-10, -6, -4, -2.5, -1.5, 0.5, 0.5, 1.5, 2.5, 4, 6, 10] * sigma_voigt."""
+def calculateExtendedBins(mA, width, sigma):
+    """Generate extended bin edges: [-10, -7, -5]*sigma + 15 uniform bins in [-5, +5]*sigma + [+5, +7, +10]*sigma."""
     voigt_width = sqrt(width**2 + sigma**2)
-    sigma_fractions = [-10, -6, -4, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 4, 6, 10]
-    bin_edges = np.array([mA + f * voigt_width for f in sigma_fractions])
 
-    logging.info(f"Sigma binning: {len(bin_edges) - 1} bins, sigma_voigt={voigt_width:.3f} GeV")
-    logging.info(f"  Bin edges (in sigma): {sigma_fractions}")
+    # Use same 15 uniform bins as calculateFixedBins in [-5σ, +5σ]
+    uniform_sigma_fractions = np.linspace(-5, 5, 16)  # 16 edges for 15 bins
+
+    # Add extra bins at [-10, -7] on low side and [+7, +10] on high side
+    extra_low = np.array([-10, -7])
+    extra_high = np.array([7, 10])
+
+    sigma_fractions = np.concatenate([extra_low, uniform_sigma_fractions, extra_high])
+    bin_edges = mA + sigma_fractions * voigt_width
+
+    logging.info(f"Extended binning: {len(bin_edges) - 1} bins, sigma_voigt={voigt_width:.3f} GeV")
+    logging.info(f"  Bin edges (in sigma): {sigma_fractions.tolist()}")
     logging.info(f"  Bin edges (in GeV): [{bin_edges[0]:.2f}, ..., {bin_edges[-1]:.2f}]")
     return bin_edges
 
@@ -903,9 +911,9 @@ def main():
     logging.info(f"Calculating {args.binning} binning...")
     logging.info("=" * 60)
 
-    if args.binning == "sigma":
-        bin_edges = calculateSigmaBins(mA, width, sigma)
-        binning_method = "SigmaBased"
+    if args.binning == "extended":
+        bin_edges = calculateExtendedBins(mA, width, sigma)
+        binning_method = "ExtendedBins"
     else:
         bin_edges = calculateFixedBins(mA, width, sigma)
         binning_method = "UniformMass"
@@ -1134,11 +1142,10 @@ def main():
                     output_file.cd()
                     hist.Write()
         else:
-            # Prompt systematics - map process name back to config category
-            category = "conv" if process == "conversion" else process
-
+            # Prompt systematics - use process name directly
+            # Note: systematics config uses "conversion" in groups, not "conv"
             for syst_name, variations, group in syst_categories['preprocessed_shape']:
-                if category not in group:
+                if process not in group:
                     continue
                 for var in variations:
                     output_tree = get_output_tree_name(syst_name, var)
@@ -1153,7 +1160,7 @@ def main():
 
             # Valued shape systematics (created by scaling Central histogram)
             for syst_name, value, group in syst_categories['valued_shape']:
-                if category not in group:
+                if process not in group:
                     continue
                 for direction in ["up", "down"]:
                     hist = createScaledHist(hist_central, process, syst_name, value, direction)
@@ -1181,11 +1188,11 @@ def main():
     background_hists["others"] = hist_others
 
     # Prompt systematics for others
-    # Build list of categories that could be in "others"
-    others_categories = background_categories + ["others"]
+    # Build list of process names that could be in "others" (use actual process names for group matching)
+    others_process_names = [("conversion" if c == "conv" else c) for c in background_categories] + ["others"]
     for syst_name, variations, group in syst_categories['preprocessed_shape']:
         # Apply to all prompt backgrounds in "others"
-        applicable = any(cat in group for cat in others_categories)
+        applicable = any(proc in group for proc in others_process_names)
         if not applicable:
             continue
 
@@ -1202,7 +1209,7 @@ def main():
 
     # Valued shape systematics (created by scaling merged Central histogram)
     for syst_name, value, group in syst_categories['valued_shape']:
-        applicable = any(cat in group for cat in others_categories)
+        applicable = any(proc in group for proc in others_process_names)
         if not applicable:
             continue
 
