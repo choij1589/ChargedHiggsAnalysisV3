@@ -21,8 +21,8 @@ parser = argparse.ArgumentParser(description="Plot ParticleNet score distributio
 parser.add_argument("--era", required=True, type=str, help="Data-taking period (2016preVFP, 2017, 2018, 2022, etc.)")
 parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
-parser.add_argument("--binning", default="uniform", choices=["uniform", "sigma"],
-                    help="Binning method: 'uniform' (15 bins, default) or 'sigma' (non-uniform)")
+parser.add_argument("--binning", default="uniform", choices=["uniform", "extended"],
+                    help="Binning method: 'uniform' (15 bins, default) or 'extended' (15 bins + tails)")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
 

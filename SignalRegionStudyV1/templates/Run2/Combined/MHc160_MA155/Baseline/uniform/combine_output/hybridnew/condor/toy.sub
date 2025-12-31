@@ -6,7 +6,7 @@ error = logs/toy_$(r_value)_$(seed).err
 log = hybridnew.log
 
 request_cpus = 1
-request_memory = 4GB
+request_memory = 6GB
 request_disk = 500MB
 
 should_transfer_files = YES
@@ -14,7 +14,7 @@ transfer_input_files = workspace.root
 transfer_output_files = higgsCombine.r$(r_value).seed$(seed).HybridNew.mH120.$(seed).root
 when_to_transfer_output = ON_EXIT
 
-+SingularityImage = "/data9/Users/choij/Singularity/images/private-el8.sif"
-+SingularityBind = "/cvmfs,/cms,/share"
+#+SingularityImage = "/data9/Users/choij/Singularity/images/private-el8.sif"
+#+SingularityBind = "/cvmfs,/cms,/share"
 
 queue

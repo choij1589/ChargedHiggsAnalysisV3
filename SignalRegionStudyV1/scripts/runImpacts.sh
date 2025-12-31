@@ -16,7 +16,7 @@ MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
 CONDOR=false
-PARALLEL=4
+PARALLEL=16
 DRY_RUN=false
 VERBOSE=false
 DO_INITIAL=true
@@ -85,7 +85,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (uniform, sigma) [default: uniform]"
+            echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
             echo "  --condor     Submit nuisance fits to HTCondor"
             echo "  --parallel   Number of parallel local jobs [default: 4]"
             echo "  --skip-initial  Skip initial fit (use existing)"
@@ -171,10 +171,7 @@ if [[ "$DO_INITIAL" == true ]]; then
         --setParameterRanges r=-1,1 \
         -n .${MASSPOINT}.${METHOD}.${BINNING} \
         2>&1 | tee ${OUTPUT_DIR}/initial_fit.out"
-
-    if [[ "$DRY_RUN" == false ]]; then
-        mv -f higgsCombine*.root "${OUTPUT_DIR}/" 2>/dev/null || true
-    fi
+    # Note: Don't move files yet - Step 2 needs the initial fit file in the current directory
 fi
 
 # Step 2: Run fits for each nuisance parameter

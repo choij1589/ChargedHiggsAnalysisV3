@@ -21,7 +21,7 @@ if [[ -z "$MP" ]]; then
     echo "Usage: $0 MASSPOINT [METHOD] [BINNING]"
     echo "  MASSPOINT: e.g., MHc130_MA90"
     echo "  METHOD: Baseline (default) or ParticleNet"
-    echo "  BINNING: uniform (default) or sigma"
+    echo "  BINNING: uniform (default) or extended"
     exit 1
 fi
 

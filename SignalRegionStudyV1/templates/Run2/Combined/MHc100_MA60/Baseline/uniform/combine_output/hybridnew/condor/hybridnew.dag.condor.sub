@@ -15,6 +15,6 @@ My.OtherJobRemoveRequirements = "DAGManJobId =?= $(cluster)"
 # is killed (e.g., during a reboot).
 on_exit_remove = (ExitSignal =?= 11 || (ExitCode =!= UNDEFINED && ExitCode >=0 && ExitCode <= 2))
 copy_to_spool = False
-arguments = "-p 0 -f -l . -Lockfile hybridnew.dag.lock -Dag hybridnew.dag -CsdVersion $CondorVersion:' '24.0.14' '2025-10-31' 'BuildID:' '847283' 'PackageID:' '24.0.14-1' 'GitSHA:' '2c5be6a1' '$ -dagman /usr/bin/condor_dagman -AutoRescue 1 -DoRescueFrom 0"
+arguments = "-p 0 -f -l . -Lockfile hybridnew.dag.lock -Dag hybridnew.dag -CsdVersion $CondorVersion:' '23.10.29' '2025-09-22' 'BuildID:' '834959' 'PackageID:' '23.10.29-1' 'GitSHA:' 'ded6225d' '$ -dagman /usr/bin/condor_dagman -AutoRescue 1 -DoRescueFrom 0"
 environment = "_CONDOR_DAGMAN_LOG=hybridnew.dag.dagman.out _CONDOR_MAX_DAGMAN_LOG=0 _CONDOR_SCHEDD_ADDRESS_FILE=/var/lib/condor/spool/.schedd_address _CONDOR_SCHEDD_DAEMON_AD_FILE=/var/lib/condor/spool/.schedd_classad"
 queue

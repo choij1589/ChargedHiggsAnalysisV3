@@ -109,7 +109,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (uniform, sigma) [default: uniform]"
+            echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
             echo "  --condor     Submit jobs to HTCondor"
             echo "  --ntoys      Number of toys per job [default: 500]"
             echo "  --njobs      Number of parallel jobs [default: 10]"
@@ -310,7 +310,7 @@ if [[ "$CONDOR" == true ]]; then
     cat > "${CONDOR_DIR}/workspace.sh" << EOFWORKSPACE
 #!/bin/bash
 source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el8_amd64_gcc12
+export SCRAM_ARCH=el9_amd64_gcc12
 cd ${CMSSW_BASE}
 eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
@@ -343,8 +343,8 @@ transfer_input_files = ${WORKSPACE_INPUT_FILES}
 transfer_output_files = workspace.root
 when_to_transfer_output = ON_EXIT
 
-+SingularityImage = "${SINGULARITY_IMAGE}"
-+SingularityBind = "/cvmfs,/cms,/share"
+#+SingularityImage = "${SINGULARITY_IMAGE}"
+#+SingularityBind = "/cvmfs,/cms,/share"
 
 queue
 EOF
@@ -356,7 +356,7 @@ R_VALUE=\$1
 SEED=\$2
 
 source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el8_amd64_gcc12
+export SCRAM_ARCH=el9_amd64_gcc12
 cd ${CMSSW_BASE}
 eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
@@ -366,7 +366,9 @@ combine -M HybridNew workspace.root \\
     --singlePoint \${R_VALUE} \\
     --saveToys \\
     --saveHybridResult \\
+    --expectSignal 0 \\
     -T ${NTOYS} \\
+    -t -1 \\
     -s \${SEED} \\
     -n .r\${R_VALUE}.seed\${SEED}
 EOFTOY
@@ -382,7 +384,7 @@ error = logs/toy_\$(r_value)_\$(seed).err
 log = hybridnew.log
 
 request_cpus = 1
-request_memory = 4GB
+request_memory = 6GB
 request_disk = 500MB
 
 should_transfer_files = YES
@@ -390,8 +392,8 @@ transfer_input_files = workspace.root
 transfer_output_files = higgsCombine.r\$(r_value).seed\$(seed).HybridNew.mH120.\$(seed).root
 when_to_transfer_output = ON_EXIT
 
-+SingularityImage = "${SINGULARITY_IMAGE}"
-+SingularityBind = "/cvmfs,/cms,/share"
+#+SingularityImage = "${SINGULARITY_IMAGE}"
+#+SingularityBind = "/cvmfs,/cms,/share"
 
 queue
 EOF
@@ -400,7 +402,7 @@ EOF
     cat > "${CONDOR_DIR}/merge.sh" << EOFMERGE
 #!/bin/bash
 source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el8_amd64_gcc12
+export SCRAM_ARCH=el9_amd64_gcc12
 cd ${CMSSW_BASE}
 eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
@@ -436,8 +438,8 @@ transfer_input_files = ${TOY_FILES_LIST}
 transfer_output_files = hybridnew_grid.root
 when_to_transfer_output = ON_EXIT
 
-+SingularityImage = "${SINGULARITY_IMAGE}"
-+SingularityBind = "/cvmfs,/cms,/share"
+#+SingularityImage = "${SINGULARITY_IMAGE}"
+#+SingularityBind = "/cvmfs,/cms,/share"
 
 queue
 EOF
@@ -449,7 +451,7 @@ QUANTILE=\$1
 NAME=\$2
 
 source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el8_amd64_gcc12
+export SCRAM_ARCH=el9_amd64_gcc12
 cd ${CMSSW_BASE}
 eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
@@ -495,8 +497,8 @@ transfer_input_files = workspace.root,hybridnew_grid.root
 transfer_output_files = combine_\$(name).out
 when_to_transfer_output = ON_EXIT
 
-+SingularityImage = "${SINGULARITY_IMAGE}"
-+SingularityBind = "/cvmfs,/cms,/share"
+#+SingularityImage = "${SINGULARITY_IMAGE}"
+#+SingularityBind = "/cvmfs,/cms,/share"
 
 queue
 EOF

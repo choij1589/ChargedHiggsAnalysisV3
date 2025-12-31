@@ -8,6 +8,10 @@ if [[ $HOST == *"tamsa"* ]]; then
     export MAMBA_ROOT_PREFIX=$HOME/micromamba
     eval "$(micromamba shell hook -s zsh)"
     micromamba activate Nano
+elif [[ $HOST == *"knu"* ]]; then
+    export WORKDIR="/u/user/choij/scratch/ChargedHiggsAnalysisV3"
+    source /u/user/choij/scratch/miniconda/bin/activate
+    conda activate Nano
 elif [[ $HOST == *"Mac"* ]]; then
     export WORKDIR="/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3"
     export PATH=$HOME/micromamba/bin:$PATH

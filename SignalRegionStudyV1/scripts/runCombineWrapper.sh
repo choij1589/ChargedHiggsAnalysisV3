@@ -103,7 +103,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --channels   Comma-separated channels or 'all' [default: all]"
             echo "  --masspoints Comma-separated masspoints or 'all', 'baseline', 'particlenet' [default: all]"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (uniform, sigma) [default: uniform]"
+            echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
             echo "  --parallel   Number of parallel jobs [default: 4]"
             echo "  --condor     Use HTCondor for heavy jobs"
             echo "  --dry-run    Print commands without executing"
