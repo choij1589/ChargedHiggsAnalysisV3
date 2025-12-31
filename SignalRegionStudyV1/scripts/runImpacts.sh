@@ -213,10 +213,7 @@ if [[ "$DO_FITS" == true ]]; then
             -n .${MASSPOINT}.${METHOD}.${BINNING} \
             --parallel ${PARALLEL} \
             2>&1 | tee ${OUTPUT_DIR}/nuisance_fits.out"
-
-        if [[ "$DRY_RUN" == false ]]; then
-            mv -f higgsCombine*.root "${OUTPUT_DIR}/" 2>/dev/null || true
-        fi
+        # Note: Don't move files yet - Step 3 (collect) needs them in the current directory
     fi
 fi
 
@@ -225,17 +222,17 @@ if [[ "$DO_PLOT" == true ]]; then
     echo ""
     echo "Step 3: Collecting impacts..."
 
-    # Move any remaining output files
-    if [[ "$DRY_RUN" == false ]]; then
-        mv -f higgsCombine*.root "${OUTPUT_DIR}/" 2>/dev/null || true
-    fi
-
     run_cmd "combineTool.py -M Impacts \
         -d workspace.root \
         -m 120 \
         -n .${MASSPOINT}.${METHOD}.${BINNING} \
         -o ${OUTPUT_DIR}/impacts.json \
         2>&1 | tee ${OUTPUT_DIR}/collect.out"
+
+    # Move all higgsCombine output files to OUTPUT_DIR after collect step
+    if [[ "$DRY_RUN" == false ]]; then
+        mv -f higgsCombine*.root "${OUTPUT_DIR}/" 2>/dev/null || true
+    fi
 
     echo ""
     echo "Step 4: Generating impact plot..."

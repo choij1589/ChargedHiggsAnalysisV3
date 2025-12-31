@@ -1,12 +1,2 @@
-Error in <TFile::TFile>: file /d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV1/templates/Run2/Combined/MHc70_MA15/Baseline/uniform/higgsCombine_initialFit_.MHc70_MA15.Baseline.uniform.MultiDimFit.mH120.root does not exist
 Have POIs: ['r']
-Traceback (most recent call last):
-  File "/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV1/CMSSW_14_1_0_pre4/bin/el9_amd64_gcc12/combineTool.py", line 76, in <module>
-    method.run_method()
-  File "/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV1/CMSSW_14_1_0_pre4/src/HiggsAnalysis/CombinedLimit/python/tool_base/Impacts.py", line 170, in run_method
-    initialRes = utils.get_singles_results("higgsCombine_initialFit_%(name)s.MultiDimFit.mH%(mh)s.root" % vars(), poiList, poiList)
-  File "/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV1/CMSSW_14_1_0_pre4/src/HiggsAnalysis/CombinedLimit/python/tool_base/utils.py", line 109, in get_singles_results
-    f = ROOT.TFile(file)
-  File "/cvmfs/cms.cern.ch/el9_amd64_gcc12/lcg/root/6.30.07-8b1a11e1ef0e074fdfd44e162b27e71c/lib/ROOT/_pythonization/_tfile.py", line 90, in _TFileConstructor
-    raise OSError('Failed to open file {}'.format(args[0]))
-OSError: Failed to open file higgsCombine_initialFit_.MHc70_MA15.Baseline.uniform.MultiDimFit.mH120.root
+Have parameters: 317
