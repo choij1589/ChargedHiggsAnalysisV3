@@ -15,6 +15,7 @@ CHANNEL=""
 MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
+PARTIAL_UNBLIND=false
 CONDOR=false
 PARALLEL=16
 DRY_RUN=false
@@ -45,6 +46,10 @@ while [[ $# -gt 0 ]]; do
         --binning)
             BINNING="$2"
             shift 2
+            ;;
+        --partial-unblind)
+            PARTIAL_UNBLIND=true
+            shift
             ;;
         --condor)
             CONDOR=true
@@ -86,6 +91,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
             echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
+            echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
             echo "  --condor     Submit nuisance fits to HTCondor"
             echo "  --parallel   Number of parallel local jobs [default: 4]"
             echo "  --skip-initial  Skip initial fit (use existing)"
@@ -113,7 +119,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKDIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Template directory
-TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV1/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING}"
+BINNING_SUFFIX="${BINNING}"
+if [[ "$PARTIAL_UNBLIND" == true ]]; then
+    BINNING_SUFFIX="${BINNING}_partial_unblind"
+fi
+TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV1/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
 
 # Check if template directory exists
 if [[ ! -d "$TEMPLATE_DIR" ]]; then
@@ -146,9 +156,30 @@ run_cmd() {
 cd "$TEMPLATE_DIR"
 log "Working directory: $(pwd)"
 
-echo "Running Impacts for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING})..."
+# Clean up working directory if running step 1 or step 2
+if [[ "$DO_INITIAL" == true || "$DO_FITS" == true ]]; then
+    echo "Cleaning up working directory..."
+    if [[ "$DRY_RUN" == true ]]; then
+        echo "[DRY-RUN] rm -f higgsCombine*.root"
+        echo "[DRY-RUN] rm -rf ${OUTPUT_DIR}"
+    else
+        rm -f higgsCombine*.root
+        rm -rf "${OUTPUT_DIR}"
+        mkdir -p "$OUTPUT_DIR"
+    fi
+fi
+
+# Set parameter range - wider for partial-unblind due to weaker constraints
+if [[ "$PARTIAL_UNBLIND" == true ]]; then
+    R_RANGE="r=-5,5"
+else
+    R_RANGE="r=-1,1"
+fi
+
+echo "Running Impacts for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING_SUFFIX})..."
 echo "  Condor: ${CONDOR}"
 echo "  Parallel jobs: ${PARALLEL}"
+echo "  Parameter range: ${R_RANGE}"
 echo ""
 
 # Create workspace if needed
@@ -168,8 +199,8 @@ if [[ "$DO_INITIAL" == true ]]; then
         --robustFit 1 \
         -t -1 \
         --expectSignal 0 \
-        --setParameterRanges r=-1,1 \
-        -n .${MASSPOINT}.${METHOD}.${BINNING} \
+        --setParameterRanges ${R_RANGE} \
+        -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
         2>&1 | tee ${OUTPUT_DIR}/initial_fit.out"
     # Note: Don't move files yet - Step 2 needs the initial fit file in the current directory
 fi
@@ -186,11 +217,10 @@ if [[ "$DO_FITS" == true ]]; then
             --doFits \
             --robustFit 1 \
             -t -1 \
+            --setParameterRanges ${R_RANGE} \
             --expectSignal 0 \
-            --setParameterRanges r=-1,1 \
-            -n .${MASSPOINT}.${METHOD}.${BINNING} \
+            -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
             --job-mode condor \
-            --sub-opts '+JobFlavour = \"longlunch\"' \
             --task-name impacts_${MASSPOINT} \
             2>&1 | tee ${OUTPUT_DIR}/nuisance_fits.out"
 
@@ -208,9 +238,9 @@ if [[ "$DO_FITS" == true ]]; then
             --doFits \
             --robustFit 1 \
             -t -1 \
+            --setParameterRanges ${R_RANGE} \
             --expectSignal 0 \
-            --setParameterRanges r=-1,1 \
-            -n .${MASSPOINT}.${METHOD}.${BINNING} \
+            -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
             --parallel ${PARALLEL} \
             2>&1 | tee ${OUTPUT_DIR}/nuisance_fits.out"
         # Note: Don't move files yet - Step 3 (collect) needs them in the current directory
@@ -225,7 +255,7 @@ if [[ "$DO_PLOT" == true ]]; then
     run_cmd "combineTool.py -M Impacts \
         -d workspace.root \
         -m 120 \
-        -n .${MASSPOINT}.${METHOD}.${BINNING} \
+        -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
         -o ${OUTPUT_DIR}/impacts.json \
         2>&1 | tee ${OUTPUT_DIR}/collect.out"
 

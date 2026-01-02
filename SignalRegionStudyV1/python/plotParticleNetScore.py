@@ -23,8 +23,16 @@ parser.add_argument("--channel", required=True, type=str, help="Analysis channel
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
 parser.add_argument("--binning", default="uniform", choices=["uniform", "extended"],
                     help="Binning method: 'uniform' (15 bins, default) or 'extended' (15 bins + tails)")
+parser.add_argument("--unblind", action="store_true",
+                    help="Show real data distribution")
+parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
+                    help="Show real data only for score < 0.3")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
+
+# Validate unblind options
+if args.unblind and args.partial_unblind:
+    raise ValueError("--unblind and --partial-unblind are mutually exclusive")
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
@@ -42,14 +50,21 @@ import cmsstyle as CMS
 
 # Input from samples directory (ParticleNet scores are in preprocessed samples)
 BASEDIR = f"{WORKDIR}/SignalRegionStudyV1/samples/{args.era}/{args.channel}/{args.masspoint}"
-# Output to ParticleNet template directory
-OUTDIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{args.binning}"
+# Config directory (always from base binning, not unblind variants)
+CONFIGDIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{args.binning}"
+# Output to ParticleNet template directory (with unblind suffix if applicable)
+binning_suffix = args.binning
+if args.unblind:
+    binning_suffix = f"{args.binning}_unblind"
+elif args.partial_unblind:
+    binning_suffix = f"{args.binning}_partial_unblind"
+OUTDIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}"
 
 logging.info(f"Input directory: {BASEDIR}")
 logging.info(f"Output directory: {OUTDIR}")
 
 # Load mass window from binning.json
-binning_path = f"{OUTDIR}/binning.json"
+binning_path = f"{CONFIGDIR}/binning.json"
 if not os.path.exists(binning_path):
     raise FileNotFoundError(
         f"Binning results not found: {binning_path}\n"
@@ -66,7 +81,7 @@ MASS_MAX = binning_params["mass_max"]
 logging.info(f"Mass window from binning: [{MASS_MIN:.2f}, {MASS_MAX:.2f}] GeV")
 
 # Load background weights
-weights_json_path = f"{OUTDIR}/background_weights.json"
+weights_json_path = f"{CONFIGDIR}/background_weights.json"
 BG_WEIGHTS = None
 if os.path.exists(weights_json_path):
     with open(weights_json_path, 'r') as f:
@@ -78,7 +93,7 @@ else:
     logging.warning(f"Using unweighted ParticleNet score (equal priors)")
 
 # Load process list for dynamic background categories
-process_list_path = f"{OUTDIR}/process_list.json"
+process_list_path = f"{CONFIGDIR}/process_list.json"
 if not os.path.exists(process_list_path):
     raise FileNotFoundError(
         f"Process list not found: {process_list_path}\n"
@@ -269,10 +284,25 @@ if __name__ == "__main__":
         logging.error("ParticleNet scores are only available for trained mass points.")
         sys.exit(1)
 
-    # Create "data_obs" histogram (sum of backgrounds for blind analysis)
-    data_obs = ROOT.TH1D("data_obs", "data_obs", 50, 0., 1.)
-    for hist in bkg_hists.values():
-        data_obs.Add(hist)
+    # Create "data_obs" histogram
+    if args.unblind or args.partial_unblind:
+        # Load real data
+        data_obs = createHistogram("data", args.masspoint, "Data", ROOT.kBlack)
+
+        if args.partial_unblind:
+            # Zero out bins with score >= 0.3
+            # With 50 bins from 0 to 1, each bin width = 0.02
+            # score >= 0.3 starts at bin 16 (0.30/0.02 + 1 = 16)
+            threshold_bin = int(0.3 / 0.02) + 1  # bin 16
+            for ibin in range(threshold_bin, data_obs.GetNbinsX() + 1):
+                data_obs.SetBinContent(ibin, 0)
+                data_obs.SetBinError(ibin, 0)
+            logging.info(f"Partial unblind: zeroed bins {threshold_bin}-{data_obs.GetNbinsX()} (score >= 0.3)")
+    else:
+        # Blinded: sum of backgrounds
+        data_obs = ROOT.TH1D("data_obs", "data_obs", 50, 0., 1.)
+        for hist in bkg_hists.values():
+            data_obs.Add(hist)
 
     # Configuration for ComparisonCanvas
     config = {
@@ -282,6 +312,8 @@ if __name__ == "__main__":
         "xTitle": "Modified ParticleNet Score",
         "yTitle": "Events",
         "rTitle": "Data / Pred",
+        "rRange": [0, 2.],
+        "rebin": 2,
         "maxDigits": 3,
     }
 

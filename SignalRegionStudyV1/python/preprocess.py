@@ -475,8 +475,8 @@ def main():
     reserved_keys = {"data", "nonprompt"}
 
     for category in [k for k in config['samples'] if k not in reserved_keys]:
-        output_name = "conversion" if category == "conv" else category
-        apply_convSF = (category == "conv")
+        output_name = category
+        apply_convSF = (category == "conversion")
 
         logging.info("=" * 60)
         logging.info(f"Processing {output_name}")

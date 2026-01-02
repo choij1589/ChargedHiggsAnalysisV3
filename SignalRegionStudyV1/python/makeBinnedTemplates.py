@@ -394,7 +394,7 @@ def getDataHist(basedir, bin_edges, mA, width, sigma, binning,
 
 def validateBackgroundStatistics(basedir, bin_edges, mA, width, sigma, binning,
                                   background_categories, masspoint, threshold=-999.,
-                                  bg_weights=None, min_total_events=1):
+                                  upper_threshold=None, bg_weights=None, min_total_events=1):
     """Validate statistical quality of each background process."""
     logging.info("Validating background statistics...")
 
@@ -421,7 +421,7 @@ def validateBackgroundStatistics(basedir, bin_edges, mA, width, sigma, binning,
             rdf = ROOT.RDataFrame("Central", file_path)
             rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
 
-            if threshold > -999.:
+            if threshold > -999. or upper_threshold is not None:
                 test_file = ROOT.TFile.Open(file_path, "READ")
                 tree = test_file.Get("Central")
                 if tree:
@@ -431,7 +431,10 @@ def validateBackgroundStatistics(basedir, bin_edges, mA, width, sigma, binning,
                     if score_sig in branches:
                         score_formula = build_particlenet_score(masspoint, bg_weights)
                         rdf = rdf.Define("score_PN", score_formula)
-                        rdf = rdf.Filter(f"score_PN >= {threshold}")
+                        if upper_threshold is not None:
+                            rdf = rdf.Filter(f"score_PN < {upper_threshold}")
+                        elif threshold > -999.:
+                            rdf = rdf.Filter(f"score_PN >= {threshold}")
                 else:
                     test_file.Close()
 
@@ -730,7 +733,7 @@ def main():
     logging.info("=" * 60)
 
     if args.channel == "SR3Mu":
-        sr1e2mu_fit_path = f"{workdir}/SignalRegionStudyV1/templates/{args.era}/SR1E2Mu/{args.masspoint}/{args.method}/{args.binning}/fit_result.root"
+        sr1e2mu_fit_path = f"{workdir}/SignalRegionStudyV1/templates/{args.era}/SR1E2Mu/{args.masspoint}/{args.method}/{binning_suffix}/fit_result.root"
 
         if not os.path.exists(sr1e2mu_fit_path):
             raise FileNotFoundError(
@@ -867,8 +870,8 @@ def main():
 
     validation_results = validateBackgroundStatistics(
         basedir, bin_edges, mA, width, sigma, args.binning,
-        background_categories, args.masspoint, best_threshold, bg_weights,
-        min_total_events=1
+        background_categories, args.masspoint, best_threshold, upper_threshold,
+        bg_weights, min_total_events=1
     )
 
     save_json({
