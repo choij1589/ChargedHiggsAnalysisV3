@@ -57,10 +57,17 @@ combineDatacards.py --masspoint MHc130_MA90 --method Baseline --binning extended
 ./scripts/runHybridNew.sh --era Run2 --channel Combined --masspoint MHc130_MA90 --method Baseline --binning extended --condor --auto-grid
 ```
 
+**Combined limits (channels + eras):**
+```bash
+./scripts/runCombinedAsymptotic.sh --masspoint MHc130_MA90 --method Baseline --binning extended
+./scripts/runCombinedAsymptotic.sh --masspoint MHc130_MA90 --method ParticleNet --binning extended --partial-unblind
+```
+
 **Systematic impacts:**
 ```bash
 ./Impact.sh
 ./scripts/runImpacts.sh --era Run2 --channel Combined --masspoint MHc130_MA90 --method Baseline --binning extended
+./scripts/runImpacts.sh --era Run2 --channel Combined --masspoint MHc130_MA90 --method ParticleNet --binning extended --partial-unblind
 ```
 
 **Signal injection:**
@@ -156,7 +163,11 @@ Three approaches in `makeBinnedTemplates.py`:
 ### Unblinding
 - Default: MC sum used as `data_obs` (blinded)
 - `--unblind`: Use real data
-- `--partial-unblind`: Data only in low ParticleNet score region
+- `--partial-unblind`: Data only in low ParticleNet score region (score < 0.3)
+
+Scripts supporting `--partial-unblind`: `makeBinnedTemplates.py`, `checkTemplates.py`, `plotParticleNetScore.py`, `printDatacard.py`, `combineDatacards.py`, `runAsymptotic.sh`, `runImpacts.sh`, `runCombinedAsymptotic.sh`
+
+Output directory: `templates/{era}/{channel}/{masspoint}/{method}/{binning}_partial_unblind/`
 
 ### HiggsCombine Methods
 - **AsymptoticLimits:** Fast CLs+b approximation
