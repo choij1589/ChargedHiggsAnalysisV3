@@ -14,6 +14,7 @@ CHANNEL=""
 MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
+PARTIAL_UNBLIND=false
 DRY_RUN=false
 VERBOSE=false
 
@@ -40,6 +41,10 @@ while [[ $# -gt 0 ]]; do
             BINNING="$2"
             shift 2
             ;;
+        --partial-unblind)
+            PARTIAL_UNBLIND=true
+            shift
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -57,6 +62,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --masspoint  Signal mass point (e.g., MHc130_MA90)"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
             echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
+            echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
             echo "  --dry-run    Print commands without executing"
             echo "  --verbose    Enable verbose output"
             exit 0
@@ -79,7 +85,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKDIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Template directory
-TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV1/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING}"
+BINNING_SUFFIX="${BINNING}"
+if [[ "$PARTIAL_UNBLIND" == true ]]; then
+    BINNING_SUFFIX="${BINNING}_partial_unblind"
+fi
+TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV1/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
 
 # Check if template directory exists
 if [[ ! -d "$TEMPLATE_DIR" ]]; then
@@ -119,10 +129,10 @@ cd "$TEMPLATE_DIR"
 log "Working directory: $(pwd)"
 
 # Run AsymptoticLimits
-echo "Running AsymptoticLimits for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING})..."
+echo "Running AsymptoticLimits for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING_SUFFIX})..."
 
 COMBINE_CMD="combine -M AsymptoticLimits datacard.txt \
-    -n .${MASSPOINT}.${METHOD}.${BINNING} \
+    -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
     -m 120 \
     --rAbsAcc 0.0001 \
     --rRelAcc 0.01 \
@@ -143,7 +153,7 @@ if [[ "$DRY_RUN" == false ]]; then
         echo ""
         echo "Limit summary:"
         root -l -b -q -e "
-            TFile *f = TFile::Open(\"${OUTPUT_DIR}/higgsCombine.${MASSPOINT}.${METHOD}.${BINNING}.AsymptoticLimits.mH120.root\");
+            TFile *f = TFile::Open(\"${OUTPUT_DIR}/higgsCombine.${MASSPOINT}.${METHOD}.${BINNING_SUFFIX}.AsymptoticLimits.mH120.root\");
             TTree *limit = (TTree*)f->Get(\"limit\");
             double r;
             limit->SetBranchAddress(\"limit\", &r);

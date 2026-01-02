@@ -23,9 +23,17 @@ parser.add_argument("--masspoint", required=True, type=str, help="Signal mass po
 parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet)")
 parser.add_argument("--binning", default="uniform", choices=["uniform", "extended"],
                     help="Binning method: 'uniform' (15 bins, default) or 'extended' (15 bins + tails)")
+parser.add_argument("--unblind", action="store_true",
+                    help="Generate datacard from unblind run")
+parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
+                    help="Generate datacard from partial-unblind run")
 parser.add_argument("--output", type=str, default=None, help="Output datacard path (default: auto-determined)")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
+
+# Validate unblind options
+if args.unblind and args.partial_unblind:
+    raise ValueError("--unblind and --partial-unblind are mutually exclusive")
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
@@ -37,7 +45,12 @@ if not WORKDIR:
     raise EnvironmentError("WORKDIR environment variable not set. Please run 'source setup.sh'")
 
 # Template directory
-TEMPLATE_DIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{args.binning}"
+binning_suffix = args.binning
+if args.unblind:
+    binning_suffix = f"{args.binning}_unblind"
+elif args.partial_unblind:
+    binning_suffix = f"{args.binning}_partial_unblind"
+TEMPLATE_DIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{binning_suffix}"
 
 # Setup ROOT
 ROOT.gROOT.SetBatch(True)
