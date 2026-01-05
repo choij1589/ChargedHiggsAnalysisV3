@@ -18,7 +18,7 @@ MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
 CONDOR=false
-NTOYS=500
+NTOYS=100
 NJOBS=10
 RMIN=0.0
 RMAX=2.0
@@ -370,6 +370,9 @@ combine -M HybridNew workspace.root \\
     -T ${NTOYS} \\
     -t -1 \\
     -s \${SEED} \\
+    --cminDefaultMinimizerStrategy 0 \\
+    --cminDefaultMinimizerTolerance 0.1 \\
+    --cminFallbackAlgo Minuit2,Simplex,0:0.2 \\
     -n .r\${R_VALUE}.seed\${SEED}
 EOFTOY
     chmod +x "${CONDOR_DIR}/toy.sh"
@@ -384,7 +387,7 @@ error = logs/toy_\$(r_value)_\$(seed).err
 log = hybridnew.log
 
 request_cpus = 1
-request_memory = 6GB
+RequestMemory = 6GB
 request_disk = 500MB
 
 should_transfer_files = YES
