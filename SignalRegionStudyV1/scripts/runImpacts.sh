@@ -171,15 +171,25 @@ fi
 
 # Set parameter range - wider for partial-unblind due to weaker constraints
 if [[ "$PARTIAL_UNBLIND" == true ]]; then
-    R_RANGE="r=-5,5"
+    R_RANGE="r=-50,50"
 else
     R_RANGE="r=-1,1"
+fi
+
+# Build fit options: use Asimov (expected) for blinded, real data for unblinded
+if [[ "$PARTIAL_UNBLIND" == true ]]; then
+    # Unblinded: use real data_obs from shapes.root
+    ASIMOV_OPTIONS=""
+else
+    # Blinded: use Asimov dataset with background-only hypothesis
+    ASIMOV_OPTIONS="-t -1 --expectSignal 0"
 fi
 
 echo "Running Impacts for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING_SUFFIX})..."
 echo "  Condor: ${CONDOR}"
 echo "  Parallel jobs: ${PARALLEL}"
 echo "  Parameter range: ${R_RANGE}"
+echo "  Data mode: $(if [[ -n "$ASIMOV_OPTIONS" ]]; then echo 'Asimov (expected)'; else echo 'Observed (real data)'; fi)"
 echo ""
 
 # Create workspace if needed
@@ -197,8 +207,7 @@ if [[ "$DO_INITIAL" == true ]]; then
         -m 120 \
         --doInitialFit \
         --robustFit 1 \
-        -t -1 \
-        --expectSignal 0 \
+        ${ASIMOV_OPTIONS} \
         --setParameterRanges ${R_RANGE} \
         -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
         2>&1 | tee ${OUTPUT_DIR}/initial_fit.out"
@@ -216,9 +225,8 @@ if [[ "$DO_FITS" == true ]]; then
             -m 120 \
             --doFits \
             --robustFit 1 \
-            -t -1 \
+            ${ASIMOV_OPTIONS} \
             --setParameterRanges ${R_RANGE} \
-            --expectSignal 0 \
             -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
             --job-mode condor \
             --task-name impacts_${MASSPOINT} \
@@ -237,9 +245,8 @@ if [[ "$DO_FITS" == true ]]; then
             -m 120 \
             --doFits \
             --robustFit 1 \
-            -t -1 \
+            ${ASIMOV_OPTIONS} \
             --setParameterRanges ${R_RANGE} \
-            --expectSignal 0 \
             -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
             --parallel ${PARALLEL} \
             2>&1 | tee ${OUTPUT_DIR}/nuisance_fits.out"

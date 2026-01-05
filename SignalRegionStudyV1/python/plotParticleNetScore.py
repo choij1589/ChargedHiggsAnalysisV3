@@ -312,8 +312,8 @@ if __name__ == "__main__":
         "xTitle": "Modified ParticleNet Score",
         "yTitle": "Events",
         "rTitle": "Data / Pred",
-        "rRange": [0, 2.],
-        "rebin": 2,
+        "yRange": [0, 20.],
+        "rRange": [0, 5.],
         "maxDigits": 3,
     }
 
