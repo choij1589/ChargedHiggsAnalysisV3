@@ -220,6 +220,10 @@ if [[ "$DO_FITS" == true ]]; then
     echo "Step 2: Running nuisance parameter fits..."
 
     if [[ "$CONDOR" == true ]]; then
+        # Create condor log directory
+        CONDOR_LOG_DIR="${OUTPUT_DIR}/condor"
+        mkdir -p "${CONDOR_LOG_DIR}"
+
         run_cmd "combineTool.py -M Impacts \
             -d workspace.root \
             -m 120 \
@@ -230,6 +234,7 @@ if [[ "$DO_FITS" == true ]]; then
             -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
             --job-mode condor \
             --task-name impacts_${MASSPOINT} \
+            --sub-opts 'Log = ${CONDOR_LOG_DIR}/impacts_\$(ProcId).log\\nError = ${CONDOR_LOG_DIR}/impacts_\$(ProcId).err\\nOutput = ${CONDOR_LOG_DIR}/impacts_\$(ProcId).out' \
             2>&1 | tee ${OUTPUT_DIR}/nuisance_fits.out"
 
         if [[ "$DRY_RUN" == false ]]; then
