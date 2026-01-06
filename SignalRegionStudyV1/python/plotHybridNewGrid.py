@@ -13,8 +13,10 @@ import numpy as np
 from collections import defaultdict
 from array import array
 
+import cmsstyle as CMS
+CMS.setCMSStyle()
+
 ROOT.gROOT.SetBatch(True)
-ROOT.gStyle.SetOptStat(0)
 
 
 def read_hybridnew_grid(filename, r_values=None, n_seeds=10):
@@ -112,10 +114,9 @@ def read_hybridnew_grid(filename, r_values=None, n_seeds=10):
 
 
 def compute_cls_statistics(data):
-    """Compute mean and std of CLs for each r point."""
+    """Compute mean CLs for each r point."""
     r_values = []
     cls_mean = []
-    cls_std = []
 
     for r in sorted(data.keys()):
         entries = data[r]
@@ -123,9 +124,8 @@ def compute_cls_statistics(data):
 
         r_values.append(r)
         cls_mean.append(np.mean(cls_vals))
-        cls_std.append(np.std(cls_vals))
 
-    return np.array(r_values), np.array(cls_mean), np.array(cls_std)
+    return np.array(r_values), np.array(cls_mean)
 
 
 def find_limit_crossing(r_values, cls_values, threshold=0.05):
@@ -141,45 +141,44 @@ def find_limit_crossing(r_values, cls_values, threshold=0.05):
     return crossings[0] if crossings else None
 
 
-def plot_cls_vs_r(r_values, cls_mean, cls_std, output, title="", threshold=0.05):
-    """Plot CLs vs r with 95% CL line using ROOT."""
+def plot_cls_vs_r(r_values, cls_mean, output, title="", threshold=0.05):
+    """Plot CLs vs r with 95% CL line using CMS style."""
     n = len(r_values)
 
-    # Create arrays for TGraphErrors
+    # Create arrays for TGraph
     r_arr = array('d', r_values)
     cls_arr = array('d', cls_mean)
-    r_err = array('d', [0.0] * n)
-    cls_err = array('d', cls_std)
 
-    # Create canvas
-    canvas = ROOT.TCanvas("c", "CLs vs r", 800, 600)
+    # CMS style setup
+    CMS.SetExtraText("Preliminary")
+    CMS.SetLumi(-1)  # No lumi label
+    CMS.ResetAdditionalInfo()
+
+    # Calculate axis ranges
+    xmin = min(r_values) - 0.05
+    xmax = max(r_values) * 1.05
+
+    # Create CMS canvas
+    canvas = CMS.cmsCanvas(
+        "cls_vs_r",
+        xmin, xmax,
+        0.0, 1.1,
+        "Signal strength r", "CL_{s}",
+        square=True, extraSpace=0.01, iPos=0
+    )
     canvas.SetGrid()
-    canvas.SetLeftMargin(0.12)
-    canvas.SetRightMargin(0.05)
-    canvas.SetBottomMargin(0.12)
 
-    # Create graph with errors
-    graph = ROOT.TGraphErrors(n, r_arr, cls_arr, r_err, cls_err)
-    graph.SetTitle(title if title else "HybridNew: CL_{s} vs r;Signal strength r;CL_{s}")
+    # Create simple TGraph (no errors)
+    graph = ROOT.TGraph(n, r_arr, cls_arr)
     graph.SetMarkerStyle(20)
     graph.SetMarkerSize(1.0)
     graph.SetMarkerColor(ROOT.kBlue)
     graph.SetLineColor(ROOT.kBlue)
     graph.SetLineWidth(2)
-    graph.SetFillColor(ROOT.kBlue - 9)
-    graph.SetFillStyle(3001)
-
-    # Set axis ranges
-    graph.GetXaxis().SetLimits(min(r_values) - 0.05, max(r_values) * 1.05)
-    graph.SetMinimum(0.0)
-    graph.SetMaximum(1.1)
-
-    # Draw with error band
-    graph.Draw("A3")  # Fill area for error band
-    graph.Draw("LP SAME")  # Line and points
+    graph.Draw("LP SAME")
 
     # 95% CL line
-    line_95 = ROOT.TLine(min(r_values) - 0.05, threshold, max(r_values) * 1.05, threshold)
+    line_95 = ROOT.TLine(xmin, threshold, xmax, threshold)
     line_95.SetLineColor(ROOT.kRed)
     line_95.SetLineStyle(2)
     line_95.SetLineWidth(2)
@@ -202,22 +201,17 @@ def plot_cls_vs_r(r_values, cls_mean, cls_std, output, title="", threshold=0.05)
         marker.SetMarkerSize(2.0)
         marker.Draw()
 
-        # Text box with limit value
+        # Text with limit value
         latex = ROOT.TLatex()
         latex.SetNDC()
         latex.SetTextSize(0.04)
         latex.SetTextFont(42)
-        latex.DrawLatex(0.15, 0.85, f"95% CL Limit: r < {limit:.4f}")
+        latex.DrawLatex(0.55, 0.65, f"r < {limit:.4f} @ 95% CL")
 
     # Legend
-    legend = ROOT.TLegend(0.55, 0.7, 0.9, 0.9)
-    legend.SetBorderSize(0)
-    legend.SetFillStyle(0)
-    legend.SetTextSize(0.035)
-    legend.AddEntry(graph, "Observed CL_{s} #pm 1#sigma", "lpf")
+    legend = CMS.cmsLeg(0.55, 0.7, 0.9, 0.9)
+    legend.AddEntry(graph, "Observed CL_{s}", "lp")
     legend.AddEntry(line_95, f"95% CL ({threshold})", "l")
-    if limit is not None:
-        legend.AddEntry(line_limit, f"Limit: r < {limit:.4f}", "l")
     legend.Draw()
 
     # Save
@@ -230,7 +224,7 @@ def plot_cls_vs_r(r_values, cls_mean, cls_std, output, title="", threshold=0.05)
 def main():
     parser = argparse.ArgumentParser(description="Plot HybridNew grid results")
     parser.add_argument("input", help="Input hybridnew_grid.root file")
-    parser.add_argument("-o", "--output", default="cls_vs_r.pdf", help="Output plot file")
+    parser.add_argument("-o", "--output", default="cls_vs_r.png", help="Output plot file")
     parser.add_argument("--title", default="", help="Plot title")
     parser.add_argument("--rvalues", default=None,
                         help="Comma-separated r values if not stored in tree (e.g., 0.0,0.2,0.4)")
@@ -260,8 +254,8 @@ def main():
         print(f"  r={r:.4f}: {len(data[r])} entries, mean CLs={np.mean([e['limit'] for e in data[r]]):.4f}")
 
     # Compute statistics and plot
-    r_arr, cls_mean, cls_std = compute_cls_statistics(data)
-    limit = plot_cls_vs_r(r_arr, cls_mean, cls_std, args.output, args.title, args.threshold)
+    r_arr, cls_mean = compute_cls_statistics(data)
+    limit = plot_cls_vs_r(r_arr, cls_mean, args.output, args.title, args.threshold)
 
     if limit is not None:
         print(f"\n95% CL Limit: r < {limit:.4f}")
