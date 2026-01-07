@@ -98,7 +98,6 @@ elif [[ $CHANNEL == "TTZ2E1Mu" ]]; then
         "bjets/3/pt" "bjets/3/eta" "bjets/3/phi" "bjets/3/mass" "bjets/3/charge"
         "METv/pt" "METv/phi" "METv/px" "METv/py" "METv/energy"
         "pair/pt" "pair/eta" "pair/phi" "pair/mass"
-        "dR_ele1_ele2" "dR_ele1_mu" "dR_ele2_mu" "dR_min_ele_mu"
         "MHc100_MA95/score_nonprompt" "MHc100_MA95/score_diboson" "MHc100_MA95/score_ttZ" "MHc100_MA95/score_signal"
         "MHc100_MA95/LR_nonprompt" "MHc100_MA95/LR_diboson" "MHc100_MA95/LR_ttZ" "MHc100_MA95/LR_totalBkg"
         "MHc115_MA87/score_nonprompt" "MHc115_MA87/score_diboson" "MHc115_MA87/score_ttZ" "MHc115_MA87/score_signal"
