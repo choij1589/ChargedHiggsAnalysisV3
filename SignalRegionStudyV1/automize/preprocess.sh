@@ -67,12 +67,3 @@ parallel -j 3 run_combined_asymptotic {1} ParticleNet {2} ::: "${MASSPOINTsParti
 
 echo ""
 echo "All Combined Asymptotic Limits completed."
-
-## Impact test
-#./Impact.sh
-#./scripts/runHybridNew.sh --era Run2 --channel Combined --masspoint MHc70_MA15 --method Baseline --binning extended --condor --auto-grid
-#./scripts/runHybridNew.sh --era Run2 --channel Combined --masspoint MHc100_MA60 --method Baseline --binning extended --condor --auto-grid
-#./scripts/runHybridNew.sh --era Run2 --channel Combined --masspoint MHc130_MA90 --method Baseline --binning extended --condor --auto-grid
-#./scripts/runHybridNew.sh --era Run2 --channel Combined --masspoint MHc160_MA155 --method Baseline --binning extended --condor --auto-grid
-#./scripts/runHybridNew.sh --era Run2 --channel Combined --masspoint MHc130_MA90 --method ParticleNet --binning extended --condor --auto-grid
-#./signalInj.sh

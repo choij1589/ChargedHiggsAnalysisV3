@@ -16,30 +16,29 @@ function partial_unblind() {
 export -f partial_unblind
 
 # SR3Mu depends on SR1E2Mu fit results, so process SR1E2Mu first
-#echo "Processing SR1E2Mu (partial-unblind)..."
+echo "Processing SR1E2Mu (partial-unblind)..."
 #parallel -j 4 partial_unblind SR1E2Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTs[@]}"
 
-#echo "Processing SR3Mu (partial-unblind)..."
+echo "Processing SR3Mu (partial-unblind)..."
 #parallel -j 4 partial_unblind SR3Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTs[@]}"
 
-#echo ""
-#echo "Partial unblind template generation completed."
-#echo ""
+echo ""
+echo "Partial unblind template generation completed."
+echo ""
 
 # Run combined asymptotic limits for each mass point
-#echo "Running combined asymptotic limits..."
-#for MP in "${MASSPOINTs[@]}"; do
-#    echo "  Processing ${MP}..."
+echo "Running combined asymptotic limits..."
+for MP in "${MASSPOINTs[@]}"; do
+    echo "  Processing ${MP}..."
 #    ./scripts/runCombinedAsymptotic.sh --masspoint "$MP" --method ParticleNet --binning extended --partial-unblind
-#done
+done
 
 echo ""
 echo "Running impact studies..."
 for MP in "${MASSPOINTs[@]}"; do
     echo "  Processing ${MP}..."
-    #./scripts/runImpacts.sh --era Run2 --channel Combined --masspoint "$MP" --method ParticleNet --binning extended --partial-unblind --condor
-    ./scripts/runImpacts.sh --era Run2 --channel Combined --masspoint "$MP" --method ParticleNet --binning extended --partial-unblind --skip-initial --skip-fits
+    ./scripts/runImpacts.sh --era Run2 --channel Combined --masspoint "$MP" --method ParticleNet --binning extended --partial-unblind --condor
 done
 
 echo ""
-echo "Partial unblind processing completed."
+echo "Partial unblind processing submitted."
