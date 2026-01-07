@@ -217,10 +217,10 @@ generate_hybridnew_plots() {
         fi
     fi
 
-    # Plot CLs vs r curve
+    # Plot CLs vs r curve (pass directory to read individual toy files, filtering zero CLs)
     echo "  Creating CLs vs r plot..."
     python3 ${WORKDIR}/SignalRegionStudyV1/python/plotHybridNewGrid.py \
-        "${INPUT_DIR}/hybridnew_grid.root" \
+        "${INPUT_DIR}" \
         -o "${PLOTS_DIR}/cls_vs_r.png" \
         --title "${MASSPOINT} ${METHOD} ${BINNING}"
 
@@ -359,20 +359,20 @@ EOFPYTHON
 fi
 
 # ============================================================
-# Plot Only Mode
+# Plot Only Mode (skip if --partial-extract is also specified)
 # ============================================================
-if [[ "$PLOT_ONLY" == true ]]; then
+if [[ "$PLOT_ONLY" == true && "$PARTIAL_EXTRACT" == false ]]; then
     echo ""
     echo "=== Generate HybridNew Plots ==="
     echo "Mass point: ${MASSPOINT}"
     echo "Method: ${METHOD}"
     echo "Binning: ${BINNING}"
 
-    # Find input directory (try condor first, then partial_extract)
-    if [[ -d "${TEMPLATE_DIR}/combine_output/hybridnew/condor" ]]; then
-        INPUT_DIR="${TEMPLATE_DIR}/combine_output/hybridnew/condor"
-    elif [[ -d "${TEMPLATE_DIR}/combine_output/hybridnew/partial_extract" ]]; then
+    # Find input directory (try partial_extract first, then condor)
+    if [[ -d "${TEMPLATE_DIR}/combine_output/hybridnew/partial_extract" ]]; then
         INPUT_DIR="${TEMPLATE_DIR}/combine_output/hybridnew/partial_extract"
+    elif [[ -d "${TEMPLATE_DIR}/combine_output/hybridnew/condor" ]]; then
+        INPUT_DIR="${TEMPLATE_DIR}/combine_output/hybridnew/condor"
     else
         echo "ERROR: No HybridNew output directory found"
         exit 1

@@ -35,6 +35,12 @@ missing_logger = setup_missing_histogram_logging(args)
 
 with open("configs/histkeys.json") as f:
     config = json.load(f)[args.histkey]
+
+# Load K-factors
+KFACTORS_PATH = f"{WORKDIR}/Common/Data/KFactors.json"
+with open(KFACTORS_PATH) as f:
+    KFACTORS = json.load(f)
+
 config["era"] = args.era
 config["CoM"] = get_CoM_energy(args.era)
 config["rTitle"] = "Data / Pred"
@@ -228,7 +234,21 @@ def apply_wz_uncertainty(hist, sample, args):
         # Combine statistical and rate uncertainties in quadrature
         total_error = sqrt(stat_error**2 + rate_error**2)
         hist.SetBinError(bin, total_error)
-    
+
+    return hist
+
+def apply_kfactor(hist, sample, run):
+    """Apply K-factor to sample if defined in KFactors.json"""
+    if run not in KFACTORS:
+        return hist
+
+    kfactors = KFACTORS[run]
+    if sample not in kfactors:
+        return hist
+
+    kfactor = kfactors[sample]["kFactor"]
+    hist.Scale(kfactor)
+    logging.debug(f"Applied K-factor {kfactor} to {sample}")
     return hist
 
 #### Get Histograms
@@ -307,6 +327,8 @@ for era in era_list:
         hist_path = f"{args.channel}/Central/{args.histkey}"
         h = load_histogram(file_path, hist_path, era, missing_logger)
         if h:
+            # Apply K-factor before systematics
+            h = apply_kfactor(h, sample, RUN)
             h = calculate_systematics(h, ERA_SYSTEMATICS[era], file_path, args, era, missing_logger)
             # Apply WZ uncertainty when WZSF is applied
             h = apply_wz_uncertainty(h, sample, args)

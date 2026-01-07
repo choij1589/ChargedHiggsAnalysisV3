@@ -23,9 +23,51 @@ def read_hybridnew_grid(filename, r_values=None, n_seeds=10):
     """
     Read HybridNew grid and extract CLs vs r.
 
+    If filename is a directory, reads individual toy files from it.
+    If filename is a ROOT file with 'r' branch, reads directly.
     If r_values is provided, uses those to assign r to entries.
-    Otherwise tries to read 'r' branch or infer from structure.
     """
+    import glob
+
+    # Collect data
+    data = defaultdict(list)
+
+    # Check if input is a directory
+    if os.path.isdir(filename):
+        dirname = filename
+        toy_files = glob.glob(os.path.join(dirname, "higgsCombine.r*.seed*.HybridNew.*.root"))
+        if not toy_files:
+            raise FileNotFoundError(f"No toy files found in directory {dirname}")
+        print(f"Reading from directory: {dirname}")
+        print(f"Found {len(toy_files)} individual toy files, extracting r values...")
+
+        for toy_file in sorted(toy_files):
+            basename = os.path.basename(toy_file)
+            try:
+                parts = basename.split('.')
+                r_str = parts[1] + '.' + parts[2]
+                r = float(r_str[1:])
+
+                tf = ROOT.TFile.Open(toy_file)
+                if not tf or tf.IsZombie():
+                    continue
+                tt = tf.Get("limit")
+                if not tt:
+                    tf.Close()
+                    continue
+                for j in range(tt.GetEntries()):
+                    tt.GetEntry(j)
+                    data[r].append({
+                        'limit': tt.limit,
+                        'limitErr': tt.limitErr,
+                        'quantile': tt.quantileExpected,
+                    })
+                tf.Close()
+            except (IndexError, ValueError) as e:
+                print(f"  Could not parse {basename}: {e}")
+        return data
+
+    # Otherwise, try to open as ROOT file
     f = ROOT.TFile.Open(filename)
     if not f or f.IsZombie():
         raise FileNotFoundError(f"Cannot open {filename}")
@@ -40,9 +82,6 @@ def read_hybridnew_grid(filename, r_values=None, n_seeds=10):
     # Check if 'r' branch exists (PyROOT null pointer handling)
     branch_names = [b.GetName() for b in tree.GetListOfBranches()]
     has_r_branch = "r" in branch_names
-
-    # Collect data
-    data = defaultdict(list)
 
     if has_r_branch:
         # Direct read if r branch exists
@@ -78,19 +117,16 @@ def read_hybridnew_grid(filename, r_values=None, n_seeds=10):
 
         # Try reading individual files from the directory
         dirname = os.path.dirname(os.path.abspath(filename))
-        import glob
         toy_files = glob.glob(os.path.join(dirname, "higgsCombine.r*.seed*.HybridNew.*.root"))
 
         if toy_files:
             print(f"Found {len(toy_files)} individual toy files, extracting r values...")
             for toy_file in toy_files:
                 basename = os.path.basename(toy_file)
-                # Parse r value from filename: higgsCombine.r0.0000.seed1000.HybridNew.mH120.1000.root
-                # Split gives: ['higgsCombine', 'r0', '0000', 'seed1000', ...]
                 try:
                     parts = basename.split('.')
-                    r_str = parts[1] + '.' + parts[2]  # "r0.0000"
-                    r = float(r_str[1:])  # Remove 'r' prefix -> 0.0000
+                    r_str = parts[1] + '.' + parts[2]
+                    r = float(r_str[1:])
 
                     tf = ROOT.TFile.Open(toy_file)
                     tt = tf.Get("limit")
@@ -113,17 +149,38 @@ def read_hybridnew_grid(filename, r_values=None, n_seeds=10):
     return data
 
 
-def compute_cls_statistics(data):
-    """Compute mean CLs for each r point."""
+def compute_cls_statistics(data, filter_zeros=True):
+    """Compute mean CLs for each r point.
+
+    Args:
+        data: Dictionary mapping r values to list of entries
+        filter_zeros: If True, filter out zero CLs values from failed jobs
+    """
     r_values = []
     cls_mean = []
+    total_filtered = 0
 
     for r in sorted(data.keys()):
         entries = data[r]
-        cls_vals = [e['limit'] for e in entries]
+        # Only use observed CLs (quantile == -1.0), exclude metadata entries
+        cls_vals = [e['limit'] for e in entries if e['quantile'] == -1.0]
+
+        if filter_zeros:
+            n_before = len(cls_vals)
+            cls_vals = [v for v in cls_vals if v > 0]
+            n_filtered = n_before - len(cls_vals)
+            if n_filtered > 0:
+                total_filtered += n_filtered
+
+        if len(cls_vals) == 0:
+            print(f"  WARNING: No valid CLs values for r={r:.4f}, skipping")
+            continue
 
         r_values.append(r)
         cls_mean.append(np.mean(cls_vals))
+
+    if total_filtered > 0:
+        print(f"\n  NOTE: Filtered out {total_filtered} zero CLs values from failed/incomplete jobs")
 
     return np.array(r_values), np.array(cls_mean)
 
@@ -223,7 +280,7 @@ def plot_cls_vs_r(r_values, cls_mean, output, title="", threshold=0.05):
 
 def main():
     parser = argparse.ArgumentParser(description="Plot HybridNew grid results")
-    parser.add_argument("input", help="Input hybridnew_grid.root file")
+    parser.add_argument("input", help="Input hybridnew_grid.root file or directory with toy files")
     parser.add_argument("-o", "--output", default="cls_vs_r.png", help="Output plot file")
     parser.add_argument("--title", default="", help="Plot title")
     parser.add_argument("--rvalues", default=None,
@@ -251,7 +308,13 @@ def main():
 
     print(f"\nFound {len(data)} r-value points:")
     for r in sorted(data.keys()):
-        print(f"  r={r:.4f}: {len(data[r])} entries, mean CLs={np.mean([e['limit'] for e in data[r]]):.4f}")
+        # Filter to observed CLs only (quantile == -1.0) and exclude zeros
+        cls_vals = [e['limit'] for e in data[r] if e['quantile'] == -1.0 and e['limit'] > 0]
+        n_total = len([e for e in data[r] if e['quantile'] == -1.0])
+        n_valid = len(cls_vals)
+        mean_cls = np.mean(cls_vals) if cls_vals else 0.0
+        status = f" ({n_total - n_valid} zeros filtered)" if n_valid < n_total else ""
+        print(f"  r={r:.4f}: {n_valid}/{n_total} valid entries, mean CLs={mean_cls:.4f}{status}")
 
     # Compute statistics and plot
     r_arr, cls_mean = compute_cls_statistics(data)

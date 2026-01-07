@@ -12,7 +12,7 @@ Expected 84.0%: r < 0.3020
 Expected 97.5%: r < 0.4801
 
 ### HybridNew
-Observed Limit: r < \
+Observed Limit: r < 0.21
 Expected  2.5%: r < 0.13 \pm 0.04
 Expected 16.0%: r < 0.15 \pm 0.05
 Expected 50.0%: r < 0.19 \pm 0.06
@@ -31,7 +31,7 @@ Expected 84.0%: r < 0.4165
 Expected 97.5%: r < 0.6242
 
 ### HybridNew
-Observed Limit: r < ?
+Observed Limit: r < 0.3
 Expected  2.5%: r < 0.2 \pm 0.02
 Expected 16.0%: r < 0.22 \pm 0.06
 Expected 50.0%: r < 0.3 \pm 0.06
@@ -51,7 +51,7 @@ Expected 84.0%: r < 1.0269
 Expected 97.5%: r < 1.5117
 
 ### HybridNew
-Observed Limit: r < 0.5948
+Observed Limit: r < 0.7187
 Expected  2.5%: r < 0.4030 \pm 0.0039
 Expected 16.0%: r < 0.5077 \pm 0.0021
 Expected 50.0%: r < 0.7093 \pm 0.0026

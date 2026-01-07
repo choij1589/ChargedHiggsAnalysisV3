@@ -101,6 +101,40 @@ def load_convSF(workdir, era, channel):
     return central_sf, sf_err
 
 
+def load_kfactors(workdir, era):
+    """
+    Load K-factors from Common/Data/KFactors.json.
+
+    Returns a dict mapping sample names to their K-factors.
+    Only applies K-factors to samples with exact matching names in the JSON.
+    """
+    kfactor_path = f"{workdir}/Common/Data/KFactors.json"
+    if not os.path.exists(kfactor_path):
+        logging.warning(f"KFactors file not found: {kfactor_path}")
+        return {}
+
+    with open(kfactor_path) as f:
+        kfactor_data = json.load(f)
+
+    # Determine run period
+    run_period = "Run2" if era in ["2016preVFP", "2016postVFP", "2017", "2018"] else "Run3"
+    kfactors_for_period = kfactor_data.get(run_period, {})
+
+    if not kfactors_for_period:
+        logging.warning(f"No K-factors defined for {run_period}")
+        return {}
+
+    # Extract K-factors with exact sample name matching
+    sample_to_kfactor = {}
+    for sample_name, kfactor_info in kfactors_for_period.items():
+        kfactor_value = kfactor_info["kFactor"]
+        sample_to_kfactor[sample_name] = kfactor_value
+        logging.debug(f"K-factor for {sample_name}: {kfactor_value}")
+
+    logging.info(f"Loaded {len(sample_to_kfactor)} K-factors for {run_period}")
+    return sample_to_kfactor
+
+
 def parse_variations(variation_spec):
     """
     Parse variation specification strings from config.
@@ -264,7 +298,7 @@ class SamplePreprocessor:
             self.out_file = None
 
     def process_tree(self, input_tree_name, output_tree_name, weight_scale=1.0,
-                     is_signal=False, apply_convSF=False):
+                     is_signal=False, apply_convSF=False, kfactor=1.0):
         """Process a single tree from input to output."""
         in_tree = self.in_file.Get(input_tree_name)
         if not in_tree:
@@ -309,6 +343,7 @@ class SamplePreprocessor:
                 w /= 3.0  # Signal cross-section normalization to 5 fb
             if apply_convSF:
                 w *= self.convSF
+            w *= kfactor  # Apply K-factor
             out_vars['weight'][0] = w
 
             # Copy scores
@@ -433,6 +468,7 @@ def main():
     config = load_config(workdir, args.era, args.channel)
     syst_categories = categorize_systematics(config['systematics'])
     convSF, _ = load_convSF(workdir, args.era, args.channel)
+    kfactors = load_kfactors(workdir, args.era)
 
     logging.info(f"Preprocessing {args.masspoint} for {args.era} era and {args.channel} channel")
     logging.info(f"Found {len(syst_categories['preprocessed_shape'])} preprocessed shape systematics")
@@ -482,9 +518,12 @@ def main():
         logging.info(f"Processing {output_name}")
         logging.info("=" * 60)
 
-        def process_bkg(proc, sample, cat=output_name, conv=apply_convSF):
-            proc.process_tree("Events_Central", "Central", apply_convSF=conv)
-            proc.process_preprocessed_shape(cat, syst_categories, apply_convSF=conv)
+        def process_bkg(proc, sample, cat=output_name, conv=apply_convSF, kf=kfactors):
+            sample_kfactor = kf.get(sample, 1.0)
+            if sample_kfactor != 1.0:
+                logging.info(f"  Applying K-factor {sample_kfactor:.3f} to {sample}")
+            proc.process_tree("Events_Central", "Central", apply_convSF=conv, kfactor=sample_kfactor)
+            proc.process_preprocessed_shape(cat, syst_categories, apply_convSF=conv, kfactor=sample_kfactor)
             # Note: valued_shape systematics are created in makeBinnedTemplates.py
 
         process_samples_batch(
