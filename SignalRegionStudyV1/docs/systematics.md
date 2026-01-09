@@ -22,7 +22,7 @@
 | CMS_B2G25013_Norm_WZ | Correlated | shape | 1.12 | WZ |
 | CMS_B2G25013_Norm_ZZ | Correlated | shape | 1.064 | ZZ |
 | CMS_B2G25013_Norm_ttW | Correlated | shape | 1.133 | ttW |
-| CMS_B2G25013_Norm_ttZ | Correlated | shape | 1.119 | ttZ |
+| CMS_B2G25013_Norm_ttZ | Correlated | shape | 1.075 | ttZ |
 | CMS_B2G25013_Norm_ttH | Correlated | shape | 1.1 | ttH |
 | CMS_B2G25013_Norm_tZq | Correlated | shape | 1.052 | tZq |
 | CMS_B2G25013_Norm_others | Correlated | shape | 1.5 | others |

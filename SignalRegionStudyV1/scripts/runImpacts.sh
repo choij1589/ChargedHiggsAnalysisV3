@@ -92,8 +92,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
             echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
             echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
-            echo "  --condor     Submit nuisance fits to HTCondor"
-            echo "  --parallel   Number of parallel local jobs [default: 4]"
+            echo "  --condor     Run full workflow in HTCondor via DAG (all steps)"
+            echo "  --parallel   Number of parallel local jobs [default: 16]"
             echo "  --skip-initial  Skip initial fit (use existing)"
             echo "  --skip-fits  Skip nuisance fits (use existing)"
             echo "  --plot-only  Only generate impact plot from existing json"
@@ -192,6 +192,233 @@ echo "  Parameter range: ${R_RANGE}"
 echo "  Data mode: $(if [[ -n "$ASIMOV_OPTIONS" ]]; then echo 'Asimov (expected)'; else echo 'Observed (real data)'; fi)"
 echo ""
 
+# ============================================================
+# Condor DAG workflow: Run entire pipeline in HTCondor
+# ============================================================
+if [[ "$CONDOR" == true ]]; then
+    echo "Preparing DAG workflow for HTCondor..."
+
+    # Create condor directory
+    CONDOR_DIR="${OUTPUT_DIR}/condor"
+    mkdir -p "${CONDOR_DIR}/logs"
+
+    # CMSSW path for Combine
+    CMSSW_BASE="${WORKDIR}/SignalRegionStudyV1/CMSSW_14_1_0_pre4/src"
+
+    # Suffix for output file naming
+    SUFFIX="${MASSPOINT}.${METHOD}.${BINNING_SUFFIX}"
+
+    echo "Will run all nuisance fits in a single condor job (handles autoMCStats automatically)"
+
+    # ========== workspace.sh ==========
+    cat > "${CONDOR_DIR}/workspace.sh" << EOFWORKSPACE
+#!/bin/bash
+source /cvmfs/cms.cern.ch/cmsset_default.sh
+export SCRAM_ARCH=el9_amd64_gcc12
+cd ${CMSSW_BASE}
+eval \$(scramv1 runtime -sh)
+cd \${_CONDOR_SCRATCH_DIR}
+text2workspace.py datacard.txt -o workspace.root
+EOFWORKSPACE
+    chmod +x "${CONDOR_DIR}/workspace.sh"
+
+    # ========== workspace.sub ==========
+    WORKSPACE_INPUT_FILES="${TEMPLATE_DIR}/datacard.txt"
+    for shapefile in "${TEMPLATE_DIR}"/shapes*.root; do
+        if [[ -f "$shapefile" ]]; then
+            WORKSPACE_INPUT_FILES="${WORKSPACE_INPUT_FILES},${shapefile}"
+        fi
+    done
+
+    cat > "${CONDOR_DIR}/workspace.sub" << EOF
+universe = vanilla
+executable = workspace.sh
+output = logs/workspace.out
+error = logs/workspace.err
+log = impacts.log
+
+request_cpus = 1
+request_memory = 2GB
+request_disk = 500MB
+
+should_transfer_files = YES
+transfer_input_files = ${WORKSPACE_INPUT_FILES}
+transfer_output_files = workspace.root
+when_to_transfer_output = ON_EXIT
+
+#+SingularityImage = "/data9/Users/choij/Singularity/images/private-el8.sif"
+#+SingularityBind = "/cvmfs,/cms,/share"
+
+queue
+EOF
+
+    # ========== initial_fit.sh ==========
+    cat > "${CONDOR_DIR}/initial_fit.sh" << EOFINITIAL
+#!/bin/bash
+source /cvmfs/cms.cern.ch/cmsset_default.sh
+export SCRAM_ARCH=el9_amd64_gcc12
+cd ${CMSSW_BASE}
+eval \$(scramv1 runtime -sh)
+cd \${_CONDOR_SCRATCH_DIR}
+combineTool.py -M Impacts \\
+    -d workspace.root \\
+    -m 120 \\
+    --doInitialFit \\
+    --robustFit 1 \\
+    ${ASIMOV_OPTIONS} \\
+    --setParameterRanges ${R_RANGE} \\
+    -n .${SUFFIX}
+EOFINITIAL
+    chmod +x "${CONDOR_DIR}/initial_fit.sh"
+
+    # ========== initial_fit.sub ==========
+    cat > "${CONDOR_DIR}/initial_fit.sub" << EOF
+universe = vanilla
+executable = initial_fit.sh
+output = logs/initial_fit.out
+error = logs/initial_fit.err
+log = impacts.log
+
+request_cpus = 1
+request_memory = 4GB
+request_disk = 500MB
+
+should_transfer_files = YES
+transfer_input_files = workspace.root
+transfer_output_files = higgsCombine_initialFit_.${SUFFIX}.MultiDimFit.mH120.root
+when_to_transfer_output = ON_EXIT
+
+#+SingularityImage = "/data9/Users/choij/Singularity/images/private-el8.sif"
+#+SingularityBind = "/cvmfs,/cms,/share"
+
+queue
+EOF
+
+    # ========== fits_collect_plot.sh ==========
+    # Run all nuisance fits, collect results, and plot in a single job
+    # This avoids file transfer issues between separate condor jobs
+    cat > "${CONDOR_DIR}/fits_collect_plot.sh" << EOFFCP
+#!/bin/bash
+set -e
+source /cvmfs/cms.cern.ch/cmsset_default.sh
+export SCRAM_ARCH=el9_amd64_gcc12
+cd ${CMSSW_BASE}
+eval \$(scramv1 runtime -sh)
+cd \${_CONDOR_SCRATCH_DIR}
+
+echo "Step 1: Running nuisance parameter fits..."
+combineTool.py -M Impacts \\
+    -d workspace.root \\
+    -m 120 \\
+    --doFits \\
+    --robustFit 1 \\
+    ${ASIMOV_OPTIONS} \\
+    --setParameterRanges ${R_RANGE} \\
+    -n .${SUFFIX} \\
+    --parallel 8
+
+echo ""
+echo "Step 2: Collecting impacts..."
+combineTool.py -M Impacts \\
+    -d workspace.root \\
+    -m 120 \\
+    -n .${SUFFIX} \\
+    -o impacts.json
+
+echo ""
+echo "Step 3: Generating impact plot..."
+plotImpacts.py -i impacts.json -o impacts
+
+echo ""
+echo "Done!"
+EOFFCP
+    chmod +x "${CONDOR_DIR}/fits_collect_plot.sh"
+
+    # ========== fits_collect_plot.sub ==========
+    cat > "${CONDOR_DIR}/fits_collect_plot.sub" << EOF
+universe = vanilla
+executable = fits_collect_plot.sh
+output = logs/fits_collect_plot.out
+error = logs/fits_collect_plot.err
+log = impacts.log
+
+request_cpus = 8
+request_memory = 16GB
+request_disk = 2GB
+
+should_transfer_files = YES
+transfer_input_files = workspace.root,higgsCombine_initialFit_.${SUFFIX}.MultiDimFit.mH120.root
+transfer_output_files = impacts.json,impacts.pdf
+when_to_transfer_output = ON_EXIT
+
+#+SingularityImage = "/data9/Users/choij/Singularity/images/private-el8.sif"
+#+SingularityBind = "/cvmfs,/cms,/share"
+
+queue
+EOF
+
+    # ========== impacts.dag ==========
+    DAG_FILE="${CONDOR_DIR}/impacts.dag"
+    {
+        echo "# Impacts DAG workflow"
+        echo "# Generated for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING_SUFFIX})"
+        echo ""
+
+        # Step 1: Create workspace
+        echo "# Step 1: Create workspace"
+        echo "JOB workspace workspace.sub"
+        echo ""
+
+        # Step 2: Initial fit
+        echo "# Step 2: Initial fit"
+        echo "JOB initial_fit initial_fit.sub"
+        echo ""
+
+        # Step 3: Nuisance fits + collect + plot (combined into single job)
+        echo "# Step 3: Nuisance fits + collect + plot"
+        echo "JOB fits_collect_plot fits_collect_plot.sub"
+        echo ""
+
+        # Dependencies
+        echo "# Dependencies"
+        echo "PARENT workspace CHILD initial_fit"
+        echo "PARENT initial_fit CHILD fits_collect_plot"
+
+    } > "$DAG_FILE"
+
+    echo ""
+    echo "=========================================="
+    echo "DAG workflow prepared in:"
+    echo "  ${CONDOR_DIR}"
+    echo ""
+    echo "Files created:"
+    echo "  impacts.dag            - DAG workflow definition (3 jobs)"
+    echo "  workspace.sub          - Workspace creation job"
+    echo "  initial_fit.sub        - Initial fit job"
+    echo "  fits_collect_plot.sub  - Nuisance fits + collect + plot job"
+    echo "  *.sh                   - Wrapper scripts"
+    echo ""
+
+    if [[ "$DRY_RUN" == true ]]; then
+        echo "[DRY-RUN] To submit:"
+        echo "  cd ${CONDOR_DIR}"
+        echo "  condor_submit_dag impacts.dag"
+    else
+        echo "Submitting DAG workflow..."
+        cd "${CONDOR_DIR}"
+        condor_submit_dag impacts.dag
+        echo ""
+        echo "Monitor with: condor_q -dag"
+        echo "DAG log: ${CONDOR_DIR}/impacts.dag.dagman.out"
+    fi
+    echo "=========================================="
+    exit 0
+fi
+
+# ============================================================
+# Local execution: Run steps sequentially
+# ============================================================
+
 # Create workspace if needed
 if [[ ! -f "workspace.root" ]] || [[ "datacard.txt" -nt "workspace.root" ]]; then
     echo "Creating workspace..."
@@ -218,45 +445,17 @@ fi
 if [[ "$DO_FITS" == true ]]; then
     echo ""
     echo "Step 2: Running nuisance parameter fits..."
-
-    if [[ "$CONDOR" == true ]]; then
-        # Create condor log directory
-        CONDOR_LOG_DIR="${OUTPUT_DIR}/condor"
-        mkdir -p "${CONDOR_LOG_DIR}"
-
-        run_cmd "combineTool.py -M Impacts \
-            -d workspace.root \
-            -m 120 \
-            --doFits \
-            --robustFit 1 \
-            ${ASIMOV_OPTIONS} \
-            --setParameterRanges ${R_RANGE} \
-            -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
-            --job-mode condor \
-            --task-name impacts_${MASSPOINT} \
-            --sub-opts 'Log = ${CONDOR_LOG_DIR}/impacts_\$(ProcId).log\\nError = ${CONDOR_LOG_DIR}/impacts_\$(ProcId).err\\nOutput = ${CONDOR_LOG_DIR}/impacts_\$(ProcId).out' \
-            2>&1 | tee ${OUTPUT_DIR}/nuisance_fits.out"
-
-        if [[ "$DRY_RUN" == false ]]; then
-            echo ""
-            echo "Jobs submitted to HTCondor."
-            echo "Monitor with: condor_q"
-            echo "After completion, run with --skip-initial --skip-fits to generate plots."
-            exit 0
-        fi
-    else
-        run_cmd "combineTool.py -M Impacts \
-            -d workspace.root \
-            -m 120 \
-            --doFits \
-            --robustFit 1 \
-            ${ASIMOV_OPTIONS} \
-            --setParameterRanges ${R_RANGE} \
-            -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
-            --parallel ${PARALLEL} \
-            2>&1 | tee ${OUTPUT_DIR}/nuisance_fits.out"
-        # Note: Don't move files yet - Step 3 (collect) needs them in the current directory
-    fi
+    run_cmd "combineTool.py -M Impacts \
+        -d workspace.root \
+        -m 120 \
+        --doFits \
+        --robustFit 1 \
+        ${ASIMOV_OPTIONS} \
+        --setParameterRanges ${R_RANGE} \
+        -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
+        --parallel ${PARALLEL} \
+        2>&1 | tee ${OUTPUT_DIR}/nuisance_fits.out"
+    # Note: Don't move files yet - Step 3 (collect) needs them in the current directory
 fi
 
 # Step 3: Collect impacts and generate plot
