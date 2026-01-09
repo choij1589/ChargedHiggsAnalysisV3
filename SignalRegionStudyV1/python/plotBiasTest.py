@@ -133,7 +133,7 @@ def create_bias_plot(results_data, masspoint, era, channel, method, binning, out
     # Legend with fit parameters
     n_entries = len(histograms)
     leg_height = 0.06 * n_entries
-    leg = CMS.cmsLeg(0.50, 0.88 - leg_height, 0.92, 0.88, textSize=0.025)
+    leg = CMS.cmsLeg(0.55, 0.88 - leg_height, 0.95, 0.88, textSize=0.025)
 
     for r_inj, (h, color) in sorted(histograms.items()):
         fr = fit_results[r_inj]
@@ -141,16 +141,15 @@ def create_bias_plot(results_data, masspoint, era, channel, method, binning, out
     leg.Draw()
 
     # Draw info text
-    CMS.drawText(f"masspoint: {masspoint}", posX=0.20, posY=0.85, font=42, align=11, size=0.030)
-    CMS.drawText(f"{era} / {channel}", posX=0.20, posY=0.80, font=42, align=11, size=0.030)
-    CMS.drawText(f"{method} / {binning}", posX=0.20, posY=0.75, font=42, align=11, size=0.030)
+    CMS.drawText(f"{masspoint}", posX=0.20, posY=0.75, font=42, align=11, size=0.030)
+    CMS.drawText(f"{era} / {channel}", posX=0.20, posY=0.7, font=42, align=11, size=0.030)
+    CMS.drawText(f"{method}", posX=0.20, posY=0.65, font=42, align=11, size=0.030)
 
     canv.RedrawAxis()
 
     # Save
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     canv.SaveAs(output_file)
-    canv.SaveAs(output_file.replace('.png', '.pdf'))
     print(f"Bias plot saved to {output_file}")
 
     # Print summary

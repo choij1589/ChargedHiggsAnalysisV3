@@ -3,25 +3,25 @@
         "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
         "yTitle": "Events / 5 GeV",
         "xRange": [10, 200],
-        "rebin": 1
+        "rebin": 5
     },
     "pair_lowM/mass": {
         "xTitle": "M(#mu^{+}#mu^{-})_{<} [GeV]",
         "yTitle": "Events / 5 GeV",
         "xRange": [10, 200],
-        "rebin": 1
+        "rebin": 5
     },
     "pair_highM/mass": {
         "xTitle": "M(#mu^{+}#mu^{-})_{>} [GeV]",
         "yTitle": "Events / 5 GeV",
         "xRange": [10, 200],
-        "rebin": 1
+        "rebin": 5
     },
     "ZCand/mass": {
-        "xTitle": "M(Z #to #mu^{+}#mu^{-}) [GeV]",
-        "yTitle": "Events / 5 GeV",
-        "xRange": [10, 200],
-        "rebin": 5
+        "xTitle": "M(Z #rightarrow ll) [GeV]",
+        "yTitle": "Events",
+        "xRange": [70, 110],
+        "rebin": 1
     },
     "nZCand/mass": {
         "xTitle": "M(#slash{Z} #to #mu^{+}#mu^{-}) [GeV]",
@@ -52,30 +52,6 @@
         "yTitle": "Events",
         "xRange": [10, 100],
         "rebin": 5
-    },
-    "electrons/1/ptCorr": {
-        "xTitle": "p_{T}^{corr}(e) [GeV]",
-        "yTitle": "Events",
-        "xRange": [15, 17, 20, 30, 50, 100, 200],
-        "logx": true
-    },
-    "muons/1/ptCorr": {
-        "xTitle": "p_{T}^{corr}(#mu1) [GeV]",
-        "yTitle": "Events",
-        "xRange": [10, 12, 14, 17, 20, 30, 50, 100, 200],
-        "logx": true
-    },
-    "muons/2/ptCorr": {
-        "xTitle": "p_{T}^{corr}(#mu2) [GeV]",
-        "yTitle": "Events",
-        "xRange": [10, 12, 14, 17, 20, 30, 50, 100, 200],
-        "logx": true
-    },
-    "muons/3/ptCorr": {
-        "xTitle": "p_{T}^{corr}(#mu3) [GeV]",
-        "yTitle": "Events",
-        "xRange": [10, 12, 14, 17, 20, 30, 50, 100, 200],
-        "logx": true
     },
     "electrons/1/scEta": {
         "xTitle": "#eta^{SC}(e)",
@@ -111,6 +87,48 @@
         "xTitle": "#eta(l^{fake})",
         "yTitle": "Events",
         "xRange": [-2.4, 2.4],
+        "rebin": 5
+    },
+    "muon/pt": {
+        "xTitle": "p_{T}(#mu) [GeV]",
+        "yTitle": "Events / 5 GeV",
+        "xRange": [10, 200],
+        "rebin": 2
+    },
+    "muon/eta": {
+        "xTitle": "#eta(#mu)",
+        "yTitle": "Events",
+        "xRange": [-2.4, 2.4],
+        "rebin": 4
+    },
+    "electron/pt": {
+        "xTitle": "p_{T}(e) [GeV]",
+        "yTitle": "Events / 5 GeV",
+        "xRange": [15, 200],
+        "rebin": 2
+    },
+    "electron/eta": {
+        "xTitle": "#eta(e)",
+        "yTitle": "Events",
+        "xRange": [-2.5, 2.5],
+        "rebin": 5
+    },
+    "electron/scEta": {
+        "xTitle": "#eta^{SC}(e)",
+        "yTitle": "Events",
+        "xRange": [-2.5, 2.5],
+        "rebin": 5
+    },
+    "MET": {
+        "xTitle": "p_{T}^{miss} [GeV]",
+        "yTitle": "Events / 5 GeV",
+        "xRange": [0, 200],
+        "rebin": 5
+    },
+    "MT": {
+        "xTitle": "M_{T} [GeV]",
+        "yTitle": "Events / 5 GeV",
+        "xRange": [0, 300],
         "rebin": 5
     }
 }

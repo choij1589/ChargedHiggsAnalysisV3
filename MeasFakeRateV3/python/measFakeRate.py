@@ -15,9 +15,7 @@ parser.add_argument("--isQCD", default=False, action="store_true", help="isQCD")
 parser.add_argument("--debug", action="store_true", default=False, help="debug")
 args = parser.parse_args()
 
-logging.basicConfig(level=logging.INFO)
-if args.debug:
-    logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
 #### Settings
 WORKDIR = os.environ['WORKDIR']
@@ -38,7 +36,8 @@ elif args.measure == "muon":
 else:
     raise KeyError(f"Wrong measure {args.measure}")
 
-SAMPLEGROUP = json.load(open("configs/samplegroup.json"))[args.era][args.measure]
+with open("configs/samplegroup.json") as f:
+    SAMPLEGROUP = json.load(f)[args.era][args.measure]
 #PromptSystematics = json.load(open("configs/systematics.json"))[args.era][args.measure]
 SelectionVariations = ["Central", "PromptNorm_Up", "PromptNorm_Down", "MotherJetPt_Up", "MotherJetPt_Down", "RequireHeavyTag"]
 
@@ -133,7 +132,7 @@ def extract_fake_from_data(ptcorr, abseta, wp, syst):
     else:
         raise KeyError(f"Wrong measure {args.measure}")
     scale = get_prompt_scale(hltpath, wp, syst)
-    logging.debug(prefix, data, prompt, scale, prompt*scale)
+    logging.debug(f"{prefix} {data} {prompt} {scale} {prompt*scale}")
     
     return data - prompt*scale
 
@@ -176,8 +175,8 @@ def get_fake_rate(isQCD=False, syst="Central"):
     
     for ptcorr, abseta in product(ptcorr_bins[:-1], abseta_bins[:-1]):
         if isQCD:
-            loose = extract_fake_from_qcd(ptcorr, abseta, "loose", sample)
-            tight = extract_fake_from_qcd(ptcorr, abseta, "tight", sample)
+            loose = extract_fake_from_qcd(ptcorr, abseta, "loose", syst) # here, syst is sample name
+            tight = extract_fake_from_qcd(ptcorr, abseta, "tight", syst)
         else:
             loose = extract_fake_from_data(ptcorr, abseta, "loose", syst)
             tight = extract_fake_from_data(ptcorr, abseta, "tight", syst)

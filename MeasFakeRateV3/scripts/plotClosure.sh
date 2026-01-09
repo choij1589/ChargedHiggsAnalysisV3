@@ -3,10 +3,8 @@ ERA=$1
 
 export PATH="$PWD/python:$PATH"
 CHANNELs=("Run1E2Mu" "Run3Mu")
-HISTKEYs_El=("pair/mass" "electrons/1/pt" "muons/1/pt" "muons/2/pt" "electrons/1/scEta" "muons/1/eta" "muons/2/eta" "nonprompt/pt" "nonprompt/eta"
-             "electrons/1/ptCorr" "muons/1/ptCorr" "muons/2/ptCorr")
-HISTKEYs_Mu=("pair_lowM/mass" "pair_highM/mass" "ZCand/mass" "nZCand/mass" "muons/1/pt" "muons/2/pt" "muons/3/pt" "muons/1/eta" "muons/2/eta" "muons/3/eta" "nonprompt/pt" "nonprompt/eta"
-             "muons/1/ptCorr" "muons/2/ptCorr" "muons/3/ptCorr")
+HISTKEYs_El=("pair/mass" "electrons/1/pt" "muons/1/pt" "muons/2/pt" "electrons/1/scEta" "muons/1/eta" "muons/2/eta" "nonprompt/pt" "nonprompt/eta")
+HISTKEYs_Mu=("pair_lowM/mass" "pair_highM/mass" "ZCand/mass" "nZCand/mass" "muons/1/pt" "muons/2/pt" "muons/3/pt" "muons/1/eta" "muons/2/eta" "muons/3/eta" "nonprompt/pt" "nonprompt/eta")
 
 plot_closure() {
     local era=$1

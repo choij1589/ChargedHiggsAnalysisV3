@@ -1,7 +1,7 @@
 #!/bin/bash
 ERAs=("2016preVFP" "2016postVFP" "2017" "2018" "2022" "2022EE" "2023" "2023BPix" "Run2" "Run3")
 #ERAs=("2016preVFP" "2016postVFP" "2017" "2018" "Run2")
-ERAs=("2022" "2022EE" "2023" "2023BPix" "Run3")
+#ERAs=("2022" "2022EE" "2023" "2023BPix" "Run3")
 CHANNELs=("DIMU" "EMU")
 
 for ERA in "${ERAs[@]}"; do

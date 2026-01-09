@@ -35,20 +35,32 @@ plot_normalization() {
     fi
 }
 
-plot_validation() {
+plot_validation_inclusive() {
     local era=$1
     local hlt=$2
     local wp=$3
-    local region=$4
-    local selection=$5
-    plotValidation.py --era $era --hlt $hlt --wp $wp --region $region --selection $selection
+    local selection=$4
+    plotValidation.py --era $era --hlt $hlt --wp $wp --region Inclusive --selection $selection --histkey MT
+    plotValidation.py --era $era --hlt $hlt --wp $wp --region Inclusive --selection $selection --histkey pt
+    plotValidation.py --era $era --hlt $hlt --wp $wp --region Inclusive --selection $selection --histkey eta
 }
 
+plot_validation_zenriched() {
+    local era=$1
+    local hlt=$2
+    local wp=$3
+    local selection=$4
+    plotValidation.py --era $era --hlt $hlt --wp $wp --region ZEnriched --selection $selection --histkey ZCand/mass
+}
+    
+
 export -f plot_normalization
-export -f plot_validation
+export -f plot_validation_inclusive
+export -f plot_validation_zenriched
 
 parallel plot_normalization ::: $ERA ::: ${HLTs[@]} ::: ${WPs[@]} ::: ${SELECTIONs[@]}
-parallel plot_validation ::: $ERA ::: ${HLTs[@]} ::: ${WPs[@]} ::: Inclusive ::: ${SELECTIONs[@]}
+parallel plot_validation_inclusive ::: $ERA ::: ${HLTs[@]} ::: ${WPs[@]} ::: ${SELECTIONs[@]}
+parallel plot_validation_zenriched ::: $ERA ::: ${HLTs[@]} ::: ${WPs[@]} ::: ${SELECTIONs[@]}
 plotSystematics.py --era $ERA --measure $MEASURE --etabin EB1
 plotSystematics.py --era $ERA --measure $MEASURE --etabin EB2
 plotSystematics.py --era $ERA --measure $MEASURE --etabin EE

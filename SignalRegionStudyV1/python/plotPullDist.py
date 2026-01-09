@@ -60,7 +60,7 @@ def create_pull_plot(results_data, masspoint, era, channel, method, binning, out
         raise ValueError("No results to plot")
 
     # Standard pull range
-    x_min, x_max = -4, 4
+    x_min, x_max = -5, 5
 
     # Create histograms and fit for each r_inj
     histograms = {}
@@ -115,15 +115,7 @@ def create_pull_plot(results_data, masspoint, era, channel, method, binning, out
                          "(r - r_{inj}) / #sigma_{r}", "PDF",
                          square=True, iPos=11, extraSpace=0.01)
 
-    # Draw reference Gaussian (mean=0, sigma=1)
     bin_width = (x_max - x_min) / 40.0
-    ref_gaus = ROOT.TF1("ref_gaus", "gaus", x_min, x_max)
-    ref_amplitude = bin_width / (ROOT.TMath.Sqrt(2 * ROOT.TMath.Pi()))
-    ref_gaus.SetParameters(ref_amplitude, 0, 1)
-    ref_gaus.SetLineColor(ROOT.kGray + 2)
-    ref_gaus.SetLineStyle(3)
-    ref_gaus.SetLineWidth(2)
-    ref_gaus.Draw("same")
 
     # Draw histograms and fits
     draw_funcs = []
@@ -144,18 +136,17 @@ def create_pull_plot(results_data, masspoint, era, channel, method, binning, out
     # Legend with fit parameters
     n_entries = len(histograms) + 1  # +1 for reference
     leg_height = 0.05 * n_entries
-    leg = CMS.cmsLeg(0.50, 0.88 - leg_height, 0.92, 0.88, textSize=0.025)
-    leg.AddEntry(ref_gaus, "Ideal (#mu=0, #sigma=1)", "l")
+    leg = CMS.cmsLeg(0.55, 0.88 - leg_height, 0.95, 0.88, textSize=0.025)
 
     for r_inj, (h, color) in sorted(histograms.items()):
         fr = fit_results[r_inj]
-        leg.AddEntry(h, f"r_{{inj}}={r_inj:.2f}: #sigma={fr['sigma']:.2f}#pm{fr['sigma_err']:.2f}", "l")
+        leg.AddEntry(h, f"r_{{inj}}={r_inj:.2f}: #mu={fr['mean']:.2f}, #sigma={fr['sigma']:.2f}", "l")
     leg.Draw()
 
     # Draw info text
-    CMS.drawText(f"masspoint: {masspoint}", posX=0.20, posY=0.85, font=42, align=11, size=0.030)
-    CMS.drawText(f"{era} / {channel}", posX=0.20, posY=0.80, font=42, align=11, size=0.030)
-    CMS.drawText(f"{method} / {binning}", posX=0.20, posY=0.75, font=42, align=11, size=0.030)
+    CMS.drawText(f"{masspoint}", posX=0.20, posY=0.75, font=42, align=11, size=0.030)
+    CMS.drawText(f"{era} / {channel}", posX=0.20, posY=0.7, font=42, align=11, size=0.030)
+    CMS.drawText(f"{method}", posX=0.20, posY=0.65, font=42, align=11, size=0.030)
 
     canv.RedrawAxis()
 
