@@ -208,28 +208,7 @@ if [[ "$CONDOR" == true ]]; then
     # Suffix for output file naming
     SUFFIX="${MASSPOINT}.${METHOD}.${BINNING_SUFFIX}"
 
-    # Extract nuisance parameters from datacard
-    # Datacard structure: comments, shapes section, bin/obs section, process/rate section, then systematics
-    # Separators: 1st after shapes, 2nd after bin/obs, 3rd after shapes header, 4th after rate
-    # Systematics start after the 4th separator line
-    echo "Extracting nuisance parameters from datacard..."
-    NUISANCES=()
-    separator_count=0
-    while IFS= read -r line; do
-        # Count separator lines (lines starting with dashes)
-        if [[ "$line" =~ ^-+ ]]; then
-            separator_count=$((separator_count + 1))
-            continue
-        fi
-        # After the 4th separator (after rate line), we're in systematics
-        if [[ $separator_count -ge 4 && -n "$line" && ! "$line" =~ ^# && ! "$line" =~ autoMCStats ]]; then
-            nuisance=$(echo "$line" | awk '{print $1}')
-            if [[ -n "$nuisance" ]]; then
-                NUISANCES+=("$nuisance")
-            fi
-        fi
-    done < datacard.txt
-    echo "Found ${#NUISANCES[@]} nuisance parameters"
+    echo "Will run all nuisance fits in a single condor job (handles autoMCStats automatically)"
 
     # ========== workspace.sh ==========
     cat > "${CONDOR_DIR}/workspace.sh" << EOFWORKSPACE
@@ -315,15 +294,19 @@ when_to_transfer_output = ON_EXIT
 queue
 EOF
 
-    # ========== fit_nuisance.sh ==========
-    cat > "${CONDOR_DIR}/fit_nuisance.sh" << EOFFIT
+    # ========== fits_collect_plot.sh ==========
+    # Run all nuisance fits, collect results, and plot in a single job
+    # This avoids file transfer issues between separate condor jobs
+    cat > "${CONDOR_DIR}/fits_collect_plot.sh" << EOFFCP
 #!/bin/bash
-NUISANCE=\$1
+set -e
 source /cvmfs/cms.cern.ch/cmsset_default.sh
 export SCRAM_ARCH=el9_amd64_gcc12
 cd ${CMSSW_BASE}
 eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
+
+echo "Step 1: Running nuisance parameter fits..."
 combineTool.py -M Impacts \\
     -d workspace.root \\
     -m 120 \\
@@ -332,106 +315,40 @@ combineTool.py -M Impacts \\
     ${ASIMOV_OPTIONS} \\
     --setParameterRanges ${R_RANGE} \\
     -n .${SUFFIX} \\
-    --named \${NUISANCE}
-EOFFIT
-    chmod +x "${CONDOR_DIR}/fit_nuisance.sh"
+    --parallel 8
 
-    # ========== fit_nuisance.sub ==========
-    cat > "${CONDOR_DIR}/fit_nuisance.sub" << EOF
-universe = vanilla
-executable = fit_nuisance.sh
-arguments = \$(nuisance)
-output = logs/fit_\$(nuisance).out
-error = logs/fit_\$(nuisance).err
-log = impacts.log
-
-request_cpus = 1
-request_memory = 4GB
-request_disk = 500MB
-
-should_transfer_files = YES
-transfer_input_files = workspace.root,higgsCombine_initialFit_.${SUFFIX}.MultiDimFit.mH120.root
-transfer_output_files = higgsCombine_paramFit_\$(nuisance).${SUFFIX}.MultiDimFit.mH120.root
-when_to_transfer_output = ON_EXIT
-
-#+SingularityImage = "/data9/Users/choij/Singularity/images/private-el8.sif"
-#+SingularityBind = "/cvmfs,/cms,/share"
-
-queue
-EOF
-
-    # ========== collect.sh ==========
-    cat > "${CONDOR_DIR}/collect.sh" << EOFCOLLECT
-#!/bin/bash
-source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el9_amd64_gcc12
-cd ${CMSSW_BASE}
-eval \$(scramv1 runtime -sh)
-cd \${_CONDOR_SCRATCH_DIR}
+echo ""
+echo "Step 2: Collecting impacts..."
 combineTool.py -M Impacts \\
     -d workspace.root \\
     -m 120 \\
     -n .${SUFFIX} \\
     -o impacts.json
-EOFCOLLECT
-    chmod +x "${CONDOR_DIR}/collect.sh"
 
-    # ========== collect.sub ==========
-    # Build the list of all fit output files for transfer
-    COLLECT_INPUT_FILES="workspace.root,higgsCombine_initialFit_.${SUFFIX}.MultiDimFit.mH120.root"
-    for nuisance in "${NUISANCES[@]}"; do
-        COLLECT_INPUT_FILES="${COLLECT_INPUT_FILES},higgsCombine_paramFit_${nuisance}.${SUFFIX}.MultiDimFit.mH120.root"
-    done
-
-    cat > "${CONDOR_DIR}/collect.sub" << EOF
-universe = vanilla
-executable = collect.sh
-output = logs/collect.out
-error = logs/collect.err
-log = impacts.log
-
-request_cpus = 1
-request_memory = 2GB
-request_disk = 1GB
-
-should_transfer_files = YES
-transfer_input_files = ${COLLECT_INPUT_FILES}
-transfer_output_files = impacts.json
-when_to_transfer_output = ON_EXIT
-
-#+SingularityImage = "/data9/Users/choij/Singularity/images/private-el8.sif"
-#+SingularityBind = "/cvmfs,/cms,/share"
-
-queue
-EOF
-
-    # ========== plot.sh ==========
-    cat > "${CONDOR_DIR}/plot.sh" << EOFPLOT
-#!/bin/bash
-source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el9_amd64_gcc12
-cd ${CMSSW_BASE}
-eval \$(scramv1 runtime -sh)
-cd \${_CONDOR_SCRATCH_DIR}
+echo ""
+echo "Step 3: Generating impact plot..."
 plotImpacts.py -i impacts.json -o impacts
-EOFPLOT
-    chmod +x "${CONDOR_DIR}/plot.sh"
 
-    # ========== plot.sub ==========
-    cat > "${CONDOR_DIR}/plot.sub" << EOF
+echo ""
+echo "Done!"
+EOFFCP
+    chmod +x "${CONDOR_DIR}/fits_collect_plot.sh"
+
+    # ========== fits_collect_plot.sub ==========
+    cat > "${CONDOR_DIR}/fits_collect_plot.sub" << EOF
 universe = vanilla
-executable = plot.sh
-output = logs/plot.out
-error = logs/plot.err
+executable = fits_collect_plot.sh
+output = logs/fits_collect_plot.out
+error = logs/fits_collect_plot.err
 log = impacts.log
 
-request_cpus = 1
-request_memory = 2GB
-request_disk = 500MB
+request_cpus = 8
+request_memory = 16GB
+request_disk = 2GB
 
 should_transfer_files = YES
-transfer_input_files = impacts.json
-transfer_output_files = impacts.pdf,impacts.png
+transfer_input_files = workspace.root,higgsCombine_initialFit_.${SUFFIX}.MultiDimFit.mH120.root
+transfer_output_files = impacts.json,impacts.pdf
 when_to_transfer_output = ON_EXIT
 
 #+SingularityImage = "/data9/Users/choij/Singularity/images/private-el8.sif"
@@ -457,33 +374,15 @@ EOF
         echo "JOB initial_fit initial_fit.sub"
         echo ""
 
-        # Step 3: Nuisance parameter fits
-        echo "# Step 3: Nuisance parameter fits (${#NUISANCES[@]} jobs)"
-        FIT_JOBS=""
-        for nuisance in "${NUISANCES[@]}"; do
-            job_name="fit_${nuisance}"
-            echo "JOB ${job_name} fit_nuisance.sub"
-            echo "VARS ${job_name} nuisance=\"${nuisance}\""
-            FIT_JOBS="${FIT_JOBS} ${job_name}"
-        done
-        echo ""
-
-        # Step 4: Collect results
-        echo "# Step 4: Collect impacts"
-        echo "JOB collect collect.sub"
-        echo ""
-
-        # Step 5: Generate plot
-        echo "# Step 5: Plot impacts"
-        echo "JOB plot plot.sub"
+        # Step 3: Nuisance fits + collect + plot (combined into single job)
+        echo "# Step 3: Nuisance fits + collect + plot"
+        echo "JOB fits_collect_plot fits_collect_plot.sub"
         echo ""
 
         # Dependencies
         echo "# Dependencies"
         echo "PARENT workspace CHILD initial_fit"
-        echo "PARENT initial_fit CHILD${FIT_JOBS}"
-        echo "PARENT${FIT_JOBS} CHILD collect"
-        echo "PARENT collect CHILD plot"
+        echo "PARENT initial_fit CHILD fits_collect_plot"
 
     } > "$DAG_FILE"
 
@@ -493,13 +392,11 @@ EOF
     echo "  ${CONDOR_DIR}"
     echo ""
     echo "Files created:"
-    echo "  impacts.dag       - DAG workflow definition"
-    echo "  workspace.sub     - Workspace creation job"
-    echo "  initial_fit.sub   - Initial fit job"
-    echo "  fit_nuisance.sub  - Nuisance fit job template (${#NUISANCES[@]} jobs)"
-    echo "  collect.sub       - Collect results job"
-    echo "  plot.sub          - Plot generation job"
-    echo "  *.sh              - Wrapper scripts"
+    echo "  impacts.dag            - DAG workflow definition (3 jobs)"
+    echo "  workspace.sub          - Workspace creation job"
+    echo "  initial_fit.sub        - Initial fit job"
+    echo "  fits_collect_plot.sub  - Nuisance fits + collect + plot job"
+    echo "  *.sh                   - Wrapper scripts"
     echo ""
 
     if [[ "$DRY_RUN" == true ]]; then
