@@ -1,7 +1,6 @@
 #!/bin/bash
 MASSPOINTs=("MHc70_MA15" "MHc100_MA60" "MHc130_MA90" "MHc160_MA155")
 MASSPOINTsParticleNet=("MHc100_MA95" "MHc130_MA90" "MHc160_MA85")
-MASSPOINTsParticleNet=("MHc130_MA90")
 ERAs=("2016preVFP" "2016postVFP" "2017" "2018")
 CHANNELs=("SR1E2Mu" "SR3Mu")
 BINNINGs=("uniform" "extended")
