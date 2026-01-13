@@ -46,6 +46,10 @@ config["CoM"] = get_CoM_energy(args.era)
 config["rTitle"] = "Data / Pred"
 config["maxDigits"] = 3
 config["blind"] = args.blind  # Pass blind flag to ComparisonCanvas
+config["overflow"] = True  # Accumulate overflow into last visible bin
+if not args.blind:
+    config["chi2_test"] = True
+    config["normalize_chi2"] = False
 #### Configurations
 # Get era list for merging
 era_list = get_era_list(args.era)
@@ -238,7 +242,11 @@ def apply_wz_uncertainty(hist, sample, args):
     return hist
 
 def apply_kfactor(hist, sample, run):
-    """Apply K-factor to sample if defined in KFactors.json"""
+    """Apply K-factor and theory uncertainty to sample if defined in KFactors.json
+
+    The xsecErr in KFactors.json is a multiplicative factor (e.g., 1.075 means 7.5% uncertainty).
+    This uncertainty is applied to all bins in quadrature with existing errors.
+    """
     if run not in KFACTORS:
         return hist
 
@@ -249,6 +257,22 @@ def apply_kfactor(hist, sample, run):
     kfactor = kfactors[sample]["kFactor"]
     hist.Scale(kfactor)
     logging.debug(f"Applied K-factor {kfactor} to {sample}")
+
+    # Apply theory uncertainty if available
+    if "xsecErr" in kfactors[sample]:
+        xsec_err_factor = kfactors[sample]["xsecErr"]
+        # Convert multiplicative factor to relative uncertainty (e.g., 1.075 -> 0.075)
+        rel_unc = xsec_err_factor - 1.0
+
+        for bin in range(hist.GetNcells()):
+            content = hist.GetBinContent(bin)
+            stat_error = hist.GetBinError(bin)
+            theory_error = content * rel_unc
+            # Combine statistical and theory uncertainties in quadrature
+            total_error = sqrt(stat_error**2 + theory_error**2)
+            hist.SetBinError(bin, total_error)
+        logging.debug(f"Applied theory uncertainty {rel_unc*100:.1f}% to {sample}")
+
     return hist
 
 #### Get Histograms

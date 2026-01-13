@@ -13,13 +13,13 @@ function preprocess_baseline() {
     local channel=$1
     local era=$2
     local masspoint=$3
-    preprocess.py --era $era --channel $channel --masspoint $masspoint
-    makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning uniform
-    makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning extended
+    #preprocess.py --era $era --channel $channel --masspoint $masspoint
+    #makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning uniform
+    #makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning extended
     checkTemplates.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning uniform
     checkTemplates.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning extended
-    printDatacard.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning uniform
-    printDatacard.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning extended
+    #printDatacard.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning uniform
+    #printDatacard.py --era $era --channel $channel --masspoint $masspoint --method Baseline --binning extended
 }
 
 function preprocess_particleNet() {
@@ -30,10 +30,10 @@ function preprocess_particleNet() {
     if [ ! -d "samples/$era/$channel/$masspoint" ]; then
         preprocess.py --era $era --channel $channel --masspoint $masspoint
     fi
-    makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
+    #makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
     plotParticleNetScore.py --era $era --channel $channel --masspoint $masspoint --binning extended
     checkTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
-    printDatacard.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
+    #printDatacard.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
 }
 
 function run_combined_asymptotic() {
@@ -47,23 +47,23 @@ export -f preprocess_baseline
 export -f preprocess_particleNet
 export -f run_combined_asymptotic
 
-#parallel -j 16 preprocess_baseline SR1E2Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTs[@]}"
-#parallel -j 16 preprocess_baseline SR3Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTs[@]}"
+parallel -j 16 preprocess_baseline SR1E2Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTs[@]}"
+parallel -j 16 preprocess_baseline SR3Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTs[@]}"
 
 echo "Processing SR1E2Mu (ParticleNet)..."
-#parallel -j 12 preprocess_particleNet SR1E2Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTsParticleNet[@]}"
+parallel -j 12 preprocess_particleNet SR1E2Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTsParticleNet[@]}"
 
 echo "Processing SR3Mu (ParticleNet)..."
-#parallel -j 12 preprocess_particleNet SR3Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTsParticleNet[@]}"
+parallel -j 12 preprocess_particleNet SR3Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTsParticleNet[@]}"
 
 # Run combined asymptotic limits for all mass points, methods, and binning options
 echo ""
 echo "Running Combined Asymptotic Limits (Baseline method)..."
-parallel -j 8 run_combined_asymptotic {1} Baseline {2} ::: "${MASSPOINTs[@]}" ::: "${BINNINGs[@]}"
+#parallel -j 8 run_combined_asymptotic {1} Baseline {2} ::: "${MASSPOINTs[@]}" ::: "${BINNINGs[@]}"
 
 echo ""
 echo "Running Combined Asymptotic Limits (ParticleNet method)..."
-parallel -j 3 run_combined_asymptotic {1} ParticleNet {2} ::: "${MASSPOINTsParticleNet[@]}" ::: "${BINNINGs[@]}"
+#parallel -j 3 run_combined_asymptotic {1} ParticleNet {2} ::: "${MASSPOINTsParticleNet[@]}" ::: "${BINNINGs[@]}"
 
 echo ""
 echo "All Combined Asymptotic Limits completed."

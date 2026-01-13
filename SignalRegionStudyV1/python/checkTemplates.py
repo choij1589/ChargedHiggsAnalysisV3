@@ -54,8 +54,26 @@ if not WORKDIR:
 # Add path to Common/Tools for plotter imports
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 from plotter import KinematicCanvas, ComparisonCanvas, get_CoM_energy, get_era_list
+from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
 
+# Fixed color mapping for backgrounds (consistent across all plots)
+# Uses PALETTE colors from plotter.py for consistency
+BKG_COLORS = {
+    "nonprompt": PALETTE[0],
+    "WZ": PALETTE[1],       
+    "ZZ": PALETTE[2],       
+    "ttW": PALETTE[3],          
+    "ttZ": PALETTE[4],      
+    "ttH": PALETTE[5],          
+    "tZq": PALETTE[6],      
+    "others": PALETTE[7],
+    "conversion": PALETTE[8]
+}
+
+# Preferred background order for stack plots (bottom to top)
+# Legend will display in reverse order (top to bottom) to match visual stacking
+BKG_ORDER = ["others", "conversion", "WZ", "ZZ", "ttW", "ttH", "tZq", "ttZ", "nonprompt"]
 
 def get_channel_list(channel):
     """Convert Combined to list of individual channels"""
@@ -453,10 +471,21 @@ def make_background_stack(shapes_file, backgrounds, shape_systs):
     signal = signal_hist.Clone(f"{args.masspoint}_clone")
 
     # Get background histograms with systematic uncertainties
+    # Order by BKG_ORDER for consistent stacking
     bkg_hists = {}
     total_bkg_yield = 0
 
+    # Build ordered list of backgrounds
+    ordered_bkgs = []
+    for bkg in BKG_ORDER:
+        if bkg in backgrounds:
+            ordered_bkgs.append(bkg)
+    # Add any remaining backgrounds not in BKG_ORDER
     for bkg in backgrounds:
+        if bkg not in ordered_bkgs:
+            ordered_bkgs.append(bkg)
+
+    for bkg in ordered_bkgs:
         hist = shapes_file.Get(bkg)
         if hist and hist.Integral() > 0:
             hist_clone = hist.Clone(f"{bkg}_clone")
@@ -475,6 +504,15 @@ def make_background_stack(shapes_file, backgrounds, shape_systs):
         logging.warning("No background histograms found, skipping plot")
         return
 
+    # Build colors list in same order as bkg_hists
+    colors = []
+    for bkg in bkg_hists.keys():
+        if bkg in BKG_COLORS:
+            colors.append(BKG_COLORS[bkg])
+        else:
+            # Fallback to default gray for unknown backgrounds
+            colors.append(ROOT.kGray)
+
     # Configuration for ComparisonCanvas
     config = {
         "era": args.era,
@@ -485,7 +523,8 @@ def make_background_stack(shapes_file, backgrounds, shape_systs):
         "rTitle": "Data / Pred",
         "rRange": [0, 5.],
         "maxDigits": 3,
-        "systSrc": "Stat+Syst"
+        "systSrc": "Stat+Syst",
+        "colors": colors
     }
 
     # Create plot

@@ -14,6 +14,7 @@ import os
 import logging
 import json
 import ROOT
+import numpy as np
 from math import sqrt, pow
 
 
@@ -243,3 +244,141 @@ def get_sample_lists(era_samples, categories):
     all_mc_samples = sum(mc_lists.values(), [])
 
     return data_samples, mc_lists, all_mc_samples
+
+
+def rebin_for_chi2_validity(h_obs, h_exp, min_expected=10.0):
+    """
+    Rebin histograms to ensure chi-squared test validity.
+    ROOT's Chi2Test requires:
+    - At least 1 event per bin in observed (unweighted)
+    - At least 10 effective entries per bin in expected (weighted)
+
+    This function merges adjacent bins until each bin has:
+    - expected content >= min_expected
+    - expected effective entries >= min_expected
+
+    Args:
+        h_obs: Observed histogram (data)
+        h_exp: Expected histogram (sum of backgrounds)
+        min_expected: Minimum expected count/effective entries per bin (default 10.0)
+
+    Returns:
+        Tuple of (h_obs_rebinned, h_exp_rebinned)
+    """
+    def get_effective_entries(content, err2):
+        """Calculate effective entries: Neff = (sum w)^2 / (sum w^2)"""
+        if err2 > 0:
+            return content**2 / err2
+        return 0.0
+
+    # First pass: determine bin edges based on expected content AND effective entries
+    bin_edges = [h_exp.GetBinLowEdge(1)]
+    accumulated_exp = 0.0
+    accumulated_err2 = 0.0
+
+    for bin_idx in range(1, h_exp.GetNbinsX() + 1):
+        accumulated_exp += h_exp.GetBinContent(bin_idx)
+        accumulated_err2 += h_exp.GetBinError(bin_idx) ** 2
+
+        eff_entries = get_effective_entries(accumulated_exp, accumulated_err2)
+        should_split = (accumulated_exp >= min_expected and eff_entries >= min_expected)
+        is_last_bin = (bin_idx == h_exp.GetNbinsX())
+
+        if should_split or is_last_bin:
+            bin_edges.append(h_exp.GetBinLowEdge(bin_idx + 1))
+            accumulated_exp = 0.0
+            accumulated_err2 = 0.0
+
+    # If last bin has too few events, merge with previous bin
+    if len(bin_edges) > 2:
+        # Check last bin's effective entries
+        last_bin_start = h_exp.FindBin(bin_edges[-2])
+        last_bin_end = h_exp.GetNbinsX()
+        last_exp = sum(h_exp.GetBinContent(i) for i in range(last_bin_start, last_bin_end + 1))
+        last_err2 = sum(h_exp.GetBinError(i)**2 for i in range(last_bin_start, last_bin_end + 1))
+        last_eff = get_effective_entries(last_exp, last_err2)
+
+        if last_exp < min_expected or last_eff < min_expected:
+            # Merge last bin with previous
+            bin_edges.pop(-2)
+
+    n_bins = len(bin_edges) - 1
+    if n_bins < 1:
+        return h_obs.Clone(), h_exp.Clone()
+
+    bin_edges_arr = np.array(bin_edges, dtype=float)
+    h_obs_rebinned = ROOT.TH1D(h_obs.GetName() + "_chi2", "", n_bins, bin_edges_arr)
+    h_exp_rebinned = ROOT.TH1D(h_exp.GetName() + "_chi2", "", n_bins, bin_edges_arr)
+    h_obs_rebinned.SetDirectory(0)
+    h_exp_rebinned.SetDirectory(0)
+
+    for new_bin in range(1, n_bins + 1):
+        bin_low = h_obs_rebinned.GetBinLowEdge(new_bin)
+        bin_up = h_obs_rebinned.GetBinLowEdge(new_bin + 1)
+        orig_start = h_obs.FindBin(bin_low)
+        orig_end = h_obs.FindBin(bin_up - 0.001)
+
+        sum_obs, sum_exp = 0.0, 0.0
+        sum_obs_err2, sum_exp_err2 = 0.0, 0.0
+
+        for orig_bin in range(orig_start, orig_end + 1):
+            sum_obs += h_obs.GetBinContent(orig_bin)
+            sum_exp += h_exp.GetBinContent(orig_bin)
+            sum_obs_err2 += h_obs.GetBinError(orig_bin) ** 2
+            sum_exp_err2 += h_exp.GetBinError(orig_bin) ** 2
+
+        h_obs_rebinned.SetBinContent(new_bin, sum_obs)
+        h_exp_rebinned.SetBinContent(new_bin, sum_exp)
+        h_obs_rebinned.SetBinError(new_bin, sqrt(sum_obs_err2))
+        h_exp_rebinned.SetBinError(new_bin, sqrt(sum_exp_err2))
+
+    return h_obs_rebinned, h_exp_rebinned
+
+
+def calculate_chi2(h_obs, h_exp, normalize=False):
+    """
+    Calculate chi^2 test between observed and expected histograms using ROOT's Chi2Test.
+
+    Uses TH1::Chi2Test with "UW" option (unweighted data vs weighted MC),
+    which properly handles Poisson statistics for low-count bins.
+
+    Note: The `res` array parameter in Chi2Test returns incorrect values for "UW" option
+    (ROOT bug). We use separate calls with "CHI2" and "CHI2/NDF" options as a workaround.
+
+    Args:
+        h_obs: Observed histogram (data, unweighted)
+        h_exp: Expected histogram (sum of backgrounds, weighted)
+        normalize: If True, normalize both to unit area (shape-only test)
+
+    Returns:
+        tuple: (chi2, ndf, p_value)
+    """
+    # Create a fresh histogram for data without Sumw2 to ensure ROOT treats it as unweighted.
+    # Simply cloning preserves Sumw2 status which causes "UW" option warnings.
+    h_obs_test = ROOT.TH1D("h_obs_chi2", "", h_obs.GetNbinsX(),
+                           h_obs.GetXaxis().GetXmin(), h_obs.GetXaxis().GetXmax())
+    h_obs_test.SetDirectory(0)
+    for i in range(0, h_obs.GetNbinsX() + 2):  # Include under/overflow
+        h_obs_test.SetBinContent(i, h_obs.GetBinContent(i))
+        # Don't set errors - let ROOT compute sqrt(N) for unweighted histogram
+
+    h_exp_test = h_exp.Clone()
+    h_exp_test.SetDirectory(0)
+
+    # Build options string
+    # "UW" = unweighted (data) vs weighted (MC) - proper Poisson handling
+    # "OF" = include overflow bins - reduces dependence on xRange
+    options = "UW OF"
+    if normalize:
+        options += " NORM"
+
+    # Get values using separate calls - the `res` array parameter returns garbage
+    # values for "UW" option in ROOT (tested in ROOT 6.32.08)
+    p_value = h_obs_test.Chi2Test(h_exp_test, options)
+    chi2 = h_obs_test.Chi2Test(h_exp_test, options + " CHI2")
+    chi2_ndf = h_obs_test.Chi2Test(h_exp_test, options + " CHI2/NDF")
+
+    # Calculate ndf from chi2 / (chi2/ndf)
+    ndf = int(round(chi2 / chi2_ndf)) if chi2_ndf > 0 else 0
+
+    return chi2, ndf, p_value
