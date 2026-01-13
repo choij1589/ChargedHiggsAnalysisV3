@@ -1,6 +1,7 @@
 #!/bin/bash
 MASSPOINTs=("MHc70_MA15" "MHc100_MA60" "MHc130_MA90" "MHc160_MA155")
 MASSPOINTsParticleNet=("MHc100_MA95" "MHc130_MA90" "MHc160_MA85")
+MASSPOINTsParticleNet=("MHc130_MA90")
 ERAs=("2016preVFP" "2016postVFP" "2017" "2018")
 CHANNELs=("SR1E2Mu" "SR3Mu")
 BINNINGs=("uniform" "extended")
@@ -30,10 +31,10 @@ function preprocess_particleNet() {
     if [ ! -d "samples/$era/$channel/$masspoint" ]; then
         preprocess.py --era $era --channel $channel --masspoint $masspoint
     fi
-    makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
-    plotParticleNetScore.py --era $era --channel $channel --masspoint $masspoint --binning extended
-    checkTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
-    printDatacard.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
+    makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning uniform
+    plotParticleNetScore.py --era $era --channel $channel --masspoint $masspoint --binning uniform
+    checkTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning uniform
+    printDatacard.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning uniform
 }
 
 function run_combined_asymptotic() {
@@ -51,15 +52,15 @@ export -f run_combined_asymptotic
 #parallel -j 16 preprocess_baseline SR3Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTs[@]}"
 
 echo "Processing SR1E2Mu (ParticleNet)..."
-#parallel -j 12 preprocess_particleNet SR1E2Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTsParticleNet[@]}"
+parallel -j 4 preprocess_particleNet SR1E2Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTsParticleNet[@]}"
 
 echo "Processing SR3Mu (ParticleNet)..."
-#parallel -j 12 preprocess_particleNet SR3Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTsParticleNet[@]}"
+parallel -j 4 preprocess_particleNet SR3Mu {} {} ::: "${ERAs[@]}" ::: "${MASSPOINTsParticleNet[@]}"
 
 # Run combined asymptotic limits for all mass points, methods, and binning options
 echo ""
 echo "Running Combined Asymptotic Limits (Baseline method)..."
-parallel -j 8 run_combined_asymptotic {1} Baseline {2} ::: "${MASSPOINTs[@]}" ::: "${BINNINGs[@]}"
+#parallel -j 8 run_combined_asymptotic {1} Baseline {2} ::: "${MASSPOINTs[@]}" ::: "${BINNINGs[@]}"
 
 echo ""
 echo "Running Combined Asymptotic Limits (ParticleNet method)..."
