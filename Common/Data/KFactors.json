@@ -1,32 +1,42 @@
-{   
+{
   "Run2": {
-    "WZto3LNu_powehg": {
+    "WZTo3LNu_amcatnlo": {
       "kFactor": 1.109,
+      "xsecErr": 1.075,
       "ref": "http://dx.doi.org/10.1016/j.physletb.2016.08.017"
     },
     "ZZTo4L_powheg": {
       "kFactor": 1.16,
+      "xsecErr": 1.064,
       "ref": "https://doi.org/10.1016/j.physletb.2014.06.056"
     },
     "ggZZ": {
       "kFactor": 1.67,
+      "xsecErr": 1.5,
       "ref": "http://arxiv.org/abs/1509.06734"
     },
     "ggHToZZTo4L": {
-      "kFactor": 1.67, 
+      "kFactor": 1.67,
+      "xsecErr": 1.5,
       "ref": "AN2016_359"
     },
     "TTZToLLNuNu": {
       "kFactor": 1.164,
+      "xsecErr": 1.075,
       "formula": "839.3 * 1.164",
       "ref": "10.1016/j.physletb.2024.139146",
       "explanation": "782.6 from generator NLO, 839.3 from NLO+EW correction, 911 for aN3LO QCD + NLO EW"
     },
     "TTWToLNu": {
       "kFactor": 0.993,
+      "xsecErr": 1.133,
       "formula": "600.8/605.1",
       "ref": "10.23731/CYRM-2017-002",
       "explanation": "600.8 from generator NLO, 605.1 from NLO+EW correction"
+    },
+    "TTHToNonbb": {
+      "kFactor": 1,
+      "xsecErr": 1.1
     }
   },
   "Run3": {

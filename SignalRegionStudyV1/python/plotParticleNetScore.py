@@ -46,7 +46,26 @@ if not WORKDIR:
 # Add path to Common/Tools for plotter imports
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 from plotter import ComparisonCanvas, get_CoM_energy
+from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
+
+# Fixed color mapping for backgrounds (consistent across all plots)
+# Uses PALETTE colors from plotter.py for consistency
+BKG_COLORS = {
+    "nonprompt": PALETTE[0],
+    "WZ": PALETTE[1],
+    "ZZ": PALETTE[2],
+    "ttW": PALETTE[3],
+    "ttZ": PALETTE[4],
+    "ttH": PALETTE[5],
+    "tZq": PALETTE[6],
+    "others": PALETTE[7],
+    "conversion": PALETTE[8]
+}
+
+# Preferred background order for stack plots (bottom to top)
+# Legend will display in reverse order (top to bottom) to match visual stacking
+BKG_ORDER = ["others", "conversion", "WZ", "ZZ", "ttW", "ttH", "tZq", "ttZ", "nonprompt"]
 
 # Input from samples directory (ParticleNet scores are in preprocessed samples)
 BASEDIR = f"{WORKDIR}/SignalRegionStudyV1/samples/{args.era}/{args.channel}/{args.masspoint}"
@@ -106,6 +125,17 @@ with open(process_list_path, 'r') as f:
 SEPARATE_PROCESSES = process_list.get("separate_processes", ["nonprompt"])
 MERGED_TO_OTHERS = process_list.get("merged_to_others", [])
 
+# Load optimized score threshold
+threshold_path = f"{CONFIGDIR}/threshold.json"
+SCORE_THRESHOLD = None
+if os.path.exists(threshold_path):
+    with open(threshold_path, 'r') as f:
+        threshold_data = json.load(f)
+        SCORE_THRESHOLD = threshold_data.get("threshold", None)
+        logging.info(f"Loaded score threshold: {SCORE_THRESHOLD}")
+else:
+    logging.warning(f"Threshold file not found: {threshold_path}")
+
 logging.info(f"Separate processes: {SEPARATE_PROCESSES}")
 logging.info(f"Merged to others: {MERGED_TO_OTHERS}")
 
@@ -113,28 +143,12 @@ logging.info(f"Merged to others: {MERGED_TO_OTHERS}")
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(0)
 
-# Color palette for dynamic background assignment
-COLOR_PALETTE = [
-    ROOT.TColor.GetColor("#5790fc"),
-    ROOT.TColor.GetColor("#f89c20"),
-    ROOT.TColor.GetColor("#e42536"),
-    ROOT.TColor.GetColor("#964a8b"),
-    ROOT.TColor.GetColor("#9c9ca1"),
-    ROOT.TColor.GetColor("#7a21dd")
-]
-
-# Special colors for known categories
-KNOWN_COLORS = {
-    "nonprompt": ROOT.kAzure + 2,
-    "others": ROOT.kGray + 1,
-}
-
-
-def get_color(process, idx):
-    """Get color for process - known colors first, then palette for others."""
-    if process in KNOWN_COLORS:
-        return KNOWN_COLORS[process]
-    return COLOR_PALETTE[idx % len(COLOR_PALETTE)]
+def get_color(process):
+    """Get color for process from BKG_COLORS."""
+    if process in BKG_COLORS:
+        return BKG_COLORS[process]
+    # Fallback for unknown processes
+    return ROOT.kGray
 
 
 def loadScores(process, masspoint):
@@ -255,25 +269,26 @@ def createHistogram(process, masspoint, name, color):
 if __name__ == "__main__":
     logging.info(f"Plotting Modified ParticleNet scores for {args.masspoint}, {args.era}, {args.channel}")
 
-    # Create histograms for backgrounds with dynamic colors
-    bkg_hists = {}
-    color_idx = 0
+    # Create histograms for backgrounds with consistent colors
+    # Build ordered list of backgrounds following BKG_ORDER
+    all_backgrounds = SEPARATE_PROCESSES + ["others"]
+    ordered_bkgs = []
+    for bkg in BKG_ORDER:
+        if bkg in all_backgrounds:
+            ordered_bkgs.append(bkg)
+    # Add any remaining backgrounds not in BKG_ORDER
+    for bkg in all_backgrounds:
+        if bkg not in ordered_bkgs:
+            ordered_bkgs.append(bkg)
 
-    for process in SEPARATE_PROCESSES:
-        color = get_color(process, color_idx)
-        if process not in KNOWN_COLORS:
-            color_idx += 1
+    bkg_hists = {}
+    for process in ordered_bkgs:
+        color = get_color(process)
         display_name = process.capitalize()
         hist = createHistogram(process, args.masspoint, display_name, color)
         if hist.Integral() > 0:
             bkg_hists[process] = hist
             logging.info(f"  {process}: {hist.Integral():.2f} events")
-
-    # Always include "others"
-    hist_others = createHistogram("others", args.masspoint, "Others", get_color("others", 0))
-    if hist_others.Integral() > 0:
-        bkg_hists["others"] = hist_others
-        logging.info(f"  others: {hist_others.Integral():.2f} events")
 
     # Create signal histogram (not stacked)
     hist_signal = createHistogram(args.masspoint, args.masspoint, f"Signal ({args.masspoint})", ROOT.kRed + 1)
@@ -304,6 +319,15 @@ if __name__ == "__main__":
         for hist in bkg_hists.values():
             data_obs.Add(hist)
 
+    # Build colors list in same order as bkg_hists
+    colors = []
+    for bkg in bkg_hists.keys():
+        if bkg in BKG_COLORS:
+            colors.append(BKG_COLORS[bkg])
+        else:
+            # Fallback to default gray for unknown backgrounds
+            colors.append(ROOT.kGray)
+
     # Configuration for ComparisonCanvas
     config = {
         "era": args.era,
@@ -315,6 +339,7 @@ if __name__ == "__main__":
         "yRange": [0, 20.],
         "rRange": [0, 5.],
         "maxDigits": 3,
+        "colors": colors
     }
 
     # Create plot
@@ -330,12 +355,24 @@ if __name__ == "__main__":
     hist_signal.SetFillStyle(0)  # No fill
     hist_signal.Draw("HIST SAME")
 
+    # Draw score threshold line if available
+    threshold_line = None
+    if SCORE_THRESHOLD is not None:
+        ymax = ROOT.gPad.GetUymax()
+        threshold_line = ROOT.TLine(SCORE_THRESHOLD, 0, SCORE_THRESHOLD, ymax/2)
+        threshold_line.SetLineColor(ROOT.kRed)
+        threshold_line.SetLineWidth(2)
+        threshold_line.SetLineStyle(2)  # Dashed
+        threshold_line.Draw("SAME")
+
     # Add signal to legend
     current_pad = ROOT.gPad
     primitives = current_pad.GetListOfPrimitives()
     for obj in primitives:
         if obj.InheritsFrom("TLegend"):
-            obj.AddEntry(hist_signal, f"signal (30fb)", "l")
+            obj.AddEntry(hist_signal, f"signal (x6)", "l")
+            if threshold_line:
+                obj.AddEntry(threshold_line, f"threshold ({SCORE_THRESHOLD:.2f})", "l")
             break
 
     plotter.drawPadDown()
