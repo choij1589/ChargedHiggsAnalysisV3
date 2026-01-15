@@ -30,10 +30,17 @@ function preprocess_particleNet() {
     if [ ! -d "samples/$era/$channel/$masspoint" ]; then
         preprocess.py --era $era --channel $channel --masspoint $masspoint
     fi
+<<<<<<< HEAD
+    makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning uniform
+    plotParticleNetScore.py --era $era --channel $channel --masspoint $masspoint --binning uniform
+    checkTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning uniform
+    printDatacard.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning uniform
+=======
     #makeBinnedTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
     plotParticleNetScore.py --era $era --channel $channel --masspoint $masspoint --binning extended
     checkTemplates.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
     #printDatacard.py --era $era --channel $channel --masspoint $masspoint --method ParticleNet --binning extended
+>>>>>>> ae0b3f54c1d23c6ccdaaa7c30ba8fd7866fd26f4
 }
 
 function run_combined_asymptotic() {
