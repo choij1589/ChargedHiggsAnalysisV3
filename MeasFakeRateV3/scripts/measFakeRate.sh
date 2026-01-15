@@ -7,6 +7,8 @@ export PATH=$PWD/python:$PATH
 parseIntegral.py --era $ERA --measure $MEASURE
 measFakeRate.py --era $ERA --measure $MEASURE
 measFakeRate.py --era $ERA --measure $MEASURE --isQCD
+measFakeRate.py --era $ERA --measure $MEASURE --isTT
+measFakeRate.py --era $ERA --measure $MEASURE --isMC
 plotFakeRate.py --era $ERA --measure $MEASURE
 plotFakeRate.py --era $ERA --measure $MEASURE --isQCD
 

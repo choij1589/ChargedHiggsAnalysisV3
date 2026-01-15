@@ -33,3 +33,4 @@ fi
 echo "@@@@ WORKDIR: $WORKDIR"
 
 export PYTHONPATH=$WORKDIR/Common/Tools:$PYTHONPATH
+export LD_LIBRARY_PATH=$WORKDIR/Common/Tools/cpp/lib:$LD_LIBRARY_PATH
