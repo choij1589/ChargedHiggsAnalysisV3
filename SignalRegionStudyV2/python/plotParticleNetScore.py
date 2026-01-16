@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""
+Plot ParticleNet score distributions for signal and backgrounds.
+
+This script creates diagnostic plots showing the Modified ParticleNet Score
+distribution for signal vs stacked backgrounds after mass window selection.
+
+Usage:
+    plotParticleNetScore.py --era 2018 --channel SR1E2Mu --masspoint MHc130_MA90 --binning extended
+"""
+import os
+import sys
+import logging
+import argparse
+import json
+import ROOT
+import numpy as np
+
+# Argument parsing
+parser = argparse.ArgumentParser(description="Plot ParticleNet score distributions for signal and backgrounds")
+parser.add_argument("--era", required=True, type=str, help="Data-taking period (2016preVFP, 2017, 2018, 2022, etc.)")
+parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
+parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
+parser.add_argument("--binning", default="extended", choices=["uniform", "extended"],
+                    help="Binning method: 'extended' (19 bins, default) or 'uniform' (15 bins)")
+parser.add_argument("--unblind", action="store_true",
+                    help="Show real data distribution")
+parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
+                    help="Show real data only for score < 0.3")
+parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+args = parser.parse_args()
+
+# Validate unblind options
+if args.unblind and args.partial_unblind:
+    raise ValueError("--unblind and --partial-unblind are mutually exclusive")
+
+# Setup logging
+logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
+                    format='%(levelname)s - %(message)s')
+
+# Path setup
+WORKDIR = os.getenv("WORKDIR")
+if not WORKDIR:
+    raise EnvironmentError("WORKDIR environment variable not set. Please run 'source setup.sh'")
+
+# Add path to Common/Tools for plotter imports
+sys.path.insert(0, f"{WORKDIR}/Common/Tools")
+from plotter import ComparisonCanvas, get_CoM_energy
+from plotter import PALETTE_LONG as PALETTE
+import cmsstyle as CMS
+
+# Fixed color mapping for backgrounds (consistent across all plots)
+# Uses PALETTE colors from plotter.py for consistency
+BKG_COLORS = {
+    "nonprompt": PALETTE[0],
+    "WZ": PALETTE[1],
+    "ZZ": PALETTE[2],
+    "ttW": PALETTE[3],
+    "ttZ": PALETTE[4],
+    "ttH": PALETTE[5],
+    "tZq": PALETTE[6],
+    "others": PALETTE[7],
+    "conversion": PALETTE[8]
+}
+
+# Preferred background order for stack plots (bottom to top)
+# Legend will display in reverse order (top to bottom) to match visual stacking
+BKG_ORDER = ["others", "conversion", "WZ", "ZZ", "ttW", "ttH", "tZq", "ttZ", "nonprompt"]
+
+# Input from samples directory (ParticleNet scores are in preprocessed samples)
+BASEDIR = f"{WORKDIR}/SignalRegionStudyV2/samples/{args.era}/{args.channel}/{args.masspoint}"
+# Config directory (always from base binning, not unblind variants)
+CONFIGDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{args.binning}"
+# Output to ParticleNet template directory (with unblind suffix if applicable)
+binning_suffix = args.binning
+if args.unblind:
+    binning_suffix = f"{args.binning}_unblind"
+elif args.partial_unblind:
+    binning_suffix = f"{args.binning}_partial_unblind"
+OUTDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}"
+
+logging.info(f"Input directory: {BASEDIR}")
+logging.info(f"Output directory: {OUTDIR}")
+
+# Load mass window from binning.json
+binning_path = f"{CONFIGDIR}/binning.json"
+if not os.path.exists(binning_path):
+    raise FileNotFoundError(
+        f"Binning results not found: {binning_path}\n"
+        f"Please run makeBinnedTemplates.py first:\n"
+        f"  makeBinnedTemplates.py --era {args.era} --channel {args.channel} --masspoint {args.masspoint} --method ParticleNet --binning {args.binning}"
+    )
+
+with open(binning_path, 'r') as f:
+    binning_params = json.load(f)
+
+MASS_MIN = binning_params["mass_min"]
+MASS_MAX = binning_params["mass_max"]
+
+logging.info(f"Mass window from binning: [{MASS_MIN:.2f}, {MASS_MAX:.2f}] GeV")
+
+# Load background weights
+weights_json_path = f"{CONFIGDIR}/background_weights.json"
+BG_WEIGHTS = None
+if os.path.exists(weights_json_path):
+    with open(weights_json_path, 'r') as f:
+        weights_data = json.load(f)
+        BG_WEIGHTS = weights_data.get("weights", None)
+        logging.info(f"Loaded background weights: {BG_WEIGHTS}")
+else:
+    logging.warning(f"Background weights not found: {weights_json_path}")
+    logging.warning(f"Using unweighted ParticleNet score (equal priors)")
+
+# Load process list for dynamic background categories
+process_list_path = f"{CONFIGDIR}/process_list.json"
+if not os.path.exists(process_list_path):
+    raise FileNotFoundError(
+        f"Process list not found: {process_list_path}\n"
+        f"Please run makeBinnedTemplates.py first"
+    )
+
+with open(process_list_path, 'r') as f:
+    process_list = json.load(f)
+
+SEPARATE_PROCESSES = process_list.get("separate_processes", ["nonprompt"])
+MERGED_TO_OTHERS = process_list.get("merged_to_others", [])
+
+# Load optimized score threshold
+threshold_path = f"{CONFIGDIR}/threshold.json"
+SCORE_THRESHOLD = None
+if os.path.exists(threshold_path):
+    with open(threshold_path, 'r') as f:
+        threshold_data = json.load(f)
+        SCORE_THRESHOLD = threshold_data.get("threshold", None)
+        logging.info(f"Loaded score threshold: {SCORE_THRESHOLD}")
+else:
+    logging.warning(f"Threshold file not found: {threshold_path}")
+
+logging.info(f"Separate processes: {SEPARATE_PROCESSES}")
+logging.info(f"Merged to others: {MERGED_TO_OTHERS}")
+
+# Setup ROOT for batch mode
+ROOT.gROOT.SetBatch(True)
+ROOT.gStyle.SetOptStat(0)
+
+def get_color(process):
+    """Get color for process from BKG_COLORS."""
+    if process in BKG_COLORS:
+        return BKG_COLORS[process]
+    # Fallback for unknown processes
+    return ROOT.kGray
+
+
+def loadScores(process, masspoint):
+    """
+    Load ParticleNet scores from a process sample.
+
+    Args:
+        process: Process name
+        masspoint: Signal mass point
+
+    Returns:
+        Tuple of (scores, weights) as numpy arrays
+    """
+    file_path = f"{BASEDIR}/{process}.root"
+
+    if not os.path.exists(file_path):
+        logging.warning(f"Sample file not found: {file_path}")
+        return np.array([]), np.array([])
+
+    # Open file and get tree
+    rfile = ROOT.TFile.Open(file_path, "READ")
+    tree = rfile.Get("Central")
+
+    if not tree:
+        logging.warning(f"Central tree not found in {file_path}")
+        rfile.Close()
+        return np.array([]), np.array([])
+
+    # Branch names
+    score_sig = f"score_{masspoint}_signal"
+    score_nonprompt = f"score_{masspoint}_nonprompt"
+    score_diboson = f"score_{masspoint}_diboson"
+    score_ttZ = f"score_{masspoint}_ttZ"
+
+    # Check if ParticleNet scores exist
+    branches = [b.GetName() for b in tree.GetListOfBranches()]
+    if score_sig not in branches:
+        logging.warning(f"ParticleNet scores not found in {file_path}. This is expected for untrained mass points.")
+        rfile.Close()
+        return np.array([]), np.array([])
+
+    # Load data
+    scores_list = []
+    weights_list = []
+
+    for entry in range(tree.GetEntries()):
+        tree.GetEntry(entry)
+
+        mass = tree.mass
+
+        # Apply mass window cut
+        if not (MASS_MIN <= mass <= MASS_MAX):
+            continue
+
+        s0 = getattr(tree, score_sig)
+        s1 = getattr(tree, score_nonprompt)
+        s2 = getattr(tree, score_diboson)
+        s3 = getattr(tree, score_ttZ)
+        weight = getattr(tree, "weight")
+
+        # Calculate ParticleNet likelihood ratio with cross-section weights
+        if BG_WEIGHTS:
+            w1 = BG_WEIGHTS.get("nonprompt", 1.0)
+            w2 = BG_WEIGHTS.get("diboson", 1.0)
+            w3 = BG_WEIGHTS.get("ttX", 1.0)
+            score_denom = s0 + w1*s1 + w2*s2 + w3*s3
+        else:
+            # Use unweighted likelihood ratio (equal priors)
+            score_denom = s0 + s1 + s2 + s3
+
+        if score_denom > 0:
+            score_PN = s0 / score_denom
+        else:
+            score_PN = 0.0
+
+        scores_list.append(score_PN)
+        weights_list.append(weight)
+
+    rfile.Close()
+
+    return np.array(scores_list), np.array(weights_list)
+
+
+def createHistogram(process, masspoint, name, color):
+    """
+    Create histogram of ParticleNet scores for a process.
+
+    Args:
+        process: Process name
+        masspoint: Signal mass point
+        name: Histogram display name
+        color: ROOT color
+
+    Returns:
+        TH1D histogram
+    """
+    scores, weights = loadScores(process, masspoint)
+
+    if len(scores) == 0:
+        # Return empty histogram
+        hist = ROOT.TH1D(process, name, 50, 0., 1.)
+        hist.SetLineColor(color)
+        hist.SetFillColor(color)
+        return hist
+
+    # Create histogram
+    hist = ROOT.TH1D(process, name, 50, 0., 1.)
+    hist.SetLineColor(color)
+    hist.SetFillColor(color)
+
+    for score, weight in zip(scores, weights):
+        hist.Fill(score, weight)
+
+    return hist
+
+
+# Main execution
+if __name__ == "__main__":
+    logging.info(f"Plotting Modified ParticleNet scores for {args.masspoint}, {args.era}, {args.channel}")
+
+    # Create histograms for backgrounds with consistent colors
+    # Build ordered list of backgrounds following BKG_ORDER
+    all_backgrounds = SEPARATE_PROCESSES + ["others"]
+    ordered_bkgs = []
+    for bkg in BKG_ORDER:
+        if bkg in all_backgrounds:
+            ordered_bkgs.append(bkg)
+    # Add any remaining backgrounds not in BKG_ORDER
+    for bkg in all_backgrounds:
+        if bkg not in ordered_bkgs:
+            ordered_bkgs.append(bkg)
+
+    bkg_hists = {}
+    for process in ordered_bkgs:
+        color = get_color(process)
+        display_name = process.capitalize()
+        hist = createHistogram(process, args.masspoint, display_name, color)
+        if hist.Integral() > 0:
+            bkg_hists[process] = hist
+            logging.info(f"  {process}: {hist.Integral():.2f} events")
+
+    # Create signal histogram (not stacked)
+    hist_signal = createHistogram(args.masspoint, args.masspoint, f"Signal ({args.masspoint})", ROOT.kRed + 1)
+
+    # Check if we have any data
+    if len(bkg_hists) == 0 and hist_signal.Integral() == 0:
+        logging.error("No ParticleNet scores found! This masspoint may not be in the training region (80 < mA < 100).")
+        logging.error("ParticleNet scores are only available for trained mass points.")
+        sys.exit(1)
+
+    # Create "data_obs" histogram
+    if args.unblind or args.partial_unblind:
+        # Load real data
+        data_obs = createHistogram("data", args.masspoint, "Data", ROOT.kBlack)
+
+        if args.partial_unblind:
+            # Zero out bins with score >= 0.3
+            # With 50 bins from 0 to 1, each bin width = 0.02
+            # score >= 0.3 starts at bin 16 (0.30/0.02 + 1 = 16)
+            threshold_bin = int(0.3 / 0.02) + 1  # bin 16
+            for ibin in range(threshold_bin, data_obs.GetNbinsX() + 1):
+                data_obs.SetBinContent(ibin, 0)
+                data_obs.SetBinError(ibin, 0)
+            logging.info(f"Partial unblind: zeroed bins {threshold_bin}-{data_obs.GetNbinsX()} (score >= 0.3)")
+    else:
+        # Blinded: sum of backgrounds
+        data_obs = ROOT.TH1D("data_obs", "data_obs", 50, 0., 1.)
+        for hist in bkg_hists.values():
+            data_obs.Add(hist)
+
+    # Build colors list in same order as bkg_hists
+    colors = []
+    for bkg in bkg_hists.keys():
+        if bkg in BKG_COLORS:
+            colors.append(BKG_COLORS[bkg])
+        else:
+            # Fallback to default gray for unknown backgrounds
+            colors.append(ROOT.kGray)
+
+    # Configuration for ComparisonCanvas
+    config = {
+        "era": args.era,
+        "CoM": get_CoM_energy(args.era),
+        "channel": f"{args.channel}",
+        "xTitle": "Modified ParticleNet Score",
+        "yTitle": "Events",
+        "rTitle": "Data / Pred",
+        "yRange": [0, 20.],
+        "rRange": [0, 5.],
+        "maxDigits": 3,
+        "colors": colors
+    }
+
+    # Create plot
+    plotter = ComparisonCanvas(data_obs, bkg_hists, config)
+    plotter.drawPadUp()
+
+    # Draw signal on upper pad
+    plotter.canv.cd(1)
+    hist_signal.Scale(6.0)  # ~30 fb
+    hist_signal.SetLineColor(ROOT.kBlack)
+    hist_signal.SetLineWidth(2)
+    hist_signal.SetLineStyle(1)  # Solid line
+    hist_signal.SetFillStyle(0)  # No fill
+    hist_signal.Draw("HIST SAME")
+
+    # Draw score threshold line if available
+    threshold_line = None
+    if SCORE_THRESHOLD is not None:
+        ymax = ROOT.gPad.GetUymax()
+        threshold_line = ROOT.TLine(SCORE_THRESHOLD, 0, SCORE_THRESHOLD, ymax/2)
+        threshold_line.SetLineColor(ROOT.kRed)
+        threshold_line.SetLineWidth(2)
+        threshold_line.SetLineStyle(2)  # Dashed
+        threshold_line.Draw("SAME")
+
+    # Add signal to legend
+    current_pad = ROOT.gPad
+    primitives = current_pad.GetListOfPrimitives()
+    for obj in primitives:
+        if obj.InheritsFrom("TLegend"):
+            obj.AddEntry(hist_signal, f"signal (x6)", "l")
+            if threshold_line:
+                obj.AddEntry(threshold_line, f"threshold ({SCORE_THRESHOLD:.2f})", "l")
+            break
+
+    plotter.drawPadDown()
+
+    # Draw additional text
+    plotter.canv.cd()
+    CMS.drawText(f"{args.masspoint}", posX=0.2, posY=0.76, font=61, align=0, size=0.03)
+
+    # Save
+    output_path = f"{OUTDIR}/score_distribution.png"
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    plotter.canv.SaveAs(output_path)
+
+    logging.info(f"Modified ParticleNet score plot saved: {output_path}")
+    logging.info(f"Signal yield: {hist_signal.Integral():.2f}")
+    logging.info(f"Background yield: {data_obs.Integral():.2f}")
+    logging.info(f"S/B ratio: {hist_signal.Integral()/data_obs.Integral() if data_obs.Integral() > 0 else 0:.4f}")
