@@ -468,14 +468,21 @@ def validateBackgroundStatistics(basedir, bin_edges, mA, width, sigma, binning,
 
 def determineProcessList(validation_results, background_categories):
     """Determine final process list based on validation."""
-    separate_processes = ["nonprompt"]  # Always separate
+    # Always keep nonprompt and conversion separate - they have dedicated normalization systematics
+    always_separate = ["nonprompt", "conversion"]
+    separate_processes = ["nonprompt"]  # nonprompt is always first
     merged_to_others = []
 
     for category in background_categories:
         # Map category name to output file name
         process = "conversion" if category == "conv" else category
 
-        if process in validation_results and validation_results[process]["decision"] == "keep":
+        # Always keep nonprompt and conversion separate
+        if process in always_separate:
+            if process not in separate_processes:
+                separate_processes.append(process)
+            logging.info(f"  {process}: always kept separate (dedicated normalization)")
+        elif process in validation_results and validation_results[process]["decision"] == "keep":
             separate_processes.append(process)
             logging.info(f"  {process}: keeping as separate process")
         else:
