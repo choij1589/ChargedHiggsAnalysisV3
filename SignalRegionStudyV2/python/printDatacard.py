@@ -55,6 +55,11 @@ TEMPLATE_DIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{args.era}/{args.channe
 # Setup ROOT
 ROOT.gROOT.SetBatch(True)
 
+# Threshold for using shape vs lnN systematics
+# Backgrounds with fewer events than this threshold will use lnN instead of shape
+# to avoid statistical artifacts from limited MC statistics
+SHAPE_THRESHOLD = 10
+
 
 def load_systematics_config(era, channel):
     """Load systematic configuration for the given era and channel."""
@@ -100,6 +105,9 @@ class DatacardManager:
 
         self.rtfile = ROOT.TFile.Open(shapes_path, "READ")
 
+        # Cache for process yields (used for shape vs lnN decision)
+        self.process_yields = {}
+
         # Load process list
         process_config = load_process_list()
         separate_processes = process_config.get("separate_processes", [])
@@ -113,7 +121,11 @@ class DatacardManager:
                 rate = self.get_event_rate(bkg)
                 if rate > 0:
                     self.backgrounds.append(bkg)
+                    self.process_yields[bkg] = rate
                     logging.debug(f"Background '{bkg}' has rate {rate:.4f}")
+
+        # Cache signal yield
+        self.process_yields["signal"] = self.get_event_rate("signal")
 
         if len(self.backgrounds) == 0:
             raise ValueError("No backgrounds with positive yields found!")
@@ -143,6 +155,56 @@ class DatacardManager:
         """Check if histogram exists in ROOT file."""
         hist = self.rtfile.Get(hist_name)
         return hist is not None
+
+    def estimate_lnN_from_shape(self, process, syst_name, default=1.05):
+        """
+        Estimate lnN value from shape systematic histograms.
+
+        Calculates the rate change from Up/Down variations relative to Central.
+        Returns the larger of (Up/Central, Central/Down) as the lnN value.
+
+        Args:
+            process: Process name
+            syst_name: Systematic name
+            default: Default value if histograms not found
+
+        Returns:
+            float: lnN value (e.g., 1.05 for 5% uncertainty)
+        """
+        base = self.signal if process == "signal" else process
+        central_name = base
+        up_name = f"{base}_{syst_name}Up"
+        down_name = f"{base}_{syst_name}Down"
+
+        central_hist = self.rtfile.Get(central_name)
+        up_hist = self.rtfile.Get(up_name)
+        down_hist = self.rtfile.Get(down_name)
+
+        if not central_hist:
+            return default
+
+        central_int = central_hist.Integral()
+        if central_int <= 0:
+            return default
+
+        ratios = []
+        if up_hist:
+            up_int = up_hist.Integral()
+            if up_int > 0:
+                ratios.append(max(up_int / central_int, central_int / up_int))
+        if down_hist:
+            down_int = down_hist.Integral()
+            if down_int > 0:
+                ratios.append(max(down_int / central_int, central_int / down_int))
+
+        if ratios:
+            # Use the maximum ratio as the lnN value
+            lnN_value = max(ratios)
+            # Cap at reasonable values (1.01 to 2.0)
+            lnN_value = max(1.01, min(2.0, lnN_value))
+            return lnN_value
+
+        return default
 
     def part1_header(self):
         """Generate part 1 of datacard: header and shapes directive."""
@@ -194,9 +256,19 @@ class DatacardManager:
         lines = [bin_line, proc_names, proc_indices, rate_line, "-" * 80]
         return "\n".join(lines)
 
-    def format_syst_value(self, process, syst_name, syst_config):
+    def format_syst_value(self, process, syst_name, syst_config, use_lnN_for_lowstat=False):
         """
         Format systematic value for a specific process.
+
+        For shape systematics on backgrounds with low statistics (< SHAPE_THRESHOLD),
+        returns "-" to skip shape effect (use_lnN_for_lowstat=False) or the lnN value
+        will be handled separately (use_lnN_for_lowstat=True).
+
+        Args:
+            process: Process name
+            syst_name: Systematic name
+            syst_config: Systematic configuration dict
+            use_lnN_for_lowstat: If True, return lnN value for low-stat backgrounds
 
         Returns:
             str: The value to put in the datacard column ("-", "1", or numeric value)
@@ -217,9 +289,24 @@ class DatacardManager:
             value = syst_config.get("value", 1.0)
             return f"{value:.3f}"
 
-        # For shape systematics, just return "1" - the variation magnitude
-        # is encoded in the histogram shapes, not the datacard value
+        # For shape systematics
         if syst_type == "shape":
+            # Check if this is a low-stat background that should use lnN instead
+            is_background = process != "signal"
+            process_yield = self.process_yields.get(process, 0)
+
+            if is_background and process_yield < SHAPE_THRESHOLD:
+                if use_lnN_for_lowstat:
+                    # Return lnN value estimated from shape histograms
+                    lnN_value = self.estimate_lnN_from_shape(process, syst_name)
+                    logging.debug(f"Low-stat background '{process}' ({process_yield:.2f} events): "
+                                  f"using lnN={lnN_value:.3f} for {syst_name}")
+                    return f"{lnN_value:.3f}"
+                else:
+                    # Skip shape for this low-stat background
+                    return "-"
+
+            # Normal shape systematic handling
             if source == "preprocessed":
                 # Check if the shape variation exists in the ROOT file
                 variations = syst_config.get("variations", [])
@@ -237,9 +324,24 @@ class DatacardManager:
         return "-"
 
     def generate_systematic_lines(self, syst_config_all):
-        """Generate all systematic uncertainty lines."""
+        """
+        Generate all systematic uncertainty lines.
+
+        For shape systematics, creates two lines if needed:
+        1. Shape line for signal and high-stat backgrounds (>= SHAPE_THRESHOLD events)
+        2. lnN line for low-stat backgrounds (< SHAPE_THRESHOLD events)
+        """
         lines = []
         processes = ["signal"] + self.backgrounds
+
+        # Identify low-stat backgrounds once
+        lowstat_backgrounds = [
+            proc for proc in self.backgrounds
+            if self.process_yields.get(proc, 0) < SHAPE_THRESHOLD
+        ]
+        if lowstat_backgrounds:
+            logging.info(f"Low-stat backgrounds (< {SHAPE_THRESHOLD} events): {lowstat_backgrounds}")
+            logging.info("These will use lnN instead of shape for applicable systematics")
 
         for syst_name, syst_config in syst_config_all.items():
             syst_type = syst_config.get("type")
@@ -256,23 +358,61 @@ class DatacardManager:
                 logging.debug(f"Skipping {syst_name}: no relevant processes")
                 continue
 
-            # Build the systematic line
-            values = []
-            for proc in processes:
-                val = self.format_syst_value(proc, syst_name, syst_config)
-                values.append(val)
+            # For shape systematics, we may need to split into shape + lnN lines
+            if syst_type == "shape":
+                # Check if any low-stat backgrounds are affected
+                affected_lowstat = [
+                    proc for proc in lowstat_backgrounds
+                    if proc in group
+                ]
 
-            # Check if all values are "-"
-            if all(v == "-" for v in values):
-                logging.debug(f"Skipping {syst_name}: all processes excluded")
-                continue
+                # Build shape line (signal + high-stat backgrounds)
+                shape_values = []
+                for proc in processes:
+                    val = self.format_syst_value(proc, syst_name, syst_config, use_lnN_for_lowstat=False)
+                    shape_values.append(val)
 
-            # Format the line
-            syst_line = f"{syst_name:<50} {syst_type:<8}"
-            for val in values:
-                syst_line += f"{val:<15}"
+                # Only add shape line if not all values are "-"
+                if not all(v == "-" for v in shape_values):
+                    syst_line = f"{syst_name:<50} {'shape':<8}"
+                    for val in shape_values:
+                        syst_line += f"{val:<15}"
+                    lines.append(syst_line)
 
-            lines.append(syst_line)
+                # Build lnN line for low-stat backgrounds if any are affected
+                if affected_lowstat:
+                    lnN_values = []
+                    for proc in processes:
+                        if proc in affected_lowstat:
+                            val = self.format_syst_value(proc, syst_name, syst_config, use_lnN_for_lowstat=True)
+                        else:
+                            val = "-"
+                        lnN_values.append(val)
+
+                    # Only add lnN line if not all values are "-"
+                    if not all(v == "-" for v in lnN_values):
+                        lnN_syst_name = f"{syst_name}_lowstat"
+                        syst_line = f"{lnN_syst_name:<50} {'lnN':<8}"
+                        for val in lnN_values:
+                            syst_line += f"{val:<15}"
+                        lines.append(syst_line)
+                        logging.debug(f"Added lnN systematic '{lnN_syst_name}' for low-stat backgrounds")
+
+            else:
+                # Non-shape systematics (lnN) - standard handling
+                values = []
+                for proc in processes:
+                    val = self.format_syst_value(proc, syst_name, syst_config)
+                    values.append(val)
+
+                if all(v == "-" for v in values):
+                    logging.debug(f"Skipping {syst_name}: all processes excluded")
+                    continue
+
+                syst_line = f"{syst_name:<50} {syst_type:<8}"
+                for val in values:
+                    syst_line += f"{val:<15}"
+                lines.append(syst_line)
 
         return "\n".join(lines)
 
