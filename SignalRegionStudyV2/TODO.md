@@ -85,8 +85,8 @@ SignalRegionStudyV2 builds on the established framework from V1, which provides 
 
 ### Optional/Diagnostic Scripts
 - [x] `plotParticleNetScore.py` - ParticleNet score distribution plots
-- [ ] `plotHybridNewGrid.py` - HybridNew toy MC grid visualization
-- [ ] `plotTestStatDist.py` - Test statistic distributions
+- [x] `plotHybridNewGrid.py` - HybridNew toy MC grid visualization (CLs vs r)
+- [x] `plotTestStatDist.py` - Test statistic distributions (S+B vs B-only)
 - [ ] `plotPullDist.py` - Nuisance parameter pulls
 - [ ] `extractInjectionResults.py` - Signal injection test results
 - [ ] `plotBiasTest.py` - Bias test analysis
@@ -96,7 +96,7 @@ SignalRegionStudyV2 builds on the established framework from V1, which provides 
 ## Phase 4: Shell Scripts for Combine
 
 - [x] `runAsymptotic.sh` - Run AsymptoticLimits method
-- [ ] `runHybridNew.sh` - Run HybridNew method with HTCondor
+- [x] `runHybridNew.sh` - Run HybridNew method with HTCondor DAG workflow (Condor-only)
 - [x] ~~`runCombinedAsymptotic.sh`~~ - Integrated into `automize/makeBinnedTemplates.sh`
 - [ ] `runImpacts.sh` - Nuisance parameter impact calculation
 - [ ] `runFitDiagnostics.sh` - Post-fit diagnostics extraction
@@ -126,7 +126,14 @@ SignalRegionStudyV2 builds on the established framework from V1, which provides 
   - [x] Era-by-era pipeline: templates → validation → datacards → channel combine → asymptotic
   - [x] Automatic era combination (Run2, Run3, All) after individual era processing
   - [x] Parallelization: era-level (`--njobs-era`) and mass-point-level
-- [ ] `automize/hybridnew.sh` - Batch HybridNew execution
+- [x] `automize/hybridnew.sh` - Batch HybridNew execution
+  - [x] `--mode all` - Process combined Run2+Run3
+  - [x] `--mode run2` - Process Run2 only
+  - [x] `--mode run3` - Process Run3 only
+  - [x] `--era <era>` - Single era mode
+  - [x] `--auto-grid` - Auto-tune r-range from Asymptotic results (default)
+  - [x] `--partial-extract` - Extract limits from incomplete condor jobs
+  - [x] `--plot` - Generate CLs vs r and test statistic plots
 - [ ] `automize/impact.sh` - Batch impact calculation
 - [ ] `automize/signalInj.sh` - Batch signal injection
 - [ ] `automize/partialUnblind.sh` - Partial unblinding templates
