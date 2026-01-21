@@ -3,8 +3,8 @@ ERAs=("2016preVFP" "2016postVFP" "2017" "2018" "2022" "2022EE" "2023" "2023BPix"
 MEASUREs=("electron" "muon")
 
 for era in "${ERAs[@]}"; do
-    for measure in "${MEASUREs[@]}"; do
-        ./scripts/measFakeRate.sh $era $measure
-        ./scripts/plotClosure.sh $era
-    done
+    #for measure in "${MEASUREs[@]}"; do
+    #   ./scripts/measFakeRate.sh $era $measure
+    #done
+    ./scripts/plotClosure.sh $era
 done
