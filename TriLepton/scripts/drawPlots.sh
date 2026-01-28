@@ -69,18 +69,6 @@ if [[ $CHANNEL == "SR1E2Mu" ]]; then
         "METv/pt" "METv/phi" "METv/px" "METv/py"
         "pair/pt" "pair/eta" "pair/phi" "pair/mass"
         "dR_ele_mu1" "dR_ele_mu2" "dR_min_ele_mu" "dR_mu1_mu2"
-        "MHc100_MA95/score_nonprompt" "MHc100_MA95/score_diboson" "MHc100_MA95/score_ttZ" "MHc100_MA95/score_signal"
-        "MHc100_MA95/LR_nonprompt" "MHc100_MA95/LR_diboson" "MHc100_MA95/LR_ttZ" "MHc100_MA95/LR_totalBkg"
-        "MHc115_MA87/score_nonprompt" "MHc115_MA87/score_diboson" "MHc115_MA87/score_ttZ" "MHc115_MA87/score_signal"
-        "MHc115_MA87/LR_nonprompt" "MHc115_MA87/LR_diboson" "MHc115_MA87/LR_ttZ" "MHc115_MA87/LR_totalBkg"
-        "MHc130_MA90/score_nonprompt" "MHc130_MA90/score_diboson" "MHc130_MA90/score_ttZ" "MHc130_MA90/score_signal"
-        "MHc130_MA90/LR_nonprompt" "MHc130_MA90/LR_diboson" "MHc130_MA90/LR_ttZ" "MHc130_MA90/LR_totalBkg"
-        "MHc145_MA92/score_nonprompt" "MHc145_MA92/score_diboson" "MHc145_MA92/score_ttZ" "MHc145_MA92/score_signal"
-        "MHc145_MA92/LR_nonprompt" "MHc145_MA92/LR_diboson" "MHc145_MA92/LR_ttZ" "MHc145_MA92/LR_totalBkg"
-        "MHc160_MA85/score_nonprompt" "MHc160_MA85/score_diboson" "MHc160_MA85/score_ttZ" "MHc160_MA85/score_signal"
-        "MHc160_MA85/LR_nonprompt" "MHc160_MA85/LR_diboson" "MHc160_MA85/LR_ttZ" "MHc160_MA85/LR_totalBkg"
-        "MHc160_MA98/score_nonprompt" "MHc160_MA98/score_diboson" "MHc160_MA98/score_ttZ" "MHc160_MA98/score_signal"
-        "MHc160_MA98/LR_nonprompt" "MHc160_MA98/LR_diboson" "MHc160_MA98/LR_ttZ" "MHc160_MA98/LR_totalBkg"
     )
     parallel draw_plot_blind ::: ${histkeys[@]}
 elif [[ $CHANNEL == "TTZ2E1Mu" ]]; then
@@ -98,18 +86,6 @@ elif [[ $CHANNEL == "TTZ2E1Mu" ]]; then
         "bjets/3/pt" "bjets/3/eta" "bjets/3/phi" "bjets/3/mass" "bjets/3/px" "bjets/3/py" "bjets/3/pz" "bjets/3/energy"
         "METv/pt" "METv/phi" "METv/px" "METv/py"
         "pair/pt" "pair/eta" "pair/phi" "pair/mass"
-        "MHc100_MA95/score_nonprompt" "MHc100_MA95/score_diboson" "MHc100_MA95/score_ttZ" "MHc100_MA95/score_signal"
-        "MHc100_MA95/LR_nonprompt" "MHc100_MA95/LR_diboson" "MHc100_MA95/LR_ttZ" "MHc100_MA95/LR_totalBkg"
-        "MHc115_MA87/score_nonprompt" "MHc115_MA87/score_diboson" "MHc115_MA87/score_ttZ" "MHc115_MA87/score_signal"
-        "MHc115_MA87/LR_nonprompt" "MHc115_MA87/LR_diboson" "MHc115_MA87/LR_ttZ" "MHc115_MA87/LR_totalBkg"
-        "MHc130_MA90/score_nonprompt" "MHc130_MA90/score_diboson" "MHc130_MA90/score_ttZ" "MHc130_MA90/score_signal"
-        "MHc130_MA90/LR_nonprompt" "MHc130_MA90/LR_diboson" "MHc130_MA90/LR_ttZ" "MHc130_MA90/LR_totalBkg"
-        "MHc145_MA92/score_nonprompt" "MHc145_MA92/score_diboson" "MHc145_MA92/score_ttZ" "MHc145_MA92/score_signal"
-        "MHc145_MA92/LR_nonprompt" "MHc145_MA92/LR_diboson" "MHc145_MA92/LR_ttZ" "MHc145_MA92/LR_totalBkg"
-        "MHc160_MA85/score_nonprompt" "MHc160_MA85/score_diboson" "MHc160_MA85/score_ttZ" "MHc160_MA85/score_signal"
-        "MHc160_MA85/LR_nonprompt" "MHc160_MA85/LR_diboson" "MHc160_MA85/LR_ttZ" "MHc160_MA85/LR_totalBkg"
-        "MHc160_MA98/score_nonprompt" "MHc160_MA98/score_diboson" "MHc160_MA98/score_ttZ" "MHc160_MA98/score_signal"
-        "MHc160_MA98/LR_nonprompt" "MHc160_MA98/LR_diboson" "MHc160_MA98/LR_ttZ" "MHc160_MA98/LR_totalBkg"
     )
     parallel draw_plot ::: ${histkeys[@]}
 elif [[ $CHANNEL == "SR3Mu" ]]; then
@@ -129,18 +105,6 @@ elif [[ $CHANNEL == "SR3Mu" ]]; then
         "pair_lowM/pt" "pair_lowM/eta" "pair_lowM/phi" "pair_lowM/mass"
         "pair_highM/pt" "pair_highM/eta" "pair_highM/phi" "pair_highM/mass"
         "dR_pair_ss1_os" "dR_pair_ss2_os" "dR_pair_ss1_ss2"
-        "MHc100_MA95/score_nonprompt" "MHc100_MA95/score_diboson" "MHc100_MA95/score_ttZ" "MHc100_MA95/score_signal"
-        "MHc100_MA95/LR_nonprompt" "MHc100_MA95/LR_diboson" "MHc100_MA95/LR_ttZ" "MHc100_MA95/LR_totalBkg"
-        "MHc115_MA87/score_nonprompt" "MHc115_MA87/score_diboson" "MHc115_MA87/score_ttZ" "MHc115_MA87/score_signal"
-        "MHc115_MA87/LR_nonprompt" "MHc115_MA87/LR_diboson" "MHc115_MA87/LR_ttZ" "MHc115_MA87/LR_totalBkg"
-        "MHc130_MA90/score_nonprompt" "MHc130_MA90/score_diboson" "MHc130_MA90/score_ttZ" "MHc130_MA90/score_signal"
-        "MHc130_MA90/LR_nonprompt" "MHc130_MA90/LR_diboson" "MHc130_MA90/LR_ttZ" "MHc130_MA90/LR_totalBkg"
-        "MHc145_MA92/score_nonprompt" "MHc145_MA92/score_diboson" "MHc145_MA92/score_ttZ" "MHc145_MA92/score_signal"
-        "MHc145_MA92/LR_nonprompt" "MHc145_MA92/LR_diboson" "MHc145_MA92/LR_ttZ" "MHc145_MA92/LR_totalBkg"
-        "MHc160_MA85/score_nonprompt" "MHc160_MA85/score_diboson" "MHc160_MA85/score_ttZ" "MHc160_MA85/score_signal"
-        "MHc160_MA85/LR_nonprompt" "MHc160_MA85/LR_diboson" "MHc160_MA85/LR_ttZ" "MHc160_MA85/LR_totalBkg"
-        "MHc160_MA98/score_nonprompt" "MHc160_MA98/score_diboson" "MHc160_MA98/score_ttZ" "MHc160_MA98/score_signal"
-        "MHc160_MA98/LR_nonprompt" "MHc160_MA98/LR_diboson" "MHc160_MA98/LR_ttZ" "MHc160_MA98/LR_totalBkg"
     )
     parallel draw_plot_blind ::: ${histkeys[@]}
 elif [[ $CHANNEL == "ZFake1E2Mu" ]]; then
@@ -157,18 +121,6 @@ elif [[ $CHANNEL == "ZFake1E2Mu" ]]; then
         "ZCand/pt" "ZCand/eta" "ZCand/phi" "ZCand/mass"
         "nonprompt/pt" "nonprompt/eta"
         "dR_ele_mu1" "dR_ele_mu2" "dR_min_ele_mu" "dR_mu1_mu2"
-        "MHc100_MA95/score_nonprompt" "MHc100_MA95/score_diboson" "MHc100_MA95/score_ttZ" "MHc100_MA95/score_signal"
-        "MHc100_MA95/LR_nonprompt" "MHc100_MA95/LR_diboson" "MHc100_MA95/LR_ttZ" "MHc100_MA95/LR_totalBkg"
-        "MHc115_MA87/score_nonprompt" "MHc115_MA87/score_diboson" "MHc115_MA87/score_ttZ" "MHc115_MA87/score_signal"
-        "MHc115_MA87/LR_nonprompt" "MHc115_MA87/LR_diboson" "MHc115_MA87/LR_ttZ" "MHc115_MA87/LR_totalBkg"
-        "MHc130_MA90/score_nonprompt" "MHc130_MA90/score_diboson" "MHc130_MA90/score_ttZ" "MHc130_MA90/score_signal"
-        "MHc130_MA90/LR_nonprompt" "MHc130_MA90/LR_diboson" "MHc130_MA90/LR_ttZ" "MHc130_MA90/LR_totalBkg"
-        "MHc145_MA92/score_nonprompt" "MHc145_MA92/score_diboson" "MHc145_MA92/score_ttZ" "MHc145_MA92/score_signal"
-        "MHc145_MA92/LR_nonprompt" "MHc145_MA92/LR_diboson" "MHc145_MA92/LR_ttZ" "MHc145_MA92/LR_totalBkg"
-        "MHc160_MA85/score_nonprompt" "MHc160_MA85/score_diboson" "MHc160_MA85/score_ttZ" "MHc160_MA85/score_signal"
-        "MHc160_MA85/LR_nonprompt" "MHc160_MA85/LR_diboson" "MHc160_MA85/LR_ttZ" "MHc160_MA85/LR_totalBkg"
-        "MHc160_MA98/score_nonprompt" "MHc160_MA98/score_diboson" "MHc160_MA98/score_ttZ" "MHc160_MA98/score_signal"
-        "MHc160_MA98/LR_nonprompt" "MHc160_MA98/LR_diboson" "MHc160_MA98/LR_ttZ" "MHc160_MA98/LR_totalBkg"
     )
     parallel draw_plot ::: ${histkeys[@]}
 elif [[ $CHANNEL == "ZFake3Mu" ]]; then
@@ -186,18 +138,6 @@ elif [[ $CHANNEL == "ZFake3Mu" ]]; then
         "nZCand/pt" "nZCand/eta" "nZCand/phi" "nZCand/mass"
         "nonprompt/pt" "nonprompt/eta"
         "dR_pair_ss1_os" "dR_pair_ss2_os" "dR_pair_ss1_ss2"
-        "MHc100_MA95/score_nonprompt" "MHc100_MA95/score_diboson" "MHc100_MA95/score_ttZ" "MHc100_MA95/score_signal"
-        "MHc100_MA95/LR_nonprompt" "MHc100_MA95/LR_diboson" "MHc100_MA95/LR_ttZ" "MHc100_MA95/LR_totalBkg"
-        "MHc115_MA87/score_nonprompt" "MHc115_MA87/score_diboson" "MHc115_MA87/score_ttZ" "MHc115_MA87/score_signal"
-        "MHc115_MA87/LR_nonprompt" "MHc115_MA87/LR_diboson" "MHc115_MA87/LR_ttZ" "MHc115_MA87/LR_totalBkg"
-        "MHc130_MA90/score_nonprompt" "MHc130_MA90/score_diboson" "MHc130_MA90/score_ttZ" "MHc130_MA90/score_signal"
-        "MHc130_MA90/LR_nonprompt" "MHc130_MA90/LR_diboson" "MHc130_MA90/LR_ttZ" "MHc130_MA90/LR_totalBkg"
-        "MHc145_MA92/score_nonprompt" "MHc145_MA92/score_diboson" "MHc145_MA92/score_ttZ" "MHc145_MA92/score_signal"
-        "MHc145_MA92/LR_nonprompt" "MHc145_MA92/LR_diboson" "MHc145_MA92/LR_ttZ" "MHc145_MA92/LR_totalBkg"
-        "MHc160_MA85/score_nonprompt" "MHc160_MA85/score_diboson" "MHc160_MA85/score_ttZ" "MHc160_MA85/score_signal"
-        "MHc160_MA85/LR_nonprompt" "MHc160_MA85/LR_diboson" "MHc160_MA85/LR_ttZ" "MHc160_MA85/LR_totalBkg"
-        "MHc160_MA98/score_nonprompt" "MHc160_MA98/score_diboson" "MHc160_MA98/score_ttZ" "MHc160_MA98/score_signal"
-        "MHc160_MA98/LR_nonprompt" "MHc160_MA98/LR_diboson" "MHc160_MA98/LR_ttZ" "MHc160_MA98/LR_totalBkg"
     )
     parallel draw_plot ::: ${histkeys[@]}
 elif [[ $CHANNEL == "ZG1E2Mu" ]]; then

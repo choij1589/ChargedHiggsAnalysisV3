@@ -32,7 +32,8 @@ sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 
 from plotter import get_era_list, get_CoM_energy
 from HistoUtils import (load_histogram, sum_histograms, load_era_configs, get_sample_lists,
-                        merge_systematics, build_sknanoutput_path)
+                        merge_systematics)
+from utils import build_sknanoutput_path
 
 
 def load_signal_config():

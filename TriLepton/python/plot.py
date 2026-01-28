@@ -8,7 +8,8 @@ from math import pow, sqrt
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
                         calculate_systematics, sum_histograms, load_era_configs,
-                        merge_systematics, get_sample_lists, build_sknanoutput_path)
+                        merge_systematics, get_sample_lists)
+from utils import build_sknanoutput_path
 import correctionlib
 ROOT.gROOT.SetBatch(True)
 

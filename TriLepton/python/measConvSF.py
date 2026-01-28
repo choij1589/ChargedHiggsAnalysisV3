@@ -10,10 +10,8 @@ import ROOT
 from math import sqrt
 import correctionlib.schemav2 as cs
 
-# Add Common/Tools to path for build_sknanoutput_path
 WORKDIR = os.environ["WORKDIR"]
-sys.path.insert(0, f"{WORKDIR}/Common/Tools")
-from HistoUtils import build_sknanoutput_path
+from utils import build_sknanoutput_path
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
@@ -52,6 +50,11 @@ elif args.channel == "ZGCombined":
 json_samplegroup = json.load(open(f"configs/samplegroup.json"))
 json_systematics = json.load(open(f"configs/systematics.json"))
 json_nonprompt = json.load(open(f"configs/nonprompt.json"))
+
+# Load K-factors for MC normalization
+KFACTORS_PATH = f"{WORKDIR}/Common/Data/KFactors.json"
+with open(KFACTORS_PATH) as f:
+    KFACTORS = json.load(f)
 
 def get_yield_data_with_error(channels, era):
     """Get data yield with statistical error for one or more channels"""
@@ -151,6 +154,12 @@ def get_yield_mc_with_error(channels, era, mc, syst="Central"):
     if isinstance(channels, str):
         channels = [channels]
 
+    # Infer run from era for K-factor lookup
+    if era in ["Run2", "2016preVFP", "2016postVFP", "2017", "2018"]:
+        run = "Run2"
+    else:
+        run = "Run3"
+
     total_yield = 0.0
     total_error_sq = 0.0
     for channel in channels:
@@ -195,6 +204,14 @@ def get_yield_mc_with_error(channels, era, mc, syst="Central"):
             error = ctypes.c_double(0.0)
             yield_value = h.IntegralAndError(0, h.GetNbinsX() + 1, error)
             f.Close()
+
+            # Apply K-factor if available
+            if run in KFACTORS and sample in KFACTORS[run]:
+                kfactor = KFACTORS[run][sample]["kFactor"]
+                yield_value *= kfactor
+                error.value *= kfactor
+                logging.debug(f"Applied K-factor {kfactor} to {sample}")
+
             total_yield += yield_value
             total_error_sq += error.value * error.value
 
