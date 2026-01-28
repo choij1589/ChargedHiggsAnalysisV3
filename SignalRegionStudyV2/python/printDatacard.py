@@ -56,9 +56,13 @@ TEMPLATE_DIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{args.era}/{args.channe
 ROOT.gROOT.SetBatch(True)
 
 # Threshold for using shape vs lnN systematics
-# Backgrounds with relative statistical error above this threshold will skip shape systematics
+# Backgrounds with relative statistical error above this threshold will use lnN fallback
 # Relative error = sqrt(sum of bin_error^2) / integral
 SHAPE_REL_ERR_THRESHOLD = 0.30  # 30%
+
+# Constants for lnN fallback computation
+MAX_LNN_VALUE = 2.0           # Cap lnN fallback (100% uncertainty max)
+MIN_YIELD_THRESHOLD = 1e-6    # Below this yield, skip systematic entirely ("-")
 
 
 def load_systematics_config(era, channel):
@@ -108,6 +112,8 @@ class DatacardManager:
         # Cache for process yields and relative errors
         self.process_yields = {}
         self.process_rel_errors = {}
+        # Cache for lnN fallback values: (process, syst_name) -> value string
+        self._lnn_fallback_cache = {}
 
         # Load process list
         process_config = load_process_list()
@@ -183,96 +189,159 @@ class DatacardManager:
         hist = self.rtfile.Get(hist_name)
         return hist is not None
 
-    def estimate_rate_effect_from_shape(self, process, syst_name):
+    def compute_lnn_fallback_value(self, process, syst_name):
         """
-        Estimate fractional rate effect from shape systematic histograms.
+        Compute per-systematic lnN fallback value for a low-stat process.
 
-        Calculates the rate change from Up/Down variations relative to Central.
-        Returns the fractional uncertainty (e.g., 0.05 for 5% effect).
+        Uses Up/Down histogram integrals to determine the rate effect,
+        then returns a formatted lnN value string.
 
         Args:
             process: Process name
             syst_name: Systematic name
 
         Returns:
-            float: Fractional uncertainty (e.g., 0.05 for 5%), or 0.0 if not found
+            str: Formatted lnN value (e.g., "1.050") or "-" if negligible
         """
         base = self.signal if process == "signal" else process
-        central_name = base
-        up_name = f"{base}_{syst_name}Up"
-        down_name = f"{base}_{syst_name}Down"
-
-        central_hist = self.rtfile.Get(central_name)
-        up_hist = self.rtfile.Get(up_name)
-        down_hist = self.rtfile.Get(down_name)
+        central_hist = self.rtfile.Get(base)
+        up_hist = self.rtfile.Get(f"{base}_{syst_name}Up")
+        down_hist = self.rtfile.Get(f"{base}_{syst_name}Down")
 
         if not central_hist:
-            return 0.0
+            return "-"
 
         central_int = central_hist.Integral()
-        if central_int <= 0:
-            return 0.0
+        if central_int < MIN_YIELD_THRESHOLD:
+            return "-"
 
         fractional_effects = []
         if up_hist:
             up_int = up_hist.Integral()
-            if up_int > 0:
-                fractional_effects.append(abs(up_int - central_int) / central_int)
+            fractional_effects.append(abs(up_int - central_int) / central_int)
         if down_hist:
             down_int = down_hist.Integral()
-            if down_int > 0:
-                fractional_effects.append(abs(down_int - central_int) / central_int)
+            fractional_effects.append(abs(down_int - central_int) / central_int)
 
-        if fractional_effects:
-            # Use the maximum fractional effect
-            return max(fractional_effects)
+        if not fractional_effects:
+            return "-"
 
-        return 0.0
+        rate_effect = max(fractional_effects)
 
-    def collect_absorbed_rate_effects(self, process, syst_config_all):
+        # Skip if effect is negligible (< 0.1%)
+        if rate_effect < 0.001:
+            return "-"
+
+        lnn_value = 1.0 + rate_effect
+        if lnn_value > MAX_LNN_VALUE:
+            logging.warning(f"Capping lnN fallback for {process}/{syst_name}: "
+                          f"{lnn_value:.3f} -> {MAX_LNN_VALUE:.3f}")
+            lnn_value = MAX_LNN_VALUE
+
+        return f"{lnn_value:.3f}"
+
+    def precompute_lnn_fallbacks(self, syst_config_all):
         """
-        For low-stat backgrounds, collect rate effects from ALL shape systematics
-        that apply to this process (excluding theory uncertainties which only apply to signal).
+        Pre-compute lnN fallback values for all (low-stat process, shape systematic) pairs.
 
-        Returns total fractional uncertainty to add in quadrature.
+        Must be called while Up/Down histograms still exist in shapes.root.
 
         Args:
-            process: Process name (background)
             syst_config_all: Full systematics configuration dict
-
-        Returns:
-            float: sqrt(sum of squares) of all rate effects
         """
-        if process == "signal":
-            return 0.0
+        lowstat_backgrounds = [
+            proc for proc in self.backgrounds
+            if self.process_rel_errors.get(proc, float('inf')) > SHAPE_REL_ERR_THRESHOLD
+        ]
 
-        fractional_effects_squared = []
+        if not lowstat_backgrounds:
+            return
+
+        logging.info(f"Low-stat backgrounds (rel_err > {SHAPE_REL_ERR_THRESHOLD*100:.0f}%):")
+        for proc in lowstat_backgrounds:
+            logging.info(f"  {proc}: rel_err={self.process_rel_errors[proc]*100:.1f}%, "
+                        f"yield={self.process_yields[proc]:.6f}")
 
         for syst_name, syst_config in syst_config_all.items():
-            syst_type = syst_config.get("type")
-            source = syst_config.get("source")
+            if syst_config.get("type") != "shape":
+                continue
+
             group = syst_config.get("group", [])
+            for proc in lowstat_backgrounds:
+                if proc not in group:
+                    continue
 
-            # Only consider shape systematics
-            if syst_type != "shape":
+                fallback = self.compute_lnn_fallback_value(proc, syst_name)
+                self._lnn_fallback_cache[(proc, syst_name)] = fallback
+                if fallback != "-":
+                    logging.debug(f"  lnN fallback {proc}/{syst_name}: {fallback}")
+
+        logging.info(f"Pre-computed {len(self._lnn_fallback_cache)} lnN fallback values")
+
+    def rewrite_shapes_root(self, syst_config_all):
+        """
+        Rewrite shapes.root removing Up/Down histograms for low-stat processes.
+
+        The original shapes.root is preserved as shapes_original.root.
+        A new shapes.root is written with low-stat shape histograms removed,
+        so Combine's shape? directive falls back to lnN for these processes.
+
+        Args:
+            syst_config_all: Full systematics configuration dict
+        """
+        lowstat_backgrounds = [
+            proc for proc in self.backgrounds
+            if self.process_rel_errors.get(proc, float('inf')) > SHAPE_REL_ERR_THRESHOLD
+        ]
+
+        if not lowstat_backgrounds:
+            return
+
+        # Collect histogram names to remove
+        hists_to_remove = set()
+        for syst_name, syst_config in syst_config_all.items():
+            if syst_config.get("type") != "shape":
                 continue
+            group = syst_config.get("group", [])
+            for proc in lowstat_backgrounds:
+                if proc not in group:
+                    continue
+                hists_to_remove.add(f"{proc}_{syst_name}Up")
+                hists_to_remove.add(f"{proc}_{syst_name}Down")
 
-            # Check if this systematic applies to this process
-            if process not in group:
-                continue
+        if not hists_to_remove:
+            return
 
-            # Get rate effect from this shape systematic
-            rate_effect = self.estimate_rate_effect_from_shape(process, syst_name)
-            if rate_effect > 0:
-                fractional_effects_squared.append(rate_effect ** 2)
-                logging.debug(f"  Absorbed {syst_name} rate effect: {rate_effect:.4f} ({rate_effect*100:.1f}%)")
+        # Read all histograms from current file
+        shapes_path = f"{TEMPLATE_DIR}/shapes.root"
+        original_path = f"{TEMPLATE_DIR}/shapes_original.root"
+        all_hists = {}
+        for key in self.rtfile.GetListOfKeys():
+            name = key.GetName()
+            if name not in hists_to_remove:
+                hist = key.ReadObj()
+                hist.SetDirectory(0)
+                all_hists[name] = hist
 
-        if fractional_effects_squared:
-            total_frac = (sum(fractional_effects_squared)) ** 0.5
-            logging.debug(f"  Total absorbed rate effect for {process}: {total_frac:.4f} ({total_frac*100:.1f}%)")
-            return total_frac
+        # Close current file handle
+        self.rtfile.Close()
 
-        return 0.0
+        # Rename original shapes.root to shapes_original.root (handle re-run)
+        if os.path.exists(original_path):
+            os.remove(original_path)
+        os.rename(shapes_path, original_path)
+        logging.info(f"Preserved original as: {original_path}")
+
+        # Write filtered histograms to new shapes.root
+        outfile = ROOT.TFile.Open(shapes_path, "RECREATE")
+        for name, hist in all_hists.items():
+            hist.Write(name)
+        outfile.Close()
+
+        logging.info(f"Removed {len(hists_to_remove)} low-stat shape histograms from shapes.root")
+
+        # Reopen for further reads
+        self.rtfile = ROOT.TFile.Open(shapes_path, "READ")
 
     def part1_header(self):
         """Generate part 1 of datacard: header and shapes directive."""
@@ -328,8 +397,8 @@ class DatacardManager:
         """
         Format systematic value for a specific process.
 
-        For shape systematics on backgrounds with high relative error (> SHAPE_REL_ERR_THRESHOLD),
-        returns "-" (shape effects are absorbed into normalization lnN).
+        For shape systematics on low-stat backgrounds (rel_err > threshold),
+        returns the pre-computed lnN fallback value (used with shape? type).
 
         Args:
             process: Process name
@@ -337,7 +406,7 @@ class DatacardManager:
             syst_config: Systematic configuration dict
 
         Returns:
-            str: The value to put in the datacard column ("-", "1", or numeric value)
+            str: The value to put in the datacard column ("-", "1", or lnN fallback value)
         """
         group = syst_config.get("group", [])
         source = syst_config.get("source")
@@ -362,8 +431,8 @@ class DatacardManager:
             rel_err = self.process_rel_errors.get(process, float('inf'))
 
             if is_background and rel_err > SHAPE_REL_ERR_THRESHOLD:
-                # Skip shape for low-stat background - effects absorbed into normalization lnN
-                return "-"
+                # Return pre-computed lnN fallback value for shape? mechanism
+                return self._lnn_fallback_cache.get((process, syst_name), "-")
 
             # Normal shape systematic handling
             if source == "preprocessed":
@@ -386,35 +455,12 @@ class DatacardManager:
         """
         Generate all systematic uncertainty lines.
 
-        For shape systematics on low-stat backgrounds (rel_err > threshold):
-        - Shape line shows "-" (no shape effect)
-        - Rate effects are absorbed into normalization lnN systematics
-
-        For lnN normalization systematics (CMS_B2G25013_Norm_*):
-        - Low-stat backgrounds get enhanced value = sqrt(config_value^2 + absorbed_effects^2)
-        - High-stat backgrounds and signal get config value as-is
+        Uses Combine's shape? type for shape systematics:
+        - Processes with shape histograms in shapes.root get full shape treatment
+        - Low-stat processes (histograms removed) get lnN fallback values
         """
         lines = []
         processes = ["signal"] + self.backgrounds
-
-        # Identify low-stat backgrounds (high relative error)
-        lowstat_backgrounds = [
-            proc for proc in self.backgrounds
-            if self.process_rel_errors.get(proc, float('inf')) > SHAPE_REL_ERR_THRESHOLD
-        ]
-        if lowstat_backgrounds:
-            logging.info(f"Low-stat backgrounds (rel_err > {SHAPE_REL_ERR_THRESHOLD*100:.0f}%):")
-            for proc in lowstat_backgrounds:
-                logging.info(f"  {proc}: {self.process_rel_errors[proc]*100:.1f}%")
-            logging.info("Shape effects will be absorbed into normalization lnN for these backgrounds")
-
-        # Pre-compute absorbed rate effects for low-stat backgrounds
-        absorbed_effects = {}
-        for proc in lowstat_backgrounds:
-            absorbed_effects[proc] = self.collect_absorbed_rate_effects(proc, syst_config_all)
-            if absorbed_effects[proc] > 0:
-                logging.info(f"  {proc}: absorbed rate effect = {absorbed_effects[proc]:.4f} "
-                            f"({absorbed_effects[proc]*100:.1f}%)")
 
         for syst_name, syst_config in syst_config_all.items():
             syst_type = syst_config.get("type")
@@ -431,54 +477,30 @@ class DatacardManager:
                 logging.debug(f"Skipping {syst_name}: no relevant processes")
                 continue
 
-            # For shape systematics
             if syst_type == "shape":
-                # Build shape line (signal + high-stat backgrounds get shape, low-stat get "-")
+                # Build shape? line: "1" for shape processes, lnN fallback for low-stat
                 shape_values = []
                 for proc in processes:
                     val = self.format_syst_value(proc, syst_name, syst_config)
                     shape_values.append(val)
 
-                # Only add shape line if not all values are "-"
+                # Only add line if not all values are "-"
                 if not all(v == "-" for v in shape_values):
-                    syst_line = f"{syst_name:<50} {'shape':<8}"
+                    syst_line = f"{syst_name:<50} {'shape?':<8}"
                     for val in shape_values:
                         syst_line += f"{val:<15}"
                     lines.append(syst_line)
 
             else:
-                # Non-shape systematics (lnN)
-                # Check if this is a normalization systematic for a low-stat background
-                is_norm_syst = syst_name.startswith("CMS_B2G25013_Norm_")
-
+                # lnN systematics: pass through config values directly
                 values = []
                 for proc in processes:
                     proc_check = "signal" if proc == "signal" else proc
-
-                    # Check if this systematic applies to this process
                     if proc_check not in group:
                         values.append("-")
                         continue
-
                     base_value = syst_config.get("value", 1.0)
-
-                    # For normalization systematics on low-stat backgrounds,
-                    # combine base value with absorbed shape effects
-                    if is_norm_syst and proc in lowstat_backgrounds and absorbed_effects.get(proc, 0) > 0:
-                        # Convert lnN value to fractional uncertainty
-                        # lnN value of 1.10 means 10% uncertainty
-                        base_frac = base_value - 1.0
-                        absorbed_frac = absorbed_effects[proc]
-
-                        # Combine in quadrature
-                        combined_frac = (base_frac**2 + absorbed_frac**2) ** 0.5
-                        combined_value = 1.0 + combined_frac
-
-                        logging.debug(f"  {syst_name} for {proc}: base={base_value:.3f}, "
-                                     f"absorbed={absorbed_frac:.4f}, combined={combined_value:.3f}")
-                        values.append(f"{combined_value:.3f}")
-                    else:
-                        values.append(f"{base_value:.3f}")
+                    values.append(f"{base_value:.3f}")
 
                 if all(v == "-" for v in values):
                     logging.debug(f"Skipping {syst_name}: all processes excluded")
@@ -495,8 +517,49 @@ class DatacardManager:
         """Generate autoMCStats line."""
         return f"{self.channel} autoMCStats {threshold}"
 
+    def write_lowstat_json(self):
+        """
+        Write lowstat.json with metadata about low-stat processes and their lnN fallbacks.
+
+        This file is consumed by checkTemplates.py to correctly compute systematic
+        error bands using lnN fallback values instead of missing shape histograms.
+        """
+        lowstat_backgrounds = [
+            proc for proc in self.backgrounds
+            if self.process_rel_errors.get(proc, float('inf')) > SHAPE_REL_ERR_THRESHOLD
+        ]
+
+        if not lowstat_backgrounds:
+            return
+
+        # Build fallbacks dict: {process: {syst_name: value_string}}
+        fallbacks = {}
+        for (proc, syst_name), value in self._lnn_fallback_cache.items():
+            if proc not in fallbacks:
+                fallbacks[proc] = {}
+            fallbacks[proc][syst_name] = value
+
+        lowstat_info = {
+            "threshold": SHAPE_REL_ERR_THRESHOLD,
+            "processes": lowstat_backgrounds,
+            "fallbacks": fallbacks
+        }
+
+        lowstat_path = f"{TEMPLATE_DIR}/lowstat.json"
+        with open(lowstat_path, 'w') as f:
+            json.dump(lowstat_info, f, indent=2)
+
+        logging.info(f"Wrote lowstat.json: {lowstat_path}")
+
     def generate_datacard(self, syst_config):
         """Generate complete datacard string."""
+        # Pre-compute lnN fallbacks while Up/Down histograms still exist
+        self.precompute_lnn_fallbacks(syst_config)
+        # Write lowstat.json with fallback metadata
+        self.write_lowstat_json()
+        # Remove low-stat shape histograms so shape? falls back to lnN
+        self.rewrite_shapes_root(syst_config)
+
         parts = [
             self.part1_header(),
             self.part2_observation(),

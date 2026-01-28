@@ -617,8 +617,10 @@ def process_signal_from_run2(workdir, era, channel, masspoint, scale_factor, sou
     logging.info("=" * 60)
 
     # Try V2 samples first, then V1
+    # Also check samples_source for HTCondor jobs where pnfs is symlinked
     source_paths = [
         f"{workdir}/SignalRegionStudyV2/samples/{source_era}/{channel}/{masspoint}/{masspoint}.root",
+        f"{workdir}/SignalRegionStudyV2/samples_source/{source_era}/{channel}/{masspoint}/{masspoint}.root",
         f"{workdir}/SignalRegionStudyV1/samples/{source_era}/{channel}/{masspoint}/{masspoint}.root",
     ]
 

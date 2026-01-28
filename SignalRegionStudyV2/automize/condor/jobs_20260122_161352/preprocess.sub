@@ -1,0 +1,15 @@
+JobBatchName = preprocess
+universe = vanilla
+executable = /u/user/choij/scratch/ChargedHiggsAnalysisV3/SignalRegionStudyV2/automize/condor/preprocess_wrapper.sh
+arguments = $(era) $(channel) $(masspoint) $(extra_args)
+output = logs/preprocess_$(era)_$(channel)_$(masspoint).out
+error = logs/preprocess_$(era)_$(channel)_$(masspoint).err
+log = preprocess.log
+
+request_cpus = 1
+request_memory = 4GB
+request_disk = 1GB
+
+should_transfer_files = NO
+
+queue era,channel,masspoint,extra_args from job_params.txt

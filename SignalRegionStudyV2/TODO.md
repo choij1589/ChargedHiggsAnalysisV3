@@ -123,7 +123,7 @@ SignalRegionStudyV2 builds on the established framework from V1, which provides 
   - [x] `--validationOnly` - Skip template generation, only run validation/plotting
   - [x] `--no-plot-score` - Disable ParticleNet score plotting
   - [x] `--printDatacard`, `--combineDatacards`, `--runAsymptotic` - Datacard and limit steps (default: enabled)
-  - [x] Era-by-era pipeline: templates → validation → datacards → channel combine → asymptotic
+  - [x] Era-by-era pipeline: templates → datacards → validation → channel combine → asymptotic
   - [x] Automatic era combination (Run2, Run3, All) after individual era processing
   - [x] Parallelization: era-level (`--njobs-era`) and mass-point-level
 - [x] `automize/hybridnew.sh` - Batch HybridNew execution

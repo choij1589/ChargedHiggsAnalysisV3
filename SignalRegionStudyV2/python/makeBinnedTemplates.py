@@ -710,10 +710,10 @@ def main():
     logging.info(f"Input directory: {basedir}")
     logging.info(f"Output directory: {outdir}")
 
-    # Load SignalRegionStudy library
-    lib_path = f"{workdir}/SignalRegionStudy/lib/libSignalRegionStudy.so"
+    # Load CommonTools library
+    lib_path = f"{workdir}/Common/Tools/cpp/lib/libCommonTools.so"
     if not os.path.exists(lib_path):
-        raise FileNotFoundError(f"SignalRegionStudy library not found: {lib_path}. Please run './scripts/build.sh'")
+        raise FileNotFoundError(f"CommonTools library not found: {lib_path}. Please build Common/Tools/cpp/")
     ROOT.gSystem.Load(lib_path)
 
     # Load configurations

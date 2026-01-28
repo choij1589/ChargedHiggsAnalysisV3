@@ -1,0 +1,16 @@
+INFO - Loaded ConvSF for 2022 SR3Mu: 1.1156 +/- 0.5622
+INFO - Loaded 9 K-factors for Run3
+INFO - Preprocessing MHc160_MA120 for 2022 era and SR3Mu channel
+INFO - Found 15 preprocessed shape systematics
+INFO - Found 1 valued shape systematics
+INFO - Found 2 multi-variation systematics
+INFO - Found 10 valued lnN systematics (skipped)
+INFO - ============================================================
+INFO - Processing Signal
+INFO - ============================================================
+Traceback (most recent call last):
+  File "/u/user/choij/scratch/ChargedHiggsAnalysisV3/SignalRegionStudyV2/python/preprocess.py", line 777, in <module>
+    main()
+  File "/u/user/choij/scratch/ChargedHiggsAnalysisV3/SignalRegionStudyV2/python/preprocess.py", line 704, in main
+    raise FileNotFoundError(f"Signal file not found: {signal_input}")
+FileNotFoundError: Signal file not found: /tmp/workdir_2334271/SKNanoOutput/PromptTreeProducer/Run3Mu_RunSyst_RunTheoryUnc/2022/TTToHcToWAToMuMu-MHc160_MA120.root

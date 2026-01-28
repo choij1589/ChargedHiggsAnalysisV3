@@ -32,7 +32,7 @@ Processes with non-positive yield are excluded from the datacard entirely:
 - Warning logged when a process is dropped
 - Prevents Combine issues with negative/zero rate templates
 
-## 4. Shape Systematic Handling (Relative Error > 30%)
+## 4. Shape-to-lnN Fallback via `shape?` (Relative Error > 30%)
 
 **File**: `python/printDatacard.py`
 
@@ -44,31 +44,77 @@ rel_err = sqrt(sum of bin_error^2) / integral
 ```
 
 For backgrounds with rel_err > 30%:
-- Shape systematics show "-" in datacard (not used)
-- Rate effects from shape systematics are absorbed into normalization lnN
+1. Per-systematic lnN fallback values are pre-computed from Up/Down integral ratios (`precompute_lnn_fallbacks()`)
+2. Up/Down shape histograms are removed from `shapes.root` (`rewrite_shapes_root()`)
+3. The datacard uses Combine's `shape?` type with per-column lnN values
+
+Combine's `shape?` mechanism: if a process has shape histograms, it uses them; if not, it falls back to the lnN value in that column.
+
+### Per-systematic lnN computation
+
+```python
+rate_effect = max(|Up_integral - Central_integral|, |Down_integral - Central_integral|) / Central_integral
+lnN_value = 1.0 + rate_effect   # capped at MAX_LNN_VALUE = 2.0
+```
+
+- Effects < 0.1% are skipped (value = "-")
+- Yields below `MIN_YIELD_THRESHOLD = 1e-6` are skipped
 
 ### Why relative error instead of absolute yield?
 - Relative error directly measures statistical quality of the template
 - A process with low yield but many MC entries (e.g., ttZ with 5 events from 7000 entries) is statistically well-determined
 - A process with similar yield but few entries (e.g., conversion with 1 event from 7 entries) is not
 
-## 5. Rate Effect Absorption
+## 5. Non-destructive `shapes.root` Rewrite
 
-**File**: `python/printDatacard.py:collect_absorbed_rate_effects()`
+**File**: `python/printDatacard.py:rewrite_shapes_root()`
 
-For low-stat backgrounds (rel_err > 30%), rate effects from all applicable shape systematics are:
-1. Collected (fractional change from Up/Down variations)
-2. Combined in quadrature
-3. Added to the normalization lnN value
+When low-stat shape histograms are removed:
+1. Original `shapes.root` is renamed to `shapes_original.root`
+2. A new `shapes.root` is written with only the kept histograms
+3. Re-runs are handled: existing `shapes_original.root` is removed before rename
 
-```
-combined_lnN = 1.0 + sqrt((base_lnN - 1)^2 + absorbed_frac^2)
+This preserves the full set of histograms for debugging/reprocessing.
+
+## 6. `lowstat.json` Metadata
+
+**File**: `python/printDatacard.py:write_lowstat_json()`
+
+After pre-computing fallbacks, a JSON file is written to `{TEMPLATE_DIR}/lowstat.json`:
+
+```json
+{
+  "threshold": 0.30,
+  "processes": ["nonprompt", "conversion"],
+  "fallbacks": {
+    "nonprompt": {
+      "CMS_pileup_13TeV": "1.050",
+      "CMS_l1_prefiring_2016preVFP": "-"
+    },
+    "conversion": {
+      "CMS_pileup_13TeV": "-"
+    }
+  }
+}
 ```
 
-Example: If base normalization is 1.13 (13% uncertainty) and absorbed effects total 9.2%:
-```
-combined = 1.0 + sqrt(0.13^2 + 0.092^2) = 1.159
-```
+This file is consumed by `checkTemplates.py` for correct error band calculation and validation.
+
+## 7. `checkTemplates.py` Integration
+
+**File**: `python/checkTemplates.py`
+
+When `lowstat.json` is present:
+
+1. **Error calculation** (`calculate_systematic_error()`): For low-stat processes with missing Up/Down histograms, the lnN fallback value is used:
+   ```
+   error_contribution = nominal_bin_content * (lnN_value - 1.0)
+   ```
+   This is added in quadrature with other systematic errors.
+
+2. **Validation**: Missing histogram warnings are suppressed for (process, systematic) pairs listed in `lowstat.json["fallbacks"]`, since these histograms were intentionally removed.
+
+3. **Systematic plots**: `make_systematic_plot` and `make_systematic_stack_plot` already handle missing histograms gracefully (skip or use central).
 
 ## Config Changes
 
@@ -82,16 +128,30 @@ Normalization systematics (`CMS_B2G25013_Norm_*`) changed from `"type": "shape"`
 | Always separate | nonprompt, conversion | `makeBinnedTemplates.py` | Never merge |
 | Process merging | integral < 1 | `makeBinnedTemplates.py` | Merge to "others" |
 | Drop from datacard | yield <= 0 | `printDatacard.py` | Exclude process |
-| Shape skip | rel_err > 30% | `printDatacard.py` | Show "-", absorb rate |
-| Rate absorption | rel_err > 30% | `printDatacard.py` | Add to lnN in quadrature |
+| shape? fallback | rel_err > 30% | `printDatacard.py` | Per-syst lnN via `shape?` |
+| Non-destructive rewrite | rel_err > 30% | `printDatacard.py` | `shapes_original.root` preserved |
+| lowstat.json | rel_err > 30% | `printDatacard.py` | Metadata for downstream tools |
+| Error band fallback | lowstat.json exists | `checkTemplates.py` | lnN-based error contribution |
 
 ## Verification
 
 ```bash
-python3 printDatacard.py --era 2017 --channel SR1E2Mu --masspoint MHc130_MA90 --method ParticleNet --binning extended --debug
+# Generate templates
+python3 python/makeBinnedTemplates.py --era 2016postVFP --channel SR3Mu --masspoint MHc130_MA90 --method Baseline --binning extended
+
+# Print datacard (creates shapes_original.root + filtered shapes.root + lowstat.json)
+python3 python/printDatacard.py --era 2016postVFP --channel SR3Mu --masspoint MHc130_MA90 --method Baseline --binning extended --debug
+
+# Verify artifacts
+ls -la templates/2016postVFP/SR3Mu/MHc130_MA90/Baseline/extended/shapes*.root
+cat templates/2016postVFP/SR3Mu/MHc130_MA90/Baseline/extended/lowstat.json
+
+# Run checkTemplates (loads lowstat.json, correct error bands, no spurious "Missing" errors)
+python3 python/checkTemplates.py --era 2016postVFP --channel SR3Mu --masspoint MHc130_MA90 --method Baseline --binning extended
 ```
 
 Check:
-- Relative errors printed for each background
-- Only high rel_err backgrounds get "-" for shape systematics
-- Normalization lnN values are enhanced for those backgrounds
+- `shapes_original.root` exists alongside `shapes.root`
+- `lowstat.json` lists low-stat processes and their per-systematic fallback values
+- `checkTemplates.py` logs "Loaded lowstat.json" and produces no "Missing" issues for low-stat pairs
+- Error bands in background stack plot include lnN fallback contributions
