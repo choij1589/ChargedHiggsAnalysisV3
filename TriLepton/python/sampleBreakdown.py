@@ -31,7 +31,8 @@ WORKDIR = os.environ.get("WORKDIR", os.getcwd())
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 
 from plotter import get_era_list, get_CoM_energy
-from HistoUtils import load_histogram, sum_histograms, load_era_configs, get_sample_lists, merge_systematics
+from HistoUtils import (load_histogram, sum_histograms, load_era_configs, get_sample_lists,
+                        merge_systematics, build_sknanoutput_path)
 
 
 def load_signal_config():
@@ -116,7 +117,7 @@ def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name
     }
 
 
-def load_systematic_variations(era, sample, channel, histkey, systematics, analyzer, flag, debug=False):
+def load_systematic_variations(era, sample, channel, histkey, systematics, flag, debug=False):
     """Load systematic up/down variations for a sample
 
     Args:
@@ -130,7 +131,7 @@ def load_systematic_variations(era, sample, channel, histkey, systematics, analy
 
     for syst, sources in systematics.items():
         syst_up, syst_down = tuple(sources)
-        file_path = f"{WORKDIR}/SKNanoOutput/{analyzer}/{flag}_RunSyst/{era}/Skim_TriLep_{sample}.root"
+        file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, run_syst=True)
         hist_path_up = f"{channel}/{syst_up}/{histkey}"
         hist_path_down = f"{channel}/{syst_down}/{histkey}"
 
@@ -416,7 +417,7 @@ def main():
                 print(f"[WARNING] Era {era} not found in ERA_SAMPLES")
                 continue
             for sample in ERA_SAMPLES[era]["data"]:
-                file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}/{era}/Skim_TriLep_{sample}.root"
+                file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample)
                 hist_path = f"{args.channel}/Central/{HISTKEY}"
                 h = load_histogram(file_path, hist_path, era)
                 if h:
@@ -448,7 +449,7 @@ def main():
         for era in era_list:
             if era not in ERA_SAMPLES:
                 continue
-            file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER.replace('Prompt', 'Matrix')}/{FLAG}/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample, is_nonprompt=True)
             hist_path = f"{args.channel}/Central/{HISTKEY}"
             h = load_histogram(file_path, hist_path, era)
             if h:
@@ -476,7 +477,7 @@ def main():
             if era not in ERA_SAMPLES:
                 continue
             # Load central histogram
-            file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}_RunSyst/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample, run_syst=True)
             hist_path = f"{args.channel}/Central/{HISTKEY}"
             h = load_histogram(file_path, hist_path, era)
             if h:
@@ -488,7 +489,7 @@ def main():
                     era_systs = ERA_SYSTEMATICS.get(era, {})
                     if era_systs:
                         hSysts = load_systematic_variations(era, sample, args.channel,
-                                                           HISTKEY, era_systs, ANALYZER, FLAG, False)
+                                                           HISTKEY, era_systs, FLAG, False)
                         if hSysts:
                             # Store up/down variations for each systematic source
                             for syst_name, h_up, h_down in hSysts:
@@ -568,7 +569,9 @@ def main():
                 if era not in ERA_SAMPLES:
                     continue
                 signal_name = f"TTToHcToWAToMuMu-{signal_mass}"
-                file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}_RunSyst/{era}/{signal_name}.root"
+                # Signal files don't have "Skim_TriLep_" prefix, construct path directly
+                # Signal is only for SR channels which use PromptSelector
+                file_path = f"{WORKDIR}/SKNanoOutput/PromptSelector/{FLAG}_RunSyst/{era}/{signal_name}.root"
                 hist_path = f"{args.channel}/Central/{HISTKEY}"
                 h = load_histogram(file_path, hist_path, era)
                 if h:

@@ -8,7 +8,7 @@ from math import pow, sqrt
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
                         calculate_systematics, sum_histograms, load_era_configs,
-                        merge_systematics, get_sample_lists)
+                        merge_systematics, get_sample_lists, build_sknanoutput_path)
 import correctionlib
 ROOT.gROOT.SetBatch(True)
 
@@ -292,11 +292,11 @@ eras_with_data = []
 eras_without_data = []
 
 for era in era_list:
-    
+
     # Load data for this era
     era_data = []
     for sample in ERA_SAMPLES[era]["data"]:
-        file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}/{era}/Skim_TriLep_{sample}.root"
+        file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample)
         hist_path = f"{args.channel}/Central/{args.histkey}"
         
         h = load_histogram(file_path, hist_path, era, missing_logger)
@@ -331,7 +331,7 @@ HISTs = {}
 for era in era_list:
     # Load nonprompt for this era
     for sample in ERA_SAMPLES[era]["nonprompt"]:
-        file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER.replace('Prompt', 'Matrix')}/{FLAG}/{era}/Skim_TriLep_{sample}.root"
+        file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample, is_nonprompt=True)
         hist_path = f"{args.channel}/Central/{args.histkey}"
         
         h = load_histogram(file_path, hist_path, era, missing_logger)
@@ -344,10 +344,10 @@ for era in era_list:
     # Load MC for this era
     all_era_samples = ERA_SAMPLES[era]["conv"] + ERA_SAMPLES[era]["ttX"] + ERA_SAMPLES[era]["diboson"] + ERA_SAMPLES[era]["others"]
     for sample in all_era_samples:
-        file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}_RunSyst/{era}/Skim_TriLep_{sample}.root"
-        if args.exclude == "WZSF" and ("WZTo3LNu" in sample or "ZZTo4L" in sample):
-            file_path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}_RunNoWZSF_RunSyst/{era}/Skim_TriLep_{sample}.root"
-        
+        use_no_wzsf = args.exclude == "WZSF" and ("WZTo3LNu" in sample or "ZZTo4L" in sample)
+        file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample,
+                                           run_syst=True, no_wzsf=use_no_wzsf)
+
         hist_path = f"{args.channel}/Central/{args.histkey}"
         h = load_histogram(file_path, hist_path, era, missing_logger)
         if h:
@@ -426,7 +426,9 @@ if args.channel in ["SR1E2Mu", "SR3Mu"]:
         signal_hist = None
 
         for era in era_list:
-            path = f"{WORKDIR}/SKNanoOutput/{ANALYZER}/{FLAG}_RunSyst/{era}/{signal_name}.root"
+            # Signal files don't have "Skim_TriLep_" prefix, construct path directly
+            # Signal is only for SR channels which use PromptSelector
+            path = f"{WORKDIR}/SKNanoOutput/PromptSelector/{FLAG}_RunSyst/{era}/{signal_name}.root"
             if not os.path.exists(path):
                 logging.debug(f"Signal file not found: {path}")
                 continue

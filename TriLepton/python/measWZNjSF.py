@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import sys
 import argparse
 import logging
 import json
@@ -8,6 +9,11 @@ import ROOT
 from math import sqrt
 import correctionlib.schemav2 as cs
 
+# Add Common/Tools to path for build_sknanoutput_path
+WORKDIR = os.environ["WORKDIR"]
+sys.path.insert(0, f"{WORKDIR}/Common/Tools")
+from HistoUtils import build_sknanoutput_path
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--channel", required=True, type=str, help="channel (WZ1E2Mu, WZ3Mu, or WZCombined)")
@@ -15,7 +21,6 @@ parser.add_argument("--debug", action="store_true", default=False, help="debug")
 args = parser.parse_args()
 
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
-WORKDIR = os.environ["WORKDIR"]
 
 if args.channel not in ["WZ1E2Mu", "WZ3Mu", "WZCombined"]:
     raise ValueError(f"Invalid channel: {args.channel}")
@@ -68,7 +73,7 @@ def get_hist_data(channels, era):
         
         DATAPERIODs = json_samplegroup[era][channel.replace("WZ", "")]["data"]
         for sample in DATAPERIODs:
-            file_path = f"{WORKDIR}/SKNanoOutput/CRPromptSelector/{flag}/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample)
             assert os.path.exists(file_path), f"file {file_path} does not exist"
             f = ROOT.TFile.Open(file_path)
             h = f.Get(f"{channel}/Central/jets/size")
@@ -105,7 +110,7 @@ def get_hist_nonprompt(channels, era, syst="Central"):
         nonprompt = json_samplegroup[era][channel.replace("WZ", "")]["nonprompt"]
         h_channel = None
         for sample in nonprompt:
-            file_path = f"{WORKDIR}/SKNanoOutput/CRMatrixSelector/{flag}/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, is_nonprompt=True)
             assert os.path.exists(file_path), f"file {file_path} does not exist"
             f = ROOT.TFile.Open(file_path)
             h = f.Get(f"{channel}/Central/jets/size")
@@ -156,7 +161,7 @@ def get_hist_mc(channels, era, mc, syst="Central"):
         
         pred = json_samplegroup[era][channel.replace("WZ", "")][mc]
         for sample in pred:
-            file_path = f"{WORKDIR}/SKNanoOutput/CRPromptSelector/{flag}_RunSyst/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, run_syst=True)
             assert os.path.exists(file_path), f"file {file_path} does not exist"
             f = ROOT.TFile.Open(file_path)
             
@@ -193,22 +198,20 @@ def get_hist_by_name(channels, era, name, syst="Central"):
     """Get histogram by sample name for one or more channels"""
     if isinstance(channels, str):
         channels = [channels]
-    
+
     hist = None
     for channel in channels:
         # Determine the correct FLAG for this channel
         if channel == "WZ1E2Mu":
             flag = "Run1E2Mu"
-            if name == samplename_WZ:
-                flag += "_RunNoWZSF"
         elif channel == "WZ3Mu":
             flag = "Run3Mu"
-            if name == samplename_WZ:
-                flag += "_RunNoWZSF"
         else:
             raise ValueError(f"Unknown channel: {channel}")
-       
-        file_path = f"{WORKDIR}/SKNanoOutput/CRPromptSelector/{flag}_RunSyst/{era}/Skim_TriLep_{name}.root"
+
+        # Use no_wzsf=True for WZ sample to get unscaled histogram
+        file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, name,
+                                           run_syst=True, no_wzsf=(name == samplename_WZ))
         assert os.path.exists(file_path), f"file {file_path} does not exist"
         f = ROOT.TFile.Open(file_path)
         

@@ -18,6 +18,52 @@ import numpy as np
 from math import sqrt, pow
 
 
+def build_sknanoutput_path(workdir, channel, flag, era, sample,
+                           is_nonprompt=False, run_syst=False, no_wzsf=False):
+    """Construct SKNanoOutput file path based on channel type and run mode.
+
+    Control region channels (ZG*, WZ*) use new PromptAnalyzer/MatrixAnalyzer naming
+    with _RunCR_NoTreeMode suffix. Signal region channels (SR*, ZFake*, TTZ*) use
+    the traditional PromptSelector/MatrixSelector naming.
+
+    Args:
+        workdir: Base WORKDIR path
+        channel: Analysis channel (SR1E2Mu, ZG1E2Mu, WZ3Mu, etc.)
+        flag: Run flag (Run1E2Mu, Run3Mu)
+        era: Data era (2017, 2022, etc.)
+        sample: Sample name
+        is_nonprompt: True for nonprompt (Matrix) samples
+        run_syst: True to include _RunSyst suffix
+        no_wzsf: True to include _RunNoWZSF suffix
+
+    Returns:
+        str: Full path to ROOT file
+    """
+    is_cr_channel = channel.startswith("ZG") or channel.startswith("WZ")
+
+    if is_cr_channel:
+        # New Analyzer naming for CR channels
+        analyzer = "MatrixAnalyzer" if is_nonprompt else "PromptAnalyzer"
+        flag_parts = [flag]
+        if no_wzsf:
+            flag_parts.append("RunNoWZSF")
+        if run_syst:
+            flag_parts.append("RunSyst")
+        flag_parts.append("RunCR_NoTreeMode")
+        full_flag = "_".join(flag_parts)
+    else:
+        # Old Selector naming for SR channels
+        analyzer = "MatrixSelector" if is_nonprompt else "PromptSelector"
+        flag_parts = [flag]
+        if no_wzsf:
+            flag_parts.append("RunNoWZSF")
+        if run_syst:
+            flag_parts.append("RunSyst")
+        full_flag = "_".join(flag_parts)
+
+    return f"{workdir}/SKNanoOutput/{analyzer}/{full_flag}/{era}/Skim_TriLep_{sample}.root"
+
+
 def setup_missing_histogram_logging(args):
     """Setup logging for missing histograms
 

@@ -91,6 +91,90 @@ def load_and_merge_histograms(era, samples, hist_path, workdir, flag):
     return merged
 
 
+def calculate_jet_efficiency_run2(era, samples, workdir, flag):
+    """
+    Calculate jet efficiency for Run2 from before/after jet veto histograms.
+
+    Args:
+        era: Era name
+        samples: List of sample names
+        workdir: Base working directory
+        flag: Run flag (RunDiMu or RunEMu)
+
+    Returns:
+        Tuple of (before_integral, after_integral, efficiency) or None if failed
+    """
+    before_hist = load_and_merge_histograms(
+        era, samples, "JetEtaPhi/BeforeJetVeto/eta_phi", workdir, flag
+    )
+    after_hist = load_and_merge_histograms(
+        era, samples, "JetEtaPhi/AfterJetVeto/eta_phi", workdir, flag
+    )
+
+    if before_hist is None or after_hist is None:
+        return None
+
+    before_int = before_hist.Integral()
+    after_int = after_hist.Integral()
+
+    if before_int <= 0:
+        return None
+
+    efficiency = after_int / before_int
+    return (before_int, after_int, efficiency)
+
+
+def calculate_event_efficiency_run3(era, samples, workdir, flag):
+    """
+    Calculate event efficiency for Run3 from cutflow histogram.
+    Event veto efficiency is calculated from ALL/Central/cutflow:
+    - CutStage::NoiseFilter (stage 1, bin 2): before veto
+    - CutStage::VetoMap (stage 2, bin 3): after veto
+
+    Args:
+        era: Era name
+        samples: List of sample names
+        workdir: Base working directory
+        flag: Run flag (RunDiMu or RunEMu)
+
+    Returns:
+        Tuple of (before_events, after_events, efficiency) or None if failed
+    """
+    before_total = 0.0
+    after_total = 0.0
+
+    for sample in samples:
+        file_path = f"{workdir}/SKNanoOutput/DiLepton/{flag}_RunSyst/{era}/{sample}.root"
+
+        if not os.path.exists(file_path):
+            logging.warning(f"File not found: {file_path}")
+            continue
+
+        f = ROOT.TFile.Open(file_path)
+        if not f or f.IsZombie():
+            logging.warning(f"Cannot open file: {file_path}")
+            continue
+
+        # Use ALL cutflow since veto is applied before channel selection
+        cutflow_path = "ALL/Central/cutflow"
+        cutflow = f.Get(cutflow_path)
+        if not cutflow:
+            logging.warning(f"Cutflow not found: {cutflow_path} in {file_path}")
+            f.Close()
+            continue
+
+        # Bin 2: NoiseFilter (before veto), Bin 3: VetoMap (after veto)
+        before_total += cutflow.GetBinContent(2)
+        after_total += cutflow.GetBinContent(3)
+        f.Close()
+
+    if before_total <= 0:
+        return None
+
+    efficiency = after_total / before_total
+    return (before_total, after_total, efficiency)
+
+
 def plot_2d_eta_phi(hist, output_path, era, sample_type, veto_status):
     """
     Create 2D eta-phi plot with CMS style.
@@ -139,7 +223,7 @@ def plot_2d_eta_phi(hist, output_path, era, sample_type, veto_status):
 
     # CMS lumi label
     CMS.SetEnergy(get_CoM_energy(era))
-    CMS.SetLumi(LumiInfo[era])
+    CMS.SetLumi(LumiInfo[era], run=era)
     CMS.SetExtraText("Preliminary")
     CMS.CMS_lumi(canvas, 0)
 
@@ -190,16 +274,24 @@ def main():
     OUTPUT_DIR = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/JetVetoMap"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # Histogram paths
-    HIST_PATHS = {
-        "before": "JetEtaPhi/BeforeJetVeto/eta_phi",
-        "after": "JetEtaPhi/AfterJetVeto/eta_phi"
-    }
+    # Histogram paths (different for Run2 vs Run3)
+    RUN2_ERAS = ["2016preVFP", "2016postVFP", "2017", "2018"]
+    RUN3_ERAS = ["2022", "2022EE", "2023", "2023BPix"]
 
-    # Process each veto status (before/after)
-    for veto_key, hist_path in HIST_PATHS.items():
-        veto_label = "Before Jet Veto" if veto_key == "before" else "After Jet Veto"
+    if args.era in RUN2_ERAS:
+        HIST_PATHS = {
+            "before": ("JetEtaPhi/BeforeJetVeto/eta_phi", "Before Jet Veto"),
+            "after": ("JetEtaPhi/AfterJetVeto/eta_phi", "After Jet Veto")
+        }
+    elif args.era in RUN3_ERAS:
+        HIST_PATHS = {
+            "passed": ("JetEtaPhi/PassedEventVeto_Run3/eta_phi", "Passed Event Veto (Run3)")
+        }
+    else:
+        raise ValueError(f"Unknown era: {args.era}")
 
+    # Process each veto status
+    for veto_key, (hist_path, veto_label) in HIST_PATHS.items():
         # Load and merge data histograms
         data_hist = load_and_merge_histograms(
             args.era, DATA_SAMPLES, hist_path, WORKDIR, FLAG
@@ -219,6 +311,92 @@ def main():
         else:
             output_path = f"{OUTPUT_DIR}/{MC_SAMPLE}_{veto_key}.png"
             plot_2d_eta_phi(mc_hist, output_path, args.era, MC_SAMPLE, veto_label)
+
+    # Calculate efficiency and prepare results
+    results = {
+        "era": args.era,
+        "channel": args.channel,
+        "mc_sample": MC_SAMPLE,
+        "data_samples": DATA_SAMPLES,
+    }
+
+    print("\n" + "=" * 60)
+    print(f"Efficiency Summary for {args.era} {args.channel}")
+    print("=" * 60)
+
+    if args.era in RUN2_ERAS:
+        # Run2: Jet efficiency
+        results["efficiency_type"] = "jet"
+        print("\nJet Veto Efficiency (jets after / jets before):")
+
+        data_eff = calculate_jet_efficiency_run2(args.era, DATA_SAMPLES, WORKDIR, FLAG)
+        if data_eff:
+            before, after, eff = data_eff
+            print(f"  Data:  {after:.0f} / {before:.0f} = {eff * 100:.2f}%")
+            results["data"] = {
+                "before": before,
+                "after": after,
+                "efficiency": eff
+            }
+        else:
+            print("  Data:  Failed to calculate")
+            results["data"] = None
+
+        mc_eff = calculate_jet_efficiency_run2(args.era, [MC_SAMPLE], WORKDIR, FLAG)
+        if mc_eff:
+            before, after, eff = mc_eff
+            print(f"  {MC_SAMPLE}:  {after:.0f} / {before:.0f} = {eff * 100:.2f}%")
+            results["mc"] = {
+                "before": before,
+                "after": after,
+                "efficiency": eff
+            }
+        else:
+            print(f"  {MC_SAMPLE}:  Failed to calculate")
+            results["mc"] = None
+
+    elif args.era in RUN3_ERAS:
+        # Run3: Event efficiency
+        results["efficiency_type"] = "event"
+        print("\nEvent Veto Efficiency (events after / events before):")
+
+        data_eff = calculate_event_efficiency_run3(
+            args.era, DATA_SAMPLES, WORKDIR, FLAG
+        )
+        if data_eff:
+            before, after, eff = data_eff
+            print(f"  Data:  {after:.0f} / {before:.0f} = {eff * 100:.2f}%")
+            results["data"] = {
+                "before": before,
+                "after": after,
+                "efficiency": eff
+            }
+        else:
+            print("  Data:  Failed to calculate")
+            results["data"] = None
+
+        mc_eff = calculate_event_efficiency_run3(
+            args.era, [MC_SAMPLE], WORKDIR, FLAG
+        )
+        if mc_eff:
+            before, after, eff = mc_eff
+            print(f"  {MC_SAMPLE}:  {after:.0f} / {before:.0f} = {eff * 100:.2f}%")
+            results["mc"] = {
+                "before": before,
+                "after": after,
+                "efficiency": eff
+            }
+        else:
+            print(f"  {MC_SAMPLE}:  Failed to calculate")
+            results["mc"] = None
+
+    print("=" * 60 + "\n")
+
+    # Save results to JSON
+    json_path = f"{OUTPUT_DIR}/efficiency.json"
+    with open(json_path, "w") as f:
+        json.dump(results, f, indent=2)
+    logging.info(f"Saved efficiency results to {json_path}")
 
     logging.info("Done!")
 
