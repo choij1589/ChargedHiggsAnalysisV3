@@ -1,0 +1,27 @@
+INFO - Loaded ConvSF for 2022EE SR1E2Mu: 0.5573 +/- 0.0936
+INFO - Loaded 9 K-factors for Run3
+INFO - Preprocessing MHc100_MA75 for 2022EE era and SR1E2Mu channel
+INFO - Found 16 preprocessed shape systematics
+INFO - Found 1 valued shape systematics
+INFO - Found 2 multi-variation systematics
+INFO - Found 10 valued lnN systematics (skipped)
+INFO - Run3 signal scaling from 2018 to 2022EE:
+INFO -   xsec ratio: 923.0/833.0 = 1.1080
+INFO -   lumi ratio: 27.0/59.8 = 0.4515
+INFO -   total scale factor: 0.5003
+INFO - ============================================================
+INFO - Processing Signal (scaled from 2018)
+INFO - ============================================================
+Traceback (most recent call last):
+  File "/u/user/choij/scratch/ChargedHiggsAnalysisV3/SignalRegionStudyV2/python/preprocess.py", line 777, in <module>
+    main()
+  File "/u/user/choij/scratch/ChargedHiggsAnalysisV3/SignalRegionStudyV2/python/preprocess.py", line 694, in main
+    process_signal_from_run2(workdir, args.era, args.channel, args.masspoint,
+  File "/u/user/choij/scratch/ChargedHiggsAnalysisV3/SignalRegionStudyV2/python/preprocess.py", line 634, in process_signal_from_run2
+    raise FileNotFoundError(
+FileNotFoundError: Source signal file not found. Tried:
+  - /tmp/workdir_4137135/SignalRegionStudyV2/samples/2018/SR1E2Mu/MHc100_MA75/MHc100_MA75.root
+  - /tmp/workdir_4137135/SignalRegionStudyV2/samples_source/2018/SR1E2Mu/MHc100_MA75/MHc100_MA75.root
+  - /tmp/workdir_4137135/SignalRegionStudyV1/samples/2018/SR1E2Mu/MHc100_MA75/MHc100_MA75.root
+
+Please run preprocessing for 2018 first.

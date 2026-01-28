@@ -12,7 +12,7 @@
 #   # Run3 only
 #   ./impact.sh --mode run3 --method Baseline --binning extended
 #
-#   # All (Run2 + Run3 + combined)
+#   # All (Run2, Run3, and combined)
 #   ./impact.sh --mode all --method Baseline --binning extended
 #
 #   # ParticleNet method
@@ -44,6 +44,7 @@ SINGLE_ERA=""  # Single era mode (overrides MODE)
 METHOD="Baseline"  # Options: Baseline, ParticleNet
 BINNING="extended"
 PARTIAL_UNBLIND=false
+EXPECT_SIGNAL=1  # Default: inject signal (use 0 for background-only)
 CONDOR=false
 PLOT_ONLY=false
 DRY_RUN=false
@@ -71,6 +72,10 @@ while [[ $# -gt 0 ]]; do
             PARTIAL_UNBLIND=true
             shift
             ;;
+        --expect-signal)
+            EXPECT_SIGNAL="$2"
+            shift 2
+            ;;
         --condor)
             CONDOR=true
             shift
@@ -87,7 +92,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Modes:"
-            echo "  --mode all    - Process combined Run2+Run3 (default)"
+            echo "  --mode all    - Process Run2, Run3, and All (default)"
             echo "  --mode run2   - Process Run2 only"
             echo "  --mode run3   - Process Run3 only"
             echo ""
@@ -98,6 +103,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --method METHOD        - Baseline or ParticleNet (default: Baseline)"
             echo "  --binning BINNING      - extended or uniform (default: extended)"
             echo "  --partial-unblind      - Use partial-unblind templates"
+            echo "  --expect-signal N      - Expected signal for Asimov (0 or 1) [default: 1]"
             echo ""
             echo "Execution Options:"
             echo "  --condor               - Submit to HTCondor via DAG"
@@ -139,6 +145,7 @@ EXTRA_ARGS=""
 if [[ "$PARTIAL_UNBLIND" == true ]]; then
     EXTRA_ARGS="$EXTRA_ARGS --partial-unblind"
 fi
+EXTRA_ARGS="$EXTRA_ARGS --expect-signal $EXPECT_SIGNAL"
 if [[ "$CONDOR" == true ]]; then
     EXTRA_ARGS="$EXTRA_ARGS --condor"
 fi
@@ -160,6 +167,7 @@ echo "Method: $METHOD"
 echo "Binning: $BINNING"
 echo "Mass points: ${#MASSPOINTs[@]} total"
 echo "Partial unblind: $PARTIAL_UNBLIND"
+echo "Expect signal: $EXPECT_SIGNAL"
 echo "Condor: $CONDOR"
 echo "Plot only: $PLOT_ONLY"
 echo "Dry run: $DRY_RUN"
@@ -221,7 +229,9 @@ case "$MODE" in
         process_era "Run3"
         ;;
     all)
-        # Combined Run2+Run3 only
+        # All three: Run2, Run3, and combined
+        process_era "Run2"
+        process_era "Run3"
         process_era "All"
         ;;
     *)

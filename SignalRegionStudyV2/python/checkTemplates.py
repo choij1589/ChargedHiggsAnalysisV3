@@ -394,15 +394,20 @@ def check_systematic_variation(nominal_hist, syst_hist_up, syst_hist_down, proce
 # Systematic Error Calculation
 # =============================================================================
 
-def calculate_systematic_error(shapes_file, process, ibin, shape_systs):
+def calculate_systematic_error(shapes_file, process, ibin, shape_systs, lowstat_info=None):
     """
     Calculate systematic uncertainty for a specific process and bin.
+
+    For processes with shape histograms, uses envelope method (max deviation).
+    For low-stat processes (listed in lowstat_info), uses lnN fallback values
+    to compute the error contribution.
 
     Args:
         shapes_file: TFile containing histograms
         process: Process name
         ibin: Bin number
         shape_systs: Dictionary of shape systematics
+        lowstat_info: Optional dict from lowstat.json with fallback values
 
     Returns:
         Systematic error (absolute)
@@ -438,6 +443,13 @@ def calculate_systematic_error(shapes_file, process, ibin, shape_systs):
             down_dev = abs(down_content - nominal_content)
             max_dev = max(up_dev, down_dev)
             syst_errors_sq.append(max_dev ** 2)
+        elif lowstat_info and process in lowstat_info.get("processes", []):
+            # Low-stat process: use lnN fallback value
+            fallback_str = lowstat_info["fallbacks"].get(process, {}).get(syst_name, "-")
+            if fallback_str != "-":
+                lnn_value = float(fallback_str)
+                max_dev = nominal_content * (lnn_value - 1.0)
+                syst_errors_sq.append(max_dev ** 2)
 
     if syst_errors_sq:
         return sqrt(sum(syst_errors_sq))
@@ -448,7 +460,7 @@ def calculate_systematic_error(shapes_file, process, ibin, shape_systs):
 # Plotting Functions
 # =============================================================================
 
-def make_background_stack(shapes_file, backgrounds, shape_systs):
+def make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info=None):
     """
     Create background stack plot with signal overlay and systematic uncertainties.
     """
@@ -493,7 +505,7 @@ def make_background_stack(shapes_file, backgrounds, shape_systs):
             # Add systematic uncertainties to each bin
             for ibin in range(1, hist_clone.GetNbinsX() + 1):
                 stat_error = hist_clone.GetBinError(ibin)
-                syst_error = calculate_systematic_error(shapes_file, bkg, ibin, shape_systs)
+                syst_error = calculate_systematic_error(shapes_file, bkg, ibin, shape_systs, lowstat_info)
                 total_error = sqrt(stat_error ** 2 + syst_error ** 2)
                 hist_clone.SetBinError(ibin, total_error)
 
@@ -826,6 +838,14 @@ if __name__ == "__main__":
     logging.info(f"Loaded {len(shape_systs)} shape systematics")
     logging.info(f"Loaded {len(lnN_systs)} lnN systematics")
 
+    # Load lowstat.json if available (written by printDatacard.py)
+    lowstat_path = f"{TEMPLATE_DIR}/lowstat.json"
+    lowstat_info = None
+    if os.path.exists(lowstat_path):
+        with open(lowstat_path) as f:
+            lowstat_info = json.load(f)
+        logging.info(f"Loaded lowstat.json: low-stat processes = {lowstat_info['processes']}")
+
     # Build process lists
     separate_processes = process_list.get("separate_processes", ["nonprompt"])
     backgrounds = separate_processes + ["others"]
@@ -882,6 +902,11 @@ if __name__ == "__main__":
             if process_key not in group:
                 continue
 
+            # Skip low-stat pairs — histograms intentionally removed by printDatacard.py
+            if lowstat_info and process in lowstat_info.get("processes", []):
+                if syst_name in lowstat_info["fallbacks"].get(process, {}):
+                    continue
+
             # Check Up variation
             hist_up = shapes_file.Get(f"{process}_{syst_name}Up")
             if not hist_up:
@@ -904,7 +929,7 @@ if __name__ == "__main__":
     logging.info("=" * 60)
     logging.info("Generating diagnostic plots...")
 
-    make_background_stack(shapes_file, backgrounds, shape_systs)
+    make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info)
     make_signal_vs_background(shapes_file)
     make_all_systematic_plots(shapes_file, all_processes, shape_systs)
 

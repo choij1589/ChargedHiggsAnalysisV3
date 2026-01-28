@@ -16,6 +16,7 @@ MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
 PARTIAL_UNBLIND=false
+EXPECT_SIGNAL=1  # Default: inject signal (use 0 for background-only)
 CONDOR=false
 PARALLEL=16
 DRY_RUN=false
@@ -50,6 +51,10 @@ while [[ $# -gt 0 ]]; do
         --partial-unblind)
             PARTIAL_UNBLIND=true
             shift
+            ;;
+        --expect-signal)
+            EXPECT_SIGNAL="$2"
+            shift 2
             ;;
         --condor)
             CONDOR=true
@@ -92,6 +97,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
             echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
             echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
+            echo "  --expect-signal N  Expected signal strength for Asimov (0 or 1) [default: 1]"
             echo "  --condor     Run full workflow in HTCondor via DAG (all steps)"
             echo "  --parallel   Number of parallel local jobs [default: 16]"
             echo "  --skip-initial  Skip initial fit (use existing)"
@@ -131,8 +137,12 @@ if [[ ! -d "$TEMPLATE_DIR" ]]; then
     exit 1
 fi
 
-# Create output directory
-OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts"
+# Create output directory (include expectSignal in name to avoid overwriting)
+if [[ "$PARTIAL_UNBLIND" == true ]]; then
+    OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts_obs"
+else
+    OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts_r${EXPECT_SIGNAL}"
+fi
 mkdir -p "$OUTPUT_DIR"
 
 # Log function
@@ -173,7 +183,7 @@ fi
 if [[ "$PARTIAL_UNBLIND" == true ]]; then
     R_RANGE="r=-50,50"
 else
-    R_RANGE="r=-1,1"
+    R_RANGE="r=-5,5"
 fi
 
 # Build fit options: use Asimov (expected) for blinded, real data for unblinded
@@ -181,15 +191,15 @@ if [[ "$PARTIAL_UNBLIND" == true ]]; then
     # Unblinded: use real data_obs from shapes.root
     ASIMOV_OPTIONS=""
 else
-    # Blinded: use Asimov dataset with background-only hypothesis
-    ASIMOV_OPTIONS="-t -1 --expectSignal 0"
+    # Blinded: use Asimov dataset
+    ASIMOV_OPTIONS="-t -1 --expectSignal ${EXPECT_SIGNAL}"
 fi
 
 echo "Running Impacts for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING_SUFFIX})..."
 echo "  Condor: ${CONDOR}"
 echo "  Parallel jobs: ${PARALLEL}"
 echo "  Parameter range: ${R_RANGE}"
-echo "  Data mode: $(if [[ -n "$ASIMOV_OPTIONS" ]]; then echo 'Asimov (expected)'; else echo 'Observed (real data)'; fi)"
+echo "  Data mode: $(if [[ -n "$ASIMOV_OPTIONS" ]]; then echo "Asimov (expectSignal=${EXPECT_SIGNAL})"; else echo 'Observed (real data)'; fi)"
 echo ""
 
 # ============================================================
@@ -273,7 +283,7 @@ error = ${CONDOR_DIR}/logs/initial_fit.err
 log = ${CONDOR_DIR}/impacts.log
 
 request_cpus = 1
-request_memory = 4GB
+request_memory = 2GB
 request_disk = 500MB
 
 should_transfer_files = YES
@@ -323,7 +333,7 @@ error = ${CONDOR_DIR}/logs/fit_${NUIS_SAFE}.err
 log = ${CONDOR_DIR}/impacts.log
 
 request_cpus = 1
-request_memory = 4GB
+request_memory = 2GB
 request_disk = 500MB
 
 should_transfer_files = YES
@@ -379,7 +389,7 @@ error = ${CONDOR_DIR}/logs/collect_plot.err
 log = ${CONDOR_DIR}/impacts.log
 
 request_cpus = 1
-request_memory = 4GB
+request_memory = 2GB
 request_disk = 500MB
 
 should_transfer_files = YES

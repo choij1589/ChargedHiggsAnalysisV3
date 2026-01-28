@@ -3,42 +3,109 @@
     "WZTo3LNu_amcatnlo": {
       "kFactor": 1.109,
       "xsecErr": 1.075,
-      "ref": "http://dx.doi.org/10.1016/j.physletb.2016.08.017"
+      "ref": "http://dx.doi.org/10.1016/j.physletb.2016.08.017 (NNLO QCD)"
     },
     "ZZTo4L_powheg": {
       "kFactor": 1.16,
       "xsecErr": 1.064,
-      "ref": "https://doi.org/10.1016/j.physletb.2014.06.056"
+      "ref": "https://doi.org/10.1016/j.physletb.2014.06.056 (NNLO QCD)"
     },
     "ggZZ": {
       "kFactor": 1.67,
-      "xsecErr": 1.5,
+      "xsecErr": 1.15,
       "ref": "http://arxiv.org/abs/1509.06734"
     },
     "ggHToZZTo4L": {
-      "kFactor": 1.67,
-      "xsecErr": 1.5,
-      "ref": "AN2016_359"
+      "kFactor": 1.24,
+      "xsecErr": 1.05,
+      "ref": "arXiv:1610.07922 (YR4)",
+      "note": "N3LO/NLO K-factor; use 1.03 if sample is NNLOPS"
     },
     "TTZToLLNuNu": {
       "kFactor": 1.164,
       "xsecErr": 1.075,
-      "formula": "839.3 * 1.164",
+      "formula": "782.6 * 1.164",
       "ref": "10.1016/j.physletb.2024.139146",
       "explanation": "782.6 from generator NLO, 839.3 from NLO+EW correction, 911 for aN3LO QCD + NLO EW"
     },
     "TTWToLNu": {
-      "kFactor": 0.993,
-      "xsecErr": 1.133,
-      "formula": "600.8/605.1",
-      "ref": "10.23731/CYRM-2017-002",
-      "explanation": "600.8 from generator NLO, 605.1 from NLO+EW correction"
+      "kFactor": 1.15,
+      "xsecErr": 1.12,
+      "formula": "600.8 * 1.15 = 691",
+      "ref": "10.1016/j.physletb.2024.139146, arXiv:1711.02116",
+      "explanation": "600.8 fb from generator NLO QCD, ~691 fb for aN3LO QCD. NLO EW corrections are ~-1% (negative, absorbed in uncertainty)"
     },
     "TTHToNonbb": {
       "kFactor": 1,
       "xsecErr": 1.1
+    },
+    "tZq": {
+      "kFactor": 1,
+      "xsecErr": 1.035,
+      "ref": "JHEP 10 (2018) 005 (arXiv:1804.07773)"
     }
   },
   "Run3": {
+    "WZTo3LNu_powheg": {
+      "kFactor": 1.10,
+      "xsecErr": 1.075,
+      "ref": "https://doi.org/10.1016/j.physletb.2016.08.017 (NNLO QCD)",
+      "additional_refs": [
+        "arXiv:1912.00068 (NNLO QCD + NLO EW)",
+        "arXiv:2303.04680 (N3LL+NNLO at 13.6 TeV)"
+      ]
+    },
+    "ZZTo4L_powheg": {
+      "kFactor": 1.16,
+      "xsecErr": 1.064,
+      "ref": "https://doi.org/10.1016/j.physletb.2014.06.056 (NNLO QCD)",
+      "additional_refs": [
+        "arXiv:1912.00068 (NNLO QCD + NLO EW, MATRIX+OpenLoops)",
+        "arXiv:1811.09593 (gg→ZZ NLO QCD corrections)"
+      ]
+    },
+    "ggZZ": {
+      "kFactor": 1.70,
+      "xsecErr": 1.15,
+      "ref": "http://arxiv.org/abs/1509.06734",
+      "updated_ref": "arXiv:1811.09593 (JHEP 03 (2019) 070)",
+      "note": "NLO/LO for loop-induced process; includes qg channels"
+    },
+    "ggHToZZTo4L": {
+      "kFactor": 1.24,
+      "xsecErr": 1.05,
+      "ref": "arXiv:1610.07922 (YR4)",
+      "note": "N3LO/NLO K-factor; use 1.03 if sample is NNLOPS"
+    },
+    "TTZ_M50": {
+      "kFactor": 1.164,
+      "xsecErr": 1.075,
+      "formula": "840 * 1.164 = 978",
+      "ref": "10.1016/j.physletb.2024.139146",
+      "explanation": "~840 fb from generator NLO at 13.6 TeV, ~900 fb with NLO EW, ~978 fb for aN3LO QCD + NLO EW. Scale factor from 13→13.6 TeV is ~1.07"
+    },
+    "TTZ_M4to50": {
+      "kFactor": 1.164,
+      "xsecErr": 1.075,
+      "formula": "840 * 1.164 = 978",
+      "ref": "10.1016/j.physletb.2024.139146",
+      "explanation": "~840 fb from generator NLO at 13.6 TeV, ~900 fb with NLO EW, ~978 fb for aN3LO QCD + NLO EW. Scale factor from 13→13.6 TeV is ~1.07"
+    },
+    "TTWToLNu": {
+      "kFactor": 1.15,
+      "xsecErr": 1.12,
+      "formula": "600.8 * 1.15 = 691",
+      "ref": "10.1016/j.physletb.2024.139146, arXiv:1711.02116",
+      "explanation": "600.8 fb from generator NLO QCD, ~691 fb for aN3LO QCD. NLO EW corrections are ~-1% (negative, absorbed in uncertainty)"
+    },
+    "TTHToNonbb": {
+      "kFactor": 1.0,
+      "xsecErr": 1.1
+    },
+    "tZq": {
+      "kFactor": 1,
+      "xsecErr": 1.035,
+      "ref": "JHEP 10 (2018) 005 (arXiv:1804.07773)"
+    }
   }
 }
