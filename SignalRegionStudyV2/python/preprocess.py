@@ -11,8 +11,13 @@ Processes:
 - Signal: from RunSyst_RunTheoryUnc (with theory uncertainties)
   - For Run3: optionally scale from 2018 using --scale-from-run2 flag
 - Backgrounds: from RunSyst (WZ, ZZ, ttW, ttZ, etc.)
-- Nonprompt: from MatrixTreeProducer (data-driven)
-- Data: from PromptTreeProducer (Central only)
+- Nonprompt: from MatrixAnalyzer (data-driven)
+- Data: from PromptAnalyzer (Central only)
+
+Channels:
+- SR1E2Mu: Signal region with 1 electron + 2 muons
+- SR3Mu: Signal region with 3 muons
+- TTZ2E1Mu: TTZ control region with 2 electrons + 1 muon (no signal, for ParticleNet validation)
 
 Usage:
     # Run2 processing (standard)
@@ -20,10 +25,11 @@ Usage:
 
     # Run3 processing with scaled signal from 2018
     python preprocess.py --era 2022EE --channel SR1E2Mu --masspoint MHc130_MA90 --scale-from-run2
+
+    # TTZ control region (ParticleNet masspoints only)
+    python preprocess.py --era 2018 --channel TTZ2E1Mu --masspoint MHc130_MA90
 """
 import os
-import re
-import shutil
 import argparse
 import logging
 import json
@@ -31,12 +37,44 @@ import subprocess
 from array import array
 import ROOT
 
+from template_utils import (
+    parse_variations,
+    get_output_tree_name,
+    calculate_weight_scale,
+    ensure_directory,
+    categorize_systematics,
+)
+
+
+# =============================================================================
+# Channel Mappings
+# =============================================================================
+
+# Channel -> input channel mapping (SKNanoOutput directory name)
+CHANNEL_INPUT_MAP = {
+    "SR1E2Mu": "Run1E2Mu",
+    "SR3Mu": "Run3Mu",
+    "TTZ2E1Mu": "Run2E1Mu",
+}
+
+# Channel -> config channel mapping (for samplegroups/systematics lookup)
+CHANNEL_CONFIG_MAP = {
+    "SR1E2Mu": "SR1E2Mu",
+    "SR3Mu": "SR3Mu",
+    "TTZ2E1Mu": "SR1E2Mu",  # Reuse SR1E2Mu config (has electron systematics)
+}
+
+# Channels that have signal samples
+CHANNELS_WITH_SIGNAL = {"SR1E2Mu", "SR3Mu"}
+
 
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Preprocess samples for SignalRegionStudyV2")
     parser.add_argument("--era", required=True, type=str, help="era (e.g., 2018, 2022EE)")
-    parser.add_argument("--channel", required=True, type=str, help="channel (SR1E2Mu or SR3Mu)")
+    parser.add_argument("--channel", required=True, type=str,
+                        choices=list(CHANNEL_INPUT_MAP.keys()),
+                        help="channel (SR1E2Mu, SR3Mu, or TTZ2E1Mu)")
     parser.add_argument("--masspoint", required=True, type=str, help="signal mass point (e.g., MHc130_MA90)")
     parser.add_argument("--scale-from-run2", action="store_true",
                         help="Scale Run3 signal from 2018 samples (for Run3 eras without signal MC)")
@@ -83,6 +121,9 @@ def calculate_run3_scale_factor(scaling_config, target_era):
 
 def load_config(workdir, era, channel):
     """Load systematics and sample group configurations."""
+    # Map to config channel
+    config_channel = CHANNEL_CONFIG_MAP.get(channel, channel)
+
     # Load systematics config
     config_path = f"{workdir}/SignalRegionStudyV2/configs/systematics.{era}.json"
     if not os.path.exists(config_path):
@@ -91,8 +132,8 @@ def load_config(workdir, era, channel):
     with open(config_path) as f:
         json_systematics = json.load(f)
 
-    if channel not in json_systematics:
-        raise ValueError(f"Channel '{channel}' not found in {config_path}")
+    if config_channel not in json_systematics:
+        raise ValueError(f"Channel '{config_channel}' not found in {config_path}")
 
     # Load sample groups config
     samplegroups_path = f"{workdir}/SignalRegionStudyV2/configs/samplegroups.json"
@@ -104,19 +145,21 @@ def load_config(workdir, era, channel):
 
     if era not in json_samplegroups:
         raise ValueError(f"Era '{era}' not found in {samplegroups_path}")
-    if channel not in json_samplegroups[era]:
-        raise ValueError(f"Channel '{channel}' not found for era '{era}'")
+    if config_channel not in json_samplegroups[era]:
+        raise ValueError(f"Channel '{config_channel}' not found for era '{era}'")
 
     return {
-        'systematics': json_systematics[channel],
-        'samples': json_samplegroups[era][channel],
+        'systematics': json_systematics[config_channel],
+        'samples': json_samplegroups[era][config_channel],
         'aliases': json_samplegroups.get("aliases", {})
     }
 
 
 def load_convSF(workdir, era, channel):
     """Load conversion scale factor from TriLepton ZG results."""
-    convSF_file = f"{workdir}/TriLepton/results/{channel.replace('SR', 'ZG')}/{era}/ConvSF.json"
+    # Map to config channel for convSF lookup
+    config_channel = CHANNEL_CONFIG_MAP.get(channel, channel)
+    convSF_file = f"{workdir}/TriLepton/results/{config_channel.replace('SR', 'ZG')}/{era}/ConvSF.json"
 
     if not os.path.exists(convSF_file):
         logging.warning(f"ConvSF file not found: {convSF_file}")
@@ -181,110 +224,6 @@ def load_kfactors(workdir, era):
     return sample_to_kfactor
 
 
-def parse_variations(variation_spec):
-    """
-    Parse variation specification strings from config.
-
-    Supports:
-    - ["Var_Up", "Var_Down"] - simple list
-    - ["Scale_{0..8}//5,7"] - range with exclusions
-    - ["pdf_{00..99}"] - range with zero-padded numbers
-    """
-    if not isinstance(variation_spec, list):
-        return []
-
-    if len(variation_spec) == 1 and '{' in variation_spec[0]:
-        return _expand_range_pattern(variation_spec[0])
-    return variation_spec
-
-
-def _expand_range_pattern(pattern):
-    """Expand range pattern like 'Scale_{0..8}//5,7' or 'pdf_{00..99}'."""
-    exclusions = set()
-    if '//' in pattern:
-        pattern, excl_str = pattern.split('//')
-        exclusions = set(int(x) for x in excl_str.split(','))
-
-    match = re.search(r'\{(\d+)\.\.(\d+)\}', pattern)
-    if not match:
-        return [pattern]
-
-    start, end = int(match.group(1)), int(match.group(2))
-    start_str = match.group(1)
-    pad_width = len(start_str) if start_str.startswith('0') and len(start_str) > 1 else 0
-
-    prefix, suffix = pattern[:match.start()], pattern[match.end():]
-    return [
-        f"{prefix}{str(i).zfill(pad_width) if pad_width else str(i)}{suffix}"
-        for i in range(start, end + 1) if i not in exclusions
-    ]
-
-
-def get_output_tree_name(syst_name, variation):
-    """
-    Get output tree name from systematic name and variation.
-
-    Args:
-        syst_name: Systematic name (e.g., 'CMS_pileup_13TeV')
-        variation: Variation name (e.g., 'PileupReweight_Up')
-
-    Returns:
-        Output tree name (e.g., 'CMS_pileup_13TeV_Up')
-    """
-    if variation.endswith("_Up") or variation.endswith("Up"):
-        return f"{syst_name}_Up"
-    elif variation.endswith("_Down") or variation.endswith("Down"):
-        return f"{syst_name}_Down"
-    return variation
-
-
-def categorize_systematics(config):
-    """
-    Categorize systematics from config into processing groups.
-
-    Returns dict with keys:
-    - preprocessed_shape: list of (syst_name, [variations], group)
-    - valued_shape: list of (syst_name, value, group)
-    - multi_variation: list of (syst_name, [variations], group)
-    - valued_lnN: list of (syst_name, value, group)
-    """
-    result = {'preprocessed_shape': [], 'valued_shape': [], 'multi_variation': [], 'valued_lnN': []}
-
-    for syst_name, syst_config in config.items():
-        source = syst_config.get('source')
-        syst_type = syst_config.get('type')
-        group = syst_config.get('group', [])
-
-        if source == 'preprocessed' and syst_type == 'shape':
-            variations = parse_variations(syst_config.get('variations', []))
-            if len(variations) > 2:
-                result['multi_variation'].append((syst_name, variations, group))
-            elif len(variations) == 2:
-                result['preprocessed_shape'].append((syst_name, variations, group))
-            else:
-                logging.warning(f"Unexpected variation count for {syst_name}: {variations}")
-
-        elif source == 'valued' and syst_type == 'shape':
-            result['valued_shape'].append((syst_name, syst_config.get('value'), group))
-
-        elif source == 'valued' and syst_type == 'lnN':
-            result['valued_lnN'].append((syst_name, syst_config.get('value'), group))
-
-    return result
-
-
-def calculate_weight_scale(value, direction):
-    """
-    Calculate weight scale for valued+shape systematics.
-
-    For value >= 1: up = value, down = 2 - value
-    For value < 1: up = 1 + value, down = 1 - value
-    """
-    if value >= 1.0:
-        return value if direction == 'up' else 2.0 - value
-    return 1.0 + value if direction == 'up' else 1.0 - value
-
-
 def hadd_files(output_path, input_files, cleanup=True):
     """Merge ROOT files using hadd."""
     existing_files = [f for f in input_files if os.path.exists(f)]
@@ -305,14 +244,17 @@ def hadd_files(output_path, input_files, cleanup=True):
     return True
 
 
-class SamplePreprocessor:
-    """Preprocessor for samples with systematic variations."""
+# =============================================================================
+# Base Preprocessor Class
+# =============================================================================
 
-    def __init__(self, era, channel, masspoint, convSF=1.0):
+class BasePreprocessor:
+    """Base class with shared file/branch operations."""
+
+    def __init__(self, era, channel, masspoint):
         self.era = era
         self.channel = channel
         self.masspoint = masspoint
-        self.convSF = convSF
         self.in_file = None
         self.out_file = None
 
@@ -343,6 +285,56 @@ class SamplePreprocessor:
             self.out_file.Close()
             self.out_file = None
 
+    def _setup_output_branches(self, out_tree):
+        """Setup output branches and return (out_vars, score_vars) arrays."""
+        out_vars = {name: array('d', [0.0]) for name in ['mass', 'mass1', 'mass2', 'MT1', 'MT2', 'weight']}
+        score_vars = {}
+        if self.is_trained_sample:
+            for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']:
+                score_vars[suffix] = array('d', [0.0])
+
+        for name, arr in out_vars.items():
+            out_tree.Branch(name, arr, f"{name}/D")
+        for suffix, arr in score_vars.items():
+            out_tree.Branch(f"score_{self.masspoint}_{suffix}", arr, f"score_{self.masspoint}_{suffix}/D")
+
+        return out_vars, score_vars
+
+    def _setup_input_branches(self, in_tree, include_mass=False):
+        """Setup input branch addresses and return (in_vars, in_scores) arrays."""
+        var_names = ['mass', 'mass1', 'mass2', 'MT1', 'MT2', 'weight'] if include_mass else ['mass1', 'mass2', 'MT1', 'MT2', 'weight']
+        in_vars = {name: array('d', [0.0]) for name in var_names}
+        in_scores = {}
+        if self.is_trained_sample:
+            for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']:
+                in_scores[suffix] = array('d', [0.0])
+
+        for name, arr in in_vars.items():
+            in_tree.SetBranchAddress(name, arr)
+        for suffix, arr in in_scores.items():
+            in_tree.SetBranchAddress(f"score_{self.masspoint}_{suffix}", arr)
+
+        return in_vars, in_scores
+
+    def _select_mass(self, mass1, mass2):
+        """Select appropriate mass based on channel and mass point."""
+        if "1E2Mu" in self.channel or "2E1Mu" in self.channel:
+            return mass1
+        elif "3Mu" in self.channel:
+            if self.mHc >= 100 and self.mA >= 60:
+                return max(mass1, mass2)
+            return min(mass1, mass2)
+        else:
+            raise ValueError(f"Unknown channel: {self.channel}")
+
+
+class SamplePreprocessor(BasePreprocessor):
+    """Preprocessor for samples with systematic variations."""
+
+    def __init__(self, era, channel, masspoint, convSF=1.0):
+        super().__init__(era, channel, masspoint)
+        self.convSF = convSF
+
     def process_tree(self, input_tree_name, output_tree_name, weight_scale=1.0,
                      is_signal=False, apply_convSF=False, kfactor=1.0):
         """Process a single tree from input to output."""
@@ -352,30 +344,9 @@ class SamplePreprocessor:
 
         out_tree = ROOT.TTree(output_tree_name, "")
 
-        # Output arrays
-        out_vars = {name: array('d', [0.0]) for name in ['mass', 'mass1', 'mass2', 'MT1', 'MT2', 'weight']}
-        score_vars = {}
-        if self.is_trained_sample:
-            for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']:
-                score_vars[suffix] = array('d', [0.0])
+        out_vars, score_vars = self._setup_output_branches(out_tree)
+        in_vars, in_scores = self._setup_input_branches(in_tree, include_mass=False)
 
-        # Setup output branches
-        for name, arr in out_vars.items():
-            out_tree.Branch(name, arr, f"{name}/D")
-        for suffix, arr in score_vars.items():
-            out_tree.Branch(f"score_{self.masspoint}_{suffix}", arr, f"score_{self.masspoint}_{suffix}/D")
-
-        # Input arrays
-        in_vars = {name: array('d', [0.0]) for name in ['mass1', 'mass2', 'MT1', 'MT2', 'weight']}
-        in_scores = {suffix: array('d', [0.0]) for suffix in score_vars}
-
-        # Setup input branch addresses
-        for name, arr in in_vars.items():
-            in_tree.SetBranchAddress(name, arr)
-        for suffix, arr in in_scores.items():
-            in_tree.SetBranchAddress(f"score_{self.masspoint}_{suffix}", arr)
-
-        # Process entries
         for i in range(in_tree.GetEntries()):
             in_tree.GetEntry(i)
 
@@ -396,16 +367,8 @@ class SamplePreprocessor:
             for suffix in score_vars:
                 score_vars[suffix][0] = in_scores[suffix][0]
 
-            # Select mass based on channel and mass point
-            if "1E2Mu" in self.channel:
-                out_vars['mass'][0] = in_vars['mass1'][0]
-            elif "3Mu" in self.channel:
-                if self.mHc >= 100 and self.mA >= 60:
-                    out_vars['mass'][0] = max(in_vars['mass1'][0], in_vars['mass2'][0])
-                else:
-                    out_vars['mass'][0] = min(in_vars['mass1'][0], in_vars['mass2'][0])
-            else:
-                raise ValueError(f"Unknown channel: {self.channel}")
+            # Select mass
+            out_vars['mass'][0] = self._select_mass(in_vars['mass1'][0], in_vars['mass2'][0])
 
             out_tree.Fill()
 
@@ -413,37 +376,23 @@ class SamplePreprocessor:
         out_tree.Write()
         logging.debug(f"Processed {in_tree.GetEntries()} entries for {output_tree_name}")
 
-    def process_preprocessed_shape(self, category, syst_categories, **kwargs):
-        """Process all preprocessed shape systematics for a category."""
+    def process_systematics(self, category, syst_categories, **kwargs):
+        """Process all shape systematics for a category."""
+        # Preprocessed shape systematics (Up/Down pairs)
         for syst_name, variations, group in syst_categories['preprocessed_shape']:
             if category not in group:
                 continue
-
             for var in variations:
                 try:
                     self.process_tree(f"Events_{var}", get_output_tree_name(syst_name, var), **kwargs)
                 except RuntimeError:
                     pass  # Tree may not exist
 
-    def process_valued_shape(self, category, syst_categories, **kwargs):
-        """Process all valued shape systematics for a category."""
-        for syst_name, value, group in syst_categories['valued_shape']:
-            if category not in group:
-                continue
-
-            for direction in ['up', 'down']:
-                scale = calculate_weight_scale(value, direction)
-                self.process_tree("Events_Central", f"{syst_name}_{direction.capitalize()}",
-                                  weight_scale=scale, **kwargs)
-
-    def process_multi_variation(self, category, syst_categories, **kwargs):
-        """Process multi-variation systematics (PDF, Scale) for a category."""
+        # Multi-variation systematics (PDF, Scale)
         for syst_name, variations, group in syst_categories['multi_variation']:
             if category not in group:
                 continue
-
             for var in variations:
-                # Determine input/output tree names based on variation pattern
                 if var.startswith("pdf_"):
                     num = int(var.replace("pdf_", ""))
                     input_tree, output_tree = f"Events_PDF_{num}", f"PDF_{num}"
@@ -451,50 +400,18 @@ class SamplePreprocessor:
                     input_tree, output_tree = f"Events_{var}", var
                 else:
                     input_tree, output_tree = f"Events_{var}", var
-
                 try:
                     self.process_tree(input_tree, output_tree, **kwargs)
                 except RuntimeError as e:
                     logging.warning(f"    Skipping {var}: {e}")
 
 
-class ScaledSignalPreprocessor:
+class ScaledSignalPreprocessor(BasePreprocessor):
     """Preprocessor for scaling Run2 signal samples to Run3."""
 
     def __init__(self, era, channel, masspoint, scale_factor):
-        self.era = era
-        self.channel = channel
-        self.masspoint = masspoint
+        super().__init__(era, channel, masspoint)
         self.scale_factor = scale_factor
-        self.in_file = None
-        self.out_file = None
-
-        # Parse mass point parameters
-        self.mHc = int(masspoint.split("_")[0].replace("MHc", ""))
-        self.mA = int(masspoint.split("_")[1].replace("MA", ""))
-        self.is_trained_sample = (83 < self.mA < 100)
-
-    def set_input_file(self, path):
-        """Open input ROOT file (from 2018 samples)."""
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Input file not found: {path}")
-        self.in_file = ROOT.TFile(path, "READ")
-        if self.in_file.IsZombie():
-            raise IOError(f"Failed to open input file: {path}")
-
-    def set_output_file(self, path):
-        """Open output ROOT file."""
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        self.out_file = ROOT.TFile(path, "RECREATE")
-
-    def close_files(self):
-        """Close input and output files."""
-        if self.in_file:
-            self.in_file.Close()
-            self.in_file = None
-        if self.out_file:
-            self.out_file.Close()
-            self.out_file = None
 
     def scale_all_trees(self):
         """Scale all trees from input file to output, applying the scale factor to weights."""
@@ -514,30 +431,9 @@ class ScaledSignalPreprocessor:
 
         out_tree = ROOT.TTree(tree_name, "")
 
-        # Output arrays
-        out_vars = {name: array('d', [0.0]) for name in ['mass', 'mass1', 'mass2', 'MT1', 'MT2', 'weight']}
-        score_vars = {}
-        if self.is_trained_sample:
-            for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']:
-                score_vars[suffix] = array('d', [0.0])
+        out_vars, score_vars = self._setup_output_branches(out_tree)
+        in_vars, in_scores = self._setup_input_branches(in_tree, include_mass=True)
 
-        # Setup output branches
-        for name, arr in out_vars.items():
-            out_tree.Branch(name, arr, f"{name}/D")
-        for suffix, arr in score_vars.items():
-            out_tree.Branch(f"score_{self.masspoint}_{suffix}", arr, f"score_{self.masspoint}_{suffix}/D")
-
-        # Input arrays
-        in_vars = {name: array('d', [0.0]) for name in ['mass', 'mass1', 'mass2', 'MT1', 'MT2', 'weight']}
-        in_scores = {suffix: array('d', [0.0]) for suffix in score_vars}
-
-        # Setup input branch addresses
-        for name, arr in in_vars.items():
-            in_tree.SetBranchAddress(name, arr)
-        for suffix, arr in in_scores.items():
-            in_tree.SetBranchAddress(f"score_{self.masspoint}_{suffix}", arr)
-
-        # Process entries
         for i in range(in_tree.GetEntries()):
             in_tree.GetEntry(i)
 
@@ -558,6 +454,10 @@ class ScaledSignalPreprocessor:
         out_tree.Write()
         logging.debug(f"  Scaled {in_tree.GetEntries()} entries for {tree_name}")
 
+
+# =============================================================================
+# Batch Processing Helpers
+# =============================================================================
 
 def process_samples_batch(preprocessor, samples, input_base_path, output_path,
                           process_func, temp_prefix, aliases=None):
@@ -648,75 +548,17 @@ def process_signal_from_run2(workdir, era, channel, masspoint, scale_factor, sou
     logging.info(f"  Output: {basedir}/{masspoint}.root")
 
 
-def main():
-    args = parse_args()
+# =============================================================================
+# Region Processing
+# =============================================================================
 
-    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
-                        format='%(levelname)s - %(message)s')
-
-    workdir = os.getenv("WORKDIR")
-    if not workdir:
-        raise EnvironmentError("WORKDIR environment variable is not set. Run 'source setup.sh' first.")
-
-    basedir = f"{workdir}/SignalRegionStudyV2/samples/{args.era}/{args.channel}/{args.masspoint}"
-
-    # Validate --scale-from-run2 usage
-    if args.scale_from_run2 and not is_run3_era(args.era):
-        raise ValueError(f"--scale-from-run2 can only be used with Run3 eras. Got: {args.era}")
-
-    # Load configurations
-    config = load_config(workdir, args.era, args.channel)
-    syst_categories = categorize_systematics(config['systematics'])
-    convSF, _ = load_convSF(workdir, args.era, args.channel)
-    kfactors = load_kfactors(workdir, args.era)
-
-    logging.info(f"Preprocessing {args.masspoint} for {args.era} era and {args.channel} channel")
-    logging.info(f"Found {len(syst_categories['preprocessed_shape'])} preprocessed shape systematics")
-    logging.info(f"Found {len(syst_categories['valued_shape'])} valued shape systematics")
-    logging.info(f"Found {len(syst_categories['multi_variation'])} multi-variation systematics")
-    logging.info(f"Found {len(syst_categories['valued_lnN'])} valued lnN systematics (skipped)")
-
-    # Clean and create output directory
-    if os.path.exists(basedir):
-        logging.info(f"Removing existing directory {basedir}")
-        shutil.rmtree(basedir)
-    os.makedirs(basedir, exist_ok=True)
-
-    # Initialize preprocessor
-    preprocessor = SamplePreprocessor(args.era, args.channel, args.masspoint, convSF)
-    input_channel = args.channel.replace("SR", "Run")
-
-    # === 1. Process Signal ===
-    if args.scale_from_run2:
-        # Scale Run3 signal from Run2 (2018)
-        scaling_config = load_scaling_config(workdir)
-        scale_factor, source_era = calculate_run3_scale_factor(scaling_config, args.era)
-        process_signal_from_run2(workdir, args.era, args.channel, args.masspoint,
-                                  scale_factor, source_era, basedir)
-    else:
-        # Standard signal processing from SKNanoOutput
-        logging.info("=" * 60)
-        logging.info("Processing Signal")
-        logging.info("=" * 60)
-
-        signal_input = f"{workdir}/SKNanoOutput/PromptTreeProducer/{input_channel}_RunSyst_RunTheoryUnc/{args.era}/TTToHcToWAToMuMu-{args.masspoint}.root"
-        if not os.path.exists(signal_input):
-            raise FileNotFoundError(f"Signal file not found: {signal_input}")
-
-        preprocessor.set_input_file(signal_input)
-        preprocessor.set_output_file(f"{basedir}/{args.masspoint}.root")
-
-        preprocessor.process_tree("Events_Central", "Central", is_signal=True)
-        preprocessor.process_preprocessed_shape("signal", syst_categories, is_signal=True)
-        preprocessor.process_multi_variation("signal", syst_categories, is_signal=True)
-        # Note: valued_shape systematics are created in makeBinnedTemplates.py by scaling Central
-
-        preprocessor.close_files()
-        logging.info(f"  Output: {basedir}/{args.masspoint}.root")
-
-    # === 2. Process Backgrounds ===
-    bkg_base_path = f"{workdir}/SKNanoOutput/PromptTreeProducer/{input_channel}_RunSyst/{args.era}"
+def process_backgrounds(workdir, era, channel, masspoint, basedir, preprocessor,
+                        config, syst_categories, kfactors):
+    """Process all background samples for a channel."""
+    input_channel = CHANNEL_INPUT_MAP[channel]
     reserved_keys = {"data", "nonprompt"}
+
+    bkg_base_path = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}_RunSyst/{era}"
 
     for category in [k for k in config['samples'] if k not in reserved_keys]:
         output_name = category
@@ -731,42 +573,138 @@ def main():
             if sample_kfactor != 1.0:
                 logging.info(f"  Applying K-factor {sample_kfactor:.3f} to {sample}")
             proc.process_tree("Events_Central", "Central", apply_convSF=conv, kfactor=sample_kfactor)
-            proc.process_preprocessed_shape(cat, syst_categories, apply_convSF=conv, kfactor=sample_kfactor)
-            # Note: valued_shape systematics are created in makeBinnedTemplates.py
+            proc.process_systematics(cat, syst_categories, apply_convSF=conv, kfactor=sample_kfactor)
 
         process_samples_batch(
             preprocessor, config['samples'][category], bkg_base_path,
             f"{basedir}/{output_name}.root", process_bkg, output_name, config['aliases']
         )
 
-    # === 3. Process Nonprompt ===
+
+def process_nonprompt(workdir, era, channel, masspoint, basedir, preprocessor, config):
+    """Process nonprompt samples for a channel."""
+    input_channel = CHANNEL_INPUT_MAP[channel]
+
     logging.info("=" * 60)
     logging.info("Processing Nonprompt")
     logging.info("=" * 60)
 
-    def process_nonprompt(proc, sample):
+    def process_np(proc, sample):
         proc.process_tree("Events", "Central")
-        # Note: valued_shape systematics (nonprompt normalization) are created in makeBinnedTemplates.py
 
-    nonprompt_base = f"{workdir}/SKNanoOutput/MatrixTreeProducer/{input_channel}/{args.era}"
+    nonprompt_base = f"{workdir}/SKNanoOutput/MatrixAnalyzer/{input_channel}/{era}"
     process_samples_batch(
         preprocessor, config['samples']['nonprompt'], nonprompt_base,
-        f"{basedir}/nonprompt.root", process_nonprompt, "nonprompt"
+        f"{basedir}/nonprompt.root", process_np, "nonprompt"
     )
 
-    # === 4. Process Data ===
+
+def process_data(workdir, era, channel, masspoint, basedir, preprocessor, config):
+    """Process data samples for a channel."""
+    input_channel = CHANNEL_INPUT_MAP[channel]
+
     logging.info("=" * 60)
     logging.info("Processing Data")
     logging.info("=" * 60)
 
-    def process_data(proc, sample):
+    def process_d(proc, sample):
         proc.process_tree("Events_Central", "Central")
 
-    data_base = f"{workdir}/SKNanoOutput/PromptTreeProducer/{input_channel}/{args.era}"
+    data_base = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}/{era}"
     process_samples_batch(
         preprocessor, config['samples']['data'], data_base,
-        f"{basedir}/data.root", process_data, "data"
+        f"{basedir}/data.root", process_d, "data"
     )
+
+
+# =============================================================================
+# Main Entry Point
+# =============================================================================
+
+def main():
+    args = parse_args()
+
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
+                        format='%(levelname)s - %(message)s')
+
+    workdir = os.getenv("WORKDIR")
+    if not workdir:
+        raise EnvironmentError("WORKDIR environment variable is not set. Run 'source setup.sh' first.")
+
+    basedir = f"{workdir}/SignalRegionStudyV2/samples/{args.era}/{args.channel}/{args.masspoint}"
+
+    # Validate --scale-from-run2 usage
+    if args.scale_from_run2:
+        if not is_run3_era(args.era):
+            raise ValueError(f"--scale-from-run2 can only be used with Run3 eras. Got: {args.era}")
+        if args.channel not in CHANNELS_WITH_SIGNAL:
+            raise ValueError(f"--scale-from-run2 can only be used with signal channels. Got: {args.channel}")
+
+    # Validate TTZ2E1Mu masspoint (only ParticleNet masspoints)
+    if args.channel == "TTZ2E1Mu":
+        mA = int(args.masspoint.split("_")[1].replace("MA", ""))
+        if not (83 < mA < 100):
+            raise ValueError(
+                f"TTZ2E1Mu channel is only for ParticleNet masspoints (83 < mA < 100).\n"
+                f"  Requested masspoint: {args.masspoint} (mA={mA})"
+            )
+
+    # Load configurations
+    config = load_config(workdir, args.era, args.channel)
+    syst_categories = categorize_systematics(config['systematics'])
+    convSF, _ = load_convSF(workdir, args.era, args.channel)
+    kfactors = load_kfactors(workdir, args.era)
+
+    logging.info(f"Preprocessing {args.masspoint} for {args.era} era and {args.channel} channel")
+    logging.info(f"Input channel: {CHANNEL_INPUT_MAP[args.channel]}")
+    logging.info(f"Config channel: {CHANNEL_CONFIG_MAP[args.channel]}")
+    logging.info(f"Found {len(syst_categories['preprocessed_shape'])} preprocessed shape systematics")
+    logging.info(f"Found {len(syst_categories['valued_shape'])} valued shape systematics")
+    logging.info(f"Found {len(syst_categories['multi_variation'])} multi-variation systematics")
+    logging.info(f"Found {len(syst_categories['valued_lnN'])} valued lnN systematics (skipped)")
+
+    # Clean and create output directory
+    ensure_directory(basedir, clean=True)
+
+    # Initialize preprocessor
+    preprocessor = SamplePreprocessor(args.era, args.channel, args.masspoint, convSF)
+
+    # === 1. Process Signal (only for signal channels) ===
+    if args.channel in CHANNELS_WITH_SIGNAL:
+        input_channel = CHANNEL_INPUT_MAP[args.channel]
+
+        if args.scale_from_run2:
+            # Scale Run3 signal from Run2 (2018)
+            scaling_config = load_scaling_config(workdir)
+            scale_factor, source_era = calculate_run3_scale_factor(scaling_config, args.era)
+            process_signal_from_run2(workdir, args.era, args.channel, args.masspoint,
+                                      scale_factor, source_era, basedir)
+        else:
+            # Standard signal processing from SKNanoOutput
+            logging.info("=" * 60)
+            logging.info("Processing Signal")
+            logging.info("=" * 60)
+
+            signal_input = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}_RunSyst_RunTheoryUnc/{args.era}/TTToHcToWAToMuMu-{args.masspoint}.root"
+            if not os.path.exists(signal_input):
+                raise FileNotFoundError(f"Signal file not found: {signal_input}")
+
+            preprocessor.set_input_file(signal_input)
+            preprocessor.set_output_file(f"{basedir}/{args.masspoint}.root")
+
+            preprocessor.process_tree("Events_Central", "Central", is_signal=True)
+            preprocessor.process_systematics("signal", syst_categories, is_signal=True)
+
+            preprocessor.close_files()
+            logging.info(f"  Output: {basedir}/{args.masspoint}.root")
+
+    # === 2. Process Backgrounds, Nonprompt, Data ===
+    process_backgrounds(workdir, args.era, args.channel, args.masspoint, basedir,
+                        preprocessor, config, syst_categories, kfactors)
+    process_nonprompt(workdir, args.era, args.channel, args.masspoint, basedir,
+                      preprocessor, config)
+    process_data(workdir, args.era, args.channel, args.masspoint, basedir,
+                 preprocessor, config)
 
     logging.info("=" * 60)
     logging.info(f"Preprocessing complete! Output directory: {basedir}")

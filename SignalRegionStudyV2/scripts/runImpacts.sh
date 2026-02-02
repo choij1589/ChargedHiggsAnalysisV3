@@ -190,9 +190,12 @@ fi
 if [[ "$PARTIAL_UNBLIND" == true ]]; then
     # Unblinded: use real data_obs from shapes.root
     ASIMOV_OPTIONS=""
+    # Hide r values in impact plots for partial-unblind
+    BLIND_OPT="--blind"
 else
     # Blinded: use Asimov dataset
     ASIMOV_OPTIONS="-t -1 --expectSignal ${EXPECT_SIGNAL}"
+    BLIND_OPT=""
 fi
 
 echo "Running Impacts for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING_SUFFIX})..."
@@ -374,8 +377,8 @@ echo "Filtering stat bin nuisances..."
 python3 filterImpacts.py -i impacts.json -o impacts_filtered.json
 
 echo "Generating impact plots..."
-plotImpacts.py -i impacts.json -o impacts
-plotImpacts.py -i impacts_filtered.json -o impacts_filtered --summary
+plotImpacts.py -i impacts.json -o impacts ${BLIND_OPT}
+plotImpacts.py -i impacts_filtered.json -o impacts_filtered --summary ${BLIND_OPT}
 
 echo "Done!"
 EOFCOLLECT
@@ -549,6 +552,7 @@ if [[ "$DO_PLOT" == true ]]; then
     run_cmd "plotImpacts.py \
         -i ${OUTPUT_DIR}/impacts.json \
         -o ${OUTPUT_DIR}/impacts \
+        ${BLIND_OPT} \
         2>&1 | tee ${OUTPUT_DIR}/plot.out"
 
     # Filtered impacts plot with summary
@@ -556,6 +560,7 @@ if [[ "$DO_PLOT" == true ]]; then
         -i ${OUTPUT_DIR}/impacts_filtered.json \
         -o ${OUTPUT_DIR}/impacts_filtered \
         --summary \
+        ${BLIND_OPT} \
         2>&1 | tee -a ${OUTPUT_DIR}/plot.out"
 
     if [[ "$DRY_RUN" == false ]]; then

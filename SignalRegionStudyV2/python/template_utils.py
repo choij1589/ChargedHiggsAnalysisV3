@@ -2,6 +2,7 @@
 import os
 import re
 import json
+import shutil
 import logging
 import ROOT
 
@@ -11,6 +12,14 @@ def save_json(data, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'w') as f:
         json.dump(data, f, indent=2)
+
+
+def ensure_directory(path, clean=False):
+    """Ensure directory exists, optionally cleaning it first."""
+    if clean and os.path.exists(path):
+        logging.info(f"Removing existing directory {path}")
+        shutil.rmtree(path)
+    os.makedirs(path, exist_ok=True)
 
 
 def parse_variations(variation_spec):
@@ -305,3 +314,38 @@ def is_signal_scaled_from_run2(signal_file_path, era):
     ]
 
     return any(indicator in keys for indicator in run2_indicators)
+
+
+def categorize_systematics(config):
+    """
+    Categorize systematics from config into processing groups.
+
+    Returns dict with keys:
+    - preprocessed_shape: list of (syst_name, [variations], group)
+    - valued_shape: list of (syst_name, value, group)
+    - multi_variation: list of (syst_name, [variations], group)
+    - valued_lnN: list of (syst_name, value, group)
+    """
+    result = {'preprocessed_shape': [], 'valued_shape': [], 'multi_variation': [], 'valued_lnN': []}
+
+    for syst_name, syst_config in config.items():
+        source = syst_config.get('source')
+        syst_type = syst_config.get('type')
+        group = syst_config.get('group', [])
+
+        if source == 'preprocessed' and syst_type == 'shape':
+            variations = parse_variations(syst_config.get('variations', []))
+            if len(variations) > 2:
+                result['multi_variation'].append((syst_name, variations, group))
+            elif len(variations) == 2:
+                result['preprocessed_shape'].append((syst_name, variations, group))
+            else:
+                logging.warning(f"Unexpected variation count for {syst_name}: {variations}")
+
+        elif source == 'valued' and syst_type == 'shape':
+            result['valued_shape'].append((syst_name, syst_config.get('value'), group))
+
+        elif source == 'valued' and syst_type == 'lnN':
+            result['valued_lnN'].append((syst_name, syst_config.get('value'), group))
+
+    return result

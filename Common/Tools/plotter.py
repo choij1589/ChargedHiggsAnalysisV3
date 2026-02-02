@@ -430,7 +430,9 @@ class ComparisonCanvas(BaseCanvas):
             ndf = self.chi2_result["ndf"]
             p_value = self.chi2_result["p_value"]
             chi2_text = f"#chi^{{2}}/ndf = {chi2/ndf:.2f} (p = {p_value:.2f})"
-            CMS.drawText(chi2_text, posX=0.20, posY=0.62, font=42, align=0, size=0.04)
+            chi2_posX = self.config.get("chi2_posX", 0.20)
+            chi2_posY = self.config.get("chi2_posY", 0.62)
+            CMS.drawText(chi2_text, posX=chi2_posX, posY=chi2_posY, font=42, align=0, size=0.04)
 
         self.canv.cd(1).RedrawAxis()
 
