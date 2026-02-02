@@ -4,14 +4,28 @@ import argparse
 import logging
 import json
 import ROOT
-from math import pow, sqrt
+from math import sqrt
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
+from plotter import PALETTE_LONG as PALETTE
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
                         calculate_systematics, sum_histograms, load_era_configs,
-                        merge_systematics, get_sample_lists)
-from utils import build_sknanoutput_path
+                        get_sample_lists)
+from utils import build_sknanoutput_path, apply_rate_uncertainty
 import correctionlib
 ROOT.gROOT.SetBatch(True)
+
+# Fixed color mapping for backgrounds (consistent across all plots)
+BKG_COLORS = {
+    "nonprompt": PALETTE[0],
+    "diboson": PALETTE[1],
+    "ttX": PALETTE[2],
+    "conv": PALETTE[3],
+    "others": PALETTE[4],
+}
+
+# Preferred background order for stack plots (bottom to top)
+# Legend will display in reverse order (top to bottom)
+BKG_ORDER = ["others", "conv", "diboson", "ttX", "nonprompt"]
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
@@ -57,10 +71,8 @@ era_list = get_era_list(args.era)
 
 if args.era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
     RUN = "Run2"
-    samplename_WZ = "WZTo3LNu_amcatnlo"
 elif args.era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
     RUN = "Run3"
-    samplename_WZ = "WZTo3LNu_powheg"
 else:
     raise ValueError(f"Invalid era: {args.era}")
 
@@ -68,11 +80,6 @@ else:
 if args.channel not in ["SR1E2Mu", "SR3Mu", "ZFake1E2Mu", "ZFake3Mu", "ZG1E2Mu", "ZG3Mu", "WZ1E2Mu", "WZ3Mu", "TTZ2E1Mu"]:
     raise ValueError(f"Invalid channel: {args.channel}")
 
-ANALYZER = ""
-if "SR" in args.channel or "ZFake" in args.channel or "TTZ" in args.channel:
-    ANALYZER = "PromptSelector"
-if "ZG" in args.channel or "WZ" in args.channel:
-    ANALYZER = "CRPromptSelector"
 config["channel"] = args.channel
 
 if "1E2Mu" in args.channel:
@@ -97,14 +104,6 @@ channel_args = ChannelArgs(channel_flag)
 # Load configurations
 ERA_SAMPLES, ERA_SYSTEMATICS = load_era_configs(channel_args, era_list)
 DATAPERIODs, MC_CATEGORIES, MCList = get_sample_lists(ERA_SAMPLES, ["nonprompt", "conv", "ttX", "diboson", "others"])
-SYSTs = merge_systematics(ERA_SYSTEMATICS)
-
-# Unpack MC categories for backward compatibility
-nonprompt = MC_CATEGORIES["nonprompt"]
-conv = MC_CATEGORIES["conv"]
-ttX = MC_CATEGORIES["ttX"]
-diboson = MC_CATEGORIES["diboson"]
-others = MC_CATEGORIES["others"]
 
 if args.exclude:
     OUTPUTPATH = f"{WORKDIR}/TriLepton/plots/{args.era}/{args.channel}/No{args.exclude}/{args.histkey.replace('/', '_')}.png"
@@ -169,14 +168,7 @@ def apply_conv_scale_factor(hist, sample, era, conv_sf, channel, era_samples):
 
     # Case 1: No ConvSF available for this era - use default proxy (SF = 1.0 ± 20%)
     if not conv_sf or era not in conv_sf:
-        # Apply default 20% rate uncertainty as proxy
-        for bin in range(hist.GetNcells()):
-            content = hist.GetBinContent(bin)
-            stat_error = hist.GetBinError(bin)
-            rate_error = content * 0.20  # 20% rate uncertainty
-            # Combine statistical and rate uncertainties in quadrature
-            total_error = sqrt(stat_error**2 + rate_error**2)
-            hist.SetBinError(bin, total_error)
+        apply_rate_uncertainty(hist, 0.20)
         return hist
 
     # Case 2: ConvSF measurement available - apply measured SF
@@ -205,15 +197,7 @@ def apply_conv_scale_factor(hist, sample, era, conv_sf, channel, era_samples):
         # Quadrature sum of prompt and nonprompt uncertainties
         total_rel_unc = sqrt(prompt_rel_unc**2 + nonprompt_rel_unc**2)
 
-        # Apply rate uncertainty to all bins
-        for bin in range(hist.GetNcells()):
-            content = hist.GetBinContent(bin)
-            stat_error = hist.GetBinError(bin)
-            rate_error = content * total_rel_unc
-            # Combine statistical and rate uncertainties in quadrature
-            total_error = sqrt(stat_error**2 + rate_error**2)
-            hist.SetBinError(bin, total_error)
-
+        apply_rate_uncertainty(hist, total_rel_unc)
 
     except Exception as e:
         logging.warning(f"Failed to apply conversion SF to {sample} in {era}: {e}")
@@ -225,21 +209,13 @@ def apply_wz_uncertainty(hist, sample, args):
     # Only apply when WZSF is NOT excluded and sample is WZ
     if args.exclude == "WZSF":
         return hist
-    
+
     # Check if this is a WZ sample
     is_wz_sample = "WZTo3LNu" in sample or "ZZTo4L" in sample
     if not is_wz_sample:
         return hist
-    
-    # Apply 20% rate uncertainty to all bins
-    for bin in range(hist.GetNcells()):
-        content = hist.GetBinContent(bin)
-        stat_error = hist.GetBinError(bin)
-        rate_error = content * 0.20  # 20% rate uncertainty
-        # Combine statistical and rate uncertainties in quadrature
-        total_error = sqrt(stat_error**2 + rate_error**2)
-        hist.SetBinError(bin, total_error)
 
+    apply_rate_uncertainty(hist, 0.20)
     return hist
 
 def apply_kfactor(hist, sample, run):
@@ -264,14 +240,7 @@ def apply_kfactor(hist, sample, run):
         xsec_err_factor = kfactors[sample]["xsecErr"]
         # Convert multiplicative factor to relative uncertainty (e.g., 1.075 -> 0.075)
         rel_unc = xsec_err_factor - 1.0
-
-        for bin in range(hist.GetNcells()):
-            content = hist.GetBinContent(bin)
-            stat_error = hist.GetBinError(bin)
-            theory_error = content * rel_unc
-            # Combine statistical and theory uncertainties in quadrature
-            total_error = sqrt(stat_error**2 + theory_error**2)
-            hist.SetBinError(bin, total_error)
+        apply_rate_uncertainty(hist, rel_unc)
         logging.debug(f"Applied theory uncertainty {rel_unc*100:.1f}% to {sample}")
 
     return hist
@@ -288,7 +257,7 @@ if args.exclude != "ConvSF":
 # Step 1: Load histograms from each era
 era_data_hists = []
 era_mc_hists = {sample: [] for sample in MCList}
-era_nonprompt_hists = {sample: [] for sample in nonprompt}
+era_nonprompt_hists = {sample: [] for sample in MC_CATEGORIES["nonprompt"]}
 eras_with_data = []
 eras_without_data = []
 
@@ -364,7 +333,7 @@ for era in era_list:
 # Step 3: Sum histograms across eras
 
 # Sum nonprompt samples
-for sample in nonprompt:
+for sample in MC_CATEGORIES["nonprompt"]:
     if era_nonprompt_hists[sample]:
         HISTs[sample] = sum_histograms(era_nonprompt_hists[sample], f"{sample}_total")
 
@@ -375,7 +344,7 @@ for sample in MCList:
 
 # Check the final MC histograms
 valid_mc_samples = 0
-for sample in MCList + list(nonprompt):
+for sample in MCList + list(MC_CATEGORIES["nonprompt"]):
     if sample in HISTs and HISTs[sample] is not None:
         valid_mc_samples += 1
     else:
@@ -386,35 +355,25 @@ if valid_mc_samples == 0:
     logging.error("No valid MC histograms found for any sample!")
     logging.error("Cannot proceed with plotting without any MC. Exiting...")
     exit(1)
-#### Merge backgrounds
-def add_hist(name, hist, histDict):
-    # content of dictionary should be initialized as "None"
-    if not histDict[name]:
-        histDict[name] = hist.Clone(name)
-    else:
-        histDict[name].Add(hist)
-    
-temp_dict = { "nonprompt": None, "conv": None, "ttX": None, "diboson": None, "others": None }
-for sample in nonprompt:
-    if not sample in HISTs.keys(): continue
-    add_hist("nonprompt", HISTs[sample], temp_dict)
-for sample in conv:
-    if not sample in HISTs.keys(): continue
-    add_hist("conv", HISTs[sample], temp_dict)
-for sample in ttX:
-    if not sample in HISTs.keys(): continue
-    add_hist("ttX", HISTs[sample], temp_dict)
-for sample in diboson:
-    if not sample in HISTs.keys(): continue
-    add_hist("diboson", HISTs[sample], temp_dict)
-for sample in others:
-    if not sample in HISTs.keys(): continue
-    add_hist("others", HISTs[sample], temp_dict)
+#### Merge backgrounds by category
+temp_dict = {cat: None for cat in BKG_ORDER}
+for category, samples in MC_CATEGORIES.items():
+    for sample in samples:
+        if sample not in HISTs:
+            continue
+        if temp_dict[category] is None:
+            temp_dict[category] = HISTs[sample].Clone(category)
+        else:
+            temp_dict[category].Add(HISTs[sample])
 
-# filter out none histograms from temp_dict
-BKGs = {name: hist for name, hist in temp_dict.items() if hist}
-# Sort BKGs by hist.Integral()
-BKGs = dict(sorted(BKGs.items(), key=lambda x: x[1].Integral(), reverse=True))
+# Build BKGs in fixed order for consistent stacking and colors
+BKGs = {}
+for bkg_name in BKG_ORDER:
+    if bkg_name in temp_dict and temp_dict[bkg_name] is not None:
+        BKGs[bkg_name] = temp_dict[bkg_name]
+
+# Build colors list in same order as BKGs
+config["colors"] = [BKG_COLORS[bkg] for bkg in BKGs.keys()]
 
 # Note: Blinding is now handled in ComparisonCanvas to ensure
 # data and systematics are guaranteed to be identical
@@ -428,8 +387,7 @@ if args.channel in ["SR1E2Mu", "SR3Mu"]:
 
         for era in era_list:
             # Signal files don't have "Skim_TriLep_" prefix, construct path directly
-            # Signal is only for SR channels which use PromptSelector
-            path = f"{WORKDIR}/SKNanoOutput/PromptSelector/{FLAG}_RunSyst/{era}/{signal_name}.root"
+            path = f"{WORKDIR}/SKNanoOutput/PromptAnalyzer/{FLAG}_RunSyst_RunTheoryUnc/{era}/{signal_name}.root"
             if not os.path.exists(path):
                 logging.debug(f"Signal file not found: {path}")
                 continue

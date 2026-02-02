@@ -1,5 +1,20 @@
 #!/usr/bin/env python
 """TriLepton-specific utilities for path construction."""
+from math import sqrt
+
+
+def apply_rate_uncertainty(hist, rel_unc):
+    """Apply relative rate uncertainty to histogram errors (in quadrature).
+
+    Args:
+        hist: ROOT TH1 histogram to modify (in-place)
+        rel_unc: Relative uncertainty as a fraction (e.g., 0.20 for 20%)
+    """
+    for bin_idx in range(hist.GetNcells()):
+        content = hist.GetBinContent(bin_idx)
+        stat_error = hist.GetBinError(bin_idx)
+        rate_error = content * rel_unc
+        hist.SetBinError(bin_idx, sqrt(stat_error**2 + rate_error**2))
 
 
 def build_sknanoutput_path(workdir, channel, flag, era, sample,

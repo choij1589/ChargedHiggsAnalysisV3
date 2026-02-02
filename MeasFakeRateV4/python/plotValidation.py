@@ -5,7 +5,7 @@ import logging
 import ROOT
 import json
 from itertools import product
-from plotter import ComparisonCanvas, PALETTE_LONG
+from plotter import ComparisonCanvas, PALETTE_LONG, get_era_list, get_CoM_energy
 import cmsstyle as CMS
 from common import findbin
 
@@ -95,28 +95,40 @@ shortHLTDict = {
     "El23": "HLT_Ele23_CaloIdL_TrackIdL_IsoVL_PFJet30"
 }
 
-SAMPLEGROUP = json.load(open("configs/samplegroup.json"))[args.era][MEASURE]
+# Handle merged eras (Run2/Run3)
+era_list = get_era_list(args.era)
+logging.info(f"Processing {args.era} with eras: {era_list}")
 
-DATAPERIODs = SAMPLEGROUP["data"]
-W = SAMPLEGROUP["W"]
-Z = SAMPLEGROUP["Z"]
-TT = SAMPLEGROUP["TT"]
-VV = SAMPLEGROUP["VV"]
-ST = SAMPLEGROUP["ST"]
+# Load sample groups for all eras
+SAMPLEGROUPS_JSON = json.load(open("configs/samplegroup.json"))
+
+# Collect data periods and MC samples from all eras
+# Format: list of (era, sample) tuples
+DATAPERIODs = []  # list of (era, data_period) tuples
+W = []            # list of (era, sample) tuples
+Z = []
+TT = []
+VV = []
+ST = []
+QCD_EMEnriched = []
+QCD_bcToE = []
+QCD_MuEnriched = []
+
+for era in era_list:
+    era_samplegroup = SAMPLEGROUPS_JSON[era][MEASURE]
+    DATAPERIODs.extend([(era, d) for d in era_samplegroup["data"]])
+    W.extend([(era, s) for s in era_samplegroup["W"]])
+    Z.extend([(era, s) for s in era_samplegroup["Z"]])
+    TT.extend([(era, s) for s in era_samplegroup["TT"]])
+    VV.extend([(era, s) for s in era_samplegroup["VV"]])
+    ST.extend([(era, s) for s in era_samplegroup["ST"]])
+    if MEASURE == "electron":
+        QCD_EMEnriched.extend([(era, s) for s in era_samplegroup.get("QCD_EMEnriched", [])])
+        QCD_bcToE.extend([(era, s) for s in era_samplegroup.get("QCD_bcToE", [])])
+    elif MEASURE == "muon":
+        QCD_MuEnriched.extend([(era, s) for s in era_samplegroup.get("QCD_MuEnriched", [])])
+
 PromptMCList = W + Z + TT + VV + ST
-
-if MEASURE == "electron":
-    QCD_EMEnriched = SAMPLEGROUP.get("QCD_EMEnriched", [])
-    QCD_bcToE = SAMPLEGROUP.get("QCD_bcToE", [])
-    QCD_MuEnriched = []
-elif MEASURE == "muon":
-    QCD_EMEnriched = []
-    QCD_bcToE = []
-    QCD_MuEnriched = SAMPLEGROUP.get("QCD_MuEnriched", [])
-else:
-    QCD_EMEnriched = []
-    QCD_bcToE = []
-    QCD_MuEnriched = []
 QCD = QCD_EMEnriched + QCD_bcToE + QCD_MuEnriched
 
 # V4 consolidated lepton type file
@@ -137,13 +149,13 @@ def get_histogram_path(prefix, is_inclusive):
 
 def process_bin(prefix):
     """Process a single bin (or inclusive if prefix is None)"""
-    HISTs = {}
+    HISTs = {}  # key: (era, sample) tuple
     is_inclusive = (prefix is None)
 
-    # data
+    # data - now using (era, data_period) tuples
     data = None
-    for dataperiod in DATAPERIODs:
-        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst/{args.era}/{dataperiod}.root"
+    for era, dataperiod in DATAPERIODs:
+        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst/{era}/{dataperiod}.root"
         if not os.path.exists(file_path):
             logging.warning(f"{file_path} does not exist")
             continue
@@ -153,7 +165,7 @@ def process_bin(prefix):
             h = f.Get(hist_path)
             h.SetDirectory(0)
         except:
-            logging.warning(f"Cannot find {hist_path} for {dataperiod}")
+            logging.warning(f"Cannot find {hist_path} for {era}/{dataperiod}")
             f.Close()
             continue
         f.Close()
@@ -164,9 +176,9 @@ def process_bin(prefix):
     if data is not None:
         data.SetTitle("Data")
 
-    # Prompt MC (from _RunSyst files, stat errors only)
-    for sample in PromptMCList:
-        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst/{args.era}/{sample}.root"
+    # Prompt MC (from _RunSyst files, stat errors only) - now using (era, sample) tuples
+    for era, sample in PromptMCList:
+        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst/{era}/{sample}.root"
         if not os.path.exists(file_path):
             logging.warning(f"{file_path} does not exist")
             continue
@@ -176,15 +188,15 @@ def process_bin(prefix):
             h = f.Get(hist_path)
             h.SetDirectory(0)
         except:
-            logging.warning(f"Cannot find {hist_path} for {sample}")
+            logging.warning(f"Cannot find {hist_path} for {era}/{sample}")
             f.Close()
             continue
         f.Close()
-        HISTs[sample] = h.Clone(sample)
+        HISTs[(era, sample)] = h.Clone(f"{era}_{sample}")
 
-    # QCD MC (from non-_RunSyst files, no systematics)
-    for sample in QCD:
-        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}/{args.era}/{sample}.root"
+    # QCD MC (from non-_RunSyst files, no systematics) - now using (era, sample) tuples
+    for era, sample in QCD:
+        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}/{era}/{sample}.root"
         if not os.path.exists(file_path):
             logging.warning(f"{file_path} does not exist")
             continue
@@ -194,49 +206,49 @@ def process_bin(prefix):
             h = f.Get(hist_path)
             h.SetDirectory(0)
         except:
-            logging.warning(f"Cannot find {hist_path} for {sample}")
+            logging.warning(f"Cannot find {hist_path} for {era}/{sample}")
             f.Close()
             continue
         f.Close()
-        HISTs[sample] = h.Clone(sample)
+        HISTs[(era, sample)] = h.Clone(f"{era}_{sample}")
 
-    # scale all MC histograms using prompt_scale
+    # scale all MC histograms using per-era prompt_scale
     scale_key = f"{args.hlt}_{args.wp}_{args.selection}"
-    json_path = f"{WORKDIR}/MeasFakeRateV4/results/{args.era}/JSON/{MEASURE}/prompt_scale.json"
-    with open(json_path, 'r') as f:
-        scale_dict = json.load(f)
-    scale = scale_dict[scale_key]
-    logging.debug(f"Scaling MC by {scale}")
-    for hist in HISTs.values():
+    for (era, sample), hist in HISTs.items():
+        json_path = f"{WORKDIR}/MeasFakeRateV4/results/{era}/JSON/{MEASURE}/prompt_scale.json"
+        with open(json_path, 'r') as f:
+            scale_dict = json.load(f)
+        scale = scale_dict[scale_key]
+        logging.debug(f"Scaling {era}/{sample} by {scale}")
         hist.Scale(scale)
 
-    # merge backgrounds
+    # merge backgrounds - W, Z, TT, etc. are now lists of (era, sample) tuples
     temp_dict = { "W": None, "Z": None, "TT": None, "ST": None, "VV": None,
                   "QCD(e)": None, "QCD(b)": None, "QCD(#mu)": None }
-    for sample in W:
-        if sample not in HISTs.keys(): continue
-        add_hist("W", HISTs[sample], temp_dict)
-    for sample in Z:
-        if sample not in HISTs.keys(): continue
-        add_hist("Z", HISTs[sample], temp_dict)
-    for sample in TT:
-        if sample not in HISTs.keys(): continue
-        add_hist("TT", HISTs[sample], temp_dict)
-    for sample in VV:
-        if sample not in HISTs.keys(): continue
-        add_hist("VV", HISTs[sample], temp_dict)
-    for sample in ST:
-        if sample not in HISTs.keys(): continue
-        add_hist("ST", HISTs[sample], temp_dict)
-    for sample in QCD_EMEnriched:
-        if sample not in HISTs.keys(): continue
-        add_hist("QCD(e)", HISTs[sample], temp_dict)
-    for sample in QCD_bcToE:
-        if sample not in HISTs.keys(): continue
-        add_hist("QCD(b)", HISTs[sample], temp_dict)
-    for sample in QCD_MuEnriched:
-        if sample not in HISTs.keys(): continue
-        add_hist("QCD(#mu)", HISTs[sample], temp_dict)
+    for era_sample in W:
+        if era_sample not in HISTs.keys(): continue
+        add_hist("W", HISTs[era_sample], temp_dict)
+    for era_sample in Z:
+        if era_sample not in HISTs.keys(): continue
+        add_hist("Z", HISTs[era_sample], temp_dict)
+    for era_sample in TT:
+        if era_sample not in HISTs.keys(): continue
+        add_hist("TT", HISTs[era_sample], temp_dict)
+    for era_sample in VV:
+        if era_sample not in HISTs.keys(): continue
+        add_hist("VV", HISTs[era_sample], temp_dict)
+    for era_sample in ST:
+        if era_sample not in HISTs.keys(): continue
+        add_hist("ST", HISTs[era_sample], temp_dict)
+    for era_sample in QCD_EMEnriched:
+        if era_sample not in HISTs.keys(): continue
+        add_hist("QCD(e)", HISTs[era_sample], temp_dict)
+    for era_sample in QCD_bcToE:
+        if era_sample not in HISTs.keys(): continue
+        add_hist("QCD(b)", HISTs[era_sample], temp_dict)
+    for era_sample in QCD_MuEnriched:
+        if era_sample not in HISTs.keys(): continue
+        add_hist("QCD(#mu)", HISTs[era_sample], temp_dict)
 
     # filter out none histograms from temp_dict
     BKGs = {name: hist for name, hist in temp_dict.items() if hist}
@@ -256,7 +268,7 @@ if IS_INCLUSIVE:
 
     config = HIST_CONFIGS[HISTKEY].copy()
     config["era"] = args.era
-    config["CoM"] = 13 if "201" in args.era else 13.6
+    config["CoM"] = get_CoM_energy(args.era)
     config["prescaled"] = True
     config["rRange"] = [0.0, 2.0]
     config["systSrc"] = "Stat"
@@ -291,7 +303,7 @@ else:
 
         config = HIST_CONFIGS[HISTKEY].copy()
         config["era"] = args.era
-        config["CoM"] = 13 if "201" in args.era else 13.6
+        config["CoM"] = get_CoM_energy(args.era)
         config["prescaled"] = True
         config["rRange"] = [0.0, 2.0]
         config["systSrc"] = "Stat"
