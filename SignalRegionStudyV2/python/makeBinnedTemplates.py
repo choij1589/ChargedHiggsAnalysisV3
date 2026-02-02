@@ -17,7 +17,8 @@ from math import sqrt
 from template_utils import (
     save_json, parse_variations, get_output_tree_name, ensure_positive_integral,
     build_particlenet_score, create_filtered_rdf, create_scaled_hist,
-    is_run3_era, is_signal_scaled_from_run2, get_run2_tree_name_for_run3_syst
+    is_run3_era, is_signal_scaled_from_run2, get_run2_tree_name_for_run3_syst,
+    categorize_systematics
 )
 
 
@@ -69,33 +70,6 @@ def load_config(workdir, era, channel):
         'samples': json_samplegroups[era][channel],
         'aliases': json_samplegroups.get("aliases", {})
     }
-
-
-def categorize_systematics(config):
-    """Categorize systematics into preprocessed_shape, valued_shape, multi_variation, valued_lnN."""
-    result = {'preprocessed_shape': [], 'valued_shape': [], 'multi_variation': [], 'valued_lnN': []}
-
-    for syst_name, syst_config in config.items():
-        source = syst_config.get('source')
-        syst_type = syst_config.get('type')
-        group = syst_config.get('group', [])
-
-        if source == 'preprocessed' and syst_type == 'shape':
-            variations = parse_variations(syst_config.get('variations', []))
-            if len(variations) > 2:
-                result['multi_variation'].append((syst_name, variations, group))
-            elif len(variations) == 2:
-                result['preprocessed_shape'].append((syst_name, variations, group))
-            else:
-                logging.warning(f"Unexpected variation count for {syst_name}: {variations}")
-
-        elif source == 'valued' and syst_type == 'shape':
-            result['valued_shape'].append((syst_name, syst_config.get('value'), group))
-
-        elif source == 'valued' and syst_type == 'lnN':
-            result['valued_lnN'].append((syst_name, syst_config.get('value'), group))
-
-    return result
 
 
 # =============================================================================

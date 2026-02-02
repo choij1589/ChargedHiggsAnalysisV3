@@ -1,5 +1,9 @@
 # SignalRegionStudyV2
 
+## Environment setup
+**CRITICAL**
+Always run `source setup.sh` in `SignalRegionStudyV2` directory first, not in the one in `ChargedHiggsAnalysisV3` to set up the environment. For using python, use `python3` instead of `python`
+
 ## KNU Tier2/Tier3 Storage and HTCondor
 
 ### Storage Element (SE) Access

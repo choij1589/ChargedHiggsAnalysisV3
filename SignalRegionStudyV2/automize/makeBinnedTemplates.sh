@@ -596,6 +596,9 @@ function generate_dag_file() {
             asymptotic|asymptotic_combined)
                 if [[ "$DO_RUN_ASYMPTOTIC" == "false" ]]; then echo " DONE"; return; fi
                 ;;
+            plot_score)
+                if [[ "$DO_PLOT_SCORE" == "false" ]]; then echo " DONE"; return; fi
+                ;;
         esac
 
         echo ""
@@ -626,6 +629,17 @@ EOF
             echo "JOB template_SR3Mu_${era} jobs.sub${done_sfx}" >> "$dag_file"
             echo "VARS template_SR3Mu_${era} step=\"template\" era=\"${era}\" channel=\"SR3Mu\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
         done
+
+        # Step 2b: Plot scores (ParticleNet only)
+        if [[ "$method" == "ParticleNet" ]]; then
+            done_sfx=$(job_done_suffix "plot_score")
+            for era in "${eras[@]}"; do
+                for channel in SR1E2Mu SR3Mu; do
+                    echo "JOB plot_score_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
+                    echo "VARS plot_score_${channel}_${era} step=\"plot_score\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+                done
+            done
+        fi
 
         # Step 3: Datacard (produces lowstat.json + filtered shapes.root)
         done_sfx=$(job_done_suffix "datacard")
@@ -669,6 +683,15 @@ EOF
         done_sfx=$(job_done_suffix "asymptotic_combined")
         echo "JOB asymptotic_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
         echo "VARS asymptotic_${run_name} step=\"asymptotic\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"\"" >> "$dag_file"
+
+        # Step 8b: Combined era plot_score (ParticleNet only)
+        if [[ "$method" == "ParticleNet" ]]; then
+            done_sfx=$(job_done_suffix "plot_score")
+            for channel in SR1E2Mu SR3Mu; do
+                echo "JOB plot_score_${channel}_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS plot_score_${channel}_${run_name} step=\"plot_score\" era=\"${run_name}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+            done
+        fi
     }
 
     # Helper function for single era mode (no era combination step)
@@ -688,6 +711,15 @@ EOF
         # Step 2: SR3Mu Template
         echo "JOB template_SR3Mu_${era} jobs.sub${done_sfx}" >> "$dag_file"
         echo "VARS template_SR3Mu_${era} step=\"template\" era=\"${era}\" channel=\"SR3Mu\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
+
+        # Step 2b: Plot scores (ParticleNet only)
+        if [[ "$meth" == "ParticleNet" ]]; then
+            done_sfx=$(job_done_suffix "plot_score")
+            for channel in SR1E2Mu SR3Mu; do
+                echo "JOB plot_score_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS plot_score_${channel}_${era} step=\"plot_score\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
+            done
+        fi
 
         # Step 3: Datacard (produces lowstat.json + filtered shapes.root)
         done_sfx=$(job_done_suffix "datacard")
@@ -752,12 +784,25 @@ EOF
         local sr3mu_jobs=$(printf "template_SR3Mu_%s " "${eras[@]}")
         echo "PARENT $sr1e2mu_jobs CHILD $sr3mu_jobs" >> "$dag_file"
 
-        # SR3Mu templates -> Datacard (produces lowstat.json + filtered shapes.root)
+        # SR3Mu templates -> plot_score (if ParticleNet) and Datacard
         local datacard_jobs=""
         for era in "${eras[@]}"; do
             datacard_jobs+="datacard_SR1E2Mu_${era} datacard_SR3Mu_${era} "
         done
         echo "PARENT $sr3mu_jobs CHILD $datacard_jobs" >> "$dag_file"
+
+        # SR3Mu templates -> per-era plot_score (ParticleNet only, runs in parallel with datacard)
+        if [[ "$method" == "ParticleNet" ]]; then
+            local plot_jobs=""
+            for era in "${eras[@]}"; do
+                plot_jobs+="plot_score_SR1E2Mu_${era} plot_score_SR3Mu_${era} "
+            done
+            echo "PARENT $sr3mu_jobs CHILD $plot_jobs" >> "$dag_file"
+
+            # Per-era plot_score -> combined era plot_score
+            local combined_plot_jobs="plot_score_SR1E2Mu_${run_name} plot_score_SR3Mu_${run_name}"
+            echo "PARENT $plot_jobs CHILD $combined_plot_jobs" >> "$dag_file"
+        fi
 
         # Datacard -> Validate (needs lowstat.json from datacard step)
         local validate_jobs=""
@@ -784,12 +829,18 @@ EOF
     # Helper function for single era dependencies (no era combination)
     add_single_era_deps() {
         local era=$1
+        local meth=$2  # method variable passed from parent scope
 
         # SR1E2Mu template -> SR3Mu template
         echo "PARENT template_SR1E2Mu_${era} CHILD template_SR3Mu_${era}" >> "$dag_file"
 
         # SR3Mu template -> Datacard (produces lowstat.json + filtered shapes.root)
         echo "PARENT template_SR3Mu_${era} CHILD datacard_SR1E2Mu_${era} datacard_SR3Mu_${era}" >> "$dag_file"
+
+        # SR3Mu template -> plot_score (ParticleNet only, runs in parallel with datacard)
+        if [[ "$meth" == "ParticleNet" ]]; then
+            echo "PARENT template_SR3Mu_${era} CHILD plot_score_SR1E2Mu_${era} plot_score_SR3Mu_${era}" >> "$dag_file"
+        fi
 
         # Datacard -> Validate (needs lowstat.json from datacard step)
         echo "PARENT datacard_SR1E2Mu_${era} datacard_SR3Mu_${era} CHILD validate_SR1E2Mu_${era} validate_SR3Mu_${era}" >> "$dag_file"
@@ -802,7 +853,7 @@ EOF
     }
 
     if [[ "$mode" == "single_run2" || "$mode" == "single_run3" ]]; then
-        add_single_era_deps "$single_era"
+        add_single_era_deps "$single_era" "$method"
     else
         if [[ "$mode" == "run2" || "$mode" == "all" ]]; then
             add_run_period_deps "Run2" run2_eras

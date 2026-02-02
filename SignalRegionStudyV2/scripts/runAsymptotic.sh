@@ -149,21 +149,25 @@ if [[ "$DRY_RUN" == false ]]; then
     if ls "${OUTPUT_DIR}"/higgsCombine.*.AsymptoticLimits.*.root 1>/dev/null 2>&1; then
         echo "SUCCESS: Output saved to ${OUTPUT_DIR}/"
 
-        # Print limit summary
+        # Print limit summary (skip r values for partial-unblind mode)
         echo ""
-        echo "Limit summary:"
-        root -l -b -q -e "
-            TFile *f = TFile::Open(\"${OUTPUT_DIR}/higgsCombine.${MASSPOINT}.${METHOD}.${BINNING_SUFFIX}.AsymptoticLimits.mH120.root\");
-            TTree *limit = (TTree*)f->Get(\"limit\");
-            double r;
-            limit->SetBranchAddress(\"limit\", &r);
-            const char* labels[] = {\"Exp -2sigma\", \"Exp -1sigma\", \"Exp median\", \"Exp +1sigma\", \"Exp +2sigma\", \"Observed\"};
-            for (int i = 0; i < limit->GetEntries(); i++) {
-                limit->GetEntry(i);
-                printf(\"  %s: %.4f\\n\", labels[i], r);
-            }
-            f->Close();
-        " 2>/dev/null || echo "  (Could not print summary)"
+        if [[ "$PARTIAL_UNBLIND" == true ]]; then
+            echo "Limit calculation completed (r values hidden for partial-unblind mode)"
+        else
+            echo "Limit summary:"
+            root -l -b -q -e "
+                TFile *f = TFile::Open(\"${OUTPUT_DIR}/higgsCombine.${MASSPOINT}.${METHOD}.${BINNING_SUFFIX}.AsymptoticLimits.mH120.root\");
+                TTree *limit = (TTree*)f->Get(\"limit\");
+                double r;
+                limit->SetBranchAddress(\"limit\", &r);
+                const char* labels[] = {\"Exp -2sigma\", \"Exp -1sigma\", \"Exp median\", \"Exp +1sigma\", \"Exp +2sigma\", \"Observed\"};
+                for (int i = 0; i < limit->GetEntries(); i++) {
+                    limit->GetEntry(i);
+                    printf(\"  %s: %.4f\\n\", labels[i], r);
+                }
+                f->Close();
+            " 2>/dev/null || echo "  (Could not print summary)"
+        fi
     else
         echo "WARNING: No output file created"
     fi
