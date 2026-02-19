@@ -110,6 +110,32 @@ Common systematics: L1Prefire, PileupReweight, MuonIDSF, ElectronIDSF, TrigSF, B
 
 Each era has specific data stream configurations and luminosity values.
 
+### Centralized Configuration: Luminosity
+**IMPORTANT**: All luminosity and center-of-mass energy values are stored in `Common/Data/Luminosity.json`.
+
+```json
+{
+    "Run2": {"2016preVFP": 19.5, ..., "combined": 137.6, "energy_TeV": 13},
+    "Run3": {"2022": 8.0, ..., "combined": 62.5, "energy_TeV": 13.6},
+    "All": {"combined": 200.1}
+}
+```
+
+**Usage in Python**:
+```python
+# Option 1: Import from plotter (recommended)
+from plotter import LumiInfo, EnergyInfo, get_CoM_energy
+
+# Option 2: Load JSON directly
+import json
+import os
+_LUMI_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "Common", "Data", "Luminosity.json")
+with open(_LUMI_JSON_PATH, "r") as f:
+    _LUMI_CONFIG = json.load(f)
+```
+
+**NEVER hardcode luminosity values** (e.g., `CMS.SetLumi(138)` or `"Run2": 138`). Always load from JSON.
+
 ## Code Architecture Patterns
 
 ### Analysis Script Structure
@@ -147,7 +173,7 @@ All Python analysis scripts follow common patterns:
 - Use `ValueError` for invalid user inputs, `RuntimeError` for unexpected states
 - When reading ROOT objects/histograms, handle "missing object" as an error unless explicitly allowed
 - Close ROOT files promptly to avoid file descriptor/memory issues
-- Do not hardcode sample lists, systematic names, or era lists if a config already exists
+- Do not hardcode sample lists, systematic names, era lists, or **luminosity values** if a config already exists (see `Common/Data/Luminosity.json`)
 
 ### Shell Scripts
 - Start with `#!/bin/bash`

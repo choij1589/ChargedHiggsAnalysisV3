@@ -33,20 +33,22 @@ PALETTE = [
     ROOT.TColor.GetColor("#964a8b"),  # purple
 ]
 
-# Luminosity and energy configuration
-LUMI_INFO = {
-    "2016preVFP": (19.5, 13),
-    "2016postVFP": (16.8, 13),
-    "2017": (41.5, 13),
-    "2018": (59.8, 13),
-    "2022": (7.9, 13.6),
-    "2022EE": (26.7, 13.6),
-    "2023": (17.8, 13.6),
-    "2023BPix": (9.5, 13.6),
-    "Run2": (138, 13),
-    "Run3": (62, 13.6),
-    "All": (200, 0),  # Special handling for combined
-}
+# Load luminosity configuration from JSON
+_LUMI_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "Common", "Data", "Luminosity.json")
+with open(_LUMI_JSON_PATH, "r") as f:
+    _LUMI_CONFIG = json.load(f)
+
+# Build LUMI_INFO dictionary: {era: (luminosity, energy)}
+LUMI_INFO = {}
+for era, lumi in _LUMI_CONFIG["Run2"].items():
+    if era not in ("combined", "energy_TeV"):
+        LUMI_INFO[era] = (lumi, _LUMI_CONFIG["Run2"]["energy_TeV"])
+for era, lumi in _LUMI_CONFIG["Run3"].items():
+    if era not in ("combined", "energy_TeV"):
+        LUMI_INFO[era] = (lumi, _LUMI_CONFIG["Run3"]["energy_TeV"])
+LUMI_INFO["Run2"] = (_LUMI_CONFIG["Run2"]["combined"], _LUMI_CONFIG["Run2"]["energy_TeV"])
+LUMI_INFO["Run3"] = (_LUMI_CONFIG["Run3"]["combined"], _LUMI_CONFIG["Run3"]["energy_TeV"])
+LUMI_INFO["All"] = (_LUMI_CONFIG["All"]["combined"], 0)  # Special handling for combined
 
 
 def configure_cms_style(era):
@@ -54,7 +56,9 @@ def configure_cms_style(era):
     CMS.SetExtraText("Simulation Preliminary")
 
     if era == "All":
-        CMS.SetLumi(None, run="Run 2+3, 138+62 fb^{#minus1}")
+        run2_lumi = _LUMI_CONFIG["Run2"]["combined"]
+        run3_lumi = _LUMI_CONFIG["Run3"]["combined"]
+        CMS.SetLumi(None, run=f"Run 2+3, {run2_lumi}+{run3_lumi} fb^{{#minus1}}")
         CMS.SetEnergy(0, unit="13/13.6 TeV")
     elif era in LUMI_INFO:
         lumi, energy = LUMI_INFO[era]

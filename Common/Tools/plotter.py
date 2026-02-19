@@ -1,20 +1,31 @@
+import os
+import json
 import ROOT
 import cmsstyle as CMS
 from array import array
 from HistoUtils import rebin_for_chi2_validity, calculate_chi2
 CMS.setCMSStyle()
 
-LumiInfo = {    # /fb
-    "2016preVFP": 19.5,
-    "2016postVFP": 16.8,
-    "2017": 41.5,
-    "2018": 59.8,
-    "2022": 7.9,
-    "2022EE": 26.7,
-    "2023": 17.8,
-    "2023BPix": 9.5,
-    "Run2": 138,  # 19.5 + 16.8 + 41.5 + 59.8
-    "Run3": 62,   # 7.9 + 26.7 + 17.8 + 9.5
+# Load luminosity configuration from JSON
+_LUMI_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "Data", "Luminosity.json")
+with open(_LUMI_JSON_PATH, "r") as f:
+    _LUMI_CONFIG = json.load(f)
+
+# Build LumiInfo dictionary for backward compatibility
+LumiInfo = {}  # /fb
+for era, lumi in _LUMI_CONFIG["Run2"].items():
+    if era not in ("combined", "energy_TeV"):
+        LumiInfo[era] = lumi
+for era, lumi in _LUMI_CONFIG["Run3"].items():
+    if era not in ("combined", "energy_TeV"):
+        LumiInfo[era] = lumi
+LumiInfo["Run2"] = _LUMI_CONFIG["Run2"]["combined"]
+LumiInfo["Run3"] = _LUMI_CONFIG["Run3"]["combined"]
+
+# Energy info from JSON
+EnergyInfo = {
+    "Run2": _LUMI_CONFIG["Run2"]["energy_TeV"],
+    "Run3": _LUMI_CONFIG["Run3"]["energy_TeV"],
 }
 PALETTE = [
     ROOT.TColor.GetColor("#5790fc"),
@@ -58,9 +69,9 @@ def get_datastream(era):
 def get_CoM_energy(era):
     """Get center-of-mass energy for era"""
     if era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
-        return 13
+        return EnergyInfo["Run2"]
     elif era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
-        return 13.6
+        return EnergyInfo["Run3"]
     else:
         raise ValueError(f"Unknown era: {era}")
 

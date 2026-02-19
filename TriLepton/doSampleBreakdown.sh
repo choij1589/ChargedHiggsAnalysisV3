@@ -2,6 +2,7 @@
 SRs=("SR1E2Mu" "SR3Mu")
 CRs=("ZFake1E2Mu" "ZFake3Mu" "ZG1E2Mu" "ZG3Mu" "WZ1E2Mu" "WZ3Mu")
 ERAs=("2016preVFP" "2016postVFP" "2017" "2018" "2022" "2022EE" "2023" "2023BPix" "Run2" "Run3")
+#ERAs=("Run2" "Run3")
 
 export PATH=$PWD/python:$PATH
 for ERA in "${ERAs[@]}"; do
