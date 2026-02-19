@@ -48,10 +48,12 @@ ModuleName/
 **MeasTrigEff/**: Trigger efficiency measurements using reference trigger method
 **MeasFakeRate/**: Fake rate measurements using tight-to-loose method (Default for current fake rate)
 **MeasFakeRateV2/**: Same as MeasFakeRate but not using absolute eta bins for Run3
-**MeasFakeRateV3/**: Same as MeasFakeRate but using finer low ptCorr bins for muons and electrons -> Current baseline.
+**MeasFakeRateV3/**: Same as MeasFakeRate but using finer low ptCorr bins for muons and electrons
+**MeasFakeRateV4/**: Current baseline for fake rate measurements.
 **MeasJetTagEff/**: Jet tagging efficiency measurements
 **TriggerStrategy/**: Trigger strategy optimization studies
-**SignalRegionStudy/**: Final limit extraction using Combine (C++/CMake) -> Current baseline.
+**SignalRegionStudy/**: Final limit extraction using Combine (C++/CMake)
+**SignalRegionStudyV2/**: Current baseline for signal region and limit extraction.
 **ParticleNet/**: ML pipeline for jet classification using ParticleNet architecture.
 
 ## Key Development Commands
