@@ -11,7 +11,6 @@ ChargedHiggsAnalysisV3 is a physics analysis framework for charged Higgs particl
 ```bash
 source setup.sh
 ```
-**CRITICAL**setup.sh already done before launching `claude`.
 
 ## Project Architecture
 
@@ -184,6 +183,10 @@ All Python analysis scripts follow common patterns:
 ### CMake/C++ (SignalRegionStudy)
 - Target standard: C++17
 - Keep CMake changes minimal; the build is environment-sensitive (ROOT/CMSSW)
+
+## Version Control Safety
+
+Before modifying any files, commit all uncommitted changes with a descriptive message so the user can roll back. Check `git status` first — if there are unstaged or staged changes, commit them in a separate commit before starting your work.
 
 ## Practical Workflow
 
