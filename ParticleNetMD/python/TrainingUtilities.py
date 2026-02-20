@@ -8,6 +8,7 @@ and group-balanced accuracy calculations for physics-aware training.
 Modified from ParticleNet to support DisCo loss with mass tensors.
 """
 
+import math
 import time
 import logging
 import psutil
@@ -15,6 +16,50 @@ from typing import Dict, List, Optional, Tuple, Any
 
 import torch
 import torch.nn.functional as F
+
+
+def apply_phi_rotation(batch_x, batch_indices, device):
+    """
+    Apply random phi rotation to each graph in the batch.
+
+    Rotates the Px, Py components of the 4-momentum by a random angle φ₀
+    uniformly sampled from [0, 2π) for each graph. This is a data augmentation
+    technique to make the network invariant to the absolute azimuthal angle.
+
+    Args:
+        batch_x: Node features tensor (num_nodes, 9)
+                 Features: [E, Px, Py, Pz, charge, isMuon, isElectron, isJet, isBjet]
+        batch_indices: Graph assignment for each node (num_nodes,)
+        device: CUDA device
+
+    Returns:
+        Rotated batch_x tensor (new tensor, original unchanged)
+    """
+    num_graphs = batch_indices.max().item() + 1
+
+    # Generate random phi angles per graph: uniform in [0, 2π)
+    phi = torch.rand(num_graphs, device=device) * 2 * math.pi
+
+    # Get per-node rotation angles
+    phi_per_node = phi[batch_indices]  # Shape: (num_nodes,)
+
+    cos_phi = torch.cos(phi_per_node)
+    sin_phi = torch.sin(phi_per_node)
+
+    # Extract Px, Py (indices 1, 2)
+    px = batch_x[:, 1]
+    py = batch_x[:, 2]
+
+    # Rotate: Px' = Px*cos(φ) - Py*sin(φ), Py' = Px*sin(φ) + Py*cos(φ)
+    new_px = px * cos_phi - py * sin_phi
+    new_py = px * sin_phi + py * cos_phi
+
+    # Create new tensor (avoid in-place for autograd safety)
+    rotated_x = batch_x.clone()
+    rotated_x[:, 1] = new_px
+    rotated_x[:, 2] = new_py
+
+    return rotated_x
 
 
 def extract_weights_from_batch(batch):
@@ -135,7 +180,7 @@ def log_detailed_class_accuracies(predictions, labels, weights, use_groups, num_
 
 def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
                use_groups=False, num_classes=4, scheduler_type="StepLR",
-               loss_requires_mass=False):
+               loss_requires_mass=False, augment_phi_rotation=True):
     """
     Train model for one epoch.
 
@@ -150,6 +195,7 @@ def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
         num_classes: Number of classes
         scheduler_type: Type of scheduler for proper step handling
         loss_requires_mass: Whether loss function needs mass tensors (DisCo)
+        augment_phi_rotation: Whether to apply random phi rotation augmentation
 
     Returns:
         Tuple of (average_loss, accuracy)
@@ -173,6 +219,10 @@ def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
     for batch in train_loader:
         batch = batch.to(device)
 
+        # Apply phi rotation augmentation (training only)
+        if augment_phi_rotation:
+            batch.x = apply_phi_rotation(batch.x, batch.batch, device)
+
         # Forward pass
         optimizer.zero_grad()
         logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
@@ -180,12 +230,11 @@ def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
         # Extract weights for loss function
         weights = extract_weights_from_batch(batch)
 
-        # Compute weighted loss (with or without mass/bjet for DisCo)
+        # Compute weighted loss (with or without mass for DisCo)
         if loss_requires_mass:
             mass1 = batch.mass1.squeeze()
             mass2 = batch.mass2.squeeze()
-            has_bjet = batch.has_bjet.squeeze()
-            loss = loss_fn(logits, batch.y, weights, mass1, mass2, has_bjet)
+            loss = loss_fn(logits, batch.y, weights, mass1, mass2)
         else:
             loss = loss_fn(logits, batch.y, weights)
 
@@ -280,12 +329,11 @@ def evaluate_model(model, data_loader, loss_fn, device, use_groups=False, num_cl
             # Extract weights for loss function
             weights = extract_weights_from_batch(batch)
 
-            # Compute loss (with or without mass/bjet for DisCo)
+            # Compute loss (with or without mass for DisCo)
             if loss_requires_mass:
                 mass1 = batch.mass1.squeeze()
                 mass2 = batch.mass2.squeeze()
-                has_bjet = batch.has_bjet.squeeze()
-                loss = loss_fn(logits, batch.y, weights, mass1, mass2, has_bjet)
+                loss = loss_fn(logits, batch.y, weights, mass1, mass2)
             else:
                 loss = loss_fn(logits, batch.y, weights)
 

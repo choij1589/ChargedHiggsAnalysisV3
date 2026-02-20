@@ -90,27 +90,23 @@ class ResultPersistence:
         tree.Branch("mass1", mass1_arr, "mass1/F")
         tree.Branch("mass2", mass2_arr, "mass2/F")
 
-        # B-jet flag for decorrelation analysis
-        has_bjet_arr = array("f", [0.])
-        tree.Branch("has_bjet", has_bjet_arr, "has_bjet/F")
-
         # Save predictions for all data splits
         self._save_split_predictions(model, data_pipeline.train_loader, device, tree,
                                    score_arrays, true_label, event_weight,
                                    train_mask, valid_mask, test_mask,
-                                   mass1_arr, mass2_arr, has_bjet_arr,
+                                   mass1_arr, mass2_arr,
                                    is_train=True)
 
         self._save_split_predictions(model, data_pipeline.valid_loader, device, tree,
                                    score_arrays, true_label, event_weight,
                                    train_mask, valid_mask, test_mask,
-                                   mass1_arr, mass2_arr, has_bjet_arr,
+                                   mass1_arr, mass2_arr,
                                    is_valid=True)
 
         self._save_split_predictions(model, data_pipeline.test_loader, device, tree,
                                    score_arrays, true_label, event_weight,
                                    train_mask, valid_mask, test_mask,
-                                   mass1_arr, mass2_arr, has_bjet_arr,
+                                   mass1_arr, mass2_arr,
                                    is_test=True)
 
         # Write and close file
@@ -163,7 +159,7 @@ class ResultPersistence:
                                score_arrays: Dict[str, array], true_label: array,
                                event_weight: array,
                                train_mask: array, valid_mask: array, test_mask: array,
-                               mass1_arr: array, mass2_arr: array, has_bjet_arr: array,
+                               mass1_arr: array, mass2_arr: array,
                                is_train: bool = False, is_valid: bool = False,
                                is_test: bool = False) -> None:
         """Save predictions for a specific data split."""
@@ -195,9 +191,6 @@ class ResultPersistence:
                 batch_mass1 = batch.mass1.cpu().squeeze()
                 batch_mass2 = batch.mass2.cpu().squeeze()
 
-                # Extract has_bjet values from batch (for b-jet decorrelation analysis)
-                batch_has_bjet = batch.has_bjet.cpu().squeeze()
-
                 for i, (label, scores) in enumerate(zip(batch.y, out)):
                     true_label[0] = int(label.cpu().numpy())
 
@@ -215,9 +208,6 @@ class ResultPersistence:
                     # Save mass values for decorrelation analysis
                     mass1_arr[0] = float(batch_mass1[i].numpy()) if batch_mass1.dim() > 0 else float(batch_mass1.numpy())
                     mass2_arr[0] = float(batch_mass2[i].numpy()) if batch_mass2.dim() > 0 else float(batch_mass2.numpy())
-
-                    # Save has_bjet for b-jet decorrelation analysis
-                    has_bjet_arr[0] = float(batch_has_bjet[i].numpy()) if batch_has_bjet.dim() > 0 else float(batch_has_bjet.numpy())
 
                     tree.Fill()
 

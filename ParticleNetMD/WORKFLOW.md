@@ -26,19 +26,19 @@ For **1e2mu events** (Run1E2Mu channel):
 
 ## Quick Start
 
-### 1. Create Pilot Datasets
+### 1. Create Datasets
 ```bash
 cd /pscratch/sd/c/choij/workspace/ChargedHiggsAnalysisV3/ParticleNetMD
 
 # Signal
-python python/saveDataset.py --sample TTToHcToWAToMuMu-MHc130_MA90 --sample-type signal --channel Run3Mu --pilot
+python python/saveDataset.py --sample TTToHcToWAToMuMu-MHc130_MA90 --sample-type signal --channel Run3Mu
 
 # Backgrounds
-python python/saveDataset.py --sample Skim_TriLep_TTLL_powheg --sample-type background --channel Run3Mu --pilot
-python python/saveDataset.py --sample Skim_TriLep_WZTo3LNu_amcatnlo --sample-type background --channel Run3Mu --pilot
-python python/saveDataset.py --sample Skim_TriLep_ZZTo4L_powheg --sample-type background --channel Run3Mu --pilot
-python python/saveDataset.py --sample Skim_TriLep_TTZToLLNuNu --sample-type background --channel Run3Mu --pilot
-python python/saveDataset.py --sample Skim_TriLep_tZq --sample-type background --channel Run3Mu --pilot
+python python/saveDataset.py --sample Skim_TriLep_TTLL_powheg --sample-type background --channel Run3Mu
+python python/saveDataset.py --sample Skim_TriLep_WZTo3LNu_amcatnlo --sample-type background --channel Run3Mu
+python python/saveDataset.py --sample Skim_TriLep_ZZTo4L_powheg --sample-type background --channel Run3Mu
+python python/saveDataset.py --sample Skim_TriLep_TTZToLLNuNu --sample-type background --channel Run3Mu
+python python/saveDataset.py --sample Skim_TriLep_tZq --sample-type background --channel Run3Mu
 ```
 
 ### 2. Run Pilot Training
@@ -280,7 +280,7 @@ Output tree (`trees/{model_name}.root`) contains:
 - `score_signal`, `score_nonprompt`, `score_diboson`, `score_ttX` - class probabilities
 - `true_label` - ground truth (0=signal, 1=nonprompt, 2=diboson, 3=ttX)
 - `train_mask`, `valid_mask`, `test_mask` - data split flags
-- `has_bjet` - whether event contains b-jets
+- `has_bjet` - whether event contains b-jets (for analysis, not used in training)
 - `weight` - physics event weight
 - `mass1`, `mass2` - OS muon pair masses (for decorrelation analysis)
 

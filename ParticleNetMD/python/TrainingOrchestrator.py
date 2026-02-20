@@ -87,14 +87,12 @@ class TrainingOrchestrator:
         # Create loss function (with DisCo parameters if applicable)
         if self.config.args.loss_type == 'disco':
             disco_lambda = getattr(self.config.args, 'disco_lambda', 0.1)
-            disco_lambda_bjet = getattr(self.config.args, 'disco_lambda_bjet', 0.2)
             self.loss_fn = create_loss_function(
                 self.config.args.loss_type,
                 num_classes=self.config.num_classes,
-                disco_lambda=disco_lambda,
-                disco_lambda_bjet=disco_lambda_bjet
+                disco_lambda=disco_lambda
             )
-            logging.info(f"Using DisCo loss (lambda_mass={disco_lambda}, lambda_bjet={disco_lambda_bjet})")
+            logging.info(f"Using DisCo loss (lambda={disco_lambda})")
         else:
             self.loss_fn = create_loss_function(
                 self.config.args.loss_type,
@@ -170,7 +168,8 @@ class TrainingOrchestrator:
                 self.model, self.data_pipeline.train_loader,
                 self.optimizer, self.scheduler, self.loss_fn, self.device,
                 self.config.use_groups, self.config.num_classes,
-                self.config.args.scheduler, self.loss_requires_mass
+                self.config.args.scheduler, self.loss_requires_mass,
+                getattr(self.config.args, 'augment_phi_rotation', True)
             )
 
             # Validate (returns decomposed losses for DisCo)

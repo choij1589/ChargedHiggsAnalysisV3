@@ -32,15 +32,8 @@ if args.channel not in valid_channels:
     raise ValueError(f"Invalid channel {args.channel}. Valid options: {valid_channels}\n"
                      "Note: 'Combined' is handled by DynamicDatasetLoader at training time.")
 
-# Detect if sample is diboson (WZ or ZZ) for conditional b-jet requirement
-is_diboson = any(x in args.sample for x in ["WZTo3LNu", "ZZTo4L"])
-
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 WORKDIR = os.environ["WORKDIR"]
-
-if is_diboson:
-    logging.info(f"Diboson sample detected: {args.sample}")
-    logging.info("B-jet requirement relaxed for DisCo decorrelation")
 
 # Initialize dataset statistics dictionary
 dataset_stats = {
@@ -48,10 +41,8 @@ dataset_stats = {
     "sample": args.sample,
     "sample_type": args.sample_type,
     "channel": args.channel,
-    "is_diboson": is_diboson,
     "node_features": "[E, Px, Py, Pz, charge, isMuon, isElectron, isJet, isBjet]",
     "mass_decorrelation": True,
-    "bjet_requirement_relaxed": is_diboson,
     "eras": {},
     "folds": {},
     "total_events": 0,
@@ -78,10 +69,8 @@ for era in ["2016preVFP", "2016postVFP", "2017", "2018"]:
         rt = ROOT.TFile.Open(file_path)
 
         # Convert events to graph data (with masses for decorrelation)
-        # is_diboson flag relaxes b-jet requirement for DisCo decorrelation
         # No subsampling here - save all events, subsample at training time
         sampleDataTmp = rtfileToDataList(rt, args.sample, args.channel, era,
-                                       is_diboson=is_diboson,
                                        maxSize=-1, nFolds=nFolds)
         rt.Close()
 

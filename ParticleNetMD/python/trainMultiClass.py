@@ -62,11 +62,11 @@ class Config:
         self.args.loss_type = train_params.get('loss_type', 'disco')  # Default: disco
         self.args.balance = train_params['balance_weights']
         self.args.max_events_per_fold_per_class = train_params.get('max_events_per_fold_per_class')
+        self.args.augment_phi_rotation = train_params.get('augment_phi_rotation', True)
 
-        # DisCo parameters (for mass and b-jet decorrelation)
+        # DisCo parameters (for mass decorrelation)
         disco_params = self.sgl_config.config.get('disco_parameters', {})
         self.args.disco_lambda = disco_params.get('disco_lambda', 0.1)
-        self.args.disco_lambda_bjet = disco_params.get('disco_lambda_bjet', 0.2)
 
         # Model configuration
         self.args.model = model_config['default_model']
@@ -184,7 +184,7 @@ class Config:
         logging.info(f"Optimization: {self.args.optimizer} (LR: {self.args.initLR}, decay: {self.args.weight_decay})")
         logging.info(f"Schedule: {self.args.scheduler}, Loss: {self.args.loss_type}")
         if self.args.loss_type == 'disco':
-            logging.info(f"DisCo lambda (mass): {self.args.disco_lambda}, (bjet): {self.args.disco_lambda_bjet}")
+            logging.info(f"DisCo lambda: {self.args.disco_lambda}")
         logging.info(f"Classes: {self.num_classes}, Device: {self.args.device}")
         logging.info(f"Batch size: {self.args.batch_size}, Max epochs: {self.args.max_epochs}")
         logging.info(f"Pilot mode: {self.args.pilot}, Balance: {self.args.balance}")

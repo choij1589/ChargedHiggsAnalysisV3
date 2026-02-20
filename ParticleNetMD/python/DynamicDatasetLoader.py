@@ -12,12 +12,16 @@ class DynamicDatasetLoader:
     Maps MC samples to background categories and loads/combines samples at training time.
     """
 
-    def __init__(self, dataset_root):
+    def __init__(self, dataset_root, background_groups=None, background_prefix="Skim_TriLep_"):
         """
         Initialize the dynamic dataset loader.
 
         Args:
             dataset_root: Root directory containing samples/ subdirectory
+            background_groups: Dict mapping category names to sample lists (from config).
+                             e.g., {'nonprompt': ['TTLL_powheg', ...], 'diboson': ['WZTo3LNu_amcatnlo', ...]}
+                             If None, uses legacy hardcoded mapping.
+            background_prefix: Prefix to add to sample names from config (default: "Skim_TriLep_")
         """
         self.dataset_root = dataset_root
         self.samples_dir = os.path.join(self.dataset_root, "samples")
@@ -27,17 +31,31 @@ class DynamicDatasetLoader:
         if not os.path.exists(self.samples_dir):
             raise ValueError(f"Samples directory not found: {self.samples_dir}")
 
-        # Background category mapping: MC sample name -> physics category
-        self.background_categories = {
-            "Skim_TriLep_TTLL_powheg": "nonprompt",
-            "Skim_TriLep_DYJets": "prompt",
-            "Skim_TriLep_DYJets10to50": "prompt",
-            "Skim_TriLep_WZTo3LNu_amcatnlo": "diboson",
-            "Skim_TriLep_TTZToLLNuNu": "ttZ",
-            "Skim_TriLep_TTWToLNu": "ttW",
-            "Skim_TriLep_tZq": "rare_top",
-            # Add more mappings as needed
-        }
+        # Build background category mapping from config or use legacy defaults
+        if background_groups is not None:
+            # Dynamically build mapping from config: sample_full_name -> category
+            self.background_categories = {}
+            for category, samples in background_groups.items():
+                for sample in samples:
+                    # Add prefix if not already present
+                    if sample.startswith(background_prefix):
+                        full_name = sample
+                    else:
+                        full_name = background_prefix + sample
+                    self.background_categories[full_name] = category
+            logging.info(f"Built background_categories from config: {len(self.background_categories)} samples in {len(background_groups)} categories")
+        else:
+            # Legacy hardcoded mapping for backward compatibility
+            self.background_categories = {
+                "Skim_TriLep_TTLL_powheg": "nonprompt",
+                "Skim_TriLep_DYJets": "prompt",
+                "Skim_TriLep_DYJets10to50": "prompt",
+                "Skim_TriLep_WZTo3LNu_amcatnlo": "diboson",
+                "Skim_TriLep_TTZToLLNuNu": "ttZ",
+                "Skim_TriLep_TTWToLNu": "ttW",
+                "Skim_TriLep_tZq": "rare_top",
+            }
+            logging.debug("Using legacy hardcoded background_categories")
 
     def get_available_samples(self):
         """Get lists of available signal and background samples."""
@@ -723,11 +741,25 @@ class DynamicDatasetLoader:
 
 # Example usage
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
+
     # Example usage of the dynamic dataset loader
     WORKDIR = os.environ.get("WORKDIR", "/path/to/workdir")
-    dataset_root = f"{WORKDIR}/ParticleNet/dataset"
+    dataset_root = f"{WORKDIR}/ParticleNetMD/dataset"
 
-    loader = DynamicDatasetLoader(dataset_root)
+    # Example: Load background_groups from config (as done in training)
+    # This builds the sample-to-category mapping dynamically
+    background_groups = {
+        "nonprompt": ["TTLL_powheg", "TTLL_hdamp_down_powheg", "TTLL_hdamp_up_powheg"],
+        "diboson": ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"],
+        "ttX": ["TTZToLLNuNu", "tZq"]
+    }
+
+    loader = DynamicDatasetLoader(
+        dataset_root,
+        background_groups=background_groups,
+        background_prefix="Skim_TriLep_"
+    )
 
     # Check available samples and categories
     signals, backgrounds = loader.get_available_samples()
@@ -737,8 +769,8 @@ if __name__ == "__main__":
     print(f"Available background samples: {backgrounds}")
     print(f"Available background categories: {categories}")
 
-    # Show sample-to-category mapping
-    print(f"\nBackground sample mappings:")
+    # Show sample-to-category mapping (now built from config)
+    print(f"\nBackground sample mappings (from config):")
     for category in categories:
         samples = loader.get_samples_for_category(category)
         print(f"  {category}: {samples}")

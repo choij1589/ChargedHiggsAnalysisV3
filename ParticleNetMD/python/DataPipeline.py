@@ -36,7 +36,15 @@ class DataPipeline:
         self.config = config
         # ParticleNetMD always uses "dataset" directory
         self.dataset_root = f"{config.workdir}/ParticleNetMD/dataset"
-        self.loader = DynamicDatasetLoader(self.dataset_root)
+
+        # Pass background_groups from config to build dynamic sample-to-category mapping
+        background_groups = config.background_groups if config.use_groups else None
+        background_prefix = config.args.background_prefix
+        self.loader = DynamicDatasetLoader(
+            self.dataset_root,
+            background_groups=background_groups,
+            background_prefix=background_prefix
+        )
 
         # Dataset storage
         self.train_data = None

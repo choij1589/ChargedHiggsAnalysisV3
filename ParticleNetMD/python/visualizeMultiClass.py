@@ -210,8 +210,8 @@ def load_multiclass_predictions_from_root(root_file):
     """Load multiclass predictions from ROOT tree file for ParticleNetMD.
 
     Returns:
-        Tuple of (y_true_train, y_scores_train, weights_train, mass1_train, mass2_train, has_bjet_train,
-                  y_true_test, y_scores_test, weights_test, mass1_test, mass2_test, has_bjet_test,
+        Tuple of (y_true_train, y_scores_train, weights_train, mass1_train, mass2_train,
+                  y_true_test, y_scores_test, weights_test, mass1_test, mass2_test,
                   class_names)
     """
     if not os.path.exists(root_file):
@@ -239,7 +239,6 @@ def load_multiclass_predictions_from_root(root_file):
     sample_weights = np.zeros(n_entries)
     mass1 = np.zeros(n_entries)
     mass2 = np.zeros(n_entries)
-    has_bjet = np.zeros(n_entries)
 
     # Read tree entries
     for i, event in enumerate(tree):
@@ -253,7 +252,6 @@ def load_multiclass_predictions_from_root(root_file):
         sample_weights[i] = event.weight
         mass1[i] = event.mass1
         mass2[i] = event.mass2
-        has_bjet[i] = event.has_bjet
 
     f.Close()
 
@@ -266,14 +264,12 @@ def load_multiclass_predictions_from_root(root_file):
     weights_train = sample_weights[train_mask]
     mass1_train = mass1[train_mask]
     mass2_train = mass2[train_mask]
-    has_bjet_train = has_bjet[train_mask]
 
     y_true_test = y_true[test_mask]
     y_scores_test = y_scores[test_mask]
     weights_test = sample_weights[test_mask]
     mass1_test = mass1[test_mask]
     mass2_test = mass2[test_mask]
-    has_bjet_test = has_bjet[test_mask]
 
     logging.info(f"Loaded {len(y_true_train)} train + {len(y_true_test)} test samples from ROOT file")
     logging.info(f"Physics weight range: {sample_weights.min():.6f} to {sample_weights.max():.6f}")
@@ -288,8 +284,8 @@ def load_multiclass_predictions_from_root(root_file):
         weight_test = np.sum(weights_test[y_true_test == i])
         logging.info(f"  {class_name} (test): {count_test} events, total weight: {weight_test:.3f}")
 
-    return (y_true_train, y_scores_train, weights_train, mass1_train, mass2_train, has_bjet_train,
-            y_true_test, y_scores_test, weights_test, mass1_test, mass2_test, has_bjet_test,
+    return (y_true_train, y_scores_train, weights_train, mass1_train, mass2_train,
+            y_true_test, y_scores_test, weights_test, mass1_test, mass2_test,
             CLASS_DISPLAY_NAMES)
 
 
@@ -1422,10 +1418,10 @@ def main():
         config_data = load_training_data(ga_json_file)
         hyperparams = config_data.get('hyperparameters', {})
 
-        # Load prediction data with mass variables and b-jet flags
+        # Load prediction data with mass variables
         logging.info("Loading prediction data from ROOT file...")
-        (y_true_train, y_scores_train, weights_train, mass1_train, mass2_train, has_bjet_train,
-         y_true_test, y_scores_test, weights_test, mass1_test, mass2_test, has_bjet_test,
+        (y_true_train, y_scores_train, weights_train, mass1_train, mass2_train,
+         y_true_test, y_scores_test, weights_test, mass1_test, mass2_test,
          class_names) = load_multiclass_predictions_from_root(root_file)
 
         # =====================================================================
@@ -1460,9 +1456,7 @@ def main():
             y_true_test, y_scores_test, weights_test,
             args.output)
 
-        # Score distributions grid (split by has_bjet)
-        logging.info("Generating score distributions grid (bjet split)...")
-        plot_score_distributions_grid_bjet(y_true_test, y_scores_test, weights_test, has_bjet_test, args.output)
+        # Note: has_bjet analysis removed (b-jet requirement removed from preprocessing)
 
         # ROC curves
         logging.info("Generating ROC curves...")
