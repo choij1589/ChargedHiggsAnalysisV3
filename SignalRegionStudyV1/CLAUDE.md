@@ -2,9 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **DEPRECATED:** SignalRegionStudyV1 is the legacy pipeline. `SignalRegionStudyV2/` is the current baseline for signal region analysis and limit extraction. Use V2 for all new work.
+
 ## Module Overview
 
-SignalRegionStudyV1 is the final limit extraction module for charged Higgs searches. It processes templates from upstream modules (DiLepton, MeasFakeRate) and performs statistical inference using HiggsCombine.
+SignalRegionStudyV1 is the legacy final limit extraction module for charged Higgs searches. It processes templates from upstream modules (DiLepton, MeasFakeRate) and performs statistical inference using HiggsCombine.
 
 **Target physics:** Charged Higgs (MHc 70-160 GeV, MA 15-155 GeV)
 **Channels:** SR1E2Mu (e+2mu), SR3Mu (3mu), Combined
