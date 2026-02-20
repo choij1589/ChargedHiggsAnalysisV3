@@ -149,6 +149,8 @@ def main():
                         help="Template method")
     parser.add_argument("--binning", default="uniform",
                         help="Binning scheme")
+    parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
+                        help="Use partial-unblind templates (score < 0.3)")
     parser.add_argument("--output-era", default="FullRun2",
                         help="Output era name for era combination")
     parser.add_argument("--verbose", action="store_true",
@@ -163,18 +165,23 @@ def main():
     if not WORKDIR:
         raise EnvironmentError("WORKDIR not set. Run 'source setup.sh'")
 
+    # Construct binning suffix
+    binning_suffix = args.binning
+    if args.partial_unblind:
+        binning_suffix = f"{args.binning}_partial_unblind"
+
     try:
         if args.mode == "channel":
             if not args.era:
                 raise ValueError("--era is required for channel combination")
-            combine_channels(args.era, args.masspoint, args.method, args.binning, WORKDIR)
+            combine_channels(args.era, args.masspoint, args.method, binning_suffix, WORKDIR)
 
         elif args.mode == "era":
             if not args.channel:
                 raise ValueError("--channel is required for era combination")
             eras = args.eras.split(",") if args.eras else RUN2_ERAS
             combine_eras(eras, args.channel, args.masspoint, args.method,
-                        args.binning, args.output_era, WORKDIR)
+                        binning_suffix, args.output_era, WORKDIR)
 
     except Exception as e:
         logging.error(f"Failed: {e}")

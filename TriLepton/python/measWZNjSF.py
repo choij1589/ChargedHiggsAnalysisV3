@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import sys
 import argparse
 import logging
 import json
@@ -8,6 +9,9 @@ import ROOT
 from math import sqrt
 import correctionlib.schemav2 as cs
 
+WORKDIR = os.environ["WORKDIR"]
+from utils import build_sknanoutput_path
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--channel", required=True, type=str, help="channel (WZ1E2Mu, WZ3Mu, or WZCombined)")
@@ -15,7 +19,6 @@ parser.add_argument("--debug", action="store_true", default=False, help="debug")
 args = parser.parse_args()
 
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
-WORKDIR = os.environ["WORKDIR"]
 
 if args.channel not in ["WZ1E2Mu", "WZ3Mu", "WZCombined"]:
     raise ValueError(f"Invalid channel: {args.channel}")
@@ -51,6 +54,11 @@ json_samplegroup = json.load(open(f"configs/samplegroup.json"))
 json_systematics = json.load(open(f"configs/systematics.json"))
 json_nonprompt = json.load(open(f"configs/nonprompt.json"))
 
+# Load K-factors for MC normalization
+KFACTORS_PATH = f"{WORKDIR}/Common/Data/KFactors.json"
+with open(KFACTORS_PATH) as f:
+    KFACTORS = json.load(f)
+
 def get_hist_data(channels, era):
     """Get data histogram for one or more channels"""
     if isinstance(channels, str):
@@ -68,7 +76,7 @@ def get_hist_data(channels, era):
         
         DATAPERIODs = json_samplegroup[era][channel.replace("WZ", "")]["data"]
         for sample in DATAPERIODs:
-            file_path = f"{WORKDIR}/SKNanoOutput/CRPromptSelector/{flag}/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample)
             assert os.path.exists(file_path), f"file {file_path} does not exist"
             f = ROOT.TFile.Open(file_path)
             h = f.Get(f"{channel}/Central/jets/size")
@@ -105,7 +113,7 @@ def get_hist_nonprompt(channels, era, syst="Central"):
         nonprompt = json_samplegroup[era][channel.replace("WZ", "")]["nonprompt"]
         h_channel = None
         for sample in nonprompt:
-            file_path = f"{WORKDIR}/SKNanoOutput/CRMatrixSelector/{flag}/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, is_nonprompt=True)
             assert os.path.exists(file_path), f"file {file_path} does not exist"
             f = ROOT.TFile.Open(file_path)
             h = f.Get(f"{channel}/Central/jets/size")
@@ -143,7 +151,7 @@ def get_hist_mc(channels, era, mc, syst="Central"):
     """Get MC histogram for one or more channels"""
     if isinstance(channels, str):
         channels = [channels]
-    
+
     hist = None
     for channel in channels:
         # Determine the correct FLAG for this channel
@@ -153,13 +161,13 @@ def get_hist_mc(channels, era, mc, syst="Central"):
             flag = "Run3Mu"
         else:
             raise ValueError(f"Unknown channel: {channel}")
-        
+
         pred = json_samplegroup[era][channel.replace("WZ", "")][mc]
         for sample in pred:
-            file_path = f"{WORKDIR}/SKNanoOutput/CRPromptSelector/{flag}_RunSyst/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, run_syst=True)
             assert os.path.exists(file_path), f"file {file_path} does not exist"
             f = ROOT.TFile.Open(file_path)
-            
+
             # Try to get the systematic
             h = f.Get(f"{channel}/{syst}/jets/size")
             if not h:
@@ -177,9 +185,16 @@ def get_hist_mc(channels, era, mc, syst="Central"):
                     logging.warning(f"Cannot find {channel}/Central/jets/size for sample {sample}")
                     f.Close()
                     continue
-                
+
             h.SetDirectory(0)
             f.Close()
+
+            # Apply K-factor if available
+            if RUN in KFACTORS and sample in KFACTORS[RUN]:
+                kfactor = KFACTORS[RUN][sample]["kFactor"]
+                h.Scale(kfactor)
+                logging.debug(f"Applied K-factor {kfactor} to {sample}")
+
             if hist is None:
                 hist = h.Clone("hist")
                 hist.SetDirectory(0)
@@ -193,25 +208,23 @@ def get_hist_by_name(channels, era, name, syst="Central"):
     """Get histogram by sample name for one or more channels"""
     if isinstance(channels, str):
         channels = [channels]
-    
+
     hist = None
     for channel in channels:
         # Determine the correct FLAG for this channel
         if channel == "WZ1E2Mu":
             flag = "Run1E2Mu"
-            if name == samplename_WZ:
-                flag += "_RunNoWZSF"
         elif channel == "WZ3Mu":
             flag = "Run3Mu"
-            if name == samplename_WZ:
-                flag += "_RunNoWZSF"
         else:
             raise ValueError(f"Unknown channel: {channel}")
-       
-        file_path = f"{WORKDIR}/SKNanoOutput/CRPromptSelector/{flag}_RunSyst/{era}/Skim_TriLep_{name}.root"
+
+        # Use no_wzsf=True for WZ sample to get unscaled histogram
+        file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, name,
+                                           run_syst=True, no_wzsf=(name == samplename_WZ))
         assert os.path.exists(file_path), f"file {file_path} does not exist"
         f = ROOT.TFile.Open(file_path)
-        
+
         # Try to get the systematic
         h = f.Get(f"{channel}/{syst}/jets/size")
         if not h:
@@ -229,10 +242,16 @@ def get_hist_by_name(channels, era, name, syst="Central"):
                 logging.warning(f"Cannot find {channel}/Central/jets/size for sample {name}")
                 f.Close()
                 return None
-        
+
         h.SetDirectory(0)
         f.Close()
-        
+
+        # Apply K-factor if available
+        if RUN in KFACTORS and name in KFACTORS[RUN]:
+            kfactor = KFACTORS[RUN][name]["kFactor"]
+            h.Scale(kfactor)
+            logging.debug(f"Applied K-factor {kfactor} to {name}")
+
         if hist is None:
             hist = h.Clone("hist")
         else:

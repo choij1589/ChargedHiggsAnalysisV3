@@ -18,7 +18,7 @@ WORKDIR = os.getenv("WORKDIR")
 BASEDIR = f"{WORKDIR}/SignalRegionStudy/samples/{args.era}/{args.channel}/{args.masspoint}/{args.method}"
 
 # Load SignalRegionStudy library
-ROOT.gSystem.Load(f"{WORKDIR}/SignalRegionStudy/lib/libSignalRegionStudy.so")
+ROOT.gSystem.Load(f"{WORKDIR}/Common/Tools/cpp/lib/libCommonTools.so")
 
 # Load JSON configurations
 json_samplegroups = json.load(open(f"{WORKDIR}/SignalRegionStudy/configs/samplegroups.json"))

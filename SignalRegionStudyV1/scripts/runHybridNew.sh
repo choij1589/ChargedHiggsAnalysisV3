@@ -18,7 +18,7 @@ MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
 CONDOR=false
-NTOYS=500
+NTOYS=100
 NJOBS=10
 RMIN=0.0
 RMAX=2.0
@@ -28,6 +28,8 @@ VERBOSE=false
 MERGE_ONLY=false
 EXTRACT_ONLY=false
 AUTO_GRID=false
+PARTIAL_EXTRACT=false
+PLOT_ONLY=false
 
 # Quantiles for expected limits
 QUANTILES=(0.025 0.160 0.500 0.840 0.975)
@@ -91,6 +93,14 @@ while [[ $# -gt 0 ]]; do
             AUTO_GRID=true
             shift
             ;;
+        --partial-extract)
+            PARTIAL_EXTRACT=true
+            shift
+            ;;
+        --plot)
+            PLOT_ONLY=true
+            shift
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -109,7 +119,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (uniform, sigma) [default: uniform]"
+            echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
             echo "  --condor     Submit jobs to HTCondor"
             echo "  --ntoys      Number of toys per job [default: 500]"
             echo "  --njobs      Number of parallel jobs [default: 10]"
@@ -119,6 +129,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --merge-only Only merge existing toy results"
             echo "  --extract-only Only extract limits from merged grid"
             echo "  --auto-grid  Auto-tune grid from Asymptotic results (overrides rmin/rmax/rstep)"
+            echo "  --partial-extract  Extract limits from partial toys in condor/ dir (local, no condor)"
+            echo "  --plot       Generate plots from existing HybridNew output"
             echo "  --dry-run    Prepare DAG files without submitting (with --condor)"
             echo "  --verbose    Enable verbose output"
             exit 0
@@ -180,6 +192,87 @@ run_cmd() {
         log "Running: $1"
         eval "$1"
     fi
+}
+
+# ============================================================
+# Plotting Function
+# ============================================================
+generate_hybridnew_plots() {
+    local INPUT_DIR="$1"
+    local PLOTS_DIR="${INPUT_DIR}/plots"
+
+    echo ""
+    echo "Generating plots..."
+    mkdir -p "${PLOTS_DIR}"
+
+    # Check if required files exist - create grid if needed
+    if [[ ! -f "${INPUT_DIR}/hybridnew_grid.root" ]]; then
+        local TOY_COUNT=$(ls "${INPUT_DIR}"/higgsCombine.r*.root 2>/dev/null | wc -l)
+        if [[ "$TOY_COUNT" -gt 0 ]]; then
+            echo "  Merging ${TOY_COUNT} toy files..."
+            hadd -f "${INPUT_DIR}/hybridnew_grid.root" "${INPUT_DIR}"/higgsCombine.r*.root 2>&1 | tail -1
+        else
+            echo "ERROR: No toy files found in ${INPUT_DIR}"
+            return 1
+        fi
+    fi
+
+    # Plot CLs vs r curve (pass directory to read individual toy files, filtering zero CLs)
+    echo "  Creating CLs vs r plot..."
+    python3 ${WORKDIR}/SignalRegionStudyV1/python/plotHybridNewGrid.py \
+        "${INPUT_DIR}" \
+        -o "${PLOTS_DIR}/cls_vs_r.png" \
+        --title "${MASSPOINT} ${METHOD} ${BINNING}"
+
+    # Plot test statistic distributions for all r values
+    echo "  Creating test statistic distribution plots..."
+    python3 << EOFPYTHON
+import os
+import subprocess
+from collections import defaultdict
+
+input_dir = "${INPUT_DIR}"
+plots_dir = "${PLOTS_DIR}"
+workdir = "${WORKDIR}"
+masspoint = "${MASSPOINT}"
+method = "${METHOD}"
+
+# Find all unique r values from toy files
+completed = defaultdict(int)
+for fname in os.listdir(input_dir):
+    if fname.startswith("higgsCombine.r") and fname.endswith(".root"):
+        if "partial" in fname or "exp" in fname or "obs" in fname:
+            continue
+        try:
+            r_str = fname.split(".r")[1].split(".seed")[0]
+            r = float(r_str)
+            completed[r] += 1
+        except:
+            pass
+
+print(f"    Found {len(completed)} r-value points")
+
+# Plot test statistic for each r value with at least 2 toys
+for r in sorted(completed.keys()):
+    if completed[r] >= 2:
+        output_file = os.path.join(plots_dir, f"test_stat_r{r:.4f}.png")
+        script_path = os.path.join(workdir, "SignalRegionStudyV1/python/plotTestStatDist.py")
+        grid_file = os.path.join(input_dir, "hybridnew_grid.root")
+
+        cmd = [
+            "python3", script_path, grid_file,
+            "--r", str(r),
+            "-o", output_file,
+            "--title", f"{masspoint} r={r:.2f}"
+        ]
+        try:
+            subprocess.run(cmd, capture_output=True, check=True)
+            print(f"    r={r:.4f}: OK")
+        except subprocess.CalledProcessError:
+            print(f"    r={r:.4f}: FAILED")
+EOFPYTHON
+
+    echo "Plots saved to: ${PLOTS_DIR}/"
 }
 
 # Change to template directory
@@ -265,6 +358,190 @@ EOFPYTHON
     echo "  Auto-tuned: rmin=${RMIN}, rmax=${RMAX}, rstep=${RSTEP}"
 fi
 
+# ============================================================
+# Plot Only Mode (skip if --partial-extract is also specified)
+# ============================================================
+if [[ "$PLOT_ONLY" == true && "$PARTIAL_EXTRACT" == false ]]; then
+    echo ""
+    echo "=== Generate HybridNew Plots ==="
+    echo "Mass point: ${MASSPOINT}"
+    echo "Method: ${METHOD}"
+    echo "Binning: ${BINNING}"
+
+    # Find input directory (try partial_extract first, then condor)
+    if [[ -d "${TEMPLATE_DIR}/combine_output/hybridnew/partial_extract" ]]; then
+        INPUT_DIR="${TEMPLATE_DIR}/combine_output/hybridnew/partial_extract"
+    elif [[ -d "${TEMPLATE_DIR}/combine_output/hybridnew/condor" ]]; then
+        INPUT_DIR="${TEMPLATE_DIR}/combine_output/hybridnew/condor"
+    else
+        echo "ERROR: No HybridNew output directory found"
+        exit 1
+    fi
+
+    echo "Input directory: ${INPUT_DIR}"
+    generate_hybridnew_plots "${INPUT_DIR}"
+    exit 0
+fi
+
+# ============================================================
+# Partial Extract Mode
+# ============================================================
+if [[ "$PARTIAL_EXTRACT" == true ]]; then
+    echo ""
+    echo "=== Partial HybridNew Limit Extraction ==="
+    echo "Mass point: ${MASSPOINT}"
+    echo "Method: ${METHOD}"
+    echo "Binning: ${BINNING}"
+    echo ""
+
+    # Check condor directory exists
+    CONDOR_TOYS_DIR="${TEMPLATE_DIR}/combine_output/hybridnew/condor"
+    if [[ ! -d "$CONDOR_TOYS_DIR" ]]; then
+        echo "ERROR: No condor directory found at $CONDOR_TOYS_DIR"
+        exit 1
+    fi
+
+    # Check workspace exists
+    if [[ ! -f "${CONDOR_TOYS_DIR}/workspace.root" ]]; then
+        echo "ERROR: No workspace.root found in $CONDOR_TOYS_DIR"
+        exit 1
+    fi
+
+    # Create partial_extract directory
+    PARTIAL_DIR="${TEMPLATE_DIR}/combine_output/hybridnew/partial_extract"
+    mkdir -p "${PARTIAL_DIR}"
+    echo "Output directory: ${PARTIAL_DIR}"
+
+    # Copy workspace.root
+    cp "${CONDOR_TOYS_DIR}/workspace.root" "${PARTIAL_DIR}/"
+
+    # Count and copy toy files
+    TOY_FILES=$(ls "${CONDOR_TOYS_DIR}"/higgsCombine.r*.root 2>/dev/null | wc -l)
+    if [[ "$TOY_FILES" -eq 0 ]]; then
+        echo "ERROR: No toy files found in ${CONDOR_TOYS_DIR}/"
+        exit 1
+    fi
+
+    echo "Copying ${TOY_FILES} completed toy files..."
+    cp "${CONDOR_TOYS_DIR}"/higgsCombine.r*.root "${PARTIAL_DIR}/"
+
+    # Report r-value coverage
+    echo ""
+    echo "R-value coverage:"
+    python3 << EOFPYTHON
+import os
+from collections import defaultdict
+
+partial_dir = "${PARTIAL_DIR}"
+completed = defaultdict(int)
+
+for fname in os.listdir(partial_dir):
+    if fname.startswith("higgsCombine.r") and fname.endswith(".root") and "partial" not in fname:
+        try:
+            r_str = fname.split(".r")[1].split(".seed")[0]
+            r = float(r_str)
+            completed[r] += 1
+        except:
+            pass
+
+total_toys = sum(completed.values())
+complete_r = sorted([r for r, c in completed.items() if c >= 10])
+partial_r = sorted([r for r, c in completed.items() if 0 < c < 10])
+
+print(f"  Total toy files: {total_toys}")
+print(f"  Complete r-points (>=10 toys): {len(complete_r)}")
+if complete_r:
+    print(f"    Range: r = {min(complete_r):.2f} - {max(complete_r):.2f}")
+if partial_r:
+    print(f"  Partial r-points (<10 toys): {len(partial_r)}")
+    print(f"    Range: r = {min(partial_r):.2f} - {max(partial_r):.2f}")
+    print(f"    WARNING: Partial r-points may affect limit accuracy")
+EOFPYTHON
+
+    # Merge toys
+    echo ""
+    echo "Merging toy files..."
+    cd "${PARTIAL_DIR}"
+    hadd -f hybridnew_grid.root higgsCombine.r*.root 2>&1 | tail -3
+
+    # Extract limits for each quantile
+    echo ""
+    echo "Extracting limits..."
+    for q in 0.025 0.160 0.500 0.840 0.975; do
+        echo "  Quantile $q..."
+        combine -M HybridNew workspace.root \
+            --LHCmode LHC-limits \
+            --readHybridResults \
+            --grid=hybridnew_grid.root \
+            --expectedFromGrid $q \
+            -n .partial.exp${q} \
+            -m 120 \
+            2>&1 | grep -E "^(Limit|Expected)" || true
+    done
+
+    # Extract observed limit
+    echo "  Observed..."
+    combine -M HybridNew workspace.root \
+        --LHCmode LHC-limits \
+        --readHybridResults \
+        --grid=hybridnew_grid.root \
+        -n .partial.obs \
+        -m 120 \
+        2>&1 | grep -E "^(Limit|Observed)" || true
+
+    # Print summary
+    echo ""
+    echo "=== Extracted Limits ==="
+    python3 << EOFPYTHON
+import ROOT
+import os
+
+partial_dir = "${PARTIAL_DIR}"
+ROOT.gROOT.SetBatch(True)
+
+quantiles = {
+    "exp-2": "partial.exp0.025",
+    "exp-1": "partial.exp0.160",
+    "median": "partial.exp0.500",
+    "exp+1": "partial.exp0.840",
+    "exp+2": "partial.exp0.975",
+    "obs": "partial.obs"
+}
+
+results = {}
+for label, suffix in quantiles.items():
+    # Find file
+    for fname in os.listdir(partial_dir):
+        if suffix in fname and fname.endswith(".root"):
+            fpath = os.path.join(partial_dir, fname)
+            f = ROOT.TFile.Open(fpath)
+            if f and not f.IsZombie():
+                tree = f.Get("limit")
+                if tree and tree.GetEntries() > 0:
+                    tree.GetEntry(0)
+                    results[label] = tree.limit
+                f.Close()
+            break
+
+# Print results
+print(f"  -2σ expected: {results.get('exp-2', 'N/A'):.4f}" if 'exp-2' in results else "  -2σ expected: N/A")
+print(f"  -1σ expected: {results.get('exp-1', 'N/A'):.4f}" if 'exp-1' in results else "  -1σ expected: N/A")
+print(f"  Median expected: {results.get('median', 'N/A'):.4f}" if 'median' in results else "  Median expected: N/A")
+print(f"  +1σ expected: {results.get('exp+1', 'N/A'):.4f}" if 'exp+1' in results else "  +1σ expected: N/A")
+print(f"  +2σ expected: {results.get('exp+2', 'N/A'):.4f}" if 'exp+2' in results else "  +2σ expected: N/A")
+print(f"  Observed: {results.get('obs', 'N/A'):.4f}" if 'obs' in results else "  Observed: N/A")
+EOFPYTHON
+
+    # Generate plots
+    generate_hybridnew_plots "${PARTIAL_DIR}"
+
+    echo ""
+    echo "Results saved to: ${PARTIAL_DIR}/"
+    echo "Done."
+    exit 0
+fi
+# ============================================================
+
 echo "HybridNew limit calculation for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING})"
 echo "  Toys per job: ${NTOYS}"
 echo "  Number of jobs: ${NJOBS}"
@@ -310,7 +587,7 @@ if [[ "$CONDOR" == true ]]; then
     cat > "${CONDOR_DIR}/workspace.sh" << EOFWORKSPACE
 #!/bin/bash
 source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el8_amd64_gcc12
+export SCRAM_ARCH=el9_amd64_gcc12
 cd ${CMSSW_BASE}
 eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
@@ -343,8 +620,8 @@ transfer_input_files = ${WORKSPACE_INPUT_FILES}
 transfer_output_files = workspace.root
 when_to_transfer_output = ON_EXIT
 
-+SingularityImage = "${SINGULARITY_IMAGE}"
-+SingularityBind = "/cvmfs,/cms,/share"
+#+SingularityImage = "${SINGULARITY_IMAGE}"
+#+SingularityBind = "/cvmfs,/cms,/share"
 
 queue
 EOF
@@ -356,7 +633,7 @@ R_VALUE=\$1
 SEED=\$2
 
 source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el8_amd64_gcc12
+export SCRAM_ARCH=el9_amd64_gcc12
 cd ${CMSSW_BASE}
 eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
@@ -366,8 +643,13 @@ combine -M HybridNew workspace.root \\
     --singlePoint \${R_VALUE} \\
     --saveToys \\
     --saveHybridResult \\
+    --expectSignal 0 \\
     -T ${NTOYS} \\
+    -t -1 \\
     -s \${SEED} \\
+    --cminDefaultMinimizerStrategy 0 \\
+    --cminDefaultMinimizerTolerance 0.1 \\
+    --cminFallbackAlgo Minuit2,Simplex,0:0.2 \\
     -n .r\${R_VALUE}.seed\${SEED}
 EOFTOY
     chmod +x "${CONDOR_DIR}/toy.sh"
@@ -382,7 +664,7 @@ error = logs/toy_\$(r_value)_\$(seed).err
 log = hybridnew.log
 
 request_cpus = 1
-request_memory = 4GB
+RequestMemory = 6GB
 request_disk = 500MB
 
 should_transfer_files = YES
@@ -390,8 +672,8 @@ transfer_input_files = workspace.root
 transfer_output_files = higgsCombine.r\$(r_value).seed\$(seed).HybridNew.mH120.\$(seed).root
 when_to_transfer_output = ON_EXIT
 
-+SingularityImage = "${SINGULARITY_IMAGE}"
-+SingularityBind = "/cvmfs,/cms,/share"
+#+SingularityImage = "${SINGULARITY_IMAGE}"
+#+SingularityBind = "/cvmfs,/cms,/share"
 
 queue
 EOF
@@ -400,7 +682,7 @@ EOF
     cat > "${CONDOR_DIR}/merge.sh" << EOFMERGE
 #!/bin/bash
 source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el8_amd64_gcc12
+export SCRAM_ARCH=el9_amd64_gcc12
 cd ${CMSSW_BASE}
 eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
@@ -436,8 +718,8 @@ transfer_input_files = ${TOY_FILES_LIST}
 transfer_output_files = hybridnew_grid.root
 when_to_transfer_output = ON_EXIT
 
-+SingularityImage = "${SINGULARITY_IMAGE}"
-+SingularityBind = "/cvmfs,/cms,/share"
+#+SingularityImage = "${SINGULARITY_IMAGE}"
+#+SingularityBind = "/cvmfs,/cms,/share"
 
 queue
 EOF
@@ -449,7 +731,7 @@ QUANTILE=\$1
 NAME=\$2
 
 source /cvmfs/cms.cern.ch/cmsset_default.sh
-export SCRAM_ARCH=el8_amd64_gcc12
+export SCRAM_ARCH=el9_amd64_gcc12
 cd ${CMSSW_BASE}
 eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
@@ -495,8 +777,8 @@ transfer_input_files = workspace.root,hybridnew_grid.root
 transfer_output_files = combine_\$(name).out
 when_to_transfer_output = ON_EXIT
 
-+SingularityImage = "${SINGULARITY_IMAGE}"
-+SingularityBind = "/cvmfs,/cms,/share"
+#+SingularityImage = "${SINGULARITY_IMAGE}"
+#+SingularityBind = "/cvmfs,/cms,/share"
 
 queue
 EOF

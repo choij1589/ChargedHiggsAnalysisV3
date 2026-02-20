@@ -1,8 +1,6 @@
 #!/bin/bash
 ERAs=("2016preVFP" "2016postVFP" "2017" "2018" "2022" "2022EE" "2023" "2023BPix" "Run2" "Run3")
-#ERAs=("2016preVFP" "2016postVFP" "2017" "2018" "Run2")
-ERAs=("2022" "2022EE" "2023" "2023BPix" "Run3")
-CHANNELs=("DIMU" "EMU")
+CHANNELs=("EMU")
 
 for ERA in "${ERAs[@]}"; do
   for CHANNEL in "${CHANNELs[@]}"; do
@@ -16,4 +14,7 @@ export PATH=$PATH:$(pwd)/python
 for ERA in "${ERAs[@]}"; do
   echo "B-tagging SF"
   plotBtagSF.py --channel EMU --era $ERA
+  echo "JetVetoMap"
+  plotJetVetoMap.py --channel DIMU --era $ERA
+  plotJetVetoMap.py --channel EMU --era $ERA
 done

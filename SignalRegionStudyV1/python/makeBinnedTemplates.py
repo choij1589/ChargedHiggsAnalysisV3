@@ -1,23 +1,11 @@
 #!/usr/bin/env python3
 """
-Generate binned histogram templates for HiggsCombine from preprocessed ROOT files.
-
-This script creates shape-based templates with systematic variations for limit setting.
-Supports two binning methods:
-- uniform (default): 15 uniform bins in [mA - 5*sigma_voigt, mA + 5*sigma_voigt]
-- sigma: Non-uniform sigma-based bins at [-10, -6, -4, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 4, 6, 10] * sigma_voigt
-
-Features:
-- A mass fitting to extract signal parameters
-- PDF and QCDScale envelope creation from multi-variation systematics
-- Auto-merging of backgrounds with insufficient statistics
+Generate binned histogram templates for HiggsCombine.
 
 Usage:
     python makeBinnedTemplates.py --era 2018 --channel SR1E2Mu --masspoint MHc130_MA90 --method Baseline
-    python makeBinnedTemplates.py --era 2018 --channel SR1E2Mu --masspoint MHc130_MA90 --method Baseline --binning sigma
 """
 import os
-import re
 import shutil
 import logging
 import argparse
@@ -25,6 +13,11 @@ import json
 import ROOT
 import numpy as np
 from math import sqrt
+
+from template_utils import (
+    save_json, parse_variations, get_output_tree_name, ensure_positive_integral,
+    build_particlenet_score, create_filtered_rdf, create_scaled_hist
+)
 
 
 def parse_args():
@@ -34,17 +27,14 @@ def parse_args():
     parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
     parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
     parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet, etc.)")
-    parser.add_argument("--binning", default="uniform", choices=["uniform", "sigma"],
-                        help="Binning method: 'uniform' (15 bins, default) or 'sigma' (non-uniform)")
+    parser.add_argument("--binning", default="uniform", choices=["uniform", "extended"],
+                        help="Binning method: 'uniform' (15 bins, default) or 'extended' (15 bins + tails)")
+    parser.add_argument("--unblind", action="store_true",
+                        help="Use real data for data_obs instead of MC sum")
+    parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
+                        help="Unblind low LR region (score < 0.3). Requires --method ParticleNet")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args()
-
-
-def save_json(data, path):
-    """Save data to JSON file."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=2)
 
 
 def load_config(workdir, era, channel):
@@ -80,55 +70,8 @@ def load_config(workdir, era, channel):
     }
 
 
-def parse_variations(variation_spec):
-    """
-    Parse variation specification strings from config.
-
-    Supports:
-    - ["Var_Up", "Var_Down"] - simple list
-    - ["Scale_{0..8}//5,7"] - range with exclusions
-    - ["pdf_{00..99}"] - range with zero-padded numbers
-    """
-    if not isinstance(variation_spec, list):
-        return []
-
-    if len(variation_spec) == 1 and '{' in variation_spec[0]:
-        return _expand_range_pattern(variation_spec[0])
-    return variation_spec
-
-
-def _expand_range_pattern(pattern):
-    """Expand range pattern like 'Scale_{0..8}//5,7' or 'pdf_{00..99}'."""
-    exclusions = set()
-    if '//' in pattern:
-        pattern, excl_str = pattern.split('//')
-        exclusions = set(int(x) for x in excl_str.split(','))
-
-    match = re.search(r'\{(\d+)\.\.(\d+)\}', pattern)
-    if not match:
-        return [pattern]
-
-    start, end = int(match.group(1)), int(match.group(2))
-    start_str = match.group(1)
-    pad_width = len(start_str) if start_str.startswith('0') and len(start_str) > 1 else 0
-
-    prefix, suffix = pattern[:match.start()], pattern[match.end():]
-    return [
-        f"{prefix}{str(i).zfill(pad_width) if pad_width else str(i)}{suffix}"
-        for i in range(start, end + 1) if i not in exclusions
-    ]
-
-
 def categorize_systematics(config):
-    """
-    Categorize systematics from config into processing groups.
-
-    Returns dict with keys:
-    - preprocessed_shape: list of (syst_name, [variations], group)
-    - valued_shape: list of (syst_name, value, group)
-    - multi_variation: list of (syst_name, [variations], group) - for PDF/Scale
-    - valued_lnN: list of (syst_name, value, group)
-    """
+    """Categorize systematics into preprocessed_shape, valued_shape, multi_variation, valued_lnN."""
     result = {'preprocessed_shape': [], 'valued_shape': [], 'multi_variation': [], 'valued_lnN': []}
 
     for syst_name, syst_config in config.items():
@@ -154,15 +97,6 @@ def categorize_systematics(config):
     return result
 
 
-def get_output_tree_name(syst_name, variation):
-    """Get output tree name from systematic name and variation."""
-    if variation.endswith("_Up") or variation.endswith("Up"):
-        return f"{syst_name}_Up"
-    elif variation.endswith("_Down") or variation.endswith("Down"):
-        return f"{syst_name}_Down"
-    return variation
-
-
 # =============================================================================
 # Binning Functions
 # =============================================================================
@@ -170,7 +104,7 @@ def get_output_tree_name(syst_name, variation):
 def get_mass_window(mA, width, sigma, binning="uniform"):
     """Calculate mass window based on binning type. Returns (mass_min, mass_max)."""
     voigt_width = sqrt(width**2 + sigma**2)
-    if binning == "sigma":
+    if binning == "extended":
         return mA - 10 * voigt_width, mA + 10 * voigt_width
     else:  # uniform (default)
         return mA - 5 * voigt_width, mA + 5 * voigt_width
@@ -188,14 +122,22 @@ def calculateFixedBins(mA, width, sigma):
     return bin_edges
 
 
-def calculateSigmaBins(mA, width, sigma):
-    """Generate non-uniform sigma-based bin edges at [-10, -6, -4, -2.5, -1.5, 0.5, 0.5, 1.5, 2.5, 4, 6, 10] * sigma_voigt."""
+def calculateExtendedBins(mA, width, sigma):
+    """Generate extended bin edges: [-10, -7, -5]*sigma + 15 uniform bins in [-5, +5]*sigma + [+5, +7, +10]*sigma."""
     voigt_width = sqrt(width**2 + sigma**2)
-    sigma_fractions = [-10, -6, -4, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 4, 6, 10]
-    bin_edges = np.array([mA + f * voigt_width for f in sigma_fractions])
 
-    logging.info(f"Sigma binning: {len(bin_edges) - 1} bins, sigma_voigt={voigt_width:.3f} GeV")
-    logging.info(f"  Bin edges (in sigma): {sigma_fractions}")
+    # Use same 15 uniform bins as calculateFixedBins in [-5σ, +5σ]
+    uniform_sigma_fractions = np.linspace(-5, 5, 16)  # 16 edges for 15 bins
+
+    # Add extra bins at [-10, -7] on low side and [+7, +10] on high side
+    extra_low = np.array([-10, -7])
+    extra_high = np.array([7, 10])
+
+    sigma_fractions = np.concatenate([extra_low, uniform_sigma_fractions, extra_high])
+    bin_edges = mA + sigma_fractions * voigt_width
+
+    logging.info(f"Extended binning: {len(bin_edges) - 1} bins, sigma_voigt={voigt_width:.3f} GeV")
+    logging.info(f"  Bin edges (in sigma): {sigma_fractions.tolist()}")
     logging.info(f"  Bin edges (in GeV): [{bin_edges[0]:.2f}, ..., {bin_edges[-1]:.2f}]")
     return bin_edges
 
@@ -250,24 +192,8 @@ def loadFitResult(fit_result_path):
 # =============================================================================
 
 def getHist(basedir, process, bin_edges, mA, width, sigma, binning, syst="Central",
-            threshold=-999., bg_weights=None, masspoint=None):
-    """
-    Create histogram from preprocessed tree using RDataFrame.
-
-    Args:
-        basedir: Sample directory path
-        process: Process name (e.g., "MHc130_MA90", "nonprompt", "diboson")
-        bin_edges: Numpy array of bin edges in mass space (GeV)
-        mA, width, sigma: Signal parameters
-        binning: Binning method ("uniform" or "sigma")
-        syst: Systematic variation name (e.g., "Central", "MuonIDSF_Up")
-        threshold: ParticleNet score threshold for event selection
-        bg_weights: Dictionary of background weights
-        masspoint: Signal mass point name
-
-    Returns:
-        TH1D histogram
-    """
+            threshold=-999., upper_threshold=None, bg_weights=None, masspoint=None):
+    """Create histogram from preprocessed tree using RDataFrame."""
     file_path = f"{basedir}/{process}.root"
     tree_name = syst
 
@@ -304,33 +230,21 @@ def getHist(basedir, process, bin_edges, mA, width, sigma, binning, syst="Centra
     logging.debug(f"  Applied mass window cut: [{mass_min:.2f}, {mass_max:.2f}] GeV")
 
     # Apply ParticleNet score cut if threshold is provided
-    if threshold > -999. and masspoint:
+    if (threshold > -999. or upper_threshold is not None) and masspoint:
         score_sig = f"score_{masspoint}_signal"
-
         if score_sig in branches:
-            score_nonprompt = f"score_{masspoint}_nonprompt"
-            score_diboson = f"score_{masspoint}_diboson"
-            score_ttZ = f"score_{masspoint}_ttZ"
-
-            if bg_weights:
-                w1 = bg_weights.get("nonprompt", 1.0)
-                w2 = bg_weights.get("diboson", 1.0)
-                w3 = bg_weights.get("ttX", 1.0)
-                score_formula = f"({score_sig}) / ({score_sig} + {w1}*{score_nonprompt} + {w2}*{score_diboson} + {w3}*{score_ttZ})"
-            else:
-                score_formula = f"({score_sig}) / ({score_sig} + {score_nonprompt} + {score_diboson} + {score_ttZ})"
-
+            score_formula = build_particlenet_score(masspoint, bg_weights)
             rdf = rdf.Define("score_PN", score_formula)
-            rdf = rdf.Filter(f"score_PN >= {threshold}")
-            logging.debug(f"  Applied ParticleNet cut: score_PN >= {threshold:.3f}")
+            if upper_threshold is not None:
+                rdf = rdf.Filter(f"score_PN < {upper_threshold}")
+                logging.debug(f"  Applied ParticleNet cut: score_PN < {upper_threshold:.3f}")
+            elif threshold > -999.:
+                rdf = rdf.Filter(f"score_PN >= {threshold}")
+                logging.debug(f"  Applied ParticleNet cut: score_PN >= {threshold:.3f}")
         else:
-            # ParticleNet method requires score branches in all trees
-            # Raise error instead of silently skipping the LR cut
             raise RuntimeError(
                 f"ParticleNet score branches not found in {file_path}/{tree_name}\n"
-                f"  Expected branch: {score_sig}\n"
-                f"  This is required for method=ParticleNet to ensure PDF/Scale envelopes are calculated after LR cuts.\n"
-                f"  Ensure that preprocess.py copies score branches to all systematic trees."
+                f"  Expected branch: {score_sig}"
             )
 
     # Fill histogram
@@ -345,20 +259,20 @@ def getHist(basedir, process, bin_edges, mA, width, sigma, binning, syst="Centra
 
 
 def getHistMerged(basedir, process_list, bin_edges, mA, width, sigma, binning,
-                  syst="Central", threshold=-999., bg_weights=None, masspoint=None):
+                  syst="Central", threshold=-999., upper_threshold=None, bg_weights=None, masspoint=None):
     """Create merged histogram from multiple processes."""
     if len(process_list) == 0:
         raise ValueError("process_list cannot be empty")
 
     # Get first histogram
     hist_merged = getHist(basedir, process_list[0], bin_edges, mA, width, sigma, binning,
-                          syst, threshold, bg_weights, masspoint)
+                          syst, threshold, upper_threshold, bg_weights, masspoint)
 
     # Add remaining processes
     for process in process_list[1:]:
         try:
             hist_add = getHist(basedir, process, bin_edges, mA, width, sigma, binning,
-                              syst, threshold, bg_weights, masspoint)
+                              syst, threshold, upper_threshold, bg_weights, masspoint)
             hist_merged.Add(hist_add)
         except (FileNotFoundError, RuntimeError) as e:
             logging.warning(f"  Skipping {process} in merge: {e}")
@@ -367,23 +281,9 @@ def getHistMerged(basedir, process_list, bin_edges, mA, width, sigma, binning,
 
 
 def createEnvelopeHists(basedir, process, bin_edges, mA, width, sigma, binning,
-                        variations, syst_name, threshold=-999., bg_weights=None, masspoint=None):
-    """
-    Create up/down envelope histograms from multiple variations.
-
-    Args:
-        basedir: Sample directory path
-        process: Process name
-        bin_edges: Bin edges array
-        mA, width, sigma: Signal parameters
-        binning: Binning method
-        variations: List of variation tree names (e.g., ["PDF_0", "PDF_1", ...])
-        syst_name: Output systematic name (e.g., "pdf_00", "QCDscale_BSMsignal")
-        threshold, bg_weights, masspoint: Optional ParticleNet parameters
-
-    Returns:
-        Tuple of (hist_up, hist_down) envelope histograms
-    """
+                        variations, syst_name, threshold=-999., upper_threshold=None,
+                        bg_weights=None, masspoint=None):
+    """Create up/down envelope histograms from multiple variations."""
     logging.debug(f"Creating envelope for {process}_{syst_name} from {len(variations)} variations")
 
     # Collect all variation histograms
@@ -391,7 +291,7 @@ def createEnvelopeHists(basedir, process, bin_edges, mA, width, sigma, binning,
     for var in variations:
         try:
             hist = getHist(basedir, process, bin_edges, mA, width, sigma, binning,
-                          var, threshold, bg_weights, masspoint)
+                          var, threshold, upper_threshold, bg_weights, masspoint)
             variation_hists.append(hist)
         except (FileNotFoundError, RuntimeError) as e:
             logging.warning(f"  Skipping variation {var}: {e}")
@@ -401,7 +301,7 @@ def createEnvelopeHists(basedir, process, bin_edges, mA, width, sigma, binning,
 
     # Get central histogram for reference shape
     central_hist = getHist(basedir, process, bin_edges, mA, width, sigma, binning,
-                           "Central", threshold, bg_weights, masspoint)
+                           "Central", threshold, upper_threshold, bg_weights, masspoint)
 
     nbins = central_hist.GetNbinsX()
 
@@ -431,75 +331,61 @@ def createEnvelopeHists(basedir, process, bin_edges, mA, width, sigma, binning,
     return hist_up, hist_down
 
 
-def ensurePositiveIntegral(hist, min_integral=1e-10):
-    """
-    Ensure histogram has positive integral for normalization.
+def getDataHist(basedir, bin_edges, mA, width, sigma, binning,
+                upper_threshold=None, bg_weights=None, masspoint=None):
+    """Create data histogram from data.root file."""
+    file_path = f"{basedir}/data.root"
+    hist_name = "data_obs"
 
-    This prevents "Bogus norm" errors in Combine.
-    """
-    modified = False
+    logging.debug(f"Creating data histogram from {file_path}")
 
-    # Step 1: Fix negative bins
-    for i in range(1, hist.GetNbinsX() + 1):
-        content = hist.GetBinContent(i)
-        if content < 0:
-            logging.warning(f"  Histogram {hist.GetName()}, bin {i}: negative content {content:.4e}, setting to 0")
-            hist.SetBinContent(i, 0.0)
-            hist.SetBinError(i, 0.0)
-            modified = True
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Data file not found: {file_path}")
 
-    # Step 2: Ensure positive total integral
-    integral = hist.Integral()
-    if integral <= 0:
-        logging.warning(f"  Histogram {hist.GetName()} has non-positive integral: {integral:.4e}")
-        central_bin = hist.GetNbinsX() // 2 + 1
-        logging.warning(f"  Setting bin {central_bin} to {min_integral} to ensure positive normalization")
-        hist.SetBinContent(central_bin, min_integral)
-        hist.SetBinError(central_bin, min_integral)
-        modified = True
+    nbins = len(bin_edges) - 1
+    mass_min, mass_max = get_mass_window(mA, width, sigma, binning)
+    bin_edges_vector = ROOT.std.vector['double'](bin_edges)
 
-    return modified
+    # Check if tree exists and get branch list
+    test_file = ROOT.TFile.Open(file_path)
+    tree = test_file.Get("Central")
+    if not tree:
+        test_file.Close()
+        raise RuntimeError(f"Tree 'Central' not found in {file_path}")
 
+    branches = [b.GetName() for b in tree.GetListOfBranches()]
+    test_file.Close()
 
-def calculate_weight_scale(value, direction):
-    """
-    Calculate weight scale for valued+shape systematics.
+    # Create RDataFrame
+    rdf = ROOT.RDataFrame("Central", file_path)
 
-    For value >= 1: up = value, down = 2 - value
-    For value < 1: up = 1 + value, down = 1 - value
-    """
-    if value >= 1.0:
-        return value if direction == 'up' else 2.0 - value
-    return 1.0 + value if direction == 'up' else 1.0 - value
+    # Apply mass window cut
+    rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
+    logging.debug(f"  Applied mass window cut: [{mass_min:.2f}, {mass_max:.2f}] GeV")
 
+    # Apply upper threshold for partial-unblind
+    if upper_threshold is not None and masspoint:
+        score_sig = f"score_{masspoint}_signal"
+        if score_sig in branches:
+            score_formula = build_particlenet_score(masspoint, bg_weights)
+            rdf = rdf.Define("score_PN", score_formula)
+            rdf = rdf.Filter(f"score_PN < {upper_threshold}")
+            logging.debug(f"  Applied ParticleNet cut: score_PN < {upper_threshold:.3f}")
+        else:
+            raise RuntimeError(
+                f"ParticleNet score branches not found in {file_path}/Central\n"
+                f"  Expected branch: {score_sig}"
+            )
 
-def createScaledHist(central_hist, process, syst_name, value, direction):
-    """
-    Create a scaled histogram for valued+shape systematics.
+    # Fill histogram (data uses weight=1)
+    hist = rdf.Histo1D((hist_name, "", nbins, bin_edges_vector.data()), "mass")
 
-    Args:
-        central_hist: Central histogram to scale
-        process: Process name
-        syst_name: Systematic name
-        value: Systematic value from config
-        direction: 'up' or 'down'
+    hist_result = hist.GetValue()
+    hist_result.SetDirectory(0)
 
-    Returns:
-        TH1D histogram scaled by the systematic value
-    """
-    scale = calculate_weight_scale(value, direction)
+    logging.debug(f"Data histogram: {hist_result.GetEntries()} entries, integral = {hist_result.Integral():.4f}")
 
-    # Create clone with appropriate name (same convention as preprocessed: {process}_{syst_name}Up/Down)
-    suffix = "Up" if direction == "up" else "Down"
-    hist_name = f"{process}_{syst_name}{suffix}"
-
-    hist = central_hist.Clone(hist_name)
-    hist.SetDirectory(0)
-    hist.Scale(scale)
-
-    logging.debug(f"  Created scaled histogram {hist_name}: scale={scale:.4f}, integral={hist.Integral():.4f}")
-
-    return hist
+    return hist_result
 
 
 # =============================================================================
@@ -508,14 +394,8 @@ def createScaledHist(central_hist, process, syst_name, value, direction):
 
 def validateBackgroundStatistics(basedir, bin_edges, mA, width, sigma, binning,
                                   background_categories, masspoint, threshold=-999.,
-                                  bg_weights=None, min_total_events=1):
-    """
-    Validate statistical quality of each background process.
-
-    Args:
-        background_categories: List of background category names from config
-                              (excludes 'data', 'nonprompt', 'others')
-    """
+                                  upper_threshold=None, bg_weights=None, min_total_events=1):
+    """Validate statistical quality of each background process."""
     logging.info("Validating background statistics...")
 
     mass_min, mass_max = get_mass_window(mA, width, sigma, binning)
@@ -541,29 +421,20 @@ def validateBackgroundStatistics(basedir, bin_edges, mA, width, sigma, binning,
             rdf = ROOT.RDataFrame("Central", file_path)
             rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
 
-            if threshold > -999.:
+            if threshold > -999. or upper_threshold is not None:
                 test_file = ROOT.TFile.Open(file_path, "READ")
                 tree = test_file.Get("Central")
                 if tree:
                     branches = [b.GetName() for b in tree.GetListOfBranches()]
                     test_file.Close()
-
                     score_sig = f"score_{masspoint}_signal"
                     if score_sig in branches:
-                        score_nonprompt = f"score_{masspoint}_nonprompt"
-                        score_diboson = f"score_{masspoint}_diboson"
-                        score_ttZ = f"score_{masspoint}_ttZ"
-
-                        if bg_weights:
-                            w1 = bg_weights.get("nonprompt", 1.0)
-                            w2 = bg_weights.get("diboson", 1.0)
-                            w3 = bg_weights.get("ttX", 1.0)
-                            score_formula = f"({score_sig}) / ({score_sig} + {w1}*{score_nonprompt} + {w2}*{score_diboson} + {w3}*{score_ttZ})"
-                        else:
-                            score_formula = f"({score_sig}) / ({score_sig} + {score_nonprompt} + {score_diboson} + {score_ttZ})"
-
+                        score_formula = build_particlenet_score(masspoint, bg_weights)
                         rdf = rdf.Define("score_PN", score_formula)
-                        rdf = rdf.Filter(f"score_PN >= {threshold}")
+                        if upper_threshold is not None:
+                            rdf = rdf.Filter(f"score_PN < {upper_threshold}")
+                        elif threshold > -999.:
+                            rdf = rdf.Filter(f"score_PN >= {threshold}")
                 else:
                     test_file.Close()
 
@@ -595,12 +466,7 @@ def validateBackgroundStatistics(basedir, bin_edges, mA, width, sigma, binning,
 
 
 def determineProcessList(validation_results, background_categories):
-    """Determine final process list based on validation.
-
-    Args:
-        validation_results: Dict from validateBackgroundStatistics()
-        background_categories: List of background category names from config
-    """
+    """Determine final process list based on validation."""
     separate_processes = ["nonprompt"]  # Always separate
     merged_to_others = []
 
@@ -637,14 +503,7 @@ PARTICLENET_CLASS_MAPPING = {
 
 
 def getBackgroundWeights(basedir, mA, width, sigma, binning, outdir):
-    """
-    Calculate normalized background class weights for ParticleNet.
-
-    Maps config background categories to 3 ParticleNet classes:
-    - nonprompt
-    - diboson (includes WZ, ZZ)
-    - ttX (includes ttW, ttZ, ttH, tZq)
-    """
+    """Calculate normalized background class weights for ParticleNet."""
     logging.info("Calculating background cross-section weights:")
 
     mass_min, mass_max = get_mass_window(mA, width, sigma, binning)
@@ -815,13 +674,24 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
                         format='%(levelname)s - %(message)s')
 
+    # Validate unblind options
+    if args.unblind and args.partial_unblind:
+        raise ValueError("--unblind and --partial-unblind are mutually exclusive")
+    if args.partial_unblind and args.method != "ParticleNet":
+        raise ValueError("--partial-unblind requires --method ParticleNet")
+
     workdir = os.getenv("WORKDIR")
     if not workdir:
         raise EnvironmentError("WORKDIR environment variable not set. Please run 'source setup.sh'")
 
     # Paths
     basedir = f"{workdir}/SignalRegionStudyV1/samples/{args.era}/{args.channel}/{args.masspoint}"
-    outdir = f"{workdir}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{args.binning}"
+    binning_suffix = args.binning
+    if args.unblind:
+        binning_suffix = f"{args.binning}_unblind"
+    elif args.partial_unblind:
+        binning_suffix = f"{args.binning}_partial_unblind"
+    outdir = f"{workdir}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{binning_suffix}"
 
     logging.info(f"Starting template generation")
     logging.info(f"  Mass point: {args.masspoint}")
@@ -863,7 +733,7 @@ def main():
     logging.info("=" * 60)
 
     if args.channel == "SR3Mu":
-        sr1e2mu_fit_path = f"{workdir}/SignalRegionStudyV1/templates/{args.era}/SR1E2Mu/{args.masspoint}/{args.method}/{args.binning}/fit_result.root"
+        sr1e2mu_fit_path = f"{workdir}/SignalRegionStudyV1/templates/{args.era}/SR1E2Mu/{args.masspoint}/{args.method}/{binning_suffix}/fit_result.root"
 
         if not os.path.exists(sr1e2mu_fit_path):
             raise FileNotFoundError(
@@ -903,9 +773,9 @@ def main():
     logging.info(f"Calculating {args.binning} binning...")
     logging.info("=" * 60)
 
-    if args.binning == "sigma":
-        bin_edges = calculateSigmaBins(mA, width, sigma)
-        binning_method = "SigmaBased"
+    if args.binning == "extended":
+        bin_edges = calculateExtendedBins(mA, width, sigma)
+        binning_method = "ExtendedBins"
     else:
         bin_edges = calculateFixedBins(mA, width, sigma)
         binning_method = "UniformMass"
@@ -936,6 +806,12 @@ def main():
     # ========================================
     bg_weights = None
     best_threshold = -999.
+    upper_threshold = None
+
+    # For partial-unblind, use upper threshold of 0.3 (no lower cut)
+    if args.partial_unblind:
+        upper_threshold = 0.3
+        logging.info(f"Partial-unblind mode: using upper_threshold = {upper_threshold}")
 
     if args.method == "ParticleNet":
         logging.info("=" * 60)
@@ -944,42 +820,46 @@ def main():
 
         bg_weights = getBackgroundWeights(basedir, mA, width, sigma, args.binning, outdir)
 
-        # Load signal dataset
-        scores_sig, weights_sig, _ = loadDataset(basedir, args.masspoint, args.masspoint, mA, width, sigma, args.binning, bg_weights)
-
-        if len(scores_sig) == 0:
-            logging.warning("ParticleNet scores not found! Proceeding without cuts.")
+        # Skip threshold optimization for partial-unblind (using upper_threshold instead)
+        if args.partial_unblind:
+            logging.info("Skipping threshold optimization for partial-unblind mode")
         else:
-            # Load background datasets from all background categories + nonprompt + others
-            scores_bkg_list = []
-            weights_bkg_list = []
+            # Load signal dataset
+            scores_sig, weights_sig, _ = loadDataset(basedir, args.masspoint, args.masspoint, mA, width, sigma, args.binning, bg_weights)
 
-            # Build list of all background processes to load
-            bkg_processes = ["nonprompt"] + [("conversion" if c == "conv" else c) for c in background_categories] + ["others"]
-            logging.info(f"Loading backgrounds for optimization: {bkg_processes}")
+            if len(scores_sig) == 0:
+                logging.warning("ParticleNet scores not found! Proceeding without cuts.")
+            else:
+                # Load background datasets from all background categories + nonprompt + others
+                scores_bkg_list = []
+                weights_bkg_list = []
 
-            for process in bkg_processes:
-                scores, weights, _ = loadDataset(basedir, process, args.masspoint, mA, width, sigma, args.binning, bg_weights)
-                if len(scores) > 0:
-                    scores_bkg_list.append(scores)
-                    weights_bkg_list.append(weights)
+                # Build list of all background processes to load
+                bkg_processes = ["nonprompt"] + [("conversion" if c == "conv" else c) for c in background_categories] + ["others"]
+                logging.info(f"Loading backgrounds for optimization: {bkg_processes}")
 
-            if len(scores_bkg_list) > 0:
-                scores_bkg = np.concatenate(scores_bkg_list)
-                weights_bkg = np.concatenate(weights_bkg_list)
+                for process in bkg_processes:
+                    scores, weights, _ = loadDataset(basedir, process, args.masspoint, mA, width, sigma, args.binning, bg_weights)
+                    if len(scores) > 0:
+                        scores_bkg_list.append(scores)
+                        weights_bkg_list.append(weights)
 
-                best_threshold, initial_sensitivity, max_sensitivity = getOptimizedThreshold(
-                    scores_sig, weights_sig, scores_bkg, weights_bkg
-                )
+                if len(scores_bkg_list) > 0:
+                    scores_bkg = np.concatenate(scores_bkg_list)
+                    weights_bkg = np.concatenate(weights_bkg_list)
 
-                improvement = (max_sensitivity / initial_sensitivity - 1) if initial_sensitivity > 0 else 0
-                save_json({
-                    "masspoint": args.masspoint,
-                    "threshold": float(best_threshold),
-                    "initial_sensitivity": float(initial_sensitivity),
-                    "max_sensitivity": float(max_sensitivity),
-                    "improvement": float(improvement)
-                }, f"{outdir}/threshold.json")
+                    best_threshold, initial_sensitivity, max_sensitivity = getOptimizedThreshold(
+                        scores_sig, weights_sig, scores_bkg, weights_bkg
+                    )
+
+                    improvement = (max_sensitivity / initial_sensitivity - 1) if initial_sensitivity > 0 else 0
+                    save_json({
+                        "masspoint": args.masspoint,
+                        "threshold": float(best_threshold),
+                        "initial_sensitivity": float(initial_sensitivity),
+                        "max_sensitivity": float(max_sensitivity),
+                        "improvement": float(improvement)
+                    }, f"{outdir}/threshold.json")
 
     # ========================================
     # Validate Background Statistics
@@ -990,8 +870,8 @@ def main():
 
     validation_results = validateBackgroundStatistics(
         basedir, bin_edges, mA, width, sigma, args.binning,
-        background_categories, args.masspoint, best_threshold, bg_weights,
-        min_total_events=1
+        background_categories, args.masspoint, best_threshold, upper_threshold,
+        bg_weights, min_total_events=1
     )
 
     save_json({
@@ -1031,8 +911,16 @@ def main():
     # Initialize data_obs histogram
     nbins = len(bin_edges) - 1
     bin_edges_vector = ROOT.std.vector['double'](bin_edges)
-    data_obs = ROOT.TH1D("data_obs", "data_obs", nbins, bin_edges_vector.data())
-    data_obs.SetDirectory(0)
+
+    if args.unblind or args.partial_unblind:
+        # Use real data for data_obs
+        logging.info("Using real data for data_obs")
+        data_obs = getDataHist(basedir, bin_edges, mA, width, sigma, args.binning,
+                               upper_threshold, bg_weights, args.masspoint)
+    else:
+        # Initialize empty histogram to sum backgrounds
+        data_obs = ROOT.TH1D("data_obs", "data_obs", nbins, bin_edges_vector.data())
+        data_obs.SetDirectory(0)
 
     background_hists = {}
 
@@ -1043,8 +931,8 @@ def main():
 
     # Central histogram
     hist_signal_central = getHist(basedir, args.masspoint, bin_edges, mA, width, sigma, args.binning,
-                                   "Central", best_threshold, bg_weights, args.masspoint)
-    ensurePositiveIntegral(hist_signal_central)
+                                   "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
+    ensure_positive_integral(hist_signal_central)
     output_file.cd()
     hist_signal_central.Write()
 
@@ -1057,8 +945,8 @@ def main():
             output_tree = get_output_tree_name(syst_name, var)
             try:
                 hist = getHist(basedir, args.masspoint, bin_edges, mA, width, sigma, args.binning,
-                              output_tree, best_threshold, bg_weights, args.masspoint)
-                ensurePositiveIntegral(hist)
+                              output_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
+                ensure_positive_integral(hist)
                 output_file.cd()
                 hist.Write()
             except (FileNotFoundError, RuntimeError) as e:
@@ -1070,8 +958,8 @@ def main():
             continue
         logging.debug(f"  Processing signal valued systematic: {syst_name} (value={value})")
         for direction in ["up", "down"]:
-            hist = createScaledHist(hist_signal_central, args.masspoint, syst_name, value, direction)
-            ensurePositiveIntegral(hist)
+            hist = create_scaled_hist(hist_signal_central, args.masspoint, syst_name, value, direction)
+            ensure_positive_integral(hist)
             output_file.cd()
             hist.Write()
 
@@ -1095,10 +983,10 @@ def main():
         try:
             hist_up, hist_down = createEnvelopeHists(
                 basedir, args.masspoint, bin_edges, mA, width, sigma, args.binning,
-                tree_variations, syst_name, best_threshold, bg_weights, args.masspoint
+                tree_variations, syst_name, best_threshold, upper_threshold, bg_weights, args.masspoint
             )
-            ensurePositiveIntegral(hist_up)
-            ensurePositiveIntegral(hist_down)
+            ensure_positive_integral(hist_up)
+            ensure_positive_integral(hist_down)
             output_file.cd()
             hist_up.Write()
             hist_down.Write()
@@ -1115,9 +1003,10 @@ def main():
 
         # Central histogram
         hist_central = getHist(basedir, process, bin_edges, mA, width, sigma, args.binning,
-                               "Central", best_threshold, bg_weights, args.masspoint)
-        ensurePositiveIntegral(hist_central)
-        data_obs.Add(hist_central)
+                               "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
+        ensure_positive_integral(hist_central)
+        if not (args.unblind or args.partial_unblind):
+            data_obs.Add(hist_central)
         output_file.cd()
         hist_central.Write()
         background_hists[process] = hist_central
@@ -1129,23 +1018,22 @@ def main():
                 if "nonprompt" not in grp:
                     continue
                 for direction in ["up", "down"]:
-                    hist = createScaledHist(hist_central, process, syst_name, value, direction)
-                    ensurePositiveIntegral(hist)
+                    hist = create_scaled_hist(hist_central, process, syst_name, value, direction)
+                    ensure_positive_integral(hist)
                     output_file.cd()
                     hist.Write()
         else:
-            # Prompt systematics - map process name back to config category
-            category = "conv" if process == "conversion" else process
-
+            # Prompt systematics - use process name directly
+            # Note: systematics config uses "conversion" in groups, not "conv"
             for syst_name, variations, group in syst_categories['preprocessed_shape']:
-                if category not in group:
+                if process not in group:
                     continue
                 for var in variations:
                     output_tree = get_output_tree_name(syst_name, var)
                     try:
                         hist = getHist(basedir, process, bin_edges, mA, width, sigma, args.binning,
-                                      output_tree, best_threshold, bg_weights, args.masspoint)
-                        ensurePositiveIntegral(hist)
+                                      output_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
+                        ensure_positive_integral(hist)
                         output_file.cd()
                         hist.Write()
                     except (FileNotFoundError, RuntimeError) as e:
@@ -1153,11 +1041,11 @@ def main():
 
             # Valued shape systematics (created by scaling Central histogram)
             for syst_name, value, group in syst_categories['valued_shape']:
-                if category not in group:
+                if process not in group:
                     continue
                 for direction in ["up", "down"]:
-                    hist = createScaledHist(hist_central, process, syst_name, value, direction)
-                    ensurePositiveIntegral(hist)
+                    hist = create_scaled_hist(hist_central, process, syst_name, value, direction)
+                    ensure_positive_integral(hist)
                     output_file.cd()
                     hist.Write()
 
@@ -1173,19 +1061,20 @@ def main():
 
     # Central histogram
     hist_others = getHistMerged(basedir, others_process_list, bin_edges, mA, width, sigma, args.binning,
-                                "Central", best_threshold, bg_weights, args.masspoint)
-    ensurePositiveIntegral(hist_others)
-    data_obs.Add(hist_others)
+                                "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
+    ensure_positive_integral(hist_others)
+    if not (args.unblind or args.partial_unblind):
+        data_obs.Add(hist_others)
     output_file.cd()
     hist_others.Write()
     background_hists["others"] = hist_others
 
     # Prompt systematics for others
-    # Build list of categories that could be in "others"
-    others_categories = background_categories + ["others"]
+    # Build list of process names that could be in "others" (use actual process names for group matching)
+    others_process_names = [("conversion" if c == "conv" else c) for c in background_categories] + ["others"]
     for syst_name, variations, group in syst_categories['preprocessed_shape']:
         # Apply to all prompt backgrounds in "others"
-        applicable = any(cat in group for cat in others_categories)
+        applicable = any(proc in group for proc in others_process_names)
         if not applicable:
             continue
 
@@ -1193,8 +1082,8 @@ def main():
             output_tree = get_output_tree_name(syst_name, var)
             try:
                 hist = getHistMerged(basedir, others_process_list, bin_edges, mA, width, sigma, args.binning,
-                                    output_tree, best_threshold, bg_weights, args.masspoint)
-                ensurePositiveIntegral(hist)
+                                    output_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
+                ensure_positive_integral(hist)
                 output_file.cd()
                 hist.Write()
             except (FileNotFoundError, RuntimeError) as e:
@@ -1202,13 +1091,13 @@ def main():
 
     # Valued shape systematics (created by scaling merged Central histogram)
     for syst_name, value, group in syst_categories['valued_shape']:
-        applicable = any(cat in group for cat in others_categories)
+        applicable = any(proc in group for proc in others_process_names)
         if not applicable:
             continue
 
         for direction in ["up", "down"]:
-            hist = createScaledHist(hist_others, "others", syst_name, value, direction)
-            ensurePositiveIntegral(hist)
+            hist = create_scaled_hist(hist_others, "others", syst_name, value, direction)
+            ensure_positive_integral(hist)
             output_file.cd()
             hist.Write()
 
@@ -1217,7 +1106,11 @@ def main():
     # ========================================
     # Write data_obs
     # ========================================
-    logging.info(f"Writing data_obs (sum of all backgrounds, integral = {data_obs.Integral():.4f})")
+    if args.unblind or args.partial_unblind:
+        data_source = "real data" + (" (score < 0.3)" if args.partial_unblind else "")
+    else:
+        data_source = "sum of all backgrounds"
+    logging.info(f"Writing data_obs ({data_source}, integral = {data_obs.Integral():.4f})")
     output_file.cd()
     data_obs.Write()
 

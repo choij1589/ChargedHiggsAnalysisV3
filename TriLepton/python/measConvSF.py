@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import sys
 import argparse
 import logging
 import json
@@ -9,6 +10,9 @@ import ROOT
 from math import sqrt
 import correctionlib.schemav2 as cs
 
+WORKDIR = os.environ["WORKDIR"]
+from utils import build_sknanoutput_path
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--channel", required=True, type=str, help="channel (ZG1E2Mu, ZG3Mu, or ZGCombined)")
@@ -16,7 +20,6 @@ parser.add_argument("--debug", action="store_true", default=False, help="debug")
 args = parser.parse_args()
 
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
-WORKDIR = os.environ["WORKDIR"]
 
 if args.channel not in ["ZG1E2Mu", "ZG3Mu", "ZGCombined"]:
     raise ValueError(f"Invalid channel: {args.channel}")
@@ -48,6 +51,11 @@ json_samplegroup = json.load(open(f"configs/samplegroup.json"))
 json_systematics = json.load(open(f"configs/systematics.json"))
 json_nonprompt = json.load(open(f"configs/nonprompt.json"))
 
+# Load K-factors for MC normalization
+KFACTORS_PATH = f"{WORKDIR}/Common/Data/KFactors.json"
+with open(KFACTORS_PATH) as f:
+    KFACTORS = json.load(f)
+
 def get_yield_data_with_error(channels, era):
     """Get data yield with statistical error for one or more channels"""
     if isinstance(channels, str):
@@ -66,7 +74,7 @@ def get_yield_data_with_error(channels, era):
 
         DATAPERIODs = json_samplegroup[era][channel.replace("ZG", "")]["data"]
         for sample in DATAPERIODs:
-            file_path = f"{WORKDIR}/SKNanoOutput/CRPromptSelector/{flag}/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample)
             assert os.path.exists(file_path), f"file {file_path} does not exist"
             f = ROOT.TFile.Open(file_path)
             h = f.Get(f"{channel}/Central/ZCand/mass")
@@ -105,9 +113,9 @@ def get_yield_nonprompt_with_error(channels, era, syst="Central"):
         nonprompt = json_samplegroup[era][channel.replace("ZG", "")]["nonprompt"]
         channel_yield = 0.0
         channel_error_sq = 0.0
-        
+
         for sample in nonprompt:
-            file_path = f"{WORKDIR}/SKNanoOutput/CRMatrixSelector/{flag}/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, is_nonprompt=True)
             assert os.path.exists(file_path), f"file {file_path} does not exist"
             f = ROOT.TFile.Open(file_path)
             h = f.Get(f"{channel}/Central/ZCand/mass")
@@ -146,6 +154,12 @@ def get_yield_mc_with_error(channels, era, mc, syst="Central"):
     if isinstance(channels, str):
         channels = [channels]
 
+    # Infer run from era for K-factor lookup
+    if era in ["Run2", "2016preVFP", "2016postVFP", "2017", "2018"]:
+        run = "Run2"
+    else:
+        run = "Run3"
+
     total_yield = 0.0
     total_error_sq = 0.0
     for channel in channels:
@@ -164,7 +178,7 @@ def get_yield_mc_with_error(channels, era, mc, syst="Central"):
             continue
 
         for sample in mc_samples:
-            file_path = f"{WORKDIR}/SKNanoOutput/CRPromptSelector/{flag}_RunSyst/{era}/Skim_TriLep_{sample}.root"
+            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, run_syst=True)
             if not os.path.exists(file_path):
                 logging.warning(f"File {file_path} does not exist, skipping")
                 continue
@@ -190,6 +204,14 @@ def get_yield_mc_with_error(channels, era, mc, syst="Central"):
             error = ctypes.c_double(0.0)
             yield_value = h.IntegralAndError(0, h.GetNbinsX() + 1, error)
             f.Close()
+
+            # Apply K-factor if available
+            if run in KFACTORS and sample in KFACTORS[run]:
+                kfactor = KFACTORS[run][sample]["kFactor"]
+                yield_value *= kfactor
+                error.value *= kfactor
+                logging.debug(f"Applied K-factor {kfactor} to {sample}")
+
             total_yield += yield_value
             total_error_sq += error.value * error.value
 

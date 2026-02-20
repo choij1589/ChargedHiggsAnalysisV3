@@ -74,7 +74,7 @@ def get_hist(sample, ptcorr, abseta, wp, syst="Central"):
         f.Close()
         return h
     except:
-        print(f"Cannot find {prefix}/QCDEnriched/{wp}/{syst}/MT for sample {sample}")
+        logging.debug(f"Cannot find {prefix}/QCDEnriched/{wp}/{syst}/MT for sample {sample}")
         return None
     
 def collect_data(sample, wp, syst):
@@ -106,7 +106,10 @@ if __name__ == "__main__":
         for syst in SelectionVariations:
             data = collect_data(sample, wp, syst)
             data_dict[syst] = {index_col[i]: data[i] for i in range(len(data))}
-        
+        # Store statistical errors
+        data = collect_data(sample, wp, "Stat")
+        data_dict["Stat"] = {index_col[i]: data[i] for i in range(len(data))}
+
         json_path = f"results/{args.era}/JSON/{args.measure}/{sample}_{wp}.json"
         os.makedirs(os.path.dirname(json_path), exist_ok=True)
         with open(json_path, 'w') as f:
@@ -118,13 +121,16 @@ if __name__ == "__main__":
         for syst in SelectionVariations:
             data = collect_data(sample, wp, syst)
             data_dict[syst] = {index_col[i]: data[i] for i in range(len(data))}
+        # Store statistical errors
+        data = collect_data(sample, wp, "Stat")
+        data_dict["Stat"] = {index_col[i]: data[i] for i in range(len(data))}
         for syst, source in PromptSystematics.items():
             syst_up, syst_down = tuple(source)
             data_up = collect_data(sample, wp, syst_up)
             data_down = collect_data(sample, wp, syst_down)
             data_dict[syst_up] = {index_col[i]: data_up[i] for i in range(len(data_up))}
             data_dict[syst_down] = {index_col[i]: data_down[i] for i in range(len(data_down))}
-        
+
         json_path = f"results/{args.era}/JSON/{args.measure}/{sample}_{wp}.json"
         os.makedirs(os.path.dirname(json_path), exist_ok=True)
         with open(json_path, 'w') as f:

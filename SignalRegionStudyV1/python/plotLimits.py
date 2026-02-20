@@ -26,19 +26,21 @@ except ImportError:
     HAS_CMSSTYLE = False
     logging.warning("cmsstyle not found, using default ROOT style")
 
-# Luminosity info (fb^-1)
-LUMI_INFO = {
-    "2016preVFP": 19.5,
-    "2016postVFP": 16.8,
-    "2017": 41.5,
-    "2018": 59.8,
-    "FullRun2": 138.0,
-    "2022": 8.0,
-    "2022EE": 27.0,
-    "2023": 18.0,
-    "2023BPix": 10.0,
-    "FullRun3": 63.0,
-}
+# Load luminosity configuration from JSON
+_LUMI_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "Common", "Data", "Luminosity.json")
+with open(_LUMI_JSON_PATH, "r") as f:
+    _LUMI_CONFIG = json.load(f)
+
+# Build LUMI_INFO dictionary (fb^-1)
+LUMI_INFO = {}
+for era, lumi in _LUMI_CONFIG["Run2"].items():
+    if era not in ("combined", "energy_TeV"):
+        LUMI_INFO[era] = lumi
+for era, lumi in _LUMI_CONFIG["Run3"].items():
+    if era not in ("combined", "energy_TeV"):
+        LUMI_INFO[era] = lumi
+LUMI_INFO["FullRun2"] = _LUMI_CONFIG["Run2"]["combined"]
+LUMI_INFO["FullRun3"] = _LUMI_CONFIG["Run3"]["combined"]
 
 
 def create_graphs(limits_dict):

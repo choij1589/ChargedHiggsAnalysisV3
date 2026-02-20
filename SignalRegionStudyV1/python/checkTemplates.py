@@ -29,10 +29,18 @@ parser.add_argument("--era", required=True, type=str, help="Data-taking period (
 parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
 parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet, etc.)")
-parser.add_argument("--binning", default="uniform", choices=["uniform", "sigma"],
-                    help="Binning method: 'uniform' (15 bins, default) or 'sigma' (non-uniform)")
+parser.add_argument("--binning", default="uniform", choices=["uniform", "extended"],
+                    help="Binning method: 'uniform' (15 bins, default) or 'extended' (15 bins + tails)")
+parser.add_argument("--unblind", action="store_true",
+                    help="Check templates from unblind run")
+parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
+                    help="Check templates from partial-unblind run")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
+
+# Validate unblind options
+if args.unblind and args.partial_unblind:
+    raise ValueError("--unblind and --partial-unblind are mutually exclusive")
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
@@ -45,11 +53,62 @@ if not WORKDIR:
 
 # Add path to Common/Tools for plotter imports
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
-from plotter import KinematicCanvas, ComparisonCanvas, get_CoM_energy
+from plotter import KinematicCanvas, ComparisonCanvas, get_CoM_energy, get_era_list
+from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
 
-TEMPLATE_DIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{args.binning}"
-VALIDATION_DIR = f"{TEMPLATE_DIR}/validation"
+# Fixed color mapping for backgrounds (consistent across all plots)
+# Uses PALETTE colors from plotter.py for consistency
+BKG_COLORS = {
+    "nonprompt": PALETTE[0],
+    "WZ": PALETTE[1],       
+    "ZZ": PALETTE[2],       
+    "ttW": PALETTE[3],          
+    "ttZ": PALETTE[4],      
+    "ttH": PALETTE[5],          
+    "tZq": PALETTE[6],      
+    "others": PALETTE[7],
+    "conversion": PALETTE[8]
+}
+
+# Preferred background order for stack plots (bottom to top)
+# Legend will display in reverse order (top to bottom) to match visual stacking
+BKG_ORDER = ["others", "conversion", "WZ", "ZZ", "ttW", "ttH", "tZq", "ttZ", "nonprompt"]
+
+def get_channel_list(channel):
+    """Convert Combined to list of individual channels"""
+    if channel == "Combined":
+        return ["SR1E2Mu", "SR3Mu"]
+    else:
+        return [channel]
+
+
+# Expand era and channel lists
+era_list = get_era_list(args.era)
+channel_list = get_channel_list(args.channel)
+
+# Determine binning suffix
+binning_suffix = args.binning
+if args.unblind:
+    binning_suffix = f"{args.binning}_unblind"
+elif args.partial_unblind:
+    binning_suffix = f"{args.binning}_partial_unblind"
+
+# Build list of template directories to load
+template_dirs = []
+for era in era_list:
+    for channel in channel_list:
+        template_dirs.append({
+            "era": era,
+            "channel": channel,
+            "path": f"{WORKDIR}/SignalRegionStudyV1/templates/{era}/{channel}/{args.masspoint}/{args.method}/{binning_suffix}"
+        })
+
+# For single era/channel, use backward-compatible TEMPLATE_DIR
+TEMPLATE_DIR = template_dirs[0]["path"]
+
+# Output directory for validation (use combined era/channel name)
+VALIDATION_DIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{binning_suffix}/validation"
 
 # Create validation output directory
 os.makedirs(VALIDATION_DIR, exist_ok=True)
@@ -60,32 +119,163 @@ ROOT.gStyle.SetOptStat(0)
 
 
 # =============================================================================
+# Histogram Combining Functions
+# =============================================================================
+
+def load_and_combine_histograms(template_dirs, hist_name):
+    """
+    Load and sum histograms from multiple shapes.root files.
+
+    Args:
+        template_dirs: List of template directory dicts with 'path' key
+        hist_name: Name of histogram to load
+
+    Returns:
+        Combined histogram or None if not found in any file
+    """
+    combined = None
+    for td in template_dirs:
+        shapes_path = f"{td['path']}/shapes.root"
+        if not os.path.exists(shapes_path):
+            logging.warning(f"Shapes file not found: {shapes_path}")
+            continue
+
+        shapes_file = ROOT.TFile.Open(shapes_path, "READ")
+        if not shapes_file or shapes_file.IsZombie():
+            logging.warning(f"Failed to open: {shapes_path}")
+            continue
+
+        hist = shapes_file.Get(hist_name)
+        # ROOT can return a null pointer that passes 'if hist:' check
+        # Use explicit None check and InheritsFrom to validate
+        if hist and hist != None and hasattr(hist, 'InheritsFrom') and hist.InheritsFrom("TH1"):
+            hist.SetDirectory(0)
+            if combined is None:
+                combined = hist.Clone(f"{hist_name}_combined")
+                combined.SetDirectory(0)  # Detach clone from file before closing
+            else:
+                combined.Add(hist)
+        shapes_file.Close()
+
+    return combined
+
+
+class CombinedShapesFile:
+    """
+    A wrapper that provides TFile-like Get() interface but combines histograms
+    from multiple shapes.root files.
+
+    This allows the existing plotting functions to work unchanged for combined mode.
+    """
+
+    def __init__(self, template_dirs):
+        """
+        Initialize with list of template directories.
+
+        Args:
+            template_dirs: List of dicts with 'path' key pointing to template dirs
+        """
+        self.template_dirs = template_dirs
+        self._cache = {}
+
+    def Get(self, hist_name):
+        """
+        Get a histogram by name, combining from all template directories.
+
+        Uses caching to avoid reloading histograms.
+        """
+        if hist_name in self._cache:
+            return self._cache[hist_name]
+
+        combined = load_and_combine_histograms(self.template_dirs, hist_name)
+        self._cache[hist_name] = combined
+        return combined
+
+    def Close(self):
+        """Clear cache (for compatibility with TFile interface)."""
+        self._cache.clear()
+
+
+# =============================================================================
 # Configuration Loading
 # =============================================================================
 
 def load_systematics_config():
-    """Load shape systematics from era-specific config."""
-    config_path = f"{WORKDIR}/SignalRegionStudyV1/configs/systematics.{args.era}.json"
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Systematics config not found: {config_path}")
+    """
+    Load shape systematics from era-specific config.
 
-    with open(config_path) as f:
-        config = json.load(f)
+    For combined eras/channels, returns intersection of all configs
+    (only systematics with matching names across all eras/channels).
+    """
+    if len(era_list) == 1 and len(channel_list) == 1:
+        # Single era/channel - load directly
+        config_path = f"{WORKDIR}/SignalRegionStudyV1/configs/systematics.{era_list[0]}.json"
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Systematics config not found: {config_path}")
 
-    if args.channel not in config:
-        raise ValueError(f"Channel '{args.channel}' not found in {config_path}")
+        with open(config_path) as f:
+            config = json.load(f)
 
-    return config[args.channel]
+        if channel_list[0] not in config:
+            raise ValueError(f"Channel '{channel_list[0]}' not found in {config_path}")
+
+        return config[channel_list[0]]
+
+    # Multiple eras/channels - find common systematics
+    all_systs = []
+    for era in era_list:
+        config_path = f"{WORKDIR}/SignalRegionStudyV1/configs/systematics.{era}.json"
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Systematics config not found: {config_path}")
+
+        with open(config_path) as f:
+            config = json.load(f)
+
+        for channel in channel_list:
+            if channel not in config:
+                raise ValueError(f"Channel '{channel}' not found in {config_path}")
+            all_systs.append(config[channel])
+
+    # Find intersection of systematic names
+    common_names = set(all_systs[0].keys())
+    for syst in all_systs[1:]:
+        common_names = common_names.intersection(set(syst.keys()))
+
+    # Return first config filtered to common names
+    merged = {name: all_systs[0][name] for name in common_names}
+    logging.info(f"Combined mode: using {len(merged)} common systematics from {len(all_systs)} era/channel configs")
+
+    return merged
 
 
 def load_process_list():
-    """Load dynamic process list from template output."""
-    process_list_path = f"{TEMPLATE_DIR}/process_list.json"
-    if not os.path.exists(process_list_path):
-        raise FileNotFoundError(f"Process list not found: {process_list_path}")
+    """
+    Load and merge process lists from all template directories.
 
-    with open(process_list_path) as f:
-        return json.load(f)
+    For combined eras/channels, merges separate_processes and merged_to_others
+    from all template directories.
+    """
+    separate_processes = set()
+    merged_to_others = set()
+
+    for td in template_dirs:
+        process_list_path = f"{td['path']}/process_list.json"
+        if not os.path.exists(process_list_path):
+            logging.warning(f"Process list not found: {process_list_path}")
+            continue
+
+        with open(process_list_path) as f:
+            pl = json.load(f)
+        separate_processes.update(pl.get("separate_processes", []))
+        merged_to_others.update(pl.get("merged_to_others", []))
+
+    if not separate_processes:
+        raise FileNotFoundError(f"No process_list.json found in any template directory")
+
+    return {
+        "separate_processes": list(separate_processes),
+        "merged_to_others": list(merged_to_others)
+    }
 
 
 def get_shape_systematics(syst_config):
@@ -281,10 +471,21 @@ def make_background_stack(shapes_file, backgrounds, shape_systs):
     signal = signal_hist.Clone(f"{args.masspoint}_clone")
 
     # Get background histograms with systematic uncertainties
+    # Order by BKG_ORDER for consistent stacking
     bkg_hists = {}
     total_bkg_yield = 0
 
+    # Build ordered list of backgrounds
+    ordered_bkgs = []
+    for bkg in BKG_ORDER:
+        if bkg in backgrounds:
+            ordered_bkgs.append(bkg)
+    # Add any remaining backgrounds not in BKG_ORDER
     for bkg in backgrounds:
+        if bkg not in ordered_bkgs:
+            ordered_bkgs.append(bkg)
+
+    for bkg in ordered_bkgs:
         hist = shapes_file.Get(bkg)
         if hist and hist.Integral() > 0:
             hist_clone = hist.Clone(f"{bkg}_clone")
@@ -303,6 +504,15 @@ def make_background_stack(shapes_file, backgrounds, shape_systs):
         logging.warning("No background histograms found, skipping plot")
         return
 
+    # Build colors list in same order as bkg_hists
+    colors = []
+    for bkg in bkg_hists.keys():
+        if bkg in BKG_COLORS:
+            colors.append(BKG_COLORS[bkg])
+        else:
+            # Fallback to default gray for unknown backgrounds
+            colors.append(ROOT.kGray)
+
     # Configuration for ComparisonCanvas
     config = {
         "era": args.era,
@@ -311,8 +521,10 @@ def make_background_stack(shapes_file, backgrounds, shape_systs):
         "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
         "yTitle": "Events",
         "rTitle": "Data / Pred",
+        "rRange": [0, 5.],
         "maxDigits": 3,
-        "systSrc": "Stat+Syst"
+        "systSrc": "Stat+Syst",
+        "colors": colors
     }
 
     # Create plot
@@ -597,6 +809,13 @@ if __name__ == "__main__":
     logging.info(f"  Masspoint: {args.masspoint}")
     logging.info(f"  Method: {args.method}")
 
+    # Log combined mode info
+    is_combined_era = args.era in ["Run2", "Run3"]
+    is_combined_channel = args.channel == "Combined"
+    if is_combined_era or is_combined_channel:
+        logging.info(f"  Combined mode: era_list={era_list}, channel_list={channel_list}")
+        logging.info(f"  Loading from {len(template_dirs)} template directories")
+
     # Load configurations
     syst_config = load_systematics_config()
     process_list = load_process_list()
@@ -614,12 +833,16 @@ if __name__ == "__main__":
 
     logging.info(f"Processes: {all_processes}")
 
-    # Open shapes file
-    shapes_path = f"{TEMPLATE_DIR}/shapes.root"
-    if not os.path.exists(shapes_path):
-        raise FileNotFoundError(f"Shapes file not found: {shapes_path}")
-
-    shapes_file = ROOT.TFile.Open(shapes_path, "READ")
+    # Open shapes file(s) - use CombinedShapesFile for combined mode
+    if is_combined_era or is_combined_channel:
+        # Combined mode - load and combine from multiple files
+        shapes_file = CombinedShapesFile(template_dirs)
+    else:
+        # Single era/channel - use original TFile approach
+        shapes_path = f"{TEMPLATE_DIR}/shapes.root"
+        if not os.path.exists(shapes_path):
+            raise FileNotFoundError(f"Shapes file not found: {shapes_path}")
+        shapes_file = ROOT.TFile.Open(shapes_path, "READ")
 
     # ========================================
     # Validation 1: Basic Histogram Checks
@@ -694,8 +917,12 @@ if __name__ == "__main__":
     logging.info("Validation Summary")
     logging.info("=" * 60)
 
-    # Print yields
-    shapes_file = ROOT.TFile.Open(shapes_path, "READ")
+    # Reopen shapes file for summary (use same approach as above)
+    if is_combined_era or is_combined_channel:
+        shapes_file = CombinedShapesFile(template_dirs)
+    else:
+        shapes_file = ROOT.TFile.Open(shapes_path, "READ")
+
     logging.info("Process Yields:")
     for process in all_processes:
         hist = shapes_file.Get(process)

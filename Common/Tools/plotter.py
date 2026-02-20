@@ -1,19 +1,31 @@
+import os
+import json
 import ROOT
 import cmsstyle as CMS
 from array import array
+from HistoUtils import rebin_for_chi2_validity, calculate_chi2
 CMS.setCMSStyle()
 
-LumiInfo = {    # /fb
-    "2016preVFP": 19.5,
-    "2016postVFP": 16.8,
-    "2017": 41.5,
-    "2018": 59.8,
-    "2022": 7.9,
-    "2022EE": 26.7,
-    "2023": 17.8,
-    "2023BPix": 9.5,
-    "Run2": 138,  # 19.5 + 16.8 + 41.5 + 59.8
-    "Run3": 62,   # 7.9 + 26.7 + 17.8 + 9.5
+# Load luminosity configuration from JSON
+_LUMI_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "Data", "Luminosity.json")
+with open(_LUMI_JSON_PATH, "r") as f:
+    _LUMI_CONFIG = json.load(f)
+
+# Build LumiInfo dictionary for backward compatibility
+LumiInfo = {}  # /fb
+for era, lumi in _LUMI_CONFIG["Run2"].items():
+    if era not in ("combined", "energy_TeV"):
+        LumiInfo[era] = lumi
+for era, lumi in _LUMI_CONFIG["Run3"].items():
+    if era not in ("combined", "energy_TeV"):
+        LumiInfo[era] = lumi
+LumiInfo["Run2"] = _LUMI_CONFIG["Run2"]["combined"]
+LumiInfo["Run3"] = _LUMI_CONFIG["Run3"]["combined"]
+
+# Energy info from JSON
+EnergyInfo = {
+    "Run2": _LUMI_CONFIG["Run2"]["energy_TeV"],
+    "Run3": _LUMI_CONFIG["Run3"]["energy_TeV"],
 }
 PALETTE = [
     ROOT.TColor.GetColor("#5790fc"),
@@ -57,9 +69,9 @@ def get_datastream(era):
 def get_CoM_energy(era):
     """Get center-of-mass energy for era"""
     if era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
-        return 13
+        return EnergyInfo["Run2"]
     elif era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
-        return 13.6
+        return EnergyInfo["Run3"]
     else:
         raise ValueError(f"Unknown era: {era}")
 
@@ -83,16 +95,22 @@ class BaseCanvas():
         """Base initialization - subclasses should call super().__init__()"""
         pass
 
-    def _select_palette(self, num_hists):
+    def _select_palette(self, num_hists, config=None):
         """
         Select appropriate color palette based on number of histograms.
 
+        If config contains 'colors' key with a list, use that instead of defaults.
+
         Args:
             num_hists (int): Number of histograms to display
+            config (dict, optional): Configuration dictionary that may contain 'colors'
 
         Returns:
             list: List of ROOT color codes
         """
+        if config is not None and 'colors' in config:
+            return config['colors'][:num_hists]
+
         if num_hists > 6:
             return PALETTE_LONG[:num_hists]
         else:
@@ -285,8 +303,8 @@ class ComparisonCanvas(BaseCanvas):
         self.incl = incl    # Inclusive histogram, will plot on top
         self.hists = hists  # Histograms to be plotted as a stack
 
-        # Select palette based on number of histograms
-        self.palette = self._select_palette(len(self.hists))
+        # Select palette based on number of histograms (supports custom colors via config)
+        self.palette = self._select_palette(len(self.hists), config)
 
         # Apply binning (fixed-width or variable)
         self.incl = self._apply_binning(self.incl, config)
@@ -304,6 +322,15 @@ class ComparisonCanvas(BaseCanvas):
                 self.systematics = hist.Clone("syst")
             else:
                 self.systematics.Add(hist)
+
+        # Calculate chi^2 if requested (before blind mode replaces data)
+        self.chi2_result = None
+        if config.get("chi2_test", False) and not config.get("blind", False):
+            h_data_chi2, h_bkg_chi2 = rebin_for_chi2_validity(self.incl, self.systematics)
+            chi2, ndf, p_value = calculate_chi2(h_data_chi2, h_bkg_chi2,
+                                                 normalize=config.get("normalize_chi2", False))
+            if ndf > 0:
+                self.chi2_result = {"chi2": chi2, "ndf": ndf, "p_value": p_value}
 
         # If blind mode is requested, replace data with systematics
         # This ensures data and systematics are EXACTLY the same
@@ -401,11 +428,22 @@ class ComparisonCanvas(BaseCanvas):
         CMS.cmsObjectDraw(self.systematics, "FE2", FillStyle=3004, LineWidth=0, FillColor=12, MarkerSize=0)
         CMS.cmsObjectDraw(self.incl, "PE", MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
         CMS.addToLegend(self.leg, (self.incl, self.incl.GetTitle(), "PE"))
-        CMS.addToLegend(self.leg, *[(self.hists[name], name, "F") for name in self.hists.keys()])
+        # Reverse order so legend matches visual stack (top of stack = first in legend)
+        CMS.addToLegend(self.leg, *[(self.hists[name], name, "F") for name in reversed(list(self.hists.keys()))])
         CMS.addToLegend(self.leg, (self.systematics, self.config.get("systSrc", "Stat+Syst"), " FE2"))
 
         # Draw channel text using base class method
         self._draw_channel_text(self.config)
+
+        # Draw chi^2 text if calculated
+        if self.chi2_result is not None:
+            chi2 = self.chi2_result["chi2"]
+            ndf = self.chi2_result["ndf"]
+            p_value = self.chi2_result["p_value"]
+            chi2_text = f"#chi^{{2}}/ndf = {chi2/ndf:.2f} (p = {p_value:.2f})"
+            chi2_posX = self.config.get("chi2_posX", 0.20)
+            chi2_posY = self.config.get("chi2_posY", 0.62)
+            CMS.drawText(chi2_text, posX=chi2_posX, posY=chi2_posY, font=42, align=0, size=0.04)
 
         self.canv.cd(1).RedrawAxis()
 

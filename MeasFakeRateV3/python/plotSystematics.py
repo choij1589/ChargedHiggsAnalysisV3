@@ -71,41 +71,39 @@ h_proj_jetDown = h_jetDown.ProjectionY("jetDown", eta_idx, eta_idx)
 h_proj_btag = h_btag.ProjectionY("btag", eta_idx, eta_idx)
 
 ## make ratio plots for each systematic sources
-ratio_total = h_proj_central.Clone("total")
-for bin in range(1, ratio_total.GetNbinsX()+1):
-    error = ratio_total.GetBinError(bin) / ratio_total.GetBinContent(bin)
-    ratio_total.SetBinContent(bin, 0.)
-    ratio_total.SetBinError(bin, error)
-    
-# promptNorm
-ratio_prUp = h_proj_central.Clone("PromptNormUp")
-for bin in range(1, ratio_prUp.GetNbinsX()+1):
-    content = (h_proj_prUp.GetBinContent(bin) - h_proj_central.GetBinContent(bin))/h_proj_central.GetBinContent(bin)
-    ratio_prUp.SetBinContent(bin, content)
+def make_ratio(h_syst, h_central, name):
+    """Make ratio histogram (syst - central) / central.
 
-# promptNormDown
-ratio_prDown = h_proj_central.Clone("PromptNormDown")
-for bin in range(1, ratio_prDown.GetNbinsX()+1):
-    content = (h_proj_prDown.GetBinContent(bin) - h_proj_central.GetBinContent(bin))/h_proj_central.GetBinContent(bin)
-    ratio_prDown.SetBinContent(bin, content)
-    
-# JetPtUp
-ratio_jetUp = h_proj_central.Clone("MotherJetPtUp")
-for bin in range(1, ratio_jetUp.GetNbinsX()+1):
-    content = (h_proj_jetUp.GetBinContent(bin) - h_proj_central.GetBinContent(bin))/h_proj_central.GetBinContent(bin)
-    ratio_jetUp.SetBinContent(bin, content)
-    
-# JetPtDown
-ratio_jetDown = h_proj_central.Clone("MotherJetPtDown")
-for bin in range(1, ratio_jetDown.GetNbinsX()+1):
-    content = (h_proj_jetDown.GetBinContent(bin) - h_proj_central.GetBinContent(bin))/h_proj_central.GetBinContent(bin)
-    ratio_jetDown.SetBinContent(bin, content)
-    
+    Error bars show the fractional statistical uncertainty of the systematic measurement.
+    This properly reflects that:
+    - For correlated systematics (e.g., PromptNorm): syst_err ≈ central_err
+    - For subset selections (e.g., RequireHeavyTag): syst_err > central_err due to fewer events
+    """
+    ratio = h_central.Clone(name)
+    for bin in range(1, ratio.GetNbinsX()+1):
+        central = h_central.GetBinContent(bin)
+        syst = h_syst.GetBinContent(bin)
+        syst_err = h_syst.GetBinError(bin)
+        if central > 0:
+            content = (syst - central) / central
+            err = syst_err / central
+        else:
+            content = 0.
+            err = 0.
+        ratio.SetBinContent(bin, content)
+        ratio.SetBinError(bin, err)
+    return ratio
+
+# promptNorm
+ratio_prUp = make_ratio(h_proj_prUp, h_proj_central, "PromptNormUp")
+ratio_prDown = make_ratio(h_proj_prDown, h_proj_central, "PromptNormDown")
+
+# JetPt
+ratio_jetUp = make_ratio(h_proj_jetUp, h_proj_central, "MotherJetPtUp")
+ratio_jetDown = make_ratio(h_proj_jetDown, h_proj_central, "MotherJetPtDown")
+
 # RequireHeavyTag
-ratio_btag = h_proj_central.Clone("RequireHeavyTag")
-for bin in range(1, ratio_btag.GetNbinsX()+1):
-    content = (h_proj_btag.GetBinContent(bin) - h_proj_central.GetBinContent(bin))/h_proj_central.GetBinContent(bin)
-    ratio_btag.SetBinContent(bin, content)
+ratio_btag = make_ratio(h_proj_btag, h_proj_central, "RequireHeavyTag")
 
 ## Set CMS style and energy
 CoM = 13 if "201" in args.era else 13.6
@@ -140,18 +138,41 @@ ref_line.SetLineWidth(2)
 ref_line.DrawLine(ptcorr_bins[0], -0.5, ptcorr_bins[-1], -0.5)
 ref_line.DrawLine(ptcorr_bins[0], 0.5, ptcorr_bins[-1], 0.5)
 
-# Use CMS style drawing for systematic variations
-CMS.cmsObjectDraw(ratio_total, "hist", LineColor=ROOT.kBlack, LineWidth=2)
-CMS.cmsObjectDraw(ratio_prUp, "p&hist", MarkerStyle=8, MarkerSize=1.5, MarkerColor=PALETTE[0], LineColor=PALETTE[0], LineWidth=2)
-CMS.cmsObjectDraw(ratio_prDown, "p&hist", MarkerStyle=8, MarkerSize=1.5, MarkerColor=PALETTE[0], LineColor=PALETTE[0], LineWidth=2)
-CMS.cmsObjectDraw(ratio_jetUp, "p&hist", MarkerStyle=8, MarkerSize=1.5, MarkerColor=PALETTE[1], LineColor=PALETTE[1], LineWidth=2)
-CMS.cmsObjectDraw(ratio_jetDown, "p&hist", MarkerStyle=8, MarkerSize=1.5, MarkerColor=PALETTE[1], LineColor=PALETTE[1], LineWidth=2)
-CMS.cmsObjectDraw(ratio_btag, "p&hist", MarkerStyle=8, MarkerSize=1.5, MarkerColor=PALETTE[2], LineColor=PALETTE[2], LineWidth=2)
+# Set styles for systematic variations
+def set_style(h, color, fill_style=3004):
+    """Set histogram style for hatched error band and markers."""
+    h.SetLineColor(color)
+    h.SetLineWidth(2)
+    h.SetMarkerColor(color)
+    h.SetMarkerStyle(8)
+    h.SetMarkerSize(1.5)
+    h.SetFillColor(color)
+    h.SetFillStyle(fill_style)  # 3004: 45° hatching, 3005: -45°, 3006: cross-hatch
+
+set_style(ratio_prUp, PALETTE[0])
+set_style(ratio_prDown, PALETTE[0])
+set_style(ratio_jetUp, PALETTE[1])
+set_style(ratio_jetDown, PALETTE[1])
+set_style(ratio_btag, PALETTE[2])
+
+# Draw all error bands first
+ratio_prUp.Draw("e2 same")
+ratio_prDown.Draw("e2 same")
+ratio_jetUp.Draw("e2 same")
+ratio_jetDown.Draw("e2 same")
+ratio_btag.Draw("e2 same")
+
+# Draw all markers on top (without error bars)
+ratio_prUp.Draw("p same")
+ratio_prDown.Draw("p same")
+ratio_jetUp.Draw("p same")
+ratio_jetDown.Draw("p same")
+ratio_btag.Draw("p same")
 
 # Add to legend
-CMS.addToLegend(legend, (ratio_prUp, "PromptNorm", "lep"))
-CMS.addToLegend(legend, (ratio_jetUp, "MotherJetPt", "lep"))
-CMS.addToLegend(legend, (ratio_btag, "RequireHeavyTag", "lep"))
+CMS.addToLegend(legend, (ratio_prUp, "PromptNorm", "fp"))
+CMS.addToLegend(legend, (ratio_jetUp, "MotherJetPt", "fp"))
+CMS.addToLegend(legend, (ratio_btag, "RequireHeavyTag", "fp"))
 
 canvas.RedrawAxis()
 legend.Draw("same")
@@ -160,7 +181,8 @@ legend.Draw("same")
 text = ROOT.TLatex()
 text.SetTextSize(0.06)
 text.SetTextFont(42)
-text.DrawLatexNDC(0.2, 0.8, f"{abseta_bins[eta_idx-1]} < |#eta| < {abseta_bins[eta_idx]}")
+eta_label = "|#eta_{SC}|" if args.measure == "electron" else "|#eta|"
+text.DrawLatexNDC(0.2, 0.8, f"{abseta_bins[eta_idx-1]} < {eta_label} < {abseta_bins[eta_idx]}")
 
 ## Save the plot
 output_path = f"{WORKDIR}/MeasFakeRateV3/plots/{args.era}/{args.measure}/systematics_{args.etabin}.png"

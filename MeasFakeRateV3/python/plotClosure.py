@@ -222,13 +222,60 @@ def calculate_chi2_with_scale(h_obs, h_exp, scale_factor, normalize=False):
 
     return chi2, ndf
 
+def calculate_chi2_root(h_obs, h_exp, normalize=True):
+    """
+    Calculate chi^2 test using ROOT's Chi2Test for weighted vs weighted histograms.
+
+    In closure test, both histograms are MC (SR vs SB from TTLL_powheg),
+    so we use "WW" option (weighted vs weighted).
+
+    Note: ROOT's NORM option only works with UU (unweighted). For WW (weighted),
+    we must manually normalize the histograms before the test.
+
+    Args:
+        h_obs: Observed histogram (MC from signal region)
+        h_exp: Expected histogram (MC from sideband region)
+        normalize: If True, perform shape-only test (normalize before comparison)
+
+    Returns:
+        tuple: (chi2, ndf, p_value)
+    """
+    h_obs_test = h_obs.Clone("h_obs_chi2_test")
+    h_exp_test = h_exp.Clone("h_exp_chi2_test")
+    h_obs_test.SetDirectory(0)
+    h_exp_test.SetDirectory(0)
+
+    # For shape-only test with weighted histograms, manually normalize
+    # ROOT's NORM option only works with UU (unweighted), not WW (weighted)
+    if normalize:
+        obs_integral = h_obs_test.Integral()
+        exp_integral = h_exp_test.Integral()
+        if obs_integral > 0 and exp_integral > 0:
+            h_obs_test.Scale(1.0 / obs_integral)
+            h_exp_test.Scale(1.0 / exp_integral)
+
+    options = "WW"  # weighted vs weighted (MC vs MC)
+
+    p_value = h_obs_test.Chi2Test(h_exp_test, options)
+    chi2 = h_obs_test.Chi2Test(h_exp_test, options + " CHI2")
+    chi2_ndf = h_obs_test.Chi2Test(h_exp_test, options + " CHI2/NDF")
+    ndf = int(round(chi2 / chi2_ndf)) if chi2_ndf > 0 else 0
+
+    return chi2, ndf, p_value
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--channel", required=True, type=str, help="Run1E2Mu / Run3Mu")
 parser.add_argument("--histkey", required=True, type=str, help="histkey, e.g. Central/ZCand/mass")
+parser.add_argument("--syst", default="Central", type=str, help="SB variation: Central, TT, bjet, cjet, ljet")
 parser.add_argument("--rebin", default=5, type=int, help="rebin factor")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
+
+# Validate syst argument
+VALID_SYSTS = ["Central", "TT", "bjet", "cjet", "ljet"]
+if args.syst not in VALID_SYSTS:
+    raise ValueError(f"Invalid --syst value '{args.syst}'. Must be one of {VALID_SYSTS}")
 
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
@@ -240,6 +287,7 @@ with open("configs/histkeys.json") as f:
 # Handle merged eras
 era_list = get_era_list(args.era)
 logging.info(f"Processing {args.era} with eras: {era_list}")
+logging.info(f"Using SB variation: {args.syst}")
 
 config["era"] = args.era
 config["CoM"] = get_CoM_energy(args.era)
@@ -268,10 +316,10 @@ for era in era_list:
     
     if args.channel == "Run1E2Mu":
         h_obs_era = f.Get(f"SR1E2Mu/Central/{args.histkey}")
-        h_exp_era = f.Get(f"SB1E2Mu/Central/{args.histkey}")
+        h_exp_era = f.Get(f"SB1E2Mu/{args.syst}/{args.histkey}")
     elif args.channel == "Run3Mu":
         h_obs_era = f.Get(f"SR3Mu/Central/{args.histkey}")
-        h_exp_era = f.Get(f"SB3Mu/Central/{args.histkey}")
+        h_exp_era = f.Get(f"SB3Mu/{args.syst}/{args.histkey}")
     else:
         f.Close()
         raise KeyError(f"Wrong channel {args.channel}")
@@ -335,7 +383,8 @@ if any(mass_key in args.histkey for mass_key in mass_histkeys):
 
 # Prepare histograms for plotting
 h_obs.SetTitle("Observed")
-h_exp.SetTitle("Expected")
+exp_title = "Expected" if args.syst == "Central" else f"Expected ({args.syst})"
+h_exp.SetTitle(exp_title)
 
 obs = h_obs.Integral(0, h_obs.GetNbinsX()+1)
 exp = h_exp.Integral(0, h_exp.GetNbinsX()+1)
@@ -408,34 +457,10 @@ logging.info("Applying chi-squared validity rebinning (min expected = 5.0)")
 h_obs_chi2, h_exp_chi2 = rebin_for_chi2_validity(h_obs, h_exp, min_expected=5.0)
 logging.info(f"Chi-squared test bins: {h_obs.GetNbinsX()} → {h_obs_chi2.GetNbinsX()}")
 
-# Now normalize for shape-only test
-h_obs_norm = h_obs_chi2.Clone("h_obs_norm")
-h_exp_norm = h_exp_chi2.Clone("h_exp_norm")
-h_obs_norm.SetDirectory(0)
-h_exp_norm.SetDirectory(0)
-
-obs_integral = h_obs_norm.Integral()
-exp_integral = h_exp_norm.Integral()
-
-if obs_integral > 0 and exp_integral > 0:
-    h_obs_norm.Scale(1.0 / obs_integral)
-    h_exp_norm.Scale(1.0 / exp_integral)
-
-chi2_shape = 0.0
-ndf_shape = 0
-for bin in range(1, h_obs_norm.GetNbinsX() + 1):
-    obs_bin = h_obs_norm.GetBinContent(bin)
-    exp_bin = h_exp_norm.GetBinContent(bin)
-    obs_err = h_obs_norm.GetBinError(bin)
-    exp_err = h_exp_norm.GetBinError(bin)
-
-    if exp_bin > 0:
-        sigma2 = obs_err**2 + exp_err**2
-        if sigma2 > 0:
-            chi2_shape += (obs_bin - exp_bin)**2 / sigma2
-            ndf_shape += 1
-
-p_value_shape = ROOT.TMath.Prob(chi2_shape, ndf_shape) if ndf_shape > 0 else 0.0
+# Calculate shape-only chi2 using ROOT's Chi2Test with "WW NORM" options
+# WW = weighted vs weighted (both histograms are MC)
+# NORM = normalize before comparison (shape-only test)
+chi2_shape, ndf_shape, p_value_shape = calculate_chi2_root(h_obs_chi2, h_exp_chi2, normalize=True)
 
 # Find optimal uncertainty scale factor for shape-only closure
 # Use chi2-rebinned histograms for this optimization as well
@@ -454,6 +479,7 @@ for scale in [i * 0.05 for i in range(2, 101)]:  # 0.1 to 5.0 in steps of 0.05
 recommended_systematic_shape = abs(best_scale_shape - 1.0) * 100  # in percent
 
 results = {
+    "syst": args.syst,
     "observed": obs,
     "expected": exp,
     "difference": difference,
@@ -477,7 +503,7 @@ results = {
 
 # Save results to JSON file
 variable_name = args.histkey.replace('/', '_').lower()
-json_output_path = f"{WORKDIR}/MeasFakeRateV3/plots/{args.era}/{args.channel}/closure_{variable_name}_yield.json"
+json_output_path = f"{WORKDIR}/MeasFakeRateV3/plots/{args.era}/{args.channel}/{args.syst}/closure_{variable_name}_yield.json"
 os.makedirs(os.path.dirname(json_output_path), exist_ok=True)
 with open(json_output_path, 'w') as json_file:
     json.dump(results, json_file, indent=2)
@@ -489,7 +515,7 @@ BKGs = {"Expected": h_exp}
 # Plot configuration (already set above)
 
 # Create output directory and filename
-output_path = f"{WORKDIR}/MeasFakeRateV3/plots/{args.era}/{args.channel}/closure_{args.histkey.replace('/', '_').lower()}.png"
+output_path = f"{WORKDIR}/MeasFakeRateV3/plots/{args.era}/{args.channel}/{args.syst}/closure_{variable_name}.png"
 os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
 # Create and draw the comparison plot

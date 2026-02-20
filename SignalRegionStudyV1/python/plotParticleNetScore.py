@@ -21,10 +21,18 @@ parser = argparse.ArgumentParser(description="Plot ParticleNet score distributio
 parser.add_argument("--era", required=True, type=str, help="Data-taking period (2016preVFP, 2017, 2018, 2022, etc.)")
 parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
-parser.add_argument("--binning", default="uniform", choices=["uniform", "sigma"],
-                    help="Binning method: 'uniform' (15 bins, default) or 'sigma' (non-uniform)")
+parser.add_argument("--binning", default="uniform", choices=["uniform", "extended"],
+                    help="Binning method: 'uniform' (15 bins, default) or 'extended' (15 bins + tails)")
+parser.add_argument("--unblind", action="store_true",
+                    help="Show real data distribution")
+parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
+                    help="Show real data only for score < 0.3")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
+
+# Validate unblind options
+if args.unblind and args.partial_unblind:
+    raise ValueError("--unblind and --partial-unblind are mutually exclusive")
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
@@ -38,18 +46,44 @@ if not WORKDIR:
 # Add path to Common/Tools for plotter imports
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 from plotter import ComparisonCanvas, get_CoM_energy
+from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
+
+# Fixed color mapping for backgrounds (consistent across all plots)
+# Uses PALETTE colors from plotter.py for consistency
+BKG_COLORS = {
+    "nonprompt": PALETTE[0],
+    "WZ": PALETTE[1],
+    "ZZ": PALETTE[2],
+    "ttW": PALETTE[3],
+    "ttZ": PALETTE[4],
+    "ttH": PALETTE[5],
+    "tZq": PALETTE[6],
+    "others": PALETTE[7],
+    "conversion": PALETTE[8]
+}
+
+# Preferred background order for stack plots (bottom to top)
+# Legend will display in reverse order (top to bottom) to match visual stacking
+BKG_ORDER = ["others", "conversion", "WZ", "ZZ", "ttW", "ttH", "tZq", "ttZ", "nonprompt"]
 
 # Input from samples directory (ParticleNet scores are in preprocessed samples)
 BASEDIR = f"{WORKDIR}/SignalRegionStudyV1/samples/{args.era}/{args.channel}/{args.masspoint}"
-# Output to ParticleNet template directory
-OUTDIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{args.binning}"
+# Config directory (always from base binning, not unblind variants)
+CONFIGDIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{args.binning}"
+# Output to ParticleNet template directory (with unblind suffix if applicable)
+binning_suffix = args.binning
+if args.unblind:
+    binning_suffix = f"{args.binning}_unblind"
+elif args.partial_unblind:
+    binning_suffix = f"{args.binning}_partial_unblind"
+OUTDIR = f"{WORKDIR}/SignalRegionStudyV1/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}"
 
 logging.info(f"Input directory: {BASEDIR}")
 logging.info(f"Output directory: {OUTDIR}")
 
 # Load mass window from binning.json
-binning_path = f"{OUTDIR}/binning.json"
+binning_path = f"{CONFIGDIR}/binning.json"
 if not os.path.exists(binning_path):
     raise FileNotFoundError(
         f"Binning results not found: {binning_path}\n"
@@ -66,7 +100,7 @@ MASS_MAX = binning_params["mass_max"]
 logging.info(f"Mass window from binning: [{MASS_MIN:.2f}, {MASS_MAX:.2f}] GeV")
 
 # Load background weights
-weights_json_path = f"{OUTDIR}/background_weights.json"
+weights_json_path = f"{CONFIGDIR}/background_weights.json"
 BG_WEIGHTS = None
 if os.path.exists(weights_json_path):
     with open(weights_json_path, 'r') as f:
@@ -78,7 +112,7 @@ else:
     logging.warning(f"Using unweighted ParticleNet score (equal priors)")
 
 # Load process list for dynamic background categories
-process_list_path = f"{OUTDIR}/process_list.json"
+process_list_path = f"{CONFIGDIR}/process_list.json"
 if not os.path.exists(process_list_path):
     raise FileNotFoundError(
         f"Process list not found: {process_list_path}\n"
@@ -91,6 +125,17 @@ with open(process_list_path, 'r') as f:
 SEPARATE_PROCESSES = process_list.get("separate_processes", ["nonprompt"])
 MERGED_TO_OTHERS = process_list.get("merged_to_others", [])
 
+# Load optimized score threshold
+threshold_path = f"{CONFIGDIR}/threshold.json"
+SCORE_THRESHOLD = None
+if os.path.exists(threshold_path):
+    with open(threshold_path, 'r') as f:
+        threshold_data = json.load(f)
+        SCORE_THRESHOLD = threshold_data.get("threshold", None)
+        logging.info(f"Loaded score threshold: {SCORE_THRESHOLD}")
+else:
+    logging.warning(f"Threshold file not found: {threshold_path}")
+
 logging.info(f"Separate processes: {SEPARATE_PROCESSES}")
 logging.info(f"Merged to others: {MERGED_TO_OTHERS}")
 
@@ -98,28 +143,12 @@ logging.info(f"Merged to others: {MERGED_TO_OTHERS}")
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(0)
 
-# Color palette for dynamic background assignment
-COLOR_PALETTE = [
-    ROOT.TColor.GetColor("#5790fc"),
-    ROOT.TColor.GetColor("#f89c20"),
-    ROOT.TColor.GetColor("#e42536"),
-    ROOT.TColor.GetColor("#964a8b"),
-    ROOT.TColor.GetColor("#9c9ca1"),
-    ROOT.TColor.GetColor("#7a21dd")
-]
-
-# Special colors for known categories
-KNOWN_COLORS = {
-    "nonprompt": ROOT.kAzure + 2,
-    "others": ROOT.kGray + 1,
-}
-
-
-def get_color(process, idx):
-    """Get color for process - known colors first, then palette for others."""
-    if process in KNOWN_COLORS:
-        return KNOWN_COLORS[process]
-    return COLOR_PALETTE[idx % len(COLOR_PALETTE)]
+def get_color(process):
+    """Get color for process from BKG_COLORS."""
+    if process in BKG_COLORS:
+        return BKG_COLORS[process]
+    # Fallback for unknown processes
+    return ROOT.kGray
 
 
 def loadScores(process, masspoint):
@@ -240,25 +269,26 @@ def createHistogram(process, masspoint, name, color):
 if __name__ == "__main__":
     logging.info(f"Plotting Modified ParticleNet scores for {args.masspoint}, {args.era}, {args.channel}")
 
-    # Create histograms for backgrounds with dynamic colors
-    bkg_hists = {}
-    color_idx = 0
+    # Create histograms for backgrounds with consistent colors
+    # Build ordered list of backgrounds following BKG_ORDER
+    all_backgrounds = SEPARATE_PROCESSES + ["others"]
+    ordered_bkgs = []
+    for bkg in BKG_ORDER:
+        if bkg in all_backgrounds:
+            ordered_bkgs.append(bkg)
+    # Add any remaining backgrounds not in BKG_ORDER
+    for bkg in all_backgrounds:
+        if bkg not in ordered_bkgs:
+            ordered_bkgs.append(bkg)
 
-    for process in SEPARATE_PROCESSES:
-        color = get_color(process, color_idx)
-        if process not in KNOWN_COLORS:
-            color_idx += 1
+    bkg_hists = {}
+    for process in ordered_bkgs:
+        color = get_color(process)
         display_name = process.capitalize()
         hist = createHistogram(process, args.masspoint, display_name, color)
         if hist.Integral() > 0:
             bkg_hists[process] = hist
             logging.info(f"  {process}: {hist.Integral():.2f} events")
-
-    # Always include "others"
-    hist_others = createHistogram("others", args.masspoint, "Others", get_color("others", 0))
-    if hist_others.Integral() > 0:
-        bkg_hists["others"] = hist_others
-        logging.info(f"  others: {hist_others.Integral():.2f} events")
 
     # Create signal histogram (not stacked)
     hist_signal = createHistogram(args.masspoint, args.masspoint, f"Signal ({args.masspoint})", ROOT.kRed + 1)
@@ -269,10 +299,34 @@ if __name__ == "__main__":
         logging.error("ParticleNet scores are only available for trained mass points.")
         sys.exit(1)
 
-    # Create "data_obs" histogram (sum of backgrounds for blind analysis)
-    data_obs = ROOT.TH1D("data_obs", "data_obs", 50, 0., 1.)
-    for hist in bkg_hists.values():
-        data_obs.Add(hist)
+    # Create "data_obs" histogram
+    if args.unblind or args.partial_unblind:
+        # Load real data
+        data_obs = createHistogram("data", args.masspoint, "Data", ROOT.kBlack)
+
+        if args.partial_unblind:
+            # Zero out bins with score >= 0.3
+            # With 50 bins from 0 to 1, each bin width = 0.02
+            # score >= 0.3 starts at bin 16 (0.30/0.02 + 1 = 16)
+            threshold_bin = int(0.3 / 0.02) + 1  # bin 16
+            for ibin in range(threshold_bin, data_obs.GetNbinsX() + 1):
+                data_obs.SetBinContent(ibin, 0)
+                data_obs.SetBinError(ibin, 0)
+            logging.info(f"Partial unblind: zeroed bins {threshold_bin}-{data_obs.GetNbinsX()} (score >= 0.3)")
+    else:
+        # Blinded: sum of backgrounds
+        data_obs = ROOT.TH1D("data_obs", "data_obs", 50, 0., 1.)
+        for hist in bkg_hists.values():
+            data_obs.Add(hist)
+
+    # Build colors list in same order as bkg_hists
+    colors = []
+    for bkg in bkg_hists.keys():
+        if bkg in BKG_COLORS:
+            colors.append(BKG_COLORS[bkg])
+        else:
+            # Fallback to default gray for unknown backgrounds
+            colors.append(ROOT.kGray)
 
     # Configuration for ComparisonCanvas
     config = {
@@ -282,7 +336,10 @@ if __name__ == "__main__":
         "xTitle": "Modified ParticleNet Score",
         "yTitle": "Events",
         "rTitle": "Data / Pred",
+        "yRange": [0, 20.],
+        "rRange": [0, 5.],
         "maxDigits": 3,
+        "colors": colors
     }
 
     # Create plot
@@ -298,12 +355,24 @@ if __name__ == "__main__":
     hist_signal.SetFillStyle(0)  # No fill
     hist_signal.Draw("HIST SAME")
 
+    # Draw score threshold line if available
+    threshold_line = None
+    if SCORE_THRESHOLD is not None:
+        ymax = ROOT.gPad.GetUymax()
+        threshold_line = ROOT.TLine(SCORE_THRESHOLD, 0, SCORE_THRESHOLD, ymax/2)
+        threshold_line.SetLineColor(ROOT.kRed)
+        threshold_line.SetLineWidth(2)
+        threshold_line.SetLineStyle(2)  # Dashed
+        threshold_line.Draw("SAME")
+
     # Add signal to legend
     current_pad = ROOT.gPad
     primitives = current_pad.GetListOfPrimitives()
     for obj in primitives:
         if obj.InheritsFrom("TLegend"):
-            obj.AddEntry(hist_signal, f"signal (30fb)", "l")
+            obj.AddEntry(hist_signal, f"signal (x6)", "l")
+            if threshold_line:
+                obj.AddEntry(threshold_line, f"threshold ({SCORE_THRESHOLD:.2f})", "l")
             break
 
     plotter.drawPadDown()

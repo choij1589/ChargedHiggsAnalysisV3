@@ -4,107 +4,77 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ChargedHiggsAnalysisV3 is a physics analysis framework for charged Higgs particle searches in CMS experiments, merging Run2 and Run3 analyses. The project uses ROOT/Python for analyzing particle collision data, focusing on lepton identification, trigger efficiency measurements, fake rate studies, and systematic uncertainty evaluation.
+ChargedHiggsAnalysisV3 is a ROOT/Python framework for charged Higgs searches in CMS, merging Run2 and Run3 analyses. It covers lepton ID, trigger efficiency, fake rate measurements, and statistical limit extraction.
 
 ## Environment Setup
 
 ```bash
-source setup.sh
-```
-**CRITICAL**setup.sh already done before launching `claude`.
-
-## Project Architecture
-
-### Common/Tools/ - Shared Framework
-Core utilities used across all analysis modules:
-
-- `DataFormat.py`: Physics object hierarchy with Particle base class extending ROOT.TLorentzVector
-  - `Lepton` class with lepton type classification (prompt, fromTau, conv, fromC, fromB, fake)
-  - `Electron`/`Muon` subclasses with ID/trigger variables
-  - Kinematic utility methods (mT calculation, delta phi, etc.)
-
-- `plotter.py`: Standardized plotting framework
-  - `ComparisonCanvas`: Data vs Monte Carlo with ratio panels
-  - `KinematicCanvas`: Multi-sample kinematic distributions
-  - CMS style formatting with proper luminosity labels
-
-### Analysis Module Structure
-Each analysis follows consistent organization:
-```
-ModuleName/
-├── configs/*.json           # Histogram, systematics, sample configuration
-├── python/                  # Analysis scripts using Common/Tools
-├── scripts/                 # Shell scripts for batch processing with GNU parallel
-├── plots/                   # Output plots directory
-├── results/                 # Output ROOT/json files
-└── doThis.sh                # Main execution script for the module
+source setup.sh   # REQUIRED before any work
 ```
 
-### Key Analysis Modules
+## Common/Tools/ — Shared Framework
 
-**ExampleRun/**: Z mass validation analysis - simple reference implementation
-**DiLepton/**: Full di-lepton analysis (DiMu/EMu channels) with systematic uncertainties
-**TriLepton/**: Tri-lepton analysis, with CvSF and WZNjSF measurements
-**LeptonIDTest/**: Lepton identification efficiency, fake rate and optimization studies
-**MeasTrigEff/**: Trigger efficiency measurements using reference trigger method
-**MeasFakeRate/**: Fake rate measurements using tight-to-loose method (Default for current fake rate)
-**MeasFakeRateV2/**: Same as MeasFakeRate but not using absolute eta bins for Run3
-**MeasFakeRateV3/**: Same as MeasFakeRate but using finer low ptCorr bins for muons and electrons -> Current baseline.
-**MeasJetTagEff/**: Jet tagging efficiency measurements
-**TriggerStrategy/**: Trigger strategy optimization studies
-**SignalRegionStudy/**: Final limit extraction using Combine -> Current baseline.
+- `DataFormat.py`: Particle/Lepton/Electron/Muon classes (extends ROOT.TLorentzVector); lepton type classification (prompt, fromTau, conv, fromC, fromB, fake)
+- `plotter.py`: `ComparisonCanvas` (data vs MC + ratio), `KinematicCanvas` (multi-sample); CMS style, luminosity labels
 
-## Key Development Commands
+## Key Analysis Modules
 
-### Environment and Setup
-```bash
-source setup.sh                    # REQUIRED before any analysis work
-```
+Each module has its own `CLAUDE.md` with commands and details.
 
-## Data Organization
+| Module | Description |
+|--------|-------------|
+| `ExampleRun/` | Z mass validation — simple reference |
+| `DiLepton/` | Di-lepton analysis (DiMu/EMu) with systematics |
+| `TriLepton/` | Tri-lepton analysis; ConvSF and WZNjSF measurements |
+| `LeptonIDTest/` | Lepton ID efficiency, fake rate, optimization studies |
+| `MeasTrigEff/` | Trigger efficiency (tag-and-probe) |
+| `MeasFakeRateV4/` | **Current baseline** fake rate (tight-to-loose) |
+| `MeasFakeRate/`, `V2/`, `V3/` | Legacy fake rate modules |
+| `MeasJetTagEff/` | b-tagging (DeepJet) efficiency |
+| `TriggerStrategy/` | Trigger acceptance comparison study |
+| `SignalRegionStudyV2/` | **Current baseline** signal region + limit extraction |
+| `SignalRegionStudy/` | Legacy limit extraction (C++/CMake) |
+| `ParticleNet/` | GNN classifier for signal/background discrimination |
+| `ParticleNetMD/` | Mass-decorrelated variant (DisCo loss) |
+| `GenKinematics/` | Generator-level kinematics plots |
+| `SignalKinematics/` | Signal pair selection and discrimination studies |
 
-### Input Data Structure
-Analysis expects ROOT files in standardized paths:
+## Data
+
+**Input path pattern:**
 ```
 $WORKDIR/SKNanoOutput/{ModuleName}/{Era}/{Sample}.root
 ```
 
-### Systematic Variations
-DiLepton analysis stores systematics as:
+**Eras — Run2:** 2016preVFP, 2016postVFP, 2017, 2018
+**Eras — Run3:** 2022, 2022EE, 2023, 2023BPix
+
+**Luminosity — NEVER hardcode.** Always load from `Common/Data/Luminosity.json`:
+```python
+from plotter import LumiInfo, EnergyInfo   # preferred
 ```
-{Channel}/{SystematicName}/{HistogramPath}
+
+## Sanity Check
+
+```bash
+python -m compileall -q .   # syntax check (no unified test runner)
 ```
-Common systematics: L1Prefire, PileupReweight, MuonIDSF, ElectronIDSF, TrigSF, BtagSF
 
-### Era Support
-- **Run2**: 2016preVFP, 2016postVFP, 2017, 2018
-- **Run3**: 2022, 2022EE, 2023, 2023BPix
+## Code Conventions
 
-Each era has specific data stream configurations and luminosity values.
+**Python:** 4-space indent; `snake_case` functions/vars, `PascalCase` classes, `UPPER_SNAKE` constants; fail fast on bad env/inputs (`ValueError`/`RuntimeError`); never silent fallbacks; `SetDirectory(0)` after reading ROOT histograms; close ROOT files promptly; no hardcoded lumi/era/sample lists.
 
-## Code Architecture Patterns
+**Shell:** `#!/bin/bash`; strict mode `set -euo pipefail` for new scripts; quote all variables and paths; `export PATH="${PWD}/python:${PATH}"` in module scripts.
 
-### Analysis Script Structure
-All Python analysis scripts follow common patterns:
-1. Command line argument parsing (era, channel, histkey)
-2. JSON configuration loading from `configs/histkeys.json`
-3. ROOT file handling with proper memory management (`SetDirectory(0)`)
-4. Histogram processing with bin-by-bin systematic uncertainties
-5. Output to era/channel organized directories
+**Directories:** `os.makedirs(os.path.dirname(path), exist_ok=True)` before writing files.
 
-### Shell Script Patterns
-- Path setup: `export PATH="${PWD}/python:${PATH}"`
-- Environment variable export for parallel processing
-- GNU parallel for multi-threaded execution
-- Era-specific logic for different run periods
+## Version Control Safety
 
-## Development Notes
+Check `git status` before starting. If there are uncommitted changes, commit them first so the user can roll back.
 
-- All scripts assume ROOT environment and Common/Tools are available via setup.sh
-- Use `ROOT.gROOT.SetBatch(True)` for non-interactive plotting
-- Histogram memory management: always call `SetDirectory(0)` after reading
-- Systematic uncertainties calculated using envelope method
-- GNU parallel extensively used for multi-core processing
-- JSON configuration files control histogram properties and systematic ranges
-- When creating files with directory paths, always use `os.makedirs(os.path.dirname(file_path), exist_ok=True)` before file creation
-- Do not make silent fallbacks. Raise error when the behaviour of the function call in not expected.
+## Workflow
+
+1. `source setup.sh`
+2. Find the module; read its `CLAUDE.md`
+3. Make the smallest correct change
+4. Validate: `python -m compileall -q <changed_dirs>`
