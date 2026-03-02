@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 MeasFakeRateV4 is the **current baseline** for fake rate measurements in the charged Higgs analysis. It measures the probability for non-prompt leptons to pass tight ID requirements using the tight-to-loose method. Results are used downstream in TriLepton/SignalRegionStudyV2 for nonprompt background estimation.
 
 **Key improvements over V3:**
+
 - Consolidated lepton-type file structure (e.g., `MeasFakeEl_RunSyst` instead of trigger-specific paths)
 - Enhanced error propagation with bin-by-bin fractional uncertainties
 - Adaptive rebinning in closure tests (30% fractional error threshold)
@@ -25,6 +26,7 @@ source setup.sh  # Run from ChargedHiggsAnalysisV3 root
 ## Key Commands
 
 ### Run Full Pipeline
+
 ```bash
 cd MeasFakeRateV4
 bash scripts/measFakeRate.sh 2018 electron  # Full pipeline for one era/measure
@@ -32,6 +34,7 @@ bash doThis.sh                              # Validation plots for all eras/meas
 ```
 
 ### Individual Steps
+
 ```bash
 # Step 1: Extract histogram integrals from ROOT to JSON
 python python/parseIntegral.py --era 2018 --measure electron
@@ -63,7 +66,6 @@ bash scripts/parseFakeRateToSKNano.sh
 ```
 MeasFakeRateV4/
 ├── doThis.sh                       # Entry: validation plots for all eras/measures
-├── WORKFLOW.md                     # High-level workflow documentation
 ├── configs/
 │   ├── samplegroup.json            # Sample lists per era/measure (data, W, Z, TT, ST, VV, QCD)
 │   ├── systematics.json            # Physics systematic variations per run/lepton type
@@ -98,46 +100,60 @@ Bin names are like `ptcorr_15to17_EB1` (electron) or `ptcorr_10to12_IB` (muon).
 ## Configuration Files
 
 ### configs/samplegroup.json
+
 Per-era/measure sample definitions:
+
 - **data:** Era-specific data periods
 - **W, Z, TT, ST, VV:** Standard MC backgrounds
 - **QCD_EMEnriched / QCD_bcToE / QCD_MuEnriched:** QCD subsamples (era-specific)
 - **noHEMVeto variant:** Alternate electron selection for 2018 HEM veto studies
 
 ### configs/systematics.json
+
 Physics systematics by run period and lepton type:
+
 - **Run2:** L1Prefire, PileupReweight, PileupJetIDSF, Jet/Muon/Electron energy variations
 - **Run3:** Excludes L1Prefire (not applicable)
 
 ### configs/histkeys.json
+
 Histogram configurations for closure tests and validation:
+
 - Pair masses, Z mass, pT, eta, MET distributions
 - Per-histogram: xTitle, yTitle, xRange, rebin factor
 
 ## Python Script Details
 
 ### parseIntegral.py
+
 Extracts MT histogram integrals from ROOT files.
+
 - **Input:** `SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst/{era}/{sample}.root`
   - Histogram path: `{ptcorr_bin}/QCDEnriched/{trig_prefix}/{wp}/{syst}/MT`
 - **Output:** `results/{era}/JSON/{measure}/{sample}_{wp}.json`
 - **Supports:** Multiple systematics (Central, MotherJetPt_Up/Down, RequireHeavyTag)
 
 ### measFakeRate.py
+
 Core fake rate calculation.
+
 - **Data mode:** `fake = data - prompt × scale`; prompt normalization from Z-enriched region
 - **MC modes:** `--isMC` (inclusive), `--isQCD`, `--isTT` (mutually exclusive)
 - **Output:** 2D histograms (η × pT) in `results/{era}/ROOT/{measure}/`
 - **Prompt scale:** Derived from `ZEnriched/{trig_prefix}/{wp}/Central/ZCand/mass`
 
 ### plotClosure.py
+
 Validates fake rates via closure test on tri-lepton signal/sideband.
+
 - **Features:** Adaptive rebinning (30% fractional uncertainty threshold), chi-squared test (shape-only), systematic optimization
 - **Output:** JSON with chi2/ndf, p-value, bin deviation metrics
 - **Supports:** Multiple systematics (Central, TT, bjet, cjet, ljet)
 
 ### plotSystematics.py
+
 Plots fractional systematic variations per eta bin.
+
 - **Systematics:** PromptNorm_Up/Down, MotherJetPt_Up/Down, RequireHeavyTag
 
 ## Input Data Paths
@@ -145,6 +161,7 @@ Plots fractional systematic variations per eta bin.
 ```
 $WORKDIR/SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst/{era}/{Sample}.root
 ```
+
 e.g., `MeasFakeEl_RunSyst/2018/`, `MeasFakeMu_RunSyst/2022/`
 
 Histogram structure: `{ptcorr_bin}/{region}/{trig_prefix}/{wp}/{syst}/{histname}`
