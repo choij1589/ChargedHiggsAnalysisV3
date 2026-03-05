@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(python3:*)",
+      "Bash(echo \"WORKDIR=$WORKDIR\" ls -la \"$WORKDIR/SKNanoOutput/EvtTreeProducer/\")",
+      "Bash(export WORKDIR=/home/choij/Sync/workspace/ChargedHiggsAnalysisV3 ls \"$WORKDIR/SKNanoOutput/EvtTreeProducer/Run3Mu/2018/\")",
+      "Bash(# Check the correct path relative to ChargedHiggsAnalysisV3 ls /home/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/EvtTreeProducer/)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(done)",
+      "Bash(python python/visualizeMultiClass.py:*)"
+    ]
+  }
+}
