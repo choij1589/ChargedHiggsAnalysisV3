@@ -46,19 +46,19 @@
     }
   },
   "disco_parameters": {
-    "disco_lambda": 0.05,
+    "disco_lambda": 0.1,
     "comment": "disco_lambda: weight for mass decorrelation (DisCo(score, mass1) + DisCo(score, mass2)). FIXED - not included in GA search."
   },
   "training_parameters": {
     "max_epochs": 120,
-    "batch_size": 256,
+    "batch_size": 512,
     "dropout_p": 0.4,
-    "early_stopping_patience": 7,
+    "early_stopping_patience": 10,
     "loss_type": "disco",
     "train_folds": [0, 1, 2],
     "valid_folds": [3],
     "balance_weights": true,
-    "max_events_per_fold_per_class": 40000,
+    "max_events_per_fold_per_class": 50000,
     "augment_phi_rotation": true,
     "comment": "train_folds [0,1,2] for training, valid_folds [3] for early stopping, test_folds [4] for overfitting detection. augment_phi_rotation: apply random phi rotation to Px,Py during training."
   },
@@ -66,31 +66,28 @@
     "mode": "groups",
     "background_groups": {
       "nonprompt": ["TTLL_powheg",
-                    "TTLL_hdamp_down_powheg",
-                    "TTLL_hdamp_up_powheg",
-                    "TTLL_mtop169p5_powheg",
                     "TTLL_mtop171p5_powheg",
                     "TTLL_mtop173p5_powheg",
-                    "TTLL_mtop175p5_powheg",
+                    "TTLL_TuneCP5up_powheg",
+                    "TTLL_TuneCP5down_powheg",
                     "TTLL_TuneCP5CR1_powheg",
                     "TTLL_TuneCP5CR2_powheg",
-                    "TTLL_TuneCP5down_powheg",
-                    "TTLL_TuneCP5_erdOn_powheg",
-                    "TTLL_TuneCP5up_powheg",
-                    "TTLL_widthx0p7_powheg",
-                    "TTLL_widthx0p85_powheg",
-                    "TTLL_widthx1p15_powheg",
-                    "TTLL_widthx1p3_powheg"
+                    "TTLL_hdamp_up_powheg",
+                    "TTLL_hdamp_down_powheg"
       ],
-      "diboson": ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"],
-      "ttX": ["TTZToLLNuNu", "tZq"]
+      "diboson": ["WZTo3LNu", "ZZTo4L_powheg"],
+      "ttX": ["TTZ", "tZq"]
     },
-    "comment": "Physics-motivated background grouping. 16 TTLL variants for nonprompt category."
+    "comment": "Physics-motivated background grouping. 9 TTLL variants for nonprompt category."
   },
   "dataset_config": {
     "signal_prefix": "TTToHcToWAToMuMu-",
     "background_prefix": "Skim_TriLep_",
-    "comment": "B-jets are separate particles (no btagScore). Dataset includes mass1, mass2 for decorrelation."
+    "era_sample_mapping": {
+      "WZTo3LNu": {"run2": "WZTo3LNu_amcatnlo", "run3": "WZTo3LNu_powheg"},
+      "TTZ": {"run2": "TTZToLLNuNu", "run3": "TTZ_M50"}
+    },
+    "comment": "B-jets are separate particles (no btagScore). Dataset includes mass1, mass2 for decorrelation. era_sample_mapping: samples with different names across Run2/Run3 eras."
   },
 
   "model_config": {
@@ -105,7 +102,7 @@
   },
 
   "output_config": {
-    "results_dir": "GAOptim_PhiAug",
+    "results_dir": "GAOptim",
     "ga_subdir_pattern": "GA-iter{iteration}",
     "json_subdir": "json",
     "models_subdir": "models",

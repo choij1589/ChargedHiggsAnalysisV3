@@ -25,7 +25,7 @@ import argparse
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple
-from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 
 import torch
 import torch.nn.functional as F
@@ -38,10 +38,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix, classification_report
 
-# Add python directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 
 from GAConfig import load_ga_config
 from DynamicDatasetLoader import DynamicDatasetLoader
@@ -99,9 +97,20 @@ def load_model_checkpoint(model_path: str, config_path: str, device: str) -> tor
     num_hidden = hyperparams['num_hidden']
     num_classes = hyperparams.get('num_classes', 4)
     num_node_features = hyperparams.get('num_node_features', 9)
-    num_graph_features = hyperparams.get('num_graph_features', 4)
     dropout_p = hyperparams.get('dropout_p', 0.4)
-    model_type = hyperparams.get('model_type', 'OptimizedParticleNet')
+    model_type = hyperparams.get('model_type', 'ParticleNet')
+
+    # Load checkpoint first to infer num_graph_features from weights
+    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+    model_state = checkpoint['model_state_dict'] if isinstance(checkpoint, dict) else checkpoint
+
+    # Infer num_graph_features from dense1 weight shape to handle stale JSON
+    # dense1.weight shape = (nNodes, 3*nNodes + num_graph_features)
+    num_graph_features = hyperparams.get('num_graph_features', 8)
+    if 'dense1.weight' in model_state:
+        inferred = model_state['dense1.weight'].shape[1] - 3 * num_hidden
+        if inferred != num_graph_features:
+            num_graph_features = inferred
 
     # Create model
     model = create_multiclass_model(
@@ -113,16 +122,38 @@ def load_model_checkpoint(model_path: str, config_path: str, device: str) -> tor
         dropout_p=dropout_p
     ).to(device)
 
-    # Load checkpoint
-    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
-    model_state = checkpoint['model_state_dict'] if isinstance(checkpoint, dict) else checkpoint
     model.load_state_dict(model_state)
     model.eval()
 
     return model, hyperparams
 
 
-def evaluate_model(model: torch.nn.Module, loader: DataLoader, device: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def _infer_channel_id(x: torch.Tensor, batch_indices: torch.Tensor, event_idx: int) -> int:
+    """Infer channel from node features: 0=Run1E2Mu (1e+2mu), 1=Run3Mu (3mu).
+
+    Node features: [E, Px, Py, Pz, charge, isMuon, isElectron, isJet, isBjet]
+    """
+    node_mask = (batch_indices == event_idx)
+    node_features = x[node_mask]
+    n_muons = int((node_features[:, 5] > 0.5).sum().item())
+    n_electrons = int((node_features[:, 6] > 0.5).sum().item())
+    if n_electrons >= 1 and n_muons >= 2:
+        return 0  # Run1E2Mu
+    elif n_muons >= 3:
+        return 1  # Run3Mu
+    return 0  # fallback
+
+
+def _infer_run_id(era: str) -> int:
+    """Infer run from era string: 0=Run2 (2016-2018), 1=Run3 (2022-2023)."""
+    if era.startswith("2016") or era.startswith("2017") or era.startswith("2018"):
+        return 0
+    elif era.startswith("2022") or era.startswith("2023"):
+        return 1
+    return 0  # fallback
+
+
+def evaluate_model(model: torch.nn.Module, loader: DataLoader, device: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Evaluate model on dataset.
 
@@ -132,10 +163,13 @@ def evaluate_model(model: torch.nn.Module, loader: DataLoader, device: str) -> T
         weights: Event weights (n_samples,)
         mass1: First mass variable (n_samples,)
         mass2: Second mass variable (n_samples,)
+        channel_ids: Channel ID per event (0=Run1E2Mu, 1=Run3Mu)
+        run_ids: Run ID per event (0=Run2, 1=Run3)
     """
     model.eval()
     y_true_list, y_scores_list, weights_list = [], [], []
     mass1_list, mass2_list = [], []
+    channel_id_list, run_id_list = [], []
 
     with torch.no_grad():
         for data in loader:
@@ -153,6 +187,20 @@ def evaluate_model(model: torch.nn.Module, loader: DataLoader, device: str) -> T
             if hasattr(data, 'mass2'):
                 mass2_list.append(data.mass2)
 
+            # Infer channel_id and run_id per event
+            x_cpu = data.x.cpu()
+            batch_cpu = data.batch.cpu()
+            batch_eras = data.era if hasattr(data, 'era') else [None] * len(data.y)
+            n_events = int(data.y.size(0))
+            ch_ids = np.empty(n_events, dtype=np.int32)
+            r_ids = np.empty(n_events, dtype=np.int32)
+            for i in range(n_events):
+                ch_ids[i] = _infer_channel_id(x_cpu, batch_cpu, i)
+                era_str = batch_eras[i] if batch_eras[i] is not None else ""
+                r_ids[i] = _infer_run_id(era_str)
+            channel_id_list.append(ch_ids)
+            run_id_list.append(r_ids)
+
     # Concatenate on GPU, then move to CPU
     y_true = torch.cat(y_true_list).cpu().numpy()
     y_scores = torch.cat(y_scores_list).cpu().numpy()
@@ -168,7 +216,10 @@ def evaluate_model(model: torch.nn.Module, loader: DataLoader, device: str) -> T
     else:
         mass2 = np.zeros(len(y_true))
 
-    return y_true, y_scores, weights, mass1, mass2
+    channel_ids = np.concatenate(channel_id_list)
+    run_ids = np.concatenate(run_id_list)
+
+    return y_true, y_scores, weights, mass1, mass2, channel_ids, run_ids
 
 
 # =============================================================================
@@ -429,42 +480,6 @@ def perform_ks_tests_comprehensive(y_true_train: np.ndarray, y_scores_train: np.
             }
 
     return ks_results, histograms
-
-
-def save_ks_results(ks_results: Dict, histograms: Dict, output_dir: str, model_idx: int):
-    """Save KS test results to JSON and ROOT files."""
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Save JSON results
-    json_path = os.path.join(output_dir, f"model{model_idx}_kolmogorov.json")
-    with open(json_path, 'w') as f:
-        json.dump(ks_results, f, indent=2)
-
-    # Save ROOT file with histograms
-    root_path = os.path.join(output_dir, f"model{model_idx}_kolmogorov.root")
-    root_file = ROOT.TFile(root_path, "RECREATE")
-
-    for key, hists in histograms.items():
-        hists['train'].Write(f"h_train_{key}")
-        hists['test'].Write(f"h_test_{key}")
-
-    root_file.Close()
-
-    # Save overall result
-    any_overfitted = any(result['is_overfitted'] for result in ks_results.values())
-    min_p_value = min(result['p_value'] for result in ks_results.values())
-
-    result_path = os.path.join(output_dir, f"model{model_idx}_result.json")
-    with open(result_path, 'w') as f:
-        json.dump({
-            'model_idx': model_idx,
-            'is_overfitted': any_overfitted,
-            'min_p_value': min_p_value,
-            'n_failed_tests': sum(1 for r in ks_results.values() if r['is_overfitted']),
-            'total_tests': len(ks_results)
-        }, f, indent=2)
-
-    return any_overfitted, min_p_value
 
 
 # =============================================================================
@@ -1098,7 +1113,7 @@ def load_datasets(config, signal: str, channel: str, pilot: bool, device: str):
         background_groups=background_groups_full,
         channel=channel,
         fold_list=train_folds,
-        pilot=pilot,
+
         max_events_per_fold=max_events_per_fold,
         balance_weights=balance_weights,
         random_state=42
@@ -1109,7 +1124,7 @@ def load_datasets(config, signal: str, channel: str, pilot: bool, device: str):
         background_groups=background_groups_full,
         channel=channel,
         fold_list=test_folds,
-        pilot=pilot,
+
         max_events_per_fold=None,
         balance_weights=balance_weights,
         random_state=42
@@ -1134,15 +1149,17 @@ def load_datasets(config, signal: str, channel: str, pilot: bool, device: str):
 def check_existing_results(model_idx: int, output_dirs: Dict) -> bool:
     """Check if evaluation results already exist for this model."""
     result_file = os.path.join(output_dirs['overfitting'], f"model{model_idx}_result.json")
-    kolmogorov_json = os.path.join(output_dirs['overfitting'], f"model{model_idx}_kolmogorov.json")
-    kolmogorov_root = os.path.join(output_dirs['overfitting'], f"model{model_idx}_kolmogorov.root")
-
-    return all(os.path.exists(f) for f in [result_file, kolmogorov_json, kolmogorov_root])
+    subdir = os.path.join(output_dirs['overfitting'], f"model{model_idx}")
+    return all(os.path.exists(f) for f in [
+        result_file,
+        os.path.join(subdir, "kolmogorov.json"),
+        os.path.join(subdir, "kolmogorov.root"),
+    ])
 
 
 def load_histograms_from_file(model_idx: int, output_dirs: Dict) -> Dict:
     """Load histograms from ROOT file for plot regeneration."""
-    root_file_path = os.path.join(output_dirs['overfitting'], f"model{model_idx}_kolmogorov.root")
+    root_file_path = os.path.join(output_dirs['overfitting'], f"model{model_idx}", "kolmogorov.root")
 
     if not os.path.exists(root_file_path):
         raise FileNotFoundError(f"ROOT file not found: {root_file_path}")
@@ -1183,212 +1200,90 @@ def load_existing_results(model_idx: int, config_path: str, output_dirs: Dict) -
     with open(result_file, 'r') as f:
         result_data = json.load(f)
 
-    ks_json = os.path.join(output_dirs['overfitting'], f"model{model_idx}_kolmogorov.json")
+    ks_json = os.path.join(output_dirs['overfitting'], f"model{model_idx}", "kolmogorov.json")
     with open(ks_json, 'r') as f:
         ks_results = json.load(f)
 
     config_data = load_model_config(config_path)
     hyperparams = config_data['hyperparameters']
 
+    # min_p_value absent in new format result files; compute from ks_results
+    min_p_value = result_data.get(
+        'min_p_value',
+        min(r['p_value'] for r in ks_results.values() if r.get('p_value') is not None)
+    )
+
     return {
         'model_idx': model_idx,
         'hyperparams': hyperparams,
         'is_overfitted': result_data['is_overfitted'],
-        'min_p_value': result_data['min_p_value'],
+        'min_p_value': min_p_value,
         'ks_results': ks_results
     }
 
 
-def process_model(model_idx: int, model_path: str, config_path: str,
-                 train_loader: DataLoader, test_loader: DataLoader,
-                 device: str, output_dirs: Dict, p_threshold: float,
-                 bin_merge_threshold: float = 1e-6,
-                 bin_merge_max_iterations: int = 100,
-                 skip_eval: bool = False):
-    """Process a single model: evaluate (or load existing), perform KS tests, generate plots."""
-    print(f"\n{'='*60}")
-    print(f"Processing Model {model_idx}")
-    print(f"{'='*60}")
-
-    plots_dir = output_dirs['plots']
-
-    # Check if we can skip evaluation
-    if skip_eval and check_existing_results(model_idx, output_dirs):
-        result = load_existing_results(model_idx, config_path, output_dirs)
-        print(f"  Overfitting status: {'OVERFITTED' if result['is_overfitted'] else 'OK'}")
-        print(f"  Min p-value: {result['min_p_value']:.4f}")
-        failed_tests = sum(1 for r in result['ks_results'].values() if r['is_overfitted'])
-        print(f"  Failed tests: {failed_tests}/16")
-
-        print("  Loading histograms from ROOT file...")
-        histograms = load_histograms_from_file(model_idx, output_dirs)
-
-        hyperparams = result['hyperparams']
-        ks_results = result['ks_results']
-
-        print("  Generating KS test heatmap...")
-        plot_ks_test_heatmap(
-            ks_results,
-            os.path.join(plots_dir, f"model{model_idx}_ks_test_heatmap.png"),
-            model_idx, hyperparams
-        )
-
-        print("  Generating score distribution grid...")
-        plot_score_distributions_grid(
-            histograms,
-            os.path.join(plots_dir, f"model{model_idx}_score_distributions_grid.png"),
-            model_idx
-        )
-
-        print("  Generating training curves...")
-        config_data = load_model_config(config_path)
-        plot_training_curves(
-            config_data,
-            os.path.join(plots_dir, f"model{model_idx}_training_curves.png"),
-            model_idx
-        )
-
-        # Load predictions for ROC curves, confusion matrices, and mass plots
-        predictions_path = os.path.join(output_dirs['overfitting'], f"model{model_idx}_predictions.npz")
-        if os.path.exists(predictions_path):
-            print("  Loading predictions from file...")
-            predictions = np.load(predictions_path)
-            y_true_train = predictions['y_true_train']
-            y_scores_train = predictions['y_scores_train']
-            weights_train = predictions['weights_train']
-            y_true_test = predictions['y_true_test']
-            y_scores_test = predictions['y_scores_test']
-            weights_test = predictions['weights_test']
-            mass1_test = predictions.get('mass1_test', np.zeros(len(y_true_test)))
-
-            print("  Generating ROC curves...")
-            plot_roc_curves(
-                y_true_train, y_scores_train, weights_train,
-                y_true_test, y_scores_test, weights_test,
-                os.path.join(plots_dir, f"model{model_idx}_roc_curves.png"),
-                model_idx
-            )
-
-            print("  Generating confusion matrix...")
-            plot_confusion_matrices(
-                y_true_train, y_scores_train, weights_train,
-                y_true_test, y_scores_test, weights_test,
-                os.path.join(plots_dir, f"model{model_idx}_confusion_matrix.png"),
-                model_idx
-            )
-
-            # Mass decorrelation plots
-            if np.any(mass1_test > 0):
-                print("  Generating mass decorrelation plots...")
-                plot_score_vs_mass_2d(mass1_test, y_scores_test, y_true_test, weights_test, plots_dir, model_idx)
-                plot_mass_profile_vs_score(mass1_test, y_scores_test, weights_test,
-                                           os.path.join(plots_dir, f"model{model_idx}_mass_profile_vs_score.png"), model_idx)
-                plot_mass_sculpting(mass1_test, y_scores_test, weights_test,
-                                    os.path.join(plots_dir, f"model{model_idx}_mass_sculpting.png"), model_idx)
-        else:
-            print(f"  Warning: Predictions file not found: {predictions_path}")
-            print("  Skipping ROC curves, confusion matrix, and mass plots")
-
-        return result
-
-    if skip_eval:
-        print(f"  Warning: --skip-eval specified but results not found, performing evaluation")
-
-    # Load model
-    print(f"  Loading model from {model_path}")
+def evaluate_single_model(model_idx: int, model_path: str, config_path: str,
+                          train_loader: DataLoader, test_loader: DataLoader,
+                          device: str, overfitting_dir: str, p_threshold: float,
+                          bin_merge_threshold: float = 1e-6,
+                          bin_merge_max_iterations: int = 100):
+    """Step 2: GPU evaluation + KS tests for one model. Saves predictions and KS results to disk."""
+    print(f"  [Eval] Model {model_idx}: loading...")
     model, hyperparams = load_model_checkpoint(model_path, config_path, device)
 
-    print(f"  Hyperparameters:")
-    print(f"    Hidden nodes: {hyperparams['num_hidden']}")
-    print(f"    Optimizer: {hyperparams['optimizer']}")
-    print(f"    Learning rate: {hyperparams['initial_lr']}")
-    print(f"    Weight decay: {hyperparams['weight_decay']}")
-    print(f"    Scheduler: {hyperparams['scheduler']}")
+    # GPU inference
+    y_true_train, y_scores_train, weights_train, mass1_train, mass2_train, \
+        channel_ids_train, run_ids_train = evaluate_model(model, train_loader, device)
+    y_true_test, y_scores_test, weights_test, mass1_test, mass2_test, \
+        channel_ids_test, run_ids_test = evaluate_model(model, test_loader, device)
 
-    # Evaluate on train and test
-    print("  Evaluating on train set...")
-    y_true_train, y_scores_train, weights_train, mass1_train, mass2_train = evaluate_model(model, train_loader, device)
-
-    print("  Evaluating on test set...")
-    y_true_test, y_scores_test, weights_test, mass1_test, mass2_test = evaluate_model(model, test_loader, device)
-
-    # Save predictions for later use with --skip-eval
-    print("  Saving predictions...")
-    predictions_path = os.path.join(output_dirs['overfitting'], f"model{model_idx}_predictions.npz")
+    # Save predictions
+    predictions_path = os.path.join(overfitting_dir, f"model{model_idx}_predictions.npz")
     np.savez(predictions_path,
              y_true_train=y_true_train, y_scores_train=y_scores_train, weights_train=weights_train,
              y_true_test=y_true_test, y_scores_test=y_scores_test, weights_test=weights_test,
-             mass1_test=mass1_test, mass2_test=mass2_test)
+             mass1_test=mass1_test, mass2_test=mass2_test,
+             channel_ids_test=channel_ids_test, run_ids_test=run_ids_test)
 
-    # Perform comprehensive KS tests
-    print("  Performing KS tests (16 tests)...")
+    # KS tests (CPU, fast)
     ks_results, histograms = perform_ks_tests_comprehensive(
         y_true_train, y_scores_train, weights_train,
         y_true_test, y_scores_test, weights_test,
-        p_threshold,
-        bin_merge_threshold,
-        bin_merge_max_iterations
+        p_threshold, bin_merge_threshold, bin_merge_max_iterations
     )
 
-    # Save KS results
-    print("  Saving KS test results...")
-    is_overfitted, min_p_value = save_ks_results(
-        ks_results, histograms, output_dirs['overfitting'], model_idx
-    )
+    # Save KS results (subdir format, matching evaluateGAModels.py)
+    model_output_dir = os.path.join(overfitting_dir, f"model{model_idx}")
+    os.makedirs(model_output_dir, exist_ok=True)
 
-    print(f"  Overfitting status: {'OVERFITTED' if is_overfitted else 'OK'}")
-    print(f"  Min p-value: {min_p_value:.4f}")
-    print(f"  Failed tests: {sum(1 for r in ks_results.values() if r['is_overfitted'])}/16")
+    ks_json_path = os.path.join(model_output_dir, "kolmogorov.json")
+    with open(ks_json_path, 'w') as f:
+        json.dump(ks_results, f, indent=2)
 
-    # Generate plots
-    print("  Generating KS test heatmap...")
-    plot_ks_test_heatmap(
-        ks_results,
-        os.path.join(plots_dir, f"model{model_idx}_ks_test_heatmap.png"),
-        model_idx, hyperparams
-    )
+    root_path = os.path.join(model_output_dir, "kolmogorov.root")
+    root_file = ROOT.TFile(root_path, "RECREATE")
+    for key, hists in histograms.items():
+        hists['train'].Write(f"h_train_{key}")
+        hists['test'].Write(f"h_test_{key}")
+    root_file.Close()
 
-    print("  Generating score distribution grid...")
-    plot_score_distributions_grid(
-        histograms,
-        os.path.join(plots_dir, f"model{model_idx}_score_distributions_grid.png"),
-        model_idx
-    )
+    # Save result summary
+    is_overfitted = any(r['is_overfitted'] for r in ks_results.values())
+    min_p_value = min(r['p_value'] for r in ks_results.values())
 
-    print("  Generating ROC curves...")
-    plot_roc_curves(
-        y_true_train, y_scores_train, weights_train,
-        y_true_test, y_scores_test, weights_test,
-        os.path.join(plots_dir, f"model{model_idx}_roc_curves.png"),
-        model_idx
-    )
+    result_path = os.path.join(overfitting_dir, f"model{model_idx}_result.json")
+    with open(result_path, 'w') as f:
+        json.dump({
+            'model_idx': model_idx,
+            'is_overfitted': is_overfitted,
+            'kolmogorov_results': ks_results
+        }, f, indent=2)
 
-    print("  Generating confusion matrix...")
-    plot_confusion_matrices(
-        y_true_train, y_scores_train, weights_train,
-        y_true_test, y_scores_test, weights_test,
-        os.path.join(plots_dir, f"model{model_idx}_confusion_matrix.png"),
-        model_idx
-    )
+    print(f"  [Eval] Model {model_idx}: {'OVERFITTED' if is_overfitted else 'OK'} (min p={min_p_value:.4f})")
 
-    print("  Generating training curves...")
-    config_data = load_model_config(config_path)
-    plot_training_curves(
-        config_data,
-        os.path.join(plots_dir, f"model{model_idx}_training_curves.png"),
-        model_idx
-    )
-
-    # Mass decorrelation plots (ParticleNetMD-specific)
-    if np.any(mass1_test > 0):
-        print("  Generating mass decorrelation plots...")
-        plot_score_vs_mass_2d(mass1_test, y_scores_test, y_true_test, weights_test, plots_dir, model_idx)
-        plot_mass_profile_vs_score(mass1_test, y_scores_test, weights_test,
-                                   os.path.join(plots_dir, f"model{model_idx}_mass_profile_vs_score.png"), model_idx)
-        plot_mass_sculpting(mass1_test, y_scores_test, weights_test,
-                            os.path.join(plots_dir, f"model{model_idx}_mass_sculpting.png"), model_idx)
-    else:
-        print("  Skipping mass decorrelation plots (no valid mass values)")
+    # Free GPU memory
+    del model
+    torch.cuda.empty_cache()
 
     return {
         'model_idx': model_idx,
@@ -1397,6 +1292,103 @@ def process_model(model_idx: int, model_path: str, config_path: str,
         'min_p_value': min_p_value,
         'ks_results': ks_results
     }
+
+
+def generate_model_plots(model_idx: int, config_path: str,
+                         overfitting_dir: str, plots_dir: str):
+    """Step 3: Generate all plots for one model from saved files. CPU-only, fork-safe."""
+    # Re-initialize ROOT in forked process
+    ROOT.gROOT.SetBatch(True)
+    setup_cms_style()
+
+    # Load model config
+    config_data = load_model_config(config_path)
+    hyperparams = config_data['hyperparameters']
+
+    # Load KS results
+    ks_json = os.path.join(overfitting_dir, f"model{model_idx}", "kolmogorov.json")
+    with open(ks_json) as f:
+        ks_results = json.load(f)
+
+    # Load histograms from ROOT file
+    output_dirs = {'overfitting': overfitting_dir}
+    histograms = load_histograms_from_file(model_idx, output_dirs)
+
+    # Load predictions
+    pred_path = os.path.join(overfitting_dir, f"model{model_idx}_predictions.npz")
+    has_predictions = os.path.exists(pred_path)
+
+    # KS heatmap + score distributions (always available)
+    plot_ks_test_heatmap(
+        ks_results,
+        os.path.join(plots_dir, f"model{model_idx}_ks_test_heatmap.png"),
+        model_idx, hyperparams)
+
+    plot_score_distributions_grid(
+        histograms,
+        os.path.join(plots_dir, f"model{model_idx}_score_distributions_grid.png"),
+        model_idx)
+
+    # Training curves (from config JSON, always available)
+    plot_training_curves(
+        config_data,
+        os.path.join(plots_dir, f"model{model_idx}_training_curves.png"),
+        model_idx)
+
+    # Prediction-dependent plots
+    if has_predictions:
+        predictions = np.load(pred_path)
+        y_true_train = predictions['y_true_train']
+        y_scores_train = predictions['y_scores_train']
+        weights_train = predictions['weights_train']
+        y_true_test = predictions['y_true_test']
+        y_scores_test = predictions['y_scores_test']
+        weights_test = predictions['weights_test']
+        mass1_test = predictions.get('mass1_test', np.zeros(len(y_true_test)))
+
+        plot_roc_curves(
+            y_true_train, y_scores_train, weights_train,
+            y_true_test, y_scores_test, weights_test,
+            os.path.join(plots_dir, f"model{model_idx}_roc_curves.png"),
+            model_idx)
+
+        plot_confusion_matrices(
+            y_true_train, y_scores_train, weights_train,
+            y_true_test, y_scores_test, weights_test,
+            os.path.join(plots_dir, f"model{model_idx}_confusion_matrix.png"),
+            model_idx)
+
+        if np.any(mass1_test > 0):
+            plot_score_vs_mass_2d(mass1_test, y_scores_test, y_true_test,
+                                  weights_test, plots_dir, model_idx)
+            plot_mass_profile_vs_score(
+                mass1_test, y_scores_test, weights_test,
+                os.path.join(plots_dir, f"model{model_idx}_mass_profile_vs_score.png"),
+                model_idx)
+            plot_mass_sculpting(
+                mass1_test, y_scores_test, weights_test,
+                os.path.join(plots_dir, f"model{model_idx}_mass_sculpting.png"),
+                model_idx)
+
+            # Per-channel/run mass sculpting plots
+            channel_ids_test = predictions.get('channel_ids_test', None)
+            run_ids_test = predictions.get('run_ids_test', None)
+            if channel_ids_test is not None and run_ids_test is not None:
+                CHANNEL_NAMES = {0: "SR1E2Mu", 1: "SR3Mu"}
+                RUN_NAMES = {0: "Run2", 1: "Run3"}
+                for run_val, run_name in RUN_NAMES.items():
+                    for ch_val, ch_name in CHANNEL_NAMES.items():
+                        mask = (run_ids_test == run_val) & (channel_ids_test == ch_val)
+                        if np.sum(mask) < 10:
+                            continue
+                        sub_dir = os.path.join(plots_dir, run_name, ch_name)
+                        os.makedirs(sub_dir, exist_ok=True)
+                        plot_mass_sculpting(
+                            mass1_test[mask], y_scores_test[mask], weights_test[mask],
+                            os.path.join(sub_dir, f"model{model_idx}_mass_sculpting.png"),
+                            model_idx)
+
+    return model_idx
 
 
 # =============================================================================
@@ -1482,6 +1474,79 @@ def create_summary_plots(all_results: List[Dict], model_info_df: Dict, output_di
     print("  Summary plots created successfully")
 
 
+def plot_disco_summary(json_dir: str, model_info_df: Dict, output_path: str):
+    """Plot DisCo term evolution across all models in a GA iteration.
+
+    For each model, draws the per-epoch train/valid DisCo term as a faint gray
+    line.  The population mean per epoch is overlaid in red (dashed).  The best
+    model (lowest fitness) is highlighted in blue.
+
+    Args:
+        json_dir: Path to the GA-iterN/json/ directory containing model*.json files.
+        model_info_df: Dict mapping model_idx -> {'fitness': float}.
+        output_path: Where to save the PNG.
+    """
+    train_curves = {}
+    valid_curves = {}
+
+    for fname in sorted(os.listdir(json_dir)):
+        if not (fname.startswith('model') and fname.endswith('.json')):
+            continue
+        if 'info' in fname:
+            continue
+        try:
+            idx = int(fname.replace('model', '').replace('.json', ''))
+        except ValueError:
+            continue
+        with open(os.path.join(json_dir, fname)) as f:
+            data = json.load(f)
+        history = data.get('epoch_history', {})
+        if 'train_disco_term' in history and 'valid_disco_term' in history:
+            train_curves[idx] = history['train_disco_term']
+            valid_curves[idx] = history['valid_disco_term']
+
+    if not train_curves:
+        print("  No DisCo term data found, skipping disco summary plot")
+        return
+
+    best_idx = min(model_info_df, key=lambda i: model_info_df[i]['fitness']) if model_info_df else None
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+    for ax, curves, panel_label in [(ax1, train_curves, 'Train'), (ax2, valid_curves, 'Valid')]:
+        max_len = max(len(v) for v in curves.values())
+        mean_vals = []
+        for ep in range(max_len):
+            ep_vals = [v[ep] for v in curves.values() if ep < len(v)]
+            mean_vals.append(np.mean(ep_vals))
+
+        for idx, vals in curves.items():
+            epochs = list(range(len(vals)))
+            is_best = (idx == best_idx)
+            ax.plot(epochs, vals,
+                    color='#2166ac' if is_best else 'gray',
+                    alpha=0.85 if is_best else 0.20,
+                    linewidth=2.0 if is_best else 0.8,
+                    label=f'Best (model {idx}, fitness={model_info_df[idx]["fitness"]:.4f})' if is_best else None,
+                    zorder=3 if is_best else 1)
+
+        ax.plot(range(len(mean_vals)), mean_vals,
+                color='#d73027', linewidth=2.5, linestyle='--',
+                label='Population mean', zorder=2)
+
+        ax.set_xlabel('Epoch', fontsize=11)
+        ax.set_ylabel('DisCo Term', fontsize=11)
+        ax.set_title(f'{panel_label} DisCo Term — All Models', fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=9, loc='upper right')
+
+    plt.suptitle(f'DisCo Term Evolution Across {len(train_curves)} Models', fontsize=13)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"  DisCo summary plot saved to: {output_path}")
+
+
 def save_summary_text(all_results: List[Dict], model_info_df: Dict, output_path: str):
     """Save summary to text file."""
     with open(output_path, 'w') as f:
@@ -1516,49 +1581,28 @@ def save_summary_text(all_results: List[Dict], model_info_df: Dict, output_path:
 # Main
 # =============================================================================
 
-def main():
-    parser = argparse.ArgumentParser(description="Visualize GA iteration results with comprehensive overfitting analysis (ParticleNetMD)")
-    parser.add_argument("--signal", type=str, required=True, help="Signal name (e.g., MHc130_MA90)")
-    parser.add_argument("--channel", type=str, required=True, help="Channel (e.g., Combined)")
-    parser.add_argument("--iteration", type=int, required=True, help="GA iteration number")
-    parser.add_argument("--device", type=str, default="cuda:0", help="Device to use")
-    parser.add_argument("--pilot", action="store_true", help="Use pilot datasets")
-    parser.add_argument("--skip-eval", action="store_true",
-                       help="Skip evaluation and reuse existing histograms")
-    parser.add_argument("--p-threshold", type=float, default=0.05, help="p-value threshold for overfitting")
-    parser.add_argument("--model-indices", type=str, default=None,
-                       help="Comma-separated model indices to process (default: all)")
-    parser.add_argument("--input", type=str, default="GAOptim",
-                       help="Input directory path (default: GAOptim)")
+def process_signal(signal: str, channel: str, iteration: int, device: str,
+                   input_dir: str, pilot: bool, skip_eval: bool,
+                   p_threshold: float, model_indices_str: str,
+                   config, overfitting_config: Dict, fold: int,
+                   n_workers: int = 4, force_eval: bool = False):
+    """Process all models for a single signal using 3-phase pipeline.
 
-    args = parser.parse_args()
+    Phase 1: Load datasets (once, shared across all models)
+    Phase 2: GPU evaluation (sequential per model, saves predictions + KS results)
+    Phase 3: CPU plotting (parallel via ProcessPoolExecutor, reads from saved files)
 
-    print("="*80)
-    print("GA ITERATION VISUALIZATION AND OVERFITTING ANALYSIS (ParticleNetMD)")
-    print("="*80)
-    print(f"Signal: {args.signal}")
-    print(f"Channel: {args.channel}")
-    print(f"Iteration: {args.iteration}")
-    print(f"Device: {args.device}")
-    print(f"Pilot mode: {args.pilot}")
-    print(f"p-value threshold: {args.p_threshold}")
-    print(f"Input directory: {args.input}")
-    print("="*80)
+    Phases 2 and 3 overlap: while model N+1 is being evaluated on GPU,
+    model N's plots are being generated on CPU workers concurrently.
+    """
+    import csv
 
-    # Load configuration
-    config = load_ga_config()
-
-    # Get bin merge parameters from config
-    overfitting_config = config.get_overfitting_config()
     bin_merge_threshold = overfitting_config.get('bin_merge_threshold', 1e-6)
     bin_merge_max_iterations = overfitting_config.get('bin_merge_max_iterations', 100)
 
-    print(f"Bin merge threshold: {bin_merge_threshold}")
-    print(f"Bin merge max iterations: {bin_merge_max_iterations}")
-
-    # Setup paths
-    signal_full = f"TTToHcToWAToMuMu-{args.signal}"
-    base_dir = f"{args.input}/{args.channel}/multiclass/{signal_full}/GA-iter{args.iteration}"
+    # Setup paths (matches launchGAOptim.py path construction)
+    fold_dir = "pilot" if pilot else f"fold-{fold}"
+    base_dir = f"{input_dir}/{channel}/{signal}/{fold_dir}/GA-iter{iteration}"
 
     models_dir = os.path.join(base_dir, "models")
     json_dir = os.path.join(base_dir, "json")
@@ -1574,7 +1618,6 @@ def main():
     }
 
     # Load model_info.csv
-    import csv
     model_info_path = os.path.join(json_dir, "model_info.csv")
     model_info_df = {}
 
@@ -1587,59 +1630,128 @@ def main():
             model_info_df[model_idx] = {'fitness': fitness}
 
     # Determine which models to process
-    if args.model_indices:
-        model_indices = [int(x) for x in args.model_indices.split(',')]
+    if model_indices_str:
+        model_indices = [int(x) for x in model_indices_str.split(',')]
     else:
         model_indices = sorted(model_info_df.keys())
 
     print(f"\nProcessing {len(model_indices)} models: {model_indices}")
+    print(f"Plot workers: {n_workers}")
 
-    # Load datasets (skip if all results exist and --skip-eval is set)
-    train_loader, test_loader = None, None
-    if args.skip_eval:
+    all_results = []
+
+    # --skip-eval: check if all eval results already exist (--force-eval overrides)
+    if skip_eval and not force_eval:
         all_exist = all(
             check_existing_results(idx, output_dirs)
             for idx in model_indices
         )
         if all_exist:
-            print("\n--skip-eval: All results exist, skipping dataset loading")
+            print("\n--skip-eval: All eval results exist, loading from disk")
+            for idx in model_indices:
+                config_path = os.path.join(json_dir, f"model{idx}.json")
+                result = load_existing_results(idx, config_path, output_dirs)
+                all_results.append(result)
         else:
-            print("\n--skip-eval: Some results missing, loading datasets anyway")
-            train_loader, test_loader = load_datasets(config, args.signal, args.channel, args.pilot, args.device)
+            print("\n--skip-eval: Some results missing, falling back to full pipeline")
+            skip_eval = False
+
+    if not skip_eval:
+        # ============================================================
+        # Step 1: Load datasets (once, shared across all models)
+        # ============================================================
+        print("\n" + "="*60)
+        print("STEP 1: Loading datasets")
+        print("="*60)
+        train_loader, test_loader = load_datasets(config, signal, channel, pilot, device)
+
+        # ============================================================
+        # Step 2 + 3: GPU eval (sequential) + CPU plotting (parallel)
+        # ============================================================
+        print("\n" + "="*60)
+        print(f"STEP 2+3: GPU evaluation → CPU plotting ({n_workers} workers)")
+        print("="*60)
+
+        with ProcessPoolExecutor(max_workers=n_workers) as plot_pool:
+            plot_futures = []
+
+            for model_idx in model_indices:
+                model_path = os.path.join(models_dir, f"model{model_idx}.pt")
+                config_path = os.path.join(json_dir, f"model{model_idx}.json")
+
+                if not os.path.exists(model_path):
+                    print(f"  Warning: Model {model_idx} not found, skipping")
+                    continue
+
+                try:
+                    # Step 2: GPU evaluation (sequential on main thread)
+                    result = evaluate_single_model(
+                        model_idx, model_path, config_path,
+                        train_loader, test_loader, device,
+                        overfitting_dir, p_threshold,
+                        bin_merge_threshold, bin_merge_max_iterations
+                    )
+                    all_results.append(result)
+
+                    # Step 3: Submit plotting to CPU pool (concurrent with next eval)
+                    future = plot_pool.submit(
+                        generate_model_plots, model_idx, config_path,
+                        overfitting_dir, plots_dir
+                    )
+                    plot_futures.append((model_idx, future))
+
+                except Exception as e:
+                    print(f"  Error evaluating model {model_idx}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            # Wait for all plot workers to finish
+            print("\n  Waiting for plot workers to finish...")
+            for model_idx, future in plot_futures:
+                try:
+                    future.result()
+                    print(f"  [Plot] Model {model_idx}: done")
+                except Exception as e:
+                    print(f"  [Plot] Model {model_idx}: ERROR - {e}")
+
     else:
-        train_loader, test_loader = load_datasets(config, args.signal, args.channel, args.pilot, args.device)
+        # ============================================================
+        # Step 3 only: Parallel plotting from saved results
+        # ============================================================
+        print("\n" + "="*60)
+        print(f"STEP 3: Parallel plotting ({n_workers} workers)")
+        print("="*60)
 
-    # Process each model
-    all_results = []
+        with ProcessPoolExecutor(max_workers=n_workers) as plot_pool:
+            futures = {}
+            for idx in model_indices:
+                config_path = os.path.join(json_dir, f"model{idx}.json")
+                future = plot_pool.submit(
+                    generate_model_plots, idx, config_path,
+                    overfitting_dir, plots_dir
+                )
+                futures[future] = idx
 
-    for model_idx in model_indices:
-        model_path = os.path.join(models_dir, f"model{model_idx}.pt")
-        config_path = os.path.join(json_dir, f"model{model_idx}.json")
+            for future in futures:
+                model_idx = futures[future]
+                try:
+                    future.result()
+                    print(f"  [Plot] Model {model_idx}: done")
+                except Exception as e:
+                    print(f"  [Plot] Model {model_idx}: ERROR - {e}")
 
-        if not os.path.exists(model_path):
-            print(f"Warning: Model {model_idx} not found, skipping")
-            continue
-
-        try:
-            result = process_model(
-                model_idx, model_path, config_path,
-                train_loader, test_loader,
-                args.device, output_dirs, args.p_threshold,
-                bin_merge_threshold, bin_merge_max_iterations,
-                skip_eval=args.skip_eval
-            )
-            all_results.append(result)
-        except Exception as e:
-            print(f"Error processing model {model_idx}: {e}")
-            import traceback
-            traceback.print_exc()
-
-    # Create summary
+    # ============================================================
+    # Summary (after all models processed)
+    # ============================================================
     print("\n" + "="*80)
     print("CREATING SUMMARY")
     print("="*80)
 
     create_summary_plots(all_results, model_info_df, plots_dir)
+
+    print("  Generating DisCo summary plot...")
+    plot_disco_summary(json_dir, model_info_df, os.path.join(plots_dir, 'summary_disco_evolution.png'))
+
     save_summary_text(all_results, model_info_df, os.path.join(overfitting_dir, "overfitting_summary.txt"))
 
     # Save summary JSON
@@ -1648,7 +1760,7 @@ def main():
         json.dump({
             'total_models': len(all_results),
             'overfitted_count': sum(1 for r in all_results if r['is_overfitted']),
-            'p_threshold': args.p_threshold,
+            'p_threshold': p_threshold,
             'results': [
                 {
                     'model_idx': r['model_idx'],
@@ -1660,16 +1772,109 @@ def main():
             ]
         }, f, indent=2)
 
-    print("\n" + "="*80)
-    print("ANALYSIS COMPLETE!")
-    print("="*80)
+    n_overfitted = sum(1 for r in all_results if r['is_overfitted'])
+    n_ok = sum(1 for r in all_results if not r['is_overfitted'])
+
     print(f"\nResults saved to:")
     print(f"  Overfitting diagnostics: {overfitting_dir}")
     print(f"  Plots: {plots_dir}")
-    print(f"\nSummary:")
-    print(f"  Total models: {len(all_results)}")
-    print(f"  Overfitted: {sum(1 for r in all_results if r['is_overfitted'])}")
-    print(f"  OK: {sum(1 for r in all_results if not r['is_overfitted'])}")
+    print(f"  Total models: {len(all_results)}, Overfitted: {n_overfitted}, OK: {n_ok}")
+
+    return len(all_results), n_overfitted, n_ok
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Visualize GA iteration results with comprehensive overfitting analysis (ParticleNetMD)")
+    parser.add_argument("--signal", type=str, required=True,
+                       help="Signal name or comma-separated list (e.g., MHc130_MA90 or MHc130_MA90,MHc160_MA85)")
+    parser.add_argument("--channel", type=str, required=True, help="Channel (e.g., Combined)")
+    parser.add_argument("--iteration", type=int, required=True, help="GA iteration number")
+    parser.add_argument("--device", type=str, default="cuda:0",
+                       help="Device or comma-separated list for round-robin (e.g., cuda:0,cuda:1)")
+    parser.add_argument("--pilot", action="store_true", help="Use pilot datasets")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--skip-eval", action="store_true",
+                       help="Skip evaluation and reuse existing histograms")
+    parser.add_argument("--force-eval", action="store_true",
+                       help="Force re-evaluation even if cached results exist")
+    parser.add_argument("--p-threshold", type=float, default=0.05, help="p-value threshold for overfitting")
+    parser.add_argument("--model-indices", type=str, default=None,
+                       help="Comma-separated model indices to process (default: all)")
+    parser.add_argument("--input", type=str, default="GAOptim",
+                       help="Input directory path (default: GAOptim)")
+    parser.add_argument("--workers", type=int, default=4,
+                       help="Number of parallel CPU workers for plot generation (default: 4)")
+
+    args = parser.parse_args()
+
+    # Load configuration and derive fold from config
+    config = load_ga_config()
+    overfitting_config = config.get_overfitting_config()
+    test_folds = overfitting_config.get('test_folds', [4])
+    fold = test_folds[0]
+
+    # Parse comma-separated signals and devices
+    signals = [s.strip() for s in args.signal.split(',')]
+    devices = [d.strip() for d in args.device.split(',')]
+
+    print("="*80)
+    print("GA ITERATION VISUALIZATION AND OVERFITTING ANALYSIS (ParticleNetMD)")
+    print("="*80)
+    print(f"Signals: {signals} ({len(signals)} total)")
+    print(f"Channel: {args.channel}")
+    print(f"Iteration: {args.iteration}")
+    print(f"Devices: {devices} ({len(devices)} total)")
+    print(f"Pilot mode: {args.pilot}")
+    print(f"Fold: {fold} (from config)")
+    print(f"p-value threshold: {args.p_threshold}")
+    print(f"Input directory: {args.input}")
+    print(f"Plot workers: {args.workers}")
+    print(f"Bin merge threshold: {overfitting_config.get('bin_merge_threshold', 1e-6)}")
+    print(f"Bin merge max iterations: {overfitting_config.get('bin_merge_max_iterations', 100)}")
+    print("="*80)
+
+    # Process each signal with round-robin device assignment
+    total_models = 0
+    total_overfitted = 0
+    total_ok = 0
+    failed_signals = []
+
+    for i, signal in enumerate(signals):
+        device = devices[i % len(devices)]
+
+        print(f"\n{'#'*80}")
+        print(f"# Signal {i+1}/{len(signals)}: {signal} on {device}")
+        print(f"{'#'*80}")
+
+        try:
+            n_models, n_ovf, n_ok = process_signal(
+                signal=signal, channel=args.channel, iteration=args.iteration,
+                device=device, input_dir=args.input, pilot=args.pilot,
+                skip_eval=args.skip_eval, p_threshold=args.p_threshold,
+                model_indices_str=args.model_indices, config=config,
+                overfitting_config=overfitting_config, fold=fold,
+                n_workers=args.workers, force_eval=args.force_eval
+            )
+            total_models += n_models
+            total_overfitted += n_ovf
+            total_ok += n_ok
+        except Exception as e:
+            print(f"ERROR: Signal {signal} failed: {e}")
+            import traceback
+            traceback.print_exc()
+            failed_signals.append(signal)
+
+    # Final summary
+    print("\n" + "="*80)
+    print("ALL SIGNALS COMPLETE!")
+    print("="*80)
+    print(f"  Signals processed: {len(signals) - len(failed_signals)}/{len(signals)}")
+    print(f"  Total models: {total_models}")
+    print(f"  Overfitted: {total_overfitted}")
+    print(f"  OK: {total_ok}")
+    if failed_signals:
+        print(f"  FAILED: {failed_signals}")
 
 
 if __name__ == "__main__":

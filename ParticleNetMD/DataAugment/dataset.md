@@ -10,6 +10,118 @@ Loose lepton ID preselection is applied upstream by EvtTreeProducer.
 | **Bjet** | At least one jet with `JetIsBtaggedColl == True` |
 | **Tight+Bjet** | Both tight ID and b-jet requirements |
 
+## Training Budget
+
+Training target: **40,000 events per fold per class** (`max_events_per_fold_per_class` in SglConfig.json), 5 folds.
+Run2/Run3 ratio per fold: ~34,000 / ~16,000 (luminosity ratio 138/62 ~ 2.2:1).
+Balanced subprocess counts within each category.
+
+> Numbers computed by `scripts/compute_training_budget.py`, output in `training_budget.json`.
+
+### Augmentation Methods
+
+| Class | Event source | Selection | Event weight | Reference |
+|-------|-------------|-----------|--------------|-----------|
+| Signal | TTToHcToWAToMuMu-* | Tight+Bjet | genW x puW x prefireW | -- |
+| Nonprompt | 9 TTLL samples | LNT+Bjet (blinded) | genW x puW x prefireW x FR_wt | [nonprompt.md](nonprompt.md) |
+| Diboson | WZ + ZZ | Tight+0tag+nJets>0 (blinded) | genW x puW x prefireW x cal_wt | [diboson.md](diboson.md) |
+| ttX | TTZ + tZq + TTH | Tight+Bjet | genW x puW x prefireW | [ttX.md](ttX.md) |
+
+**Blinding:** Nonprompt uses only LNT events (not genuine Tight+Bjet) and diboson uses only promoted 0-tag events (not genuine Tight+Bjet) for training, keeping the signal region unbiased for validation/test.
+
+### A. Signal (per mass point)
+
+Both channels (Run1E2Mu + Run3Mu) summed, Tight+Bjet selection.
+
+| Mass point | Run2 | Run3 | Total | /fold | Run2 sumW | Run3 sumW | Total sumW |
+|------------|-----:|-----:|------:|------:|----------:|----------:|-----------:|
+| MHc100_MA95 | 271,376 | 221,991 | 493,367 | 98,673 | 173.9 | 44.6 | 218.5 |
+| MHc115_MA87 | 272,946 | -- | 272,946 | 54,589 | 213.4 | -- | 213.4 |
+| MHc130_MA90 | 283,785 | 108,012 | 391,797 | 78,359 | 223.3 | 57.5 | 280.8 |
+| MHc145_MA92 | 280,421 | -- | 280,421 | 56,084 | 222.9 | -- | 222.9 |
+| MHc160_MA85 | 271,740 | 109,930 | 381,670 | 76,334 | 213.7 | 57.1 | 270.8 |
+| MHc160_MA98 | 262,968 | -- | 262,968 | 52,594 | 209.7 | -- | 209.7 |
+
+### B. Nonprompt (9 TTLL, LNT+Bjet)
+
+Both channels summed. Weight = genW x puW x prefireW x fake rate weight.
+
+| Sample | Run2 | Run3 | Total | /fold | Run2 sumW_FR | Run3 sumW_FR |
+|--------|-----:|-----:|------:|------:|-------------:|-------------:|
+| TTLL_powheg | 77,457 | 22,906 | 100,363 | 20,073 | 432.2 | 120.4 |
+| TTLL_mtop171p5 | 31,021 | 8,912 | 39,933 | 7,987 | 427.7 | 111.9 |
+| TTLL_mtop173p5 | 32,543 | 9,204 | 41,747 | 8,349 | 434.8 | 117.1 |
+| TTLL_TuneCP5up | 29,648 | 10,422 | 40,070 | 8,014 | 426.8 | 119.3 |
+| TTLL_TuneCP5down | 30,235 | 10,134 | 40,369 | 8,074 | 431.0 | 117.8 |
+| TTLL_TuneCP5CR1 | 30,482 | 9,025 | 39,507 | 7,901 | 416.0 | 118.5 |
+| TTLL_TuneCP5CR2 | 31,186 | 9,509 | 40,695 | 8,139 | 428.3 | 122.4 |
+| TTLL_hdamp_up | 30,216 | 9,099 | 39,315 | 7,863 | 432.9 | 119.2 |
+| TTLL_hdamp_down | 30,735 | 8,518 | 39,253 | 7,851 | 420.6 | 113.6 |
+| **Total** | **323,523** | **97,729** | **421,252** | **84,250** | **3,850.3** | **1,060.0** |
+
+**Per-fold feasibility:**
+
+| Metric | Run2 | Run3 | Total |
+|--------|-----:|-----:|------:|
+| Available /fold | 64,705 | 19,546 | 84,250 |
+| Target /fold | 34,000 | 16,000 | 40,000 |
+| Headroom | 190% | 122% | 211% |
+
+**Subprocess balance:** 9 samples, cap each at ~40,000/9 ~ 4,444/fold. Nominal TTLL_powheg has ~2x the stats of systematics samples, so cap it to match. All 9 samples cover all 8 eras.
+
+### C. Diboson (WZ + ZZ, promoted 0-tag)
+
+Both channels summed, Tight + 0-tag + nJets>0 (events for b-jet rank promotion).
+Base sumW shown (before promotion calibration weights, which are normalization-preserving shape corrections).
+
+| Sample | Run2 | Run3 | Total | /fold | Run2 sumW | Run3 sumW | Total sumW |
+|--------|-----:|-----:|------:|------:|----------:|----------:|-----------:|
+| WZ | 162,426 | 19,812 | 182,238 | 36,448 | 2,210.4 | 319.0 | 2,529.3 |
+| ZZ | 375,810 | 79,176 | 454,986 | 90,997 | 212.2 | 63.0 | 275.3 |
+| **Total** | **538,236** | **98,988** | **637,224** | **127,445** | **2,422.6** | **382.0** | **2,804.6** |
+
+**Per-fold feasibility:**
+
+| Metric | Run2 | Run3 | Total |
+|--------|-----:|-----:|------:|
+| Available /fold | 107,647 | 19,798 | 127,445 |
+| Target /fold | 34,000 | 16,000 | 40,000 |
+| Headroom | 317% | 124% | 319% |
+
+**Subprocess balance:** ZZ has ~2.5x the raw events of WZ. Cap ZZ to match WZ (~18k/fold each for Run2; ~8k/fold each for Run3). Physics yield is WZ-dominated (sumW 2,529 vs 275), so this balances event counts while WZ naturally dominates the effective weight.
+
+### D. ttX (TTZ + tZq + TTH, Tight+Bjet)
+
+Both channels summed. From [ttX.md](ttX.md): TTW excluded (Run3 stats too low).
+
+| Sample | Run2 | Run3 | Total | /fold | Run2 sumW | Run3 sumW | Total sumW | % of ttX |
+|--------|-----:|-----:|------:|------:|----------:|----------:|-----------:|---------:|
+| TTZ | 479,096 | 59,087 | 538,183 | 107,637 | 348.5 | 107.7 | 456.2 | 72% |
+| tZq | 341,656 | 39,453 | 381,109 | 76,222 | 109.5 | 28.0 | 137.5 | 22% |
+| TTH | 15,653 | 24,289 | 39,942 | 7,988 | 27.4 | 10.2 | 37.7 | 6% |
+| **Total** | **836,405** | **122,829** | **959,234** | **191,847** | **485.4** | **145.9** | **631.3** | **100%** |
+
+**Per-fold feasibility:**
+
+| Metric | Run2 | Run3 | Total |
+|--------|-----:|-----:|------:|
+| Available /fold | 167,281 | 24,566 | 191,847 |
+| Target /fold | 34,000 | 16,000 | 40,000 |
+| Headroom | 492% | 154% | 480% |
+
+**Subprocess balance:** TTZ ~108k/fold, tZq ~76k/fold, TTH ~8k/fold. Cap TTZ and tZq to equalize. TTH is limiting but still ~8k/fold (adequate given its 18% physics weight).
+
+### Budget Summary
+
+| Class | Run2/fold | % of 34k | Run3/fold | % of 16k | Total/fold | % of 40k | Status |
+|-------|----------:|---------:|----------:|---------:|-----------:|---------:|--------|
+| Signal (typical) | ~55k | 162% | ~22k | 138% | ~77k | 193% | Capped at 40k |
+| Nonprompt | 64,705 | 190% | 19,546 | 122% | 84,250 | 211% | Capped at 40k |
+| Diboson | 107,647 | 317% | 19,798 | 124% | 127,445 | 319% | Capped at 40k |
+| ttX | 167,281 | 492% | 24,566 | 154% | 191,847 | 480% | Capped at 40k |
+
+All classes comfortably meet the 40k/fold target. Run3 is the tighter constraint across all categories but still meets 16k/fold targets with 124-154% headroom.
+
 ## Run1E2Mu Channel
 
 ### Signal Samples
@@ -28,10 +140,6 @@ Loose lepton ID preselection is applied upstream by EvtTreeProducer.
 | MHc115_MA87 | 2016postVFP | 38187 | 28483 | 32690 | 24478 |
 | MHc115_MA87 | 2017 | 82538 | 59949 | 72468 | 52820 |
 | MHc115_MA87 | 2018 | 80647 | 59215 | 70596 | 52095 |
-| MHc130_MA100 | 2016preVFP | 14394 | 10710 | 11806 | 8795 |
-| MHc130_MA100 | 2016postVFP | 12533 | 9503 | 10390 | 7925 |
-| MHc130_MA100 | 2017 | 27882 | 20408 | 23765 | 17462 |
-| MHc130_MA100 | 2018 | 27030 | 20185 | 23069 | 17309 |
 | MHc130_MA90 | 2016preVFP | 45821 | 33711 | 37062 | 27473 |
 | MHc130_MA90 | 2016postVFP | 40630 | 30417 | 33562 | 25326 |
 | MHc130_MA90 | 2017 | 89381 | 64867 | 75861 | 55404 |
@@ -215,7 +323,7 @@ Loose lepton ID preselection is applied upstream by EvtTreeProducer.
 | ZZTo4L_powheg | 2023 | 18273 | 13635 | 1554 | 1155 |
 | ZZTo4L_powheg | 2023BPix | 8965 | 6558 | 747 | 551 |
 
-### ttX Background (TTZ, TTW, tZq)
+### ttX Background (TTZ, TTW, tZq, TTH)
 
 | Sample | Era | Raw | Tight | Bjet | Tight+Bjet |
 |--------|-----|----:|------:|-----:|-----------:|
@@ -243,8 +351,16 @@ Loose lepton ID preselection is applied upstream by EvtTreeProducer.
 | tZq | 2022EE | 19432 | 13472 | 14063 | 9934 |
 | tZq | 2023 | 10754 | 7766 | 7765 | 5710 |
 | tZq | 2023BPix | 4851 | 3494 | 3558 | 2585 |
+| TTHToNonbb | 2016preVFP | 2199 | 1406 | 1871 | 1214 |
+| TTHToNonbb | 2016postVFP | 2404 | 1498 | 2068 | 1319 |
+| TTHToNonbb | 2017 | 5331 | 3219 | 4693 | 2890 |
+| TTHToNonbb | 2018 | 7780 | 4867 | 6787 | 4318 |
+| TTHToNonbb | 2022 | 3490 | 2016 | 2723 | 1603 |
+| TTHToNonbb | 2022EE | 12699 | 7373 | 10035 | 5907 |
+| TTHToNonbb | 2023 | 10577 | 6417 | 8237 | 5138 |
+| TTHToNonbb | 2023BPix | 5152 | 3108 | 3996 | 2463 |
 
-### Other Samples (DYJets, TTH, ...)
+### Other Samples (DYJets, ...)
 
 | Sample | Era | Raw | Tight | Bjet | Tight+Bjet |
 |--------|-----|----:|------:|-----:|-----------:|
@@ -256,14 +372,6 @@ Loose lepton ID preselection is applied upstream by EvtTreeProducer.
 | DYJets | 2022EE | 919 | 203 | 147 | 25 |
 | DYJets | 2023 | 552 | 144 | 122 | 39 |
 | DYJets | 2023BPix | 300 | 87 | 58 | 19 |
-| TTHToNonbb | 2016preVFP | 2199 | 1406 | 1871 | 1214 |
-| TTHToNonbb | 2016postVFP | 2404 | 1498 | 2068 | 1319 |
-| TTHToNonbb | 2017 | 5331 | 3219 | 4693 | 2890 |
-| TTHToNonbb | 2018 | 7780 | 4867 | 6787 | 4318 |
-| TTHToNonbb | 2022 | 3490 | 2016 | 2723 | 1603 |
-| TTHToNonbb | 2022EE | 12699 | 7373 | 10035 | 5907 |
-| TTHToNonbb | 2023 | 10577 | 6417 | 8237 | 5138 |
-| TTHToNonbb | 2023BPix | 5152 | 3108 | 3996 | 2463 |
 
 ## Run3Mu Channel
 
@@ -283,10 +391,6 @@ Loose lepton ID preselection is applied upstream by EvtTreeProducer.
 | MHc115_MA87 | 2016postVFP | 28621 | 22015 | 24481 | 18938 |
 | MHc115_MA87 | 2017 | 60364 | 44162 | 52855 | 38903 |
 | MHc115_MA87 | 2018 | 59327 | 44553 | 51831 | 39111 |
-| MHc130_MA100 | 2016preVFP | 10751 | 8384 | 8762 | 6879 |
-| MHc130_MA100 | 2016postVFP | 9265 | 7276 | 7670 | 6054 |
-| MHc130_MA100 | 2017 | 20446 | 15166 | 17354 | 12936 |
-| MHc130_MA100 | 2018 | 19993 | 15101 | 16884 | 12849 |
 | MHc130_MA90 | 2016preVFP | 33896 | 26028 | 27387 | 21123 |
 | MHc130_MA90 | 2016postVFP | 29931 | 23110 | 24659 | 19164 |
 | MHc130_MA90 | 2017 | 64497 | 47308 | 54578 | 40218 |
@@ -470,7 +574,7 @@ Loose lepton ID preselection is applied upstream by EvtTreeProducer.
 | ZZTo4L_powheg | 2023 | 9796 | 6659 | 911 | 608 |
 | ZZTo4L_powheg | 2023BPix | 4720 | 3226 | 422 | 286 |
 
-### ttX Background (TTZ, TTW, tZq)
+### ttX Background (TTZ, TTW, tZq, TTH)
 
 | Sample | Era | Raw | Tight | Bjet | Tight+Bjet |
 |--------|-----|----:|------:|-----:|-----------:|
@@ -498,8 +602,16 @@ Loose lepton ID preselection is applied upstream by EvtTreeProducer.
 | tZq | 2022EE | 17253 | 11603 | 12583 | 8605 |
 | tZq | 2023 | 9750 | 7172 | 7063 | 5308 |
 | tZq | 2023BPix | 4382 | 3205 | 3185 | 2381 |
+| TTHToNonbb | 2016preVFP | 1313 | 854 | 1105 | 737 |
+| TTHToNonbb | 2016postVFP | 1410 | 903 | 1205 | 791 |
+| TTHToNonbb | 2017 | 3082 | 1972 | 2726 | 1777 |
+| TTHToNonbb | 2018 | 4548 | 2945 | 3963 | 2607 |
+| TTHToNonbb | 2022 | 2140 | 1177 | 1654 | 935 |
+| TTHToNonbb | 2022EE | 7746 | 4302 | 6091 | 3429 |
+| TTHToNonbb | 2023 | 6836 | 4152 | 5354 | 3328 |
+| TTHToNonbb | 2023BPix | 3274 | 1898 | 2519 | 1486 |
 
-### Other Samples (DYJets, TTH, ...)
+### Other Samples (DYJets, ...)
 
 | Sample | Era | Raw | Tight | Bjet | Tight+Bjet |
 |--------|-----|----:|------:|-----:|-----------:|
@@ -511,11 +623,3 @@ Loose lepton ID preselection is applied upstream by EvtTreeProducer.
 | DYJets | 2022EE | 370 | 86 | 114 | 20 |
 | DYJets | 2023 | 262 | 53 | 94 | 16 |
 | DYJets | 2023BPix | 132 | 30 | 42 | 6 |
-| TTHToNonbb | 2016preVFP | 1313 | 854 | 1105 | 737 |
-| TTHToNonbb | 2016postVFP | 1410 | 903 | 1205 | 791 |
-| TTHToNonbb | 2017 | 3082 | 1972 | 2726 | 1777 |
-| TTHToNonbb | 2018 | 4548 | 2945 | 3963 | 2607 |
-| TTHToNonbb | 2022 | 2140 | 1177 | 1654 | 935 |
-| TTHToNonbb | 2022EE | 7746 | 4302 | 6091 | 3429 |
-| TTHToNonbb | 2023 | 6836 | 4152 | 5354 | 3328 |
-| TTHToNonbb | 2023BPix | 3274 | 1898 | 2519 | 1486 |

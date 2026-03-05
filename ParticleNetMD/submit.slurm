@@ -7,22 +7,15 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=64
-#SBATCH --time=48:00:00
+#SBATCH --time=10:00:00
 #SBATCH --output=logs/slurm/slurm-%j.out
-#SBATCH --error=logs/slurmslurm-%j.err
+#SBATCH --error=logs/slurm/slurm-%j.err
 #SBATCH --mail-type=START,END,FAIL
 #SBATCH --mail-user=choij@cern.ch
 
 # Parse command-line arguments
-CONFIG=${1}
-DEVICES=${2:-cuda:0,cuda:1}
-
-if [ -z "$CONFIG" ]; then
-    echo "ERROR: Configuration required"
-    echo "Usage: sbatch submit_ga.slurm \"sig1:ch1,sig2:ch2\" \"dev1,dev2\""
-    echo "Example: sbatch submit_ga.slurm \"MHc130_MA90:Run1E2Mu,MHc130_MA90:Run3Mu\" \"cuda:0,cuda:1\""
-    exit 1
-fi
+CONFIG=${1:-"MHc130_MA90:Combined,MHc100_MA95:Combined,MHc160_MA85:Combined"}
+DEVICES=${2:-"cuda:0,cuda:1,cuda:2"}
 
 # Additional flags (--pilot, --debug)
 shift 2

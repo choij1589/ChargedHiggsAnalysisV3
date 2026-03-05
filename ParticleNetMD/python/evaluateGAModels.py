@@ -6,46 +6,13 @@ Evaluates all models in a GA iteration using 16 KS tests for overfitting detecti
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 import json
 import logging
-import subprocess
-import sys
-from time import sleep
+import torch
+import numpy as np
 from OverfittingDetector import OverfittingDetector
-
-
-def evaluate_single_model_standalone(signal, channel, device, iteration, idx, pilot=False):
-    """Standalone entry point for evaluating a single model via subprocess."""
-    from GAConfig import load_ga_config
-
-    config = load_ga_config()
-    WORKDIR = os.environ.get("WORKDIR")
-    if not WORKDIR:
-        raise EnvironmentError("WORKDIR not set. Run 'source setup.sh'")
-
-    output_config = config.get_output_config()
-    dataset_config = config.get_dataset_config()
-    signal_full = dataset_config['signal_prefix'] + signal
-    results_dir = output_config['results_dir']
-
-    # ParticleNetMD-specific path
-    base_dir = f"{WORKDIR}/ParticleNetMD/{results_dir}/{channel}/multiclass/{signal_full}"
-
-    detector = OverfittingDetector(config, signal, channel, device, pilot=pilot)
-    ga_subdir = output_config['ga_subdir_pattern'].format(iteration=iteration)
-    output_dir = os.path.join(base_dir, ga_subdir, "overfitting_diagnostics")
-    os.makedirs(output_dir, exist_ok=True)
-
-    model_name = output_config['model_name_pattern'].format(idx=idx)
-    model_path = os.path.join(base_dir, ga_subdir, output_config['models_subdir'], f"{model_name}.pt")
-    result_file = os.path.join(output_dir, f"model{idx}_result.json")
-
-    result = _evaluate_model_safe(detector, model_path, iteration, idx, output_dir)
-
-    with open(result_file, 'w') as f:
-        json.dump(result, f, indent=2)
-
-    logging.info(f"Model {idx} evaluation complete. Result saved to {result_file}")
 
 
 def _evaluate_model_safe(detector, model_path, iteration, idx, output_dir):
@@ -70,52 +37,184 @@ def _evaluate_model_safe(detector, model_path, iteration, idx, output_dir):
     return result
 
 
-def _run_parallel_evaluation(config, signal, channel, device, iteration, base_dir, population_size, start_idx, pilot):
-    """Run evaluations in parallel using subprocess."""
+def _make_shared_batch(data_list):
+    """Collate List[Data] into a Batch with all tensors in OS shared memory."""
+    from torch_geometric.data import Batch
+    batch = Batch.from_data_list(data_list)
+    for key in batch.keys():
+        v = getattr(batch, key)
+        if torch.is_tensor(v):
+            v.share_memory_()
+    return batch
+
+
+def _load_eval_shared_datasets(config, signal_full, channel, bg_groups, WORKDIR, pilot):
+    """Load and share train + test datasets. Pilot caps: 8000 events/fold/class."""
+    from DynamicDatasetLoader import DynamicDatasetLoader
+    dataset_root = f"{WORKDIR}/ParticleNetMD/dataset"
+    loader = DynamicDatasetLoader(dataset_root=dataset_root)
+    train_params = config.get_training_parameters()
+    overfitting_config = config.get_overfitting_config()
+    dataset_config = config.get_dataset_config()
+
+    # Apply background prefix (same as launchGAOptim.py)
+    bg_prefix = dataset_config['background_prefix']
+    bg_groups_full = {
+        group: [bg_prefix + s for s in samples]
+        for group, samples in bg_groups.items()
+    }
+
+    max_events = 8000 if pilot else train_params.get('max_events_per_fold_per_class')
+    train_folds = [train_params['train_folds'][0]] if pilot else train_params['train_folds']
+    test_folds = overfitting_config.get('test_folds', [4])
+
+    train_data = loader.load_multiclass_with_subsampling(
+        signal_sample=signal_full, background_groups=bg_groups_full, channel=channel,
+        fold_list=train_folds, max_events_per_fold=max_events,
+        balance_weights=train_params.get('balance_weights', True)
+    )
+    test_data = loader.load_multiclass_with_subsampling(
+        signal_sample=signal_full, background_groups=bg_groups_full, channel=channel,
+        fold_list=test_folds, max_events_per_fold=max_events,
+        balance_weights=train_params.get('balance_weights', True)
+    )
+    logging.info(f"Shared datasets: {len(train_data)} train, {len(test_data)} test events")
+    return _make_shared_batch(train_data), _make_shared_batch(test_data)
+
+
+def evaluate_spawn_worker(worker_rank, model_paths, output_dir, device_str,
+                          shared_train_batch, shared_test_batch,
+                          model_config, train_params, p_threshold,
+                          bin_merge_threshold, bin_merge_max_iterations):
+    """Worker function for mp.spawn: one model per worker."""
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
+    import torch
+    import json
+    import numpy as np
+    from SharedWorkerUtils import make_dataloader_from_batch
+    from MultiClassModels import create_multiclass_model
+    from OverfittingDetector import (perform_ks_tests_comprehensive, save_ks_results)
+
+    idx = worker_rank
+    model_path = model_paths[idx]
+    result_file = os.path.join(output_dir, f"model{idx}_result.json")
+    result = {'model_idx': idx}
+
+    try:
+        device = torch.device(device_str)
+        checkpoint = torch.load(model_path, weights_only=True)
+        nNodes = checkpoint['model_state_dict']['conv1.mlp.0.weight'].shape[0]
+        model = create_multiclass_model(
+            model_type=model_config['default_model'],
+            num_node_features=9, num_graph_features=8,
+            num_classes=4, num_hidden=nNodes,
+            dropout_p=train_params['dropout_p']
+        ).to(device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.eval()
+
+        def get_preds(shared_batch):
+            loader = make_dataloader_from_batch(shared_batch, batch_size=2048, shuffle=False)
+            labels, scores, weights = [], [], []
+            with torch.no_grad():
+                for batch in loader:
+                    batch = batch.to(device)
+                    logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
+                    probs = torch.softmax(logits, dim=1)
+                    labels.append(batch.y.cpu().numpy())
+                    scores.append(probs.cpu().numpy())
+                    weights.append(batch.weight.cpu().numpy())
+            return np.concatenate(labels), np.concatenate(scores), np.concatenate(weights)
+
+        train_labels, train_scores, train_weights = get_preds(shared_train_batch)
+        test_labels, test_scores, test_weights = get_preds(shared_test_batch)
+
+        model_output_dir = os.path.join(output_dir, f"model{idx}")
+        os.makedirs(model_output_dir, exist_ok=True)
+        ks_results, histograms = perform_ks_tests_comprehensive(
+            train_labels, train_scores, train_weights,
+            test_labels, test_scores, test_weights,
+            p_threshold=p_threshold,
+            bin_merge_threshold=bin_merge_threshold,
+            bin_merge_max_iterations=bin_merge_max_iterations
+        )
+        save_ks_results(ks_results, histograms, model_output_dir)
+        result['is_overfitted'] = any(r['is_overfitted'] for r in ks_results.values())
+        result['kolmogorov_results'] = ks_results
+
+        del model
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
+
+    except Exception as e:
+        import logging as _logging
+        _logging.error(f"evaluate_spawn_worker model {idx}: {e}")
+        result['is_overfitted'] = True
+        result['error'] = str(e)
+
+    os.makedirs(output_dir, exist_ok=True)
+    with open(result_file, 'w') as f:
+        json.dump(result, f, indent=2)
+
+
+def _run_spawn_evaluation(config, signal, channel, device, iteration,
+                          base_dir, population_size, start_idx, pilot):
+    """Load data once, share via mp.spawn across all model evaluators."""
+    import torch.multiprocessing as mp
+    from SharedWorkerUtils import setup_spawn_method
+
+    setup_spawn_method()
+
+    WORKDIR = os.environ.get("WORKDIR")
+    dataset_config = config.get_dataset_config()
+    signal_full = dataset_config['signal_prefix'] + signal
+    bg_groups = config.get_background_groups()
+
+    shared_train, shared_test = _load_eval_shared_datasets(
+        config, signal_full, channel, bg_groups, WORKDIR, pilot
+    )
+
     output_config = config.get_output_config()
     ga_subdir = output_config['ga_subdir_pattern'].format(iteration=iteration)
     output_dir = os.path.join(base_dir, ga_subdir, "overfitting_diagnostics")
+    os.makedirs(output_dir, exist_ok=True)
 
-    logging.info(f"Launching {population_size} parallel subprocess evaluations")
+    model_config = config.get_model_config()
+    train_params = config.get_training_parameters()
+    overfitting_config = config.get_overfitting_config()
 
-    processes = []
-    for local_idx in range(population_size):
-        global_idx = start_idx + local_idx
-        command = f"python/evaluateGAModels.py --single-model --signal {signal} --channel {channel}"
-        command += f" --device {device} --iteration {iteration} --idx {global_idx}"
-        if pilot:
-            command += " --pilot"
+    model_paths = [
+        os.path.join(base_dir, ga_subdir, output_config['models_subdir'],
+                     f"{output_config['model_name_pattern'].format(idx=start_idx+i)}.pt")
+        for i in range(population_size)
+    ]
 
-        logging.info(f"Launching evaluation for model {global_idx}")
-        proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        processes.append((global_idx, proc))
-        sleep(0.1)
+    try:
+        mp.spawn(
+            evaluate_spawn_worker,
+            args=(model_paths, output_dir, device, shared_train, shared_test,
+                  model_config, train_params,
+                  overfitting_config.get('p_value_threshold', 0.05),
+                  overfitting_config.get('bin_merge_threshold', 1e-6),
+                  overfitting_config.get('bin_merge_max_iterations', 100)),
+            nprocs=population_size,
+            join=True
+        )
+    except Exception as e:
+        logging.warning(f"mp.spawn finished with errors: {e}; collecting partial results")
 
-    # Collect results
     results = []
-    for global_idx, proc in processes:
-        stdout, stderr = proc.communicate()
-
-        if proc.returncode != 0:
-            logging.error(f"Model {global_idx} evaluation failed with return code {proc.returncode}")
-            logging.error(f"stderr: {stderr.decode()}")
-            results.append({
-                'model_idx': global_idx, 'is_overfitted': True, 'kolmogorov_results': None,
-                'error': f"Subprocess failed with code {proc.returncode}"
-            })
+    for i in range(population_size):
+        global_idx = start_idx + i
+        result_file = os.path.join(output_dir, f"model{global_idx}_result.json")
+        if os.path.exists(result_file):
+            with open(result_file) as f:
+                results.append(json.load(f))
         else:
-            result_file = os.path.join(output_dir, f"model{global_idx}_result.json")
-            if os.path.exists(result_file):
-                with open(result_file, 'r') as f:
-                    results.append(json.load(f))
-            else:
-                logging.error(f"Result file not found for model {global_idx}: {result_file}")
-                results.append({
-                    'model_idx': global_idx, 'is_overfitted': True,
-                    'kolmogorov_results': None, 'error': "Result file not found"
-                })
-
-    logging.info(f"All {population_size} model evaluations completed")
+            results.append({'model_idx': global_idx, 'is_overfitted': True,
+                            'error': 'result file not written'})
     return results
 
 
@@ -170,7 +269,7 @@ def evaluate_iteration(config, signal, channel, device, iteration, base_dir, pil
 
     # Run evaluations
     if parallel:
-        results = _run_parallel_evaluation(
+        results = _run_spawn_evaluation(
             config, signal, channel, device, iteration, base_dir, population_size, start_idx, pilot
         )
     else:
@@ -302,13 +401,10 @@ if __name__ == "__main__":
     from GAConfig import load_ga_config
 
     parser = argparse.ArgumentParser(description="Evaluate GA models for overfitting (ParticleNetMD)")
-    parser.add_argument("--single-model", action="store_true", default=False,
-                        help="Evaluate a single model (for subprocess parallel execution)")
     parser.add_argument("--signal", required=True, type=str, help="Signal mass point (e.g., MHc130_MA100)")
     parser.add_argument("--channel", required=True, type=str, help="Channel (Run1E2Mu, Run3Mu, Combined)")
     parser.add_argument("--device", default="cuda", type=str, help="Device (cpu or cuda:X)")
     parser.add_argument("--iteration", required=True, type=int, help="GA iteration number")
-    parser.add_argument("--idx", type=int, help="Model index (required for --single-model)")
     parser.add_argument("--pilot", action="store_true", default=False, help="Use pilot datasets")
     parser.add_argument("--debug", action="store_true", default=False, help="Debug mode")
 
@@ -319,31 +415,23 @@ if __name__ == "__main__":
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
 
-    if args.single_model:
-        if args.idx is None:
-            raise ValueError("--idx is required when using --single-model")
+    config = load_ga_config()
+    WORKDIR = os.environ.get("WORKDIR")
+    if not WORKDIR:
+        raise EnvironmentError("WORKDIR not set. Run 'source setup.sh'")
 
-        evaluate_single_model_standalone(
-            signal=args.signal, channel=args.channel, device=args.device,
-            iteration=args.iteration, idx=args.idx, pilot=args.pilot
-        )
-    else:
-        config = load_ga_config()
-        WORKDIR = os.environ.get("WORKDIR")
-        if not WORKDIR:
-            raise EnvironmentError("WORKDIR not set. Run 'source setup.sh'")
+    output_config = config.get_output_config()
+    results_dir = output_config['results_dir']
+    overfitting_config = config.get_overfitting_config()
+    test_folds = overfitting_config.get('test_folds', [4])
 
-        output_config = config.get_output_config()
-        dataset_config = config.get_dataset_config()
-        signal_full = dataset_config['signal_prefix'] + args.signal
-        results_dir = output_config['results_dir']
+    # ParticleNetMD-specific path: short signal name, fold/pilot at leaf level
+    fold_dir = "pilot" if args.pilot else f"fold-{test_folds[0]}"
+    base_dir = f"{WORKDIR}/ParticleNetMD/{results_dir}/{args.channel}/{args.signal}/{fold_dir}"
 
-        # ParticleNetMD-specific path
-        base_dir = f"{WORKDIR}/ParticleNetMD/{results_dir}/{args.channel}/multiclass/{signal_full}"
+    overfitted_indices = evaluate_iteration(
+        config, args.signal, args.channel, args.device,
+        args.iteration, base_dir, pilot=args.pilot
+    )
 
-        overfitted_indices = evaluate_iteration(
-            config, args.signal, args.channel, args.device,
-            args.iteration, base_dir, pilot=args.pilot
-        )
-
-        print(f"\nOverfitted model indices: {overfitted_indices}")
+    print(f"\nOverfitted model indices: {overfitted_indices}")

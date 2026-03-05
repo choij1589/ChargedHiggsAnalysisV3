@@ -24,6 +24,7 @@ Usage:
 
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 import argparse
 import json
 import numpy as np
@@ -81,7 +82,7 @@ def setup_cms_style():
 # File Discovery and Data Loading
 # =============================================================================
 
-def find_multiclass_results(signal, channel, fold=None, pilot=False):
+def find_multiclass_results(signal, channel, fold=None, pilot=False, model_name=None):
     """Find multi-class classification results files for ParticleNetMD.
 
     Args:
@@ -89,6 +90,7 @@ def find_multiclass_results(signal, channel, fold=None, pilot=False):
         channel: Analysis channel (e.g., "Combined")
         fold: Test fold number. If None, automatically detect from most recent results.
         pilot: Whether to use pilot mode results
+        model_name: Substring to filter model files (e.g., "discoL0p05")
 
     Returns:
         ga_json_file: GA-compatible JSON file path (for training history)
@@ -97,11 +99,10 @@ def find_multiclass_results(signal, channel, fold=None, pilot=False):
         detected_fold: The fold number used (useful when auto-detected)
     """
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    base_path = os.path.join(script_dir, "..", "results")
+    base_path = os.path.join(script_dir, "..", "LambdaSweep")
     base_path = os.path.abspath(base_path)
 
-    signal_full = f"TTToHcToWAToMuMu-{signal}"
-    signal_base_dir = os.path.join(base_path, channel, "multiclass", signal_full)
+    signal_base_dir = os.path.join(base_path, channel, signal)
 
     if pilot:
         result_dir = os.path.join(signal_base_dir, "pilot")
@@ -163,31 +164,35 @@ def find_multiclass_results(signal, channel, fold=None, pilot=False):
     if not os.path.exists(result_dir):
         raise FileNotFoundError(f"Result directory not found: {result_dir}")
 
-    # Find GA-compatible JSON file (pick the most recently modified one)
+    # Find GA-compatible JSON file (filter by model_name substring if given)
     ga_json_candidates = []
     for f in os.listdir(result_dir):
         if f.endswith('.json') and not f.endswith('_performance.json') and not f.endswith('_model_info.json'):
-            full_path = os.path.join(result_dir, f)
-            ga_json_candidates.append((full_path, os.path.getmtime(full_path)))
+            if model_name is None or model_name in f:
+                full_path = os.path.join(result_dir, f)
+                ga_json_candidates.append((full_path, os.path.getmtime(full_path)))
 
     if not ga_json_candidates:
-        raise FileNotFoundError(f"GA-compatible JSON file not found in: {result_dir}")
+        filter_note = f" matching '{model_name}'" if model_name else ""
+        raise FileNotFoundError(f"GA-compatible JSON file not found{filter_note} in: {result_dir}")
 
     # Sort by modification time (newest first) and pick the most recent
     ga_json_candidates.sort(key=lambda x: x[1], reverse=True)
     ga_json_file = ga_json_candidates[0][0]
 
-    # Find ROOT file in trees/ subdirectory (pick the most recently modified one)
+    # Find ROOT file in trees/ subdirectory (filter by model_name substring if given)
     trees_dir = os.path.join(result_dir, "trees")
     root_candidates = []
     if os.path.exists(trees_dir):
         for f in os.listdir(trees_dir):
             if f.endswith('.root'):
-                full_path = os.path.join(trees_dir, f)
-                root_candidates.append((full_path, os.path.getmtime(full_path)))
+                if model_name is None or model_name in f:
+                    full_path = os.path.join(trees_dir, f)
+                    root_candidates.append((full_path, os.path.getmtime(full_path)))
 
     if not root_candidates:
-        raise FileNotFoundError(f"ROOT file not found in: {trees_dir}")
+        filter_note = f" matching '{model_name}'" if model_name else ""
+        raise FileNotFoundError(f"ROOT file not found{filter_note} in: {trees_dir}")
 
     # Sort by modification time (newest first) and pick the most recent
     root_candidates.sort(key=lambda x: x[1], reverse=True)
@@ -212,7 +217,7 @@ def load_multiclass_predictions_from_root(root_file):
     Returns:
         Tuple of (y_true_train, y_scores_train, weights_train, mass1_train, mass2_train,
                   y_true_test, y_scores_test, weights_test, mass1_test, mass2_test,
-                  class_names)
+                  class_names, channel_id_test, run_id_test)
     """
     if not os.path.exists(root_file):
         raise FileNotFoundError(f"ROOT file not found: {root_file}")
@@ -228,6 +233,13 @@ def load_multiclass_predictions_from_root(root_file):
     n_entries = tree.GetEntries()
     logging.info(f"Loading {n_entries} entries from ROOT file...")
 
+    # Check if channel_id/run_id branches exist (backward compatibility)
+    has_channel_run = bool(tree.GetBranch("channel_id") and tree.GetBranch("run_id"))
+    if has_channel_run:
+        logging.info("Found channel_id/run_id branches")
+    else:
+        logging.warning("No channel_id/run_id branches — mass sculpting will not be split by run/channel")
+
     # Prepare arrays
     score_signal = np.zeros(n_entries)
     score_nonprompt = np.zeros(n_entries)
@@ -239,6 +251,8 @@ def load_multiclass_predictions_from_root(root_file):
     sample_weights = np.zeros(n_entries)
     mass1 = np.zeros(n_entries)
     mass2 = np.zeros(n_entries)
+    channel_id = np.full(n_entries, -1, dtype=np.int32)
+    run_id = np.full(n_entries, -1, dtype=np.int32)
 
     # Read tree entries
     for i, event in enumerate(tree):
@@ -252,6 +266,9 @@ def load_multiclass_predictions_from_root(root_file):
         sample_weights[i] = event.weight
         mass1[i] = event.mass1
         mass2[i] = event.mass2
+        if has_channel_run:
+            channel_id[i] = event.channel_id
+            run_id[i] = event.run_id
 
     f.Close()
 
@@ -270,6 +287,8 @@ def load_multiclass_predictions_from_root(root_file):
     weights_test = sample_weights[test_mask]
     mass1_test = mass1[test_mask]
     mass2_test = mass2[test_mask]
+    channel_id_test = channel_id[test_mask]
+    run_id_test = run_id[test_mask]
 
     logging.info(f"Loaded {len(y_true_train)} train + {len(y_true_test)} test samples from ROOT file")
     logging.info(f"Physics weight range: {sample_weights.min():.6f} to {sample_weights.max():.6f}")
@@ -286,7 +305,7 @@ def load_multiclass_predictions_from_root(root_file):
 
     return (y_true_train, y_scores_train, weights_train, mass1_train, mass2_train,
             y_true_test, y_scores_test, weights_test, mass1_test, mass2_test,
-            CLASS_DISPLAY_NAMES)
+            CLASS_DISPLAY_NAMES, channel_id_test, run_id_test)
 
 
 # =============================================================================
@@ -629,131 +648,6 @@ def plot_ks_test_heatmap(ks_results: Dict, hyperparams: Dict, output_path: str):
 
     logging.info(f"KS test heatmap saved to: {output_file}")
 
-
-def plot_score_distributions_grid_bjet(y_true_test: np.ndarray, y_scores_test: np.ndarray,
-                                        weights_test: np.ndarray, has_bjet_test: np.ndarray,
-                                        output_path: str):
-    """Plot 4x4 grid of score distributions split by has_bjet (0 vs 1).
-
-    For each (true_class, score_type) cell, overlays:
-    - Blue: events with has_bjet=0 (no b-jets)
-    - Red: events with has_bjet=1 (has b-jets)
-    """
-    setup_cms_style()
-
-    canvas = ROOT.TCanvas("c_grid", "Score Distributions", 2400, 2400)
-    canvas.Divide(4, 4, 0.001, 0.001)
-
-    # Pre-compute masks for has_bjet split
-    no_bjet_mask = (has_bjet_test == 0)
-    has_bjet_mask = (has_bjet_test == 1)
-
-    # Log has_bjet distribution per class
-    logging.info("has_bjet distribution per class:")
-    for i, name in enumerate(CLASS_DISPLAY_NAMES):
-        class_mask = (y_true_test == i)
-        n_no_bjet = np.sum(class_mask & no_bjet_mask)
-        n_has_bjet = np.sum(class_mask & has_bjet_mask)
-        logging.info(f"  {name}: no_bjet={n_no_bjet}, has_bjet={n_has_bjet}")
-
-    # Keep all ROOT objects alive to prevent garbage collection before canvas.SaveAs
-    keep_alive = []
-
-    pad_idx = 1
-    for true_class_idx in range(4):
-        for score_idx in range(4):
-            canvas.cd(pad_idx)
-            ROOT.gStyle.SetOptTitle(1)
-            ROOT.gPad.SetLeftMargin(0.15)
-            ROOT.gPad.SetRightMargin(0.05)
-            ROOT.gPad.SetTopMargin(0.10)
-            ROOT.gPad.SetBottomMargin(0.12)
-
-            # Get events for this true class
-            class_mask = (y_true_test == true_class_idx)
-
-            # Create histograms for no b-jet and has b-jet
-            h_name_no = f"h_no_bjet_{true_class_idx}_{score_idx}"
-            h_name_has = f"h_has_bjet_{true_class_idx}_{score_idx}"
-
-            h_no_bjet = ROOT.TH1F(h_name_no, f"True: {CLASS_DISPLAY_NAMES[true_class_idx]}", 50, 0, 1)
-            h_has_bjet = ROOT.TH1F(h_name_has, "", 50, 0, 1)
-            h_no_bjet.SetDirectory(0)
-            h_has_bjet.SetDirectory(0)
-
-            # Fill histograms
-            combined_no = class_mask & no_bjet_mask
-            combined_has = class_mask & has_bjet_mask
-
-            scores_col = y_scores_test[:, score_idx]
-
-            for score, w in zip(scores_col[combined_no], weights_test[combined_no]):
-                h_no_bjet.Fill(score, abs(w))
-            for score, w in zip(scores_col[combined_has], weights_test[combined_has]):
-                h_has_bjet.Fill(score, abs(w))
-
-            # Normalize
-            if h_no_bjet.Integral() > 0:
-                h_no_bjet.Scale(1.0 / h_no_bjet.Integral())
-            if h_has_bjet.Integral() > 0:
-                h_has_bjet.Scale(1.0 / h_has_bjet.Integral())
-
-            # Style
-            h_no_bjet.SetLineColor(ROOT.kBlue)
-            h_no_bjet.SetLineWidth(2)
-            h_no_bjet.SetLineStyle(1)
-
-            h_has_bjet.SetLineColor(ROOT.kRed)
-            h_has_bjet.SetLineWidth(2)
-            h_has_bjet.SetLineStyle(1)
-
-            # Determine which histogram to draw first (the one with more entries)
-            # This ensures proper frame creation even when one category is empty
-            max_val = max(h_no_bjet.GetMaximum(), h_has_bjet.GetMaximum())
-            if max_val == 0:
-                max_val = 0.1  # Default range when both are empty
-
-            # Determine draw order: histogram with entries draws first to create frame
-            if h_has_bjet.GetEntries() > h_no_bjet.GetEntries():
-                h_first, h_second = h_has_bjet, h_no_bjet
-            else:
-                h_first, h_second = h_no_bjet, h_has_bjet
-
-            h_first.SetMaximum(max_val * 1.3)
-            h_first.SetMinimum(0)
-            h_first.SetXTitle(SCORE_NAMES[score_idx].replace('_', ' '))
-            h_first.SetYTitle("Normalized")
-            h_first.GetXaxis().SetTitleSize(0.05)
-            h_first.GetYaxis().SetTitleSize(0.05)
-            h_first.GetXaxis().SetLabelSize(0.04)
-            h_first.GetYaxis().SetLabelSize(0.04)
-
-            # Set title on first histogram
-            h_first.SetTitle(f"True: {CLASS_DISPLAY_NAMES[true_class_idx]}")
-
-            h_first.Draw("HIST")
-            h_second.Draw("HIST SAME")
-
-            legend = ROOT.TLegend(0.55, 0.75, 0.9, 0.88)
-            legend.SetTextSize(0.035)
-            legend.SetBorderSize(0)
-            legend.SetFillStyle(0)
-            legend.AddEntry(h_no_bjet, "No B-jets", "L")
-            legend.AddEntry(h_has_bjet, "Has B-jets", "L")
-            legend.Draw("SAME")
-
-            # Keep references to prevent garbage collection
-            keep_alive.extend([h_no_bjet, h_has_bjet, legend])
-
-            ROOT.gPad.Update()
-            pad_idx += 1
-
-    canvas.Update()
-    output_file = os.path.join(output_path, 'score_distributions_grid_bjet.png')
-    canvas.SaveAs(output_file)
-    canvas.Close()
-
-    logging.info(f"Score distributions grid (bjet split) saved to: {output_file}")
 
 
 def plot_score_distributions_grid_train_test(y_true_train: np.ndarray, y_scores_train: np.ndarray,
@@ -1295,72 +1189,115 @@ def plot_mass_profile_vs_score(mass1, y_scores, weights, output_path):
     logging.info(f"Mass profile plot saved to: {output_file}")
 
 
-def plot_mass_sculpting(mass1, y_scores, weights, output_path):
-    """Compare mass distribution at high vs low signal score."""
+def _draw_mass_sculpting_canvas(mass1, y_scores, y_true, weights, output_file, suffix=""):
+    """Draw a single mass sculpting canvas (2x2, one pad per class)."""
     setup_cms_style()
+
+    score_bins = [(0.0, 0.2), (0.2, 0.4), (0.4, 0.6), (0.6, 0.8), (0.8, 1.0)]
+    bin_colors = [ROOT.kBlue, ROOT.kCyan+1, ROOT.kGreen+2, ROOT.kOrange+1, ROOT.kRed]
 
     signal_scores = y_scores[:, 0]
     valid_mask = mass1 > 0
 
-    high_score_mask = (signal_scores > 0.7) & valid_mask
-    mid_score_mask = (signal_scores > 0.3) & (signal_scores <= 0.7) & valid_mask
-    low_score_mask = (signal_scores <= 0.3) & valid_mask
+    canvas = ROOT.TCanvas(f"c_sculpt{suffix}", "Mass Sculpting", 1600, 1200)
+    canvas.Divide(2, 2, 0.005, 0.005)
 
-    h_high = ROOT.TH1F("h_mass_high", "High score (>0.7);m_{#mu#mu} [GeV];Normalized Events", 40, 0, 200)
-    h_mid = ROOT.TH1F("h_mass_mid", "Mid score (0.3-0.7);m_{#mu#mu} [GeV];Normalized Events", 40, 0, 200)
-    h_low = ROOT.TH1F("h_mass_low", "Low score (<0.3);m_{#mu#mu} [GeV];Normalized Events", 40, 0, 200)
+    keep_alive = []
 
-    for h in [h_high, h_mid, h_low]:
-        h.SetDirectory(0)
+    for class_idx in range(4):
+        canvas.cd(class_idx + 1)
+        ROOT.gPad.SetLeftMargin(0.14)
+        ROOT.gPad.SetRightMargin(0.05)
+        ROOT.gPad.SetTopMargin(0.08)
+        ROOT.gPad.SetBottomMargin(0.12)
 
-    for m, w in zip(mass1[high_score_mask], weights[high_score_mask]):
-        h_high.Fill(m, abs(w))
-    for m, w in zip(mass1[mid_score_mask], weights[mid_score_mask]):
-        h_mid.Fill(m, abs(w))
-    for m, w in zip(mass1[low_score_mask], weights[low_score_mask]):
-        h_low.Fill(m, abs(w))
+        class_mask = (y_true == class_idx) & valid_mask
+        hists = []
 
-    for h in [h_high, h_mid, h_low]:
-        if h.Integral() > 0:
-            h.Scale(1.0 / h.Integral())
+        for bin_idx, (lo, hi) in enumerate(score_bins):
+            if hi == 1.0:
+                sel = class_mask & (signal_scores >= lo) & (signal_scores <= hi)
+            else:
+                sel = class_mask & (signal_scores >= lo) & (signal_scores < hi)
 
-    canvas = ROOT.TCanvas("c_sculpt", "", 800, 600)
-    canvas.SetLeftMargin(0.12)
-    canvas.SetBottomMargin(0.12)
+            h = ROOT.TH1F(f"h_sculpt{suffix}_{class_idx}_{bin_idx}",
+                          f"{CLASS_DISPLAY_NAMES[class_idx]};m_{{#mu#mu}} [GeV];Normalized",
+                          40, 0, 200)
+            h.SetDirectory(0)
 
-    h_high.SetLineColor(ROOT.kRed)
-    h_mid.SetLineColor(ROOT.kGreen+2)
-    h_low.SetLineColor(ROOT.kBlue)
-    for h in [h_high, h_mid, h_low]:
-        h.SetLineWidth(2)
+            for m, w in zip(mass1[sel], weights[sel]):
+                h.Fill(m, abs(w))
 
-    max_y = max(h_high.GetMaximum(), h_mid.GetMaximum(), h_low.GetMaximum()) * 1.3
-    h_high.SetMaximum(max_y)
-    h_high.SetMinimum(0)
+            if h.Integral() > 0:
+                h.Scale(1.0 / h.Integral())
 
-    h_high.Draw("HIST")
-    h_mid.Draw("HIST SAME")
-    h_low.Draw("HIST SAME")
+            h.SetLineColor(bin_colors[bin_idx])
+            h.SetLineWidth(2)
+            hists.append((h, np.sum(sel)))
+            keep_alive.append(h)
 
-    legend = ROOT.TLegend(0.55, 0.70, 0.88, 0.88)
-    legend.SetBorderSize(0)
-    legend.SetFillStyle(0)
-    legend.AddEntry(h_high, f"Score > 0.7 (N={np.sum(high_score_mask)})", "L")
-    legend.AddEntry(h_mid, f"0.3 < Score #leq 0.7 (N={np.sum(mid_score_mask)})", "L")
-    legend.AddEntry(h_low, f"Score #leq 0.3 (N={np.sum(low_score_mask)})", "L")
-    legend.Draw()
+        max_y = max(h.GetMaximum() for h, _ in hists) * 1.4
+        if max_y == 0:
+            max_y = 0.1
 
-    try:
-        if HAS_CMS_STYLE:
-            CMS.CMS_lumi(canvas, "", 0)
-    except:
-        pass
+        for i, (h, _) in enumerate(hists):
+            if i == 0:
+                h.SetMaximum(max_y)
+                h.SetMinimum(0)
+                h.GetXaxis().SetTitleSize(0.05)
+                h.GetYaxis().SetTitleSize(0.05)
+                h.GetXaxis().SetLabelSize(0.04)
+                h.GetYaxis().SetLabelSize(0.04)
+                h.Draw("HIST")
+            else:
+                h.Draw("HIST SAME")
 
-    output_file = os.path.join(output_path, 'mass_sculpting.png')
+        legend = ROOT.TLegend(0.55, 0.55, 0.92, 0.88)
+        legend.SetBorderSize(0)
+        legend.SetFillStyle(0)
+        legend.SetTextSize(0.035)
+        for bin_idx, (lo, hi) in enumerate(score_bins):
+            h, n = hists[bin_idx]
+            legend.AddEntry(h, f"{lo:.1f} #leq s < {hi:.1f} (N={n})", "L")
+        legend.Draw()
+        keep_alive.append(legend)
+
+        ROOT.gPad.Update()
+
+    canvas.Update()
     canvas.SaveAs(output_file)
     canvas.Close()
-
     logging.info(f"Mass sculpting plot saved to: {output_file}")
+
+
+CHANNEL_ID_NAMES = {0: "SR1E2Mu", 1: "SR3Mu"}
+RUN_ID_NAMES = {0: "Run2", 1: "Run3"}
+
+
+def plot_mass_sculpting(mass1, y_scores, y_true, weights, output_path,
+                        channel_id=None, run_id=None):
+    """Plot mass distribution in signal score bins, split by run and channel."""
+    # Always produce inclusive plot
+    _draw_mass_sculpting_canvas(mass1, y_scores, y_true, weights,
+                                os.path.join(output_path, 'mass_sculpting.png'))
+
+    # If channel/run info available, produce per-run/channel plots
+    if channel_id is None or run_id is None or channel_id[0] == -1:
+        return
+
+    for rid, rname in RUN_ID_NAMES.items():
+        for cid, cname in CHANNEL_ID_NAMES.items():
+            sel = (run_id == rid) & (channel_id == cid)
+            if np.sum(sel) < 10:
+                logging.warning(f"Skipping {rname}/{cname}: only {np.sum(sel)} events")
+                continue
+            subdir = os.path.join(output_path, rname, cname)
+            os.makedirs(subdir, exist_ok=True)
+            _draw_mass_sculpting_canvas(
+                mass1[sel], y_scores[sel], y_true[sel], weights[sel],
+                os.path.join(subdir, 'mass_sculpting.png'),
+                suffix=f"_{rname}_{cname}"
+            )
 
 
 # =============================================================================
@@ -1381,6 +1318,8 @@ def main():
                         help='Output directory (default: auto-generated)')
     parser.add_argument('--p-threshold', type=float, default=0.05,
                         help='p-value threshold for overfitting detection')
+    parser.add_argument('--model-name', default=None,
+                        help='Substring to select a specific model (e.g., "discoL0p05")')
 
     args = parser.parse_args()
 
@@ -1388,20 +1327,19 @@ def main():
         # Find and load training results (do this first to get detected fold)
         logging.info(f"Loading results for multi-class {args.signal}")
         ga_json_file, root_file, result_dir, detected_fold = find_multiclass_results(
-            args.signal, args.channel, args.fold, args.pilot)
+            args.signal, args.channel, args.fold, args.pilot, args.model_name)
 
         # Use detected fold for output directory if not specified
         fold_for_output = detected_fold if args.fold is None else args.fold
 
-        # Create output directory
+        # Create output directory (self-contained within training result tree)
         if args.output is None:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            base_output = os.path.join(script_dir, "..", "plots", args.channel, "multiclass")
-            base_output = os.path.abspath(base_output)
             if args.pilot:
-                args.output = os.path.join(base_output, args.signal, "pilot")
+                fold_subdir = "pilot"
             else:
-                args.output = os.path.join(base_output, args.signal, f"fold-{fold_for_output}")
+                fold_subdir = f"fold-{fold_for_output}"
+            plot_subdir = args.model_name if args.model_name else "plots"
+            args.output = os.path.join(result_dir, "plots", plot_subdir) if args.model_name else os.path.join(result_dir, "plots")
 
         os.makedirs(args.output, exist_ok=True)
 
@@ -1422,7 +1360,7 @@ def main():
         logging.info("Loading prediction data from ROOT file...")
         (y_true_train, y_scores_train, weights_train, mass1_train, mass2_train,
          y_true_test, y_scores_test, weights_test, mass1_test, mass2_test,
-         class_names) = load_multiclass_predictions_from_root(root_file)
+         class_names, channel_id_test, run_id_test) = load_multiclass_predictions_from_root(root_file)
 
         # =====================================================================
         # Standard Plots (matching visualizeGAIteration.py)
@@ -1456,8 +1394,6 @@ def main():
             y_true_test, y_scores_test, weights_test,
             args.output)
 
-        # Note: has_bjet analysis removed (b-jet requirement removed from preprocessing)
-
         # ROC curves
         logging.info("Generating ROC curves...")
         plot_roc_curves(y_true_train, y_scores_train, weights_train,
@@ -1475,15 +1411,12 @@ def main():
         # =====================================================================
         logging.info("Generating mass decorrelation plots...")
 
-        logging.info("  - Score vs mass 2D histograms...")
-        plot_score_vs_mass_2d(mass1_test, y_scores_test, y_true_test, weights_test,
-                              class_names, args.output)
-
         logging.info("  - Mass profile vs score...")
         plot_mass_profile_vs_score(mass1_test, y_scores_test, weights_test, args.output)
 
         logging.info("  - Mass sculpting comparison...")
-        plot_mass_sculpting(mass1_test, y_scores_test, weights_test, args.output)
+        plot_mass_sculpting(mass1_test, y_scores_test, y_true_test, weights_test, args.output,
+                            channel_id=channel_id_test, run_id=run_id_test)
 
         # =====================================================================
         # Summary
@@ -1497,11 +1430,9 @@ def main():
         logging.info("  - training_curves.png")
         logging.info("  - ks_test_heatmap.png")
         logging.info("  - score_distributions_grid_train_test.png")
-        logging.info("  - score_distributions_grid_bjet.png")
         logging.info("  - roc_curves.png")
         logging.info("  - confusion_matrix.png")
         logging.info("  - kolmogorov.json, kolmogorov.root")
-        logging.info("  - score_vs_mass_*.png (4 files)")
         logging.info("  - mass_profile_vs_score.png")
         logging.info("  - mass_sculpting.png")
 

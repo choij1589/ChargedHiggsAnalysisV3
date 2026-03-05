@@ -2,53 +2,298 @@
 
 ## Overview
 
-ParticleNetMD implements mass-decorrelated training for the charged Higgs analysis, preventing the neural network from learning the di-muon mass peak directly. This ensures the classifier doesn't sculpt the mass distribution and create artificial bumps in background estimates.
+ParticleNetMD trains a **4-class GNN classifier** (signal vs nonprompt/diboson/ttX) with
+**DisCo loss** (Distance Correlation) regularization. The key innovation over `ParticleNet/` is
+that the classifier is explicitly decorrelated from the OS di-muon pair mass distributions,
+preventing artificial mass bumps in background estimates.
 
-### Key Features
+```
+L_total = L_CE + λ · DisCo(score, mass1) + λ · DisCo(score, mass2)
+```
 
-1. **DisCo Loss (Default)** - Distance Correlation regularization to decorrelate classifier output from mass
-2. **Mass Storage** - Store both OS pair masses (mass1, mass2) in graph data
-3. **Separate B-jets (Default)** - Use b-jet as separate particle type (no btagScore feature)
+- `mass1`, `mass2`: sorted OS muon pair invariant masses stored per event
+- DisCo = 0 → score is statistically independent of mass (desired)
+- `λ` (`disco_lambda`): decorrelation strength, tunable in config
 
-### Physics Context
-
-For **3-muon events** (Run3Mu channel):
-- 3 muons create 2 opposite-sign (OS) pairs
-- Only one pair is from A -> mu mu (signal resonance)
-- The other pair is combinatorial (one muon from A, one from W)
-- We decorrelate from BOTH masses to prevent any mass-related learning
-
-For **1e2mu events** (Run1E2Mu channel):
-- 2 muons create 1 OS pair
-- mass1 = di-muon mass, mass2 = -1 (ignored in DisCo loss)
+For full dataset pipeline documentation, see [`docs/STEP1_PREPROCESSING.md`](STEP1_PREPROCESSING.md).
 
 ---
 
 ## Quick Start
 
-### 1. Create Datasets
 ```bash
-cd /pscratch/sd/c/choij/workspace/ChargedHiggsAnalysisV3/ParticleNetMD
+# 0. Environment
+cd /path/to/ChargedHiggsAnalysisV3
+source setup.sh
+cd ParticleNetMD
 
-# Signal
-python python/saveDataset.py --sample TTToHcToWAToMuMu-MHc130_MA90 --sample-type signal --channel Run3Mu
+# 1. Diboson promotion tables (required before saveDatasets.sh)
+python python/dibosonRankPromote.py
 
-# Backgrounds
-python python/saveDataset.py --sample Skim_TriLep_TTLL_powheg --sample-type background --channel Run3Mu
-python python/saveDataset.py --sample Skim_TriLep_WZTo3LNu_amcatnlo --sample-type background --channel Run3Mu
-python python/saveDataset.py --sample Skim_TriLep_ZZTo4L_powheg --sample-type background --channel Run3Mu
-python python/saveDataset.py --sample Skim_TriLep_TTZToLLNuNu --sample-type background --channel Run3Mu
-python python/saveDataset.py --sample Skim_TriLep_tZq --sample-type background --channel Run3Mu
+# 2. Nonprompt validation (recommended)
+python python/nonpromptPromotion.py
+
+# 3. Create all datasets
+./scripts/saveDatasets.sh
+
+# 4. Validate datasets
+python python/validateDatasets.py --workers 30   # fill phase
+python python/validateDatasets.py --plotting      # plot phase
+
+# 5. Lambda sweep (select optimal DisCo lambda)
+sbatch submit_sweep.slurm
+# After completion: run compareDecorrelation.py (see Step 4 below)
+
+# 6. GA hyperparameter optimization
+./scripts/launchGAOptim.sh --signal MHc130_MA90 --channel Combined \
+    --device cuda:0
+
+# 7. Visualize GA iteration results
+./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 3 cuda:0 --parallel --jobs 8
+
+# 8. Summarize GA loss and select best model
+python python/summarizeGALoss.py --signal MHc130_MA90 --channel Combined
 ```
 
-### 2. Run Pilot Training
-```bash
-python python/trainMultiClass.py --signal MHc130_MA90 --channel Run3Mu
-```
+---
 
-### 3. Full Dataset Creation (All Signals/Backgrounds)
+## Step-by-Step Workflow
+
+### Step 1: Data Augmentation Prerequisites
+
+Two scripts must run before dataset creation. See [`docs/STEP1_PREPROCESSING.md §2`](STEP1_PREPROCESSING.md#2-data-augmentation-prerequisites) for full details.
+
+**Diboson conditional promotion tables (required):**
+```bash
+python python/dibosonRankPromote.py
+```
+Learns P(n_bjets, rank | nJets) from genuine Tight+Bjet diboson events. Outputs
+`DataAugment/diboson/plots/rank_promote/conditional_tables.json` — required by
+`saveDataset.py --sample-type diboson`.
+
+Validation plots saved to `DataAugment/diboson/plots/rank_promote/{Run2|Run3}/{channel}/`.
+
+**Nonprompt LNT promotion validation (recommended):**
+```bash
+python python/nonpromptPromotion.py
+```
+Validates that loose-not-tight events with fake rate weights reproduce the genuine tight
+distribution. Validation plots saved to `DataAugment/nonprompt/plots/lnt_promote/{Run2|Run3}/{channel}/`.
+
+---
+
+### Step 2: Dataset Creation
+
 ```bash
 ./scripts/saveDatasets.sh
+```
+
+Processes 4 sample types in parallel. See [`docs/STEP1_PREPROCESSING.md §3`](STEP1_PREPROCESSING.md#3-dataset-creation) for per-class details.
+
+| Class | Samples | Selection | Augmentation |
+|-------|---------|-----------|--------------|
+| Signal | 6 mass points | Tight+Bjet | None |
+| Nonprompt | 9 TTLL variants | LNT+Bjet | Fake rate reweighting |
+| Diboson | WZ + ZZ | Tight+0tag promoted | Rank-based b-jet promotion |
+| ttX | TTZ + tZq | Tight+Bjet | None |
+
+**Output:** `dataset/samples/{signals,backgrounds}/` — 190 `.pt` files total (6+13 samples × 2 channels × 5 folds).
+
+---
+
+### Step 3: Dataset Validation
+
+Two-phase pipeline using [`python/validateDatasets.py`](../python/validateDatasets.py).
+
+**Fill phase** (slow, parallel — run once):
+```bash
+python python/validateDatasets.py --workers 30
+```
+Loads `.pt` files, extracts 40 kinematic observables, saves ROOT histograms to
+`results/Validation/{process}/{channel}_fold{fold}.root`.
+
+**Plot phase** (fast — re-run freely):
+```bash
+python python/validateDatasets.py --plotting
+```
+Produces shape-comparison and fold-balance overlay plots:
+```
+plots/Validation/{Run2|Run3}/{channel}/
+├── class_overlay/     (all 6 processes overlaid, shape-normalized)
+├── fold_overlay/      (per-process, 5 folds overlaid — checks for fold bias)
+└── summary.json       (event counts, weight sums per process/fold)
+```
+
+**Key checks:**
+- `mass1`, `mass2` peak near Z mass for signal
+- `bjet1_pt` of promoted diboson is physically reasonable
+- No fold-dependent shape differences
+- `weight` distribution shows no pathological fake-rate weights
+
+---
+
+### Step 4: Lambda Sweep (DisCo Decorrelation Scan)
+
+Scans 8 λ values (`0.0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5`) across 3 pilot signals
+(`MHc130_MA90`, `MHc100_MA95`, `MHc160_MA85`) on the `Combined` channel to identify the
+optimal DisCo regularization strength before committing to GA optimization.
+
+**Quick sanity check — single model:**
+```bash
+python python/trainMultiClass.py --signal MHc130_MA90 --channel Combined --pilot
+```
+
+**Submit to SLURM (recommended):**
+```bash
+sbatch submit_sweep.slurm
+# Monitor: squeue -u $USER
+# Logs: logs/sweep_Combined_{signal}_sweep.log    (training)
+#        logs/viz_Combined_{signal}_lambda{lam}.log (per-model viz)
+```
+
+**Or run locally:**
+```bash
+bash scripts/runLambdaSweep.sh         # full run
+bash scripts/runLambdaSweep.sh --pilot # quick sanity check
+```
+
+**What `runLambdaSweep.sh` does automatically:**
+1. Trains 3 signals × 8 λ = 24 models in parallel (one signal per GPU via `CUDA_VISIBLE_DEVICES`)
+2. Verifies each launcher logged exactly 8 `"Training complete"` lines
+3. Runs all 24 per-model visualizations in parallel (`visualizeMultiClass.py`)
+
+**Post-sweep: cross-lambda comparison (run after sbatch completes):**
+```bash
+for sig in MHc130_MA90 MHc100_MA95 MHc160_MA85; do
+    python python/compareDecorrelation.py --signal ${sig} --channel Combined
+done
+```
+
+Compares performance metrics and mass-sculpting across all λ values.
+Output: `plots/Combined/multiclass/{signal}/lambda_comparison/`
+
+**Model naming convention:** `discoL{lam_str}` where `.` → `p` (e.g. `0.005` → `discoL0p005`).
+
+**Output locations:**
+```
+results/{signal}_Combined_discoL{lam_str}.json        # training history
+results/trees/{signal}_Combined_discoL{lam_str}.root  # score trees
+plots/Combined/multiclass/{signal}/discoL{lam_str}/   # per-model plots
+plots/Combined/multiclass/{signal}/lambda_comparison/ # cross-λ comparison
+```
+
+**Config:** [`configs/SglConfig.json`](../configs/SglConfig.json) — set `disco_lambda` to
+the chosen value before GA optimization.
+
+After choosing λ: set `disco_parameters.disco_lambda` in [`configs/GAConfig.json`](../configs/GAConfig.json),
+then proceed to Step 5.
+
+---
+
+### Step 5: GA Hyperparameter Optimization
+
+Searches over `nNodes`, optimizer, scheduler, `initLR`, `weight_decay` with `disco_lambda`
+fixed (see [`configs/GAConfig.json`](../configs/GAConfig.json)).
+For full documentation see [`docs/STEP3_HYPERPARAM.md`](STEP3_HYPERPARAM.md).
+
+```bash
+# Single signal, two channels in parallel
+./scripts/launchGAOptim.sh --signal MHc130_MA90 \
+    --channel Run1E2Mu,Run3Mu \
+    --device cuda:0,cuda:1
+
+# Multiple signal:channel pairs
+./scripts/launchGAOptim.sh \
+    --config MHc130_MA90:Run1E2Mu,MHc130_MA90:Run3Mu \
+    --device cuda:0,cuda:1
+
+# Pilot run (single fold, 8000/2000 event caps, 10 epochs — completes in <5 min)
+./scripts/launchGAOptim.sh --signal MHc130_MA90 --channel Combined \
+    --device cuda:0 --pilot
+
+# Resume after interruption (preserves iters 0..N-1, retrains N onward)
+./scripts/launchGAOptim.sh \
+    --config MHc130_MA90:Combined,MHc100_MA95:Combined \
+    --device cuda:0,cuda:1 --resume-from 2
+```
+
+GA parameters (in `GAConfig.json`):
+- `population_size: 16` — models per iteration
+- `max_iterations: 4` — generations (iters 0–3)
+- `fitness_metric: loss/valid` — minimize validation loss (lower is better)
+- `overfitting_penalty_weight: 0.3` — penalize `valid_loss - train_loss`
+
+Logs per job: `logs/GA_{signal}_{channel}.log`
+
+Results: `GAOptim/{channel}/{signal}/fold-4/GA-iter{N}/`
+
+---
+
+### Step 6: GA Iteration Visualization
+
+Per-model diagnostic plots for a given GA iteration. Supports parallel model evaluation
+and multi-signal processing across GPUs.
+
+```bash
+# Single signal
+./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 3 cuda:0 --parallel --jobs 8
+
+# Multiple signals on different GPUs
+./scripts/visualizeGAIteration.sh "MHc100_MA95,MHc160_MA85,MHc130_MA90" Combined 3 \
+    "cuda:0,cuda:1,cuda:2" --parallel --jobs 8
+
+# Skip evaluation (reuse existing histograms, regenerate plots only)
+./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 3 cuda:0 --skip-eval
+```
+
+Produces per-model plots in `GAOptim/{channel}/{signal}/fold-4/GA-iter{N}/plots/`:
+- Training curves (loss, accuracy, CE/DisCo decomposition)
+- ROC curves and confusion matrix
+- Score distributions per class
+- Mass sculpting and score-vs-mass 2D profiles
+- KS test heatmap (overfitting diagnostic)
+
+Also generates summary plots comparing all models in the iteration.
+
+Overfitting diagnostics saved to `GAOptim/{channel}/{signal}/fold-4/GA-iter{N}/overfitting_diagnostics/`
+with 16 KS tests per model (4 true classes × 4 output scores, p < 0.05 = overfitted).
+
+---
+
+### Step 7: GA Loss Summary and Best Model Selection
+
+Summarizes GA optimization across all iterations and copies the best model.
+
+```bash
+# Run for each signal
+python python/summarizeGALoss.py --signal MHc100_MA95 --channel Combined
+python python/summarizeGALoss.py --signal MHc160_MA85 --channel Combined
+python python/summarizeGALoss.py --signal MHc130_MA90 --channel Combined
+```
+
+**What it does:**
+1. Reads all `GA-iter*` directories and computes per-iteration statistics (mean/std/min/max
+   of train/valid loss, CE/DisCo decomposition, accuracy)
+2. Creates loss evolution plot (`ga_loss_evolution.png`) — mean ± std across iterations
+3. Creates DisCo decomposition plot (`ga_disco_decomposition.png`) — CE vs DisCo term tracking
+4. Copies best model (lowest validation loss from the last iteration) to `best_model/`
+
+**Output:**
+```
+GAOptim/{channel}/{signal}/fold-4/
+├── ga_loss_summary.json           # Per-iteration statistics
+├── ga_loss_evolution.png          # Loss evolution plot
+├── ga_disco_decomposition.png     # CE + DisCo term plot
+└── best_model/
+    ├── model.pt                   # Best model checkpoint
+    ├── model_info.json            # Hyperparameters + training summary
+    ├── confusion_matrix.png       # 7 validation plots copied from
+    ├── ks_test_heatmap.png        #   the best model's GA-iter plots
+    ├── mass_profile_vs_score.png
+    ├── mass_sculpting.png
+    ├── roc_curves.png
+    ├── score_distributions_grid.png
+    └── training_curves.png
 ```
 
 ---
@@ -58,285 +303,141 @@ python python/trainMultiClass.py --signal MHc130_MA90 --channel Run3Mu
 ```
 ParticleNetMD/
 ├── configs/
-│   └── SglConfig.json              # Training config with DisCo params
+│   ├── SglConfig.json             # Single-model training config
+│   ├── GAConfig.json              # GA optimization config
+│   └── histkeys_validate.json     # Observable config for validateDatasets.py
 ├── dataset/
 │   └── samples/
-│       ├── signals/                # Signal samples with mass info
-│       └── backgrounds/            # Background samples with mass info
+│       ├── signals/               # 6 mass points × 2 channels × 5 folds
+│       └── backgrounds/           # 13 backgrounds × 2 channels × 5 folds
 ├── DataAugment/
-│   └── diboson/                    # Diboson GNN reweighting outputs
-│       ├── dataset/                # Intermediate PyG datasets + kinematics JSON
-│       ├── models/                 # Trained reweighting model checkpoint
-│       └── plots/                  # Validation plots
+│   ├── diboson/
+│   │   └── plots/rank_promote/    # Validation plots + conditional_tables.json
+│   └── nonprompt/
+│       └── plots/lnt_promote/     # Validation plots + summary.json
 ├── python/
-│   ├── DataFormat.py               # Particle classes (from ParticleNet)
-│   ├── Preprocess.py               # [Modified] store mass1, mass2; 8-dim era encoding
-│   ├── saveDataset.py              # [Modified] compute OS pair masses
-│   ├── trainDibosonReweight.py     # Diboson augmentation via GNN reweighting
-│   ├── DynamicDatasetLoader.py     # Dataset loading with mass attributes
-│   ├── DataPipeline.py             # [Modified] ParticleNetMD paths
-│   ├── WeightedLoss.py             # [Modified] DiScoWeightedLoss
-│   ├── MultiClassModels.py         # ParticleNet GNN architecture
-│   ├── MLTools.py                  # ML utilities
-│   ├── TrainingUtilities.py        # [Modified] pass mass to loss
-│   ├── TrainingOrchestrator.py     # [Modified] DisCo configuration
-│   ├── trainMultiClass.py          # [Modified] DisCo as default
-│   ├── SglConfig.py                # JSON config loader
-│   ├── ResultPersistence.py        # Model saving utilities
-│   └── ROCCurveCalculator.py       # ROC curve utilities
+│   ├── trainMultiClass.py         # Main training script
+│   ├── saveDataset.py             # Per-sample dataset creation entry point
+│   ├── launchGAOptim.py           # GA optimization driver
+│   ├── evaluateGAModels.py        # Post-GA overfitting evaluation (KS tests)
+│   ├── visualizeGAIteration.py    # GA iteration visualization
+│   ├── summarizeGALoss.py         # GA loss summary + best model selection
+│   ├── launchLambdaSweep.py       # DisCo lambda sweep
+│   ├── visualizeMultiClass.py     # Single-model training result visualization
+│   ├── compareDecorrelation.py    # Lambda sweep comparison
+│   ├── validateDatasets.py        # Dataset validation (fill + plot phases)
+│   ├── dibosonRankPromote.py      # Diboson promotion validation + table generation
+│   ├── nonpromptPromotion.py      # Nonprompt LNT promotion validation
+│   └── lib/                       # Library modules
+│       ├── TrainingOrchestrator.py    # Training loop with DisCo integration
+│       ├── MultiClassModels.py        # 4-class ParticleNet GNN
+│       ├── WeightedLoss.py            # DisCo + weighted cross-entropy
+│       ├── DataPipeline.py            # Dataset loading, DataLoader configuration
+│       ├── DynamicDatasetLoader.py    # Combined channel on-the-fly merge
+│       ├── Preprocess.py              # ROOT → PyG, mass1/mass2, fake rates, promotion
+│       ├── SglConfig.py               # JSON config loader
+│       ├── ResultPersistence.py       # Model checkpoints + GA-compatible JSON output
+│       └── ROCCurveCalculator.py      # ROC curves and metrics
 ├── scripts/
-│   └── saveDatasets.sh             # Dataset creation script
-├── results/                        # Training outputs
+│   ├── saveDatasets.sh            # Bulk dataset creation
+│   ├── runLambdaSweep.sh          # Lambda sweep runner
+│   ├── launchGAOptim.sh           # GA optimization launcher
+│   └── visualizeGAIteration.sh    # GA iteration visualization wrapper
+├── results/                       # Training outputs (models, JSON, ROOT trees)
+├── logs/                          # Dataset stats JSON, GA training logs
+├── plots/Validation/              # validateDatasets.py output
 └── docs/
-    ├── DATASET.md                  # Dataset statistics and augmentation docs
-    └── WORKFLOW.md                 # This file
+    ├── STEP1_PREPROCESSING.md     # Full data pipeline documentation
+    └── WORKFLOW.md                # This file
 ```
 
 ---
 
-## Node Features (9 dimensions)
+## Key Concepts
+
+### Node Features (9 dimensions)
 
 ```
 [E, Px, Py, Pz, charge, isMuon, isElectron, isJet, isBjet]
 ```
 
-- No btagScore - b-jets are identified as separate particle type
-- Particles: muons, electrons, jets, b-jets, MET
+B-jets are a separate particle type — no `btagScore` feature. Edges connect k=4
+nearest-neighbor particles by ΔR.
 
-## Era Encoding (8 dimensions)
+### Era Encoding (8 dimensions)
 
-Graph-level input is an 8-dim one-hot vector covering all Run2 + Run3 eras:
-
+Graph-level input `graphInput` is an 8-dim one-hot vector:
 ```
 [2016preVFP, 2016postVFP, 2017, 2018, 2022, 2022EE, 2023, 2023BPix]
 ```
 
-Defined in `Preprocess.py` via `ERA_INDEX` dict. All downstream files use `num_graph_features=8`.
+### OS Muon Pair Masses
 
----
+`mass1 ≤ mass2` (sorted). For Run1E2Mu (only 1 OS pair): `mass2 = -1`, ignored in DisCo.
+For Run3Mu (2 OS pairs from 3 muons): both masses stored.
 
-## DisCo Loss
+### DisCo Loss
 
-The Distance Correlation (DisCo) loss decorrelates classifier output from mass:
+Event-weighted distance correlation between classifier score and OS pair masses:
 
 ```
-L_total = L_CE + lambda * (DisCo(score, mass1) + DisCo(score, mass2))
+DisCo(X, Y) = 0  →  X and Y are statistically independent
+DisCo(X, Y) = 1  →  X and Y are fully correlated
 ```
 
-Where:
-- `L_CE`: Weighted cross-entropy loss
-- `DisCo(X, Y)`: Distance correlation between X and Y (0 = independent, 1 = fully dependent)
-- `lambda`: DisCo penalty weight (default: 0.1)
-- `score`: Signal class probability (probs[:, 0])
-- `mass1, mass2`: OS muon pair masses (mass2 = -1 for 1e2mu events, ignored)
+Reasonable `disco_lambda` range: 0.01–0.1. Start small and increase if mass
+sculpting is observed. Over-decorrelation (`λ` too large) causes accuracy loss.
 
-### Event-Weighted DisCo
+### Combined Channel
 
-Both the CE loss and DisCo terms use physics event weights:
-```
-weight = genWeight * puWeight * prefireWeight
-```
+`Combined` channel is not pre-computed — [`DynamicDatasetLoader`](../python/DynamicDatasetLoader.py)
+merges `Run1E2Mu + Run3Mu` folds on-the-fly at training time.
 
 ---
 
-## Configuration (SglConfig.json)
+## Output Formats
 
-```json
-{
-  "training_parameters": {
-    "train_folds": [0, 1, 2],
-    "valid_folds": [3],
-    "test_folds": [4],
-    "max_epochs": 100,
-    "batch_size": 256,
-    "loss_type": "disco",
-    "balance_weights": true,
-    "max_events_per_fold_per_class": 50000
-  },
-  "disco_parameters": {
-    "disco_lambda": 0.1
-  },
-  "background_config": {
-    "mode": "groups",
-    "background_groups": {
-      "nonprompt": ["TTLL_powheg"],
-      "diboson": ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"],
-      "ttX": ["TTZToLLNuNu", "tZq"]
-    }
-  }
-}
-```
+### GA-Compatible JSON (`results/{model}.json`)
 
----
-
-## Diboson Augmentation
-
-Diboson is the most statistics-limited class (~72k Tight+Bjet events, only ~8.4k from Run3). The b-jet requirement rejects ~93% of diboson events. To augment, we reweight non-b-tagged diboson events using a shallow GNN classifier (`trainDibosonReweight.py`).
-
-See `docs/DATASET.md` for full details on:
-- Per-class event statistics and imbalance
-- The GNN reweighting strategy (b-jet promotion → density ratio learning → reweighting)
-- Validation methodology
-
-```bash
-# Three-step workflow
-python python/trainDibosonReweight.py --prepare-dataset   # ROOT → PyG graphs
-python python/trainDibosonReweight.py --train              # Train ShallowGraphNet
-python python/trainDibosonReweight.py --validation         # Validation plots
-```
-
-Outputs saved to `DataAugment/diboson/`.
-
----
-
-## Implementation Status
-
-### Phase 1: Data Preparation [COMPLETED]
-- [x] Copy base files from ParticleNet
-- [x] Modify `Preprocess.py` - add `compute_os_pair_masses()`, store mass1/mass2 in Data
-- [x] Modify `saveDataset.py` - compute OS pair masses
-- [x] Create `saveDatasets.sh` script
-
-### Phase 2: DisCo Implementation [COMPLETED]
-- [x] Implement `distance_correlation()` function in WeightedLoss.py
-- [x] Implement `DiScoWeightedLoss` class
-- [x] Update `create_loss_function()` factory
-
-### Phase 3: Training Infrastructure [COMPLETED]
-- [x] Modify `TrainingUtilities.py` - add `loss_requires_mass` parameter
-- [x] Modify `TrainingOrchestrator.py` - DisCo configuration handling
-- [x] Modify `trainMultiClass.py` - DisCo as default loss type
-
-### Phase 4: Configuration [COMPLETED]
-- [x] Create `SglConfig.json` with DisCo parameters
-- [x] Update `DataPipeline.py` for ParticleNetMD paths
-
-### Phase 5: Output Format & DisCo Tracking [COMPLETED]
-- [x] Add `save_ga_compatible_json()` to ResultPersistence.py for visualizeGAIteration.py compatibility
-- [x] Track timestamps in training history
-- [x] Return decomposed loss (CE + DisCo) from WeightedLoss.py
-- [x] Accumulate CE/DisCo losses separately in TrainingUtilities.py
-- [x] Log decomposed losses in TrainingOrchestrator.py (train_ce_loss, train_disco_term, etc.)
-- [x] Add mass1, mass2 branches to ROOT tree output
-
-### Phase 6: Testing [IN PROGRESS]
-- [x] Create pilot datasets
-- [ ] Run pilot training to validate implementation
-- [ ] Verify DisCo loss computation
-- [ ] Verify GA-compatible JSON output
-
-### Phase 7: GA Optimization [NOT STARTED]
-- [ ] Create GAConfig.json with disco_lambda in search space
-- [ ] Modify trainWorker.py for DisCo support
-- [ ] Create launchGAOptim.sh
-
-### Phase 8: Visualization [IN PROGRESS]
-- [x] GA-compatible JSON output for visualizeGAIteration.py
-- [ ] Create visualizeMultiClass.py with mass decorrelation plots
-- [ ] Add score vs mass 2D plots
-- [ ] Add mass profile vs score plots
-- [ ] Add DisCo evolution plots
-
----
-
-## Expected Results
-
-### Good Decorrelation (disco_lambda ~ 0.1-0.5)
-- DisCo(score, mass) < 0.1
-- Flat score profile vs mass
-- Slight decrease in raw classification accuracy (trade-off)
-
-### Poor Decorrelation (disco_lambda too small)
-- DisCo(score, mass) > 0.3
-- Score peaks at signal mass region
-- Higher raw accuracy but mass sculpting
-
-### Over-decorrelation (disco_lambda too large)
-- DisCo(score, mass) ~ 0
-- Very flat score profile
-- Significant accuracy loss, model learns nothing useful
-
----
-
-## Files Modified from ParticleNet
-
-| File | Modification |
-|------|--------------|
-| `Preprocess.py` | Added `compute_os_pair_masses()`, store mass1/mass2 in Data |
-| `saveDataset.py` | Compute OS pair masses |
-| `WeightedLoss.py` | Added `distance_correlation()`, `DiScoWeightedLoss` with decomposed loss tracking |
-| `TrainingUtilities.py` | Added `loss_requires_mass`, returns decomposed CE/DisCo losses |
-| `TrainingOrchestrator.py` | DisCo configuration, timestamps, decomposed loss logging |
-| `trainMultiClass.py` | DisCo as default, calls `save_ga_compatible_json()` |
-| `DataPipeline.py` | Changed dataset path to ParticleNetMD |
-| `ResultPersistence.py` | Added `save_ga_compatible_json()`, mass1/mass2 ROOT branches |
-
----
-
-## Output Format
-
-### GA-Compatible JSON (for visualizeGAIteration.py)
-Training produces `{model_name}.json` with:
 ```json
 {
   "hyperparameters": {
-    "signal": "MHc130_MA90",
-    "channel": "Run3Mu",
-    "num_hidden": 128,
-    "optimizer": "Adam",
-    "initial_lr": 0.001,
-    "scheduler": "ReduceLROnPlateau",
-    "loss_type": "disco",
-    "disco_lambda": 0.1,
-    ...
+    "signal": "MHc130_MA90", "channel": "Run1E2Mu",
+    "num_hidden": 256, "optimizer": "Adam",
+    "initial_lr": 0.0005, "scheduler": "ExponentialLR",
+    "loss_type": "disco", "disco_lambda": 0.05
   },
   "training_summary": {
-    "best_epoch": 45,
-    "best_train_loss": 0.85,
-    "best_valid_loss": 0.87,
-    "best_train_acc": 0.65,
-    "best_valid_acc": 0.63,
-    "total_epochs": 100
+    "best_epoch": 45, "best_valid_loss": 0.87,
+    "best_valid_acc": 0.63, "total_epochs": 100
   },
   "epoch_history": {
-    "train_loss": [...],
-    "valid_loss": [...],
-    "train_acc": [...],
-    "valid_acc": [...],
-    "train_ce_loss": [...],      // DisCo only
-    "train_disco_term": [...],   // DisCo only
-    "valid_ce_loss": [...],      // DisCo only
-    "valid_disco_term": [...],   // DisCo only
-    "epoch": [...],
-    "timestamp": [...]
+    "train_loss": [...], "valid_loss": [...],
+    "train_acc": [...],  "valid_acc": [...],
+    "train_ce_loss": [...], "train_disco_term": [...],
+    "valid_ce_loss": [...], "valid_disco_term": [...],
+    "epoch": [...], "timestamp": [...]
   }
 }
 ```
 
-### ROOT Tree Branches
-Output tree (`trees/{model_name}.root`) contains:
-- `score_signal`, `score_nonprompt`, `score_diboson`, `score_ttX` - class probabilities
-- `true_label` - ground truth (0=signal, 1=nonprompt, 2=diboson, 3=ttX)
-- `train_mask`, `valid_mask`, `test_mask` - data split flags
-- `has_bjet` - whether event contains b-jets (for analysis, not used in training)
-- `weight` - physics event weight
-- `mass1`, `mass2` - OS muon pair masses (for decorrelation analysis)
+### ROOT Tree (`results/trees/{model}.root`)
+
+| Branch | Description |
+|--------|-------------|
+| `score_signal/nonprompt/diboson/ttX` | Class probabilities |
+| `true_label` | Ground truth (0=signal, 1=nonprompt, 2=diboson, 3=ttX) |
+| `train_mask`, `valid_mask`, `test_mask` | Data split flags |
+| `weight` | Physics event weight |
+| `mass1`, `mass2` | OS muon pair masses (for decorrelation analysis) |
 
 ---
 
-## Training Command Reference
+## References
 
-### Single Model Training
-```bash
-# With default config (DisCo loss, lambda=0.1)
-python python/trainMultiClass.py --signal MHc130_MA90 --channel Run3Mu
-
-# With custom config
-python python/trainMultiClass.py --signal MHc130_MA90 --channel Run3Mu --config configs/custom.json
-```
-
-### Available Loss Types
-- `disco` (default): DisCo-regularized weighted cross-entropy
-- `weighted_ce`: Standard weighted cross-entropy
-- `focal`: Weighted focal loss
-- `sample_normalized`: Per-class normalized weighted loss
+- [Data pipeline details](STEP1_PREPROCESSING.md) — augmentation, fold structure, validation
+- [Dataset event counts](../DataAugment/dataset.md) — per-sample statistics and training budget
+- [Nonprompt augmentation](../DataAugment/nonprompt.md) — LNT promotion, sample selection
+- [ttX sample selection](../DataAugment/ttX.md) — TTW/TTH exclusion rationale
+- [Training config](../configs/SglConfig.json) — folds, DisCo lambda, background groups
+- [GA config](../configs/GAConfig.json) — search space, fitness metric, population size

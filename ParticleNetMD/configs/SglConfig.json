@@ -6,13 +6,13 @@
     "train_folds": [0, 1, 2],
     "valid_folds": [3],
     "test_folds": [4],
-    "max_epochs": 120,
-    "batch_size": 256,
+    "max_epochs": 81,
+    "batch_size": 512,
     "dropout_p": 0.4,
     "early_stopping_patience": 10,
     "loss_type": "disco",
     "balance_weights": true,
-    "max_events_per_fold_per_class": 40000,
+    "max_events_per_fold_per_class": 50000,
     "augment_phi_rotation": true,
     "comment": "DisCo loss for mass decorrelation. train_folds for training, valid_folds for early stopping, test_folds for final evaluation. augment_phi_rotation: apply random phi rotation to Px,Py during training."
   },
@@ -40,24 +40,17 @@
     "mode": "groups",
     "background_groups": {
       "nonprompt": ["TTLL_powheg",
-                    "TTLL_hdamp_down_powheg",
-                    "TTLL_hdamp_up_powheg",
-                    "TTLL_mtop169p5_powheg",
                     "TTLL_mtop171p5_powheg",
                     "TTLL_mtop173p5_powheg",
-                    "TTLL_mtop175p5_powheg",
+                    "TTLL_TuneCP5up_powheg",
+                    "TTLL_TuneCP5down_powheg",
                     "TTLL_TuneCP5CR1_powheg",
                     "TTLL_TuneCP5CR2_powheg",
-                    "TTLL_TuneCP5down_powheg",
-                    "TTLL_TuneCP5_erdOn_powheg",
-                    "TTLL_TuneCP5up_powheg",
-                    "TTLL_widthx0p7_powheg",
-                    "TTLL_widthx0p85_powheg",
-                    "TTLL_widthx1p15_powheg",
-                    "TTLL_widthx1p3_powheg"
+                    "TTLL_hdamp_up_powheg",
+                    "TTLL_hdamp_down_powheg"
       ],
-      "diboson": ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"],
-      "ttX": ["TTZToLLNuNu", "tZq"]
+      "diboson": ["WZTo3LNu", "ZZTo4L_powheg"],
+      "ttX": ["TTZ", "tZq"]
     },
     "backgrounds_list": [],
     "comment": "mode: 'groups' for physics-motivated grouping, 'individual' for each background as separate class."
@@ -66,18 +59,21 @@
   "dataset_config": {
     "signal_prefix": "TTToHcToWAToMuMu-",
     "background_prefix": "Skim_TriLep_",
-    "comment": "B-jets are separate particles (no btagScore). Dataset includes mass1, mass2 for decorrelation."
+    "era_sample_mapping": {
+      "WZTo3LNu": {"run2": "WZTo3LNu_amcatnlo", "run3": "WZTo3LNu_powheg"},
+      "TTZ": {"run2": "TTZToLLNuNu", "run3": "TTZ_M50"}
+    },
+    "comment": "B-jets are separate particles (no btagScore). Dataset includes mass1, mass2 for decorrelation. era_sample_mapping: samples with different names across Run2/Run3 eras."
   },
 
   "system_config": {
     "device": "cuda",
-    "pilot": false,
     "debug": false,
-    "comment": "device: 'cpu', 'cuda', or 'cuda:X' for specific GPU. pilot=true uses small test datasets."
+    "comment": "device: 'cpu', 'cuda', or 'cuda:X' for specific GPU."
   },
 
   "output_config": {
-    "results_dir": "results",
+    "results_dir": "LambdaSweep",
     "comment": "Output directory within ParticleNetMD/"
   }
 }

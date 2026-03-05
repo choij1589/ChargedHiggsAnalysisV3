@@ -1,89 +1,68 @@
 #!/bin/bash
-################################################################################
-# visualizeGAIteration.sh - Wrapper script for GA iteration visualization
-#
-# Generates comprehensive visualization and overfitting analysis for all models
-# from a GA iteration in ParticleNetMD.
-#
-# Features:
-#   - Multi-signal support with comma-separated signals
-#   - Multi-device support with round-robin assignment
-#   - Parallel processing of individual models
-#   - Skip-eval mode for regenerating plots from existing results
-#
-# Usage:
-#   ./scripts/visualizeGAIteration.sh <signal> <channel> <iteration> <device> [OPTIONS]
-#
-# Arguments:
-#   signal      Signal name or comma-separated list (e.g., "MHc130_MA90" or "MHc130_MA90,MHc160_MA85")
-#   channel     Channel name (e.g., "Combined", "Run1E2Mu", "Run3Mu")
-#   iteration   GA iteration number (e.g., 0, 1, 2)
-#   device      CUDA device or comma-separated list (e.g., "cuda:0" or "cuda:0,cuda:1")
-#
-# Options:
-#   --input DIR     Input directory (default: GAOptim)
-#   --pilot         Use pilot datasets
-#   --skip-eval     Skip evaluation, reuse existing histograms
-#   --parallel      Process models in parallel within each signal
-#   --jobs N        Number of parallel jobs (default: 4)
-#
-# Examples:
-#   # Single signal, single device
-#   ./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 0 cuda:0
-#
-#   # Multiple signals, single device (sequential)
-#   ./scripts/visualizeGAIteration.sh 'MHc130_MA90,MHc160_MA85' Combined 0 cuda:0
-#
-#   # Multiple signals, multiple devices (parallel, round-robin assignment)
-#   ./scripts/visualizeGAIteration.sh 'MHc130_MA90,MHc160_MA85' Combined 0 'cuda:0,cuda:1'
-#
-#   # With pilot datasets
-#   ./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 0 cuda:0 --pilot
-#
-#   # Skip evaluation (regenerate plots from existing results)
-#   ./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 0 cuda:0 --skip-eval
-#
-#   # Parallel model processing
-#   ./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 0 cuda:0 --parallel --jobs 4
-#
-################################################################################
+set -euo pipefail
 
-set -e
+# Wrapper script for visualizing GA iteration results (ParticleNetMD)
+# Usage: ./scripts/visualizeGAIteration.sh <signal> <channel> <iteration> <device> [OPTIONS]
+#
+# Example:
+#   ./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 3 cuda:0 --pilot
+#   ./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 3 cuda:0 --parallel --jobs 8
+#   ./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 3 cuda:0 --skip-eval
+#   ./scripts/visualizeGAIteration.sh MHc130_MA90 Combined 3 cuda:0 --input GAOptim_custom
+#
+# Multiple signals with different devices:
+#   ./scripts/visualizeGAIteration.sh "MHc130_MA90,MHc160_MA85" Combined 3 "cuda:0,cuda:1" --pilot
+#   ./scripts/visualizeGAIteration.sh "MHc130_MA90,MHc160_MA85,MHc145_MA92" Combined 3 "cuda:0,cuda:1" --parallel --jobs 8
 
-# Add python directory to PATH
-export PATH="${PWD}/python:${PATH}"
-
-# Parse arguments
 if [ $# -lt 4 ]; then
     echo "Usage: $0 <signal> <channel> <iteration> <device> [OPTIONS]"
     echo ""
+    echo "Arguments:"
+    echo "  signal     : Signal name(s) - single or comma-separated"
+    echo "               e.g., MHc130_MA90  OR  'MHc130_MA90,MHc160_MA85'"
+    echo "  channel    : Channel (e.g., Run1E2Mu, Run3Mu, Combined)"
+    echo "  iteration  : GA iteration number (e.g., 0, 1, 2, 3)"
+    echo "  device     : Device(s) - single or comma-separated"
+    echo "               e.g., cuda:0  OR  'cuda:0,cuda:1,cuda:2'"
+    echo "               If fewer devices than signals, will use round-robin"
+    echo ""
     echo "Options:"
-    echo "  --input DIR     Input directory (default: GAOptim)"
-    echo "  --pilot         Use pilot datasets"
-    echo "  --skip-eval     Skip evaluation, reuse existing histograms"
-    echo "  --parallel      Process models in parallel within each signal"
-    echo "  --jobs N        Number of parallel jobs (default: 4)"
+    echo "  --input DIR  : Input directory path (default: GAOptim)"
+    echo "  --pilot      : Use pilot datasets"
+    echo "  --skip-eval  : Skip evaluation, reuse existing histograms"
+    echo "  --force-eval : Force re-evaluation even if cached results exist"
+    echo "  --parallel   : Process models in parallel"
+    echo "  --jobs N     : Number of parallel jobs (default: 4)"
+    echo ""
+    echo "Examples:"
+    echo "  # Single signal"
+    echo "  $0 MHc130_MA90 Combined 3 cuda:0 --pilot"
+    echo "  $0 MHc130_MA90 Combined 3 cuda:0 --parallel --jobs 8"
+    echo ""
+    echo "  # Multiple signals on different devices"
+    echo "  $0 'MHc130_MA90,MHc160_MA85' Combined 3 'cuda:0,cuda:1' --pilot"
+    echo "  $0 'MHc130_MA90,MHc160_MA85,MHc145_MA92' Combined 3 'cuda:0,cuda:1' --parallel --jobs 8"
     exit 1
 fi
 
-SIGNAL="$1"
-CHANNEL="$2"
-ITERATION="$3"
-DEVICE="$4"
+SIGNAL_INPUT=$1
+CHANNEL=$2
+ITERATION=$3
+DEVICE_INPUT=$4
 shift 4
 
-# Default options
-INPUT_DIR="GAOptim"
+# Parse optional flags
 PILOT_FLAG=""
 SKIP_EVAL_FLAG=""
-PARALLEL_MODE=false
-N_JOBS=4
+FORCE_EVAL_FLAG=""
+PARALLEL=false
+JOBS=4
+INPUT_DIR="GAOptim"
 
-# Parse optional arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --input)
-            INPUT_DIR="$2"
+            INPUT_DIR=$2
             shift 2
             ;;
         --pilot)
@@ -94,12 +73,16 @@ while [[ $# -gt 0 ]]; do
             SKIP_EVAL_FLAG="--skip-eval"
             shift
             ;;
+        --force-eval)
+            FORCE_EVAL_FLAG="--force-eval"
+            shift
+            ;;
         --parallel)
-            PARALLEL_MODE=true
+            PARALLEL=true
             shift
             ;;
         --jobs)
-            N_JOBS="$2"
+            JOBS=$2
             shift 2
             ;;
         *)
@@ -109,178 +92,209 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Convert comma-separated signals and devices to arrays
-IFS=',' read -ra SIGNALS <<< "$SIGNAL"
-IFS=',' read -ra DEVICES <<< "$DEVICE"
+# Setup paths
+export PATH="${PWD}/python:${PATH}"
 
+# Parse comma-separated signals and devices
+IFS=',' read -ra SIGNALS <<< "$SIGNAL_INPUT"
+IFS=',' read -ra DEVICES <<< "$DEVICE_INPUT"
+
+# Get number of signals and devices
 NUM_SIGNALS=${#SIGNALS[@]}
 NUM_DEVICES=${#DEVICES[@]}
 
-echo "================================================================================"
-echo "GA ITERATION VISUALIZATION (ParticleNetMD)"
-echo "================================================================================"
-echo "Signals: ${SIGNALS[*]} (${NUM_SIGNALS} total)"
-echo "Channel: ${CHANNEL}"
-echo "Iteration: ${ITERATION}"
-echo "Devices: ${DEVICES[*]} (${NUM_DEVICES} total)"
-echo "Input directory: ${INPUT_DIR}"
-echo "Pilot mode: ${PILOT_FLAG:-disabled}"
-echo "Skip evaluation: ${SKIP_EVAL_FLAG:-disabled}"
-echo "Parallel mode: ${PARALLEL_MODE}"
-echo "Jobs: ${N_JOBS}"
-echo "================================================================================"
+# Print configuration
+echo "======================================================================"
+echo "Visualizing GA Iteration Results (ParticleNetMD)"
+echo "======================================================================"
+echo "Signal(s)    : ${SIGNALS[*]}"
+echo "Channel      : $CHANNEL"
+echo "Iteration    : $ITERATION"
+echo "Device(s)    : ${DEVICES[*]}"
+echo "Input dir    : $INPUT_DIR"
+echo "Pilot mode   : ${PILOT_FLAG:-false}"
+echo "Skip eval    : ${SKIP_EVAL_FLAG:-false}"
+echo "Force eval   : ${FORCE_EVAL_FLAG:-false}"
+echo "Parallel     : $PARALLEL"
+if [ "$PARALLEL" = true ]; then
+    echo "Parallel jobs: $JOBS"
+fi
+echo "======================================================================"
+echo ""
+
+# Check if we have multiple signals
+if [ $NUM_SIGNALS -gt 1 ]; then
+    echo "Processing $NUM_SIGNALS signals across $NUM_DEVICES device(s)..."
+    echo ""
+fi
 
 # Function to process a single signal
 process_signal() {
-    local signal=$1
-    local device=$2
-    local channel=$3
-    local iteration=$4
-    local input_dir=$5
-    local pilot_flag=$6
-    local skip_eval_flag=$7
-    local parallel_mode=$8
-    local n_jobs=$9
+    local SIGNAL=$1
+    local DEVICE=$2
+    local LOG_FILE=$3
 
-    local signal_full="TTToHcToWAToMuMu-${signal}"
-    local base_dir="${input_dir}/${channel}/multiclass/${signal_full}/GA-iter${iteration}"
-    local log_file="${base_dir}/visualization.log"
+    echo "[$SIGNAL on $DEVICE] Starting..." | tee -a "$LOG_FILE"
 
-    # Create output directory
-    mkdir -p "${base_dir}"
+    if [ "$PARALLEL" = true ]; then
+        # Parallel execution: process each model independently
+        echo "[$SIGNAL on $DEVICE] Processing models in parallel with $JOBS jobs..." | tee -a "$LOG_FILE"
 
-    echo ""
-    echo "Processing signal: ${signal}"
-    echo "  Device: ${device}"
-    echo "  Base directory: ${base_dir}"
-    echo "  Log file: ${log_file}"
+        # Get list of models from model_info.csv
+        JSON_DIR="${INPUT_DIR}/${CHANNEL}/${SIGNAL}/fold-4/GA-iter${ITERATION}/json"
+        MODEL_INFO="${JSON_DIR}/model_info.csv"
 
-    if [ "$parallel_mode" = true ]; then
-        # Parallel mode: process each model independently using GNU parallel
-        local json_dir="${base_dir}/json"
-        local model_info="${json_dir}/model_info.csv"
-
-        if [ ! -f "$model_info" ]; then
-            echo "  Error: model_info.csv not found at ${model_info}"
+        if [ ! -f "$MODEL_INFO" ]; then
+            echo "[$SIGNAL on $DEVICE] ERROR: Model info file not found: $MODEL_INFO" | tee -a "$LOG_FILE"
             return 1
         fi
 
-        # Extract model indices from model_info.csv
-        local model_indices=$(tail -n +2 "$model_info" | cut -d',' -f1 | sed 's/model//')
-        local model_count=$(echo "$model_indices" | wc -w)
+        # Extract model indices (skip header, get model column)
+        MODEL_INDICES=$(tail -n +2 "$MODEL_INFO" | cut -d',' -f1 | sed 's/model//g')
 
-        echo "  Found ${model_count} models to process"
-        echo "  Running in parallel with ${n_jobs} jobs"
-
-        # Run models in parallel
-        echo "$model_indices" | tr ' ' '\n' | \
-            parallel --jobs "$n_jobs" --bar \
+        # Process each model in parallel
+        echo "$MODEL_INDICES" | parallel -j $JOBS \
             "python3 python/visualizeGAIteration.py \
-                --signal ${signal} \
-                --channel ${channel} \
-                --iteration ${iteration} \
-                --device ${device} \
-                --input ${input_dir} \
-                ${pilot_flag} \
-                ${skip_eval_flag} \
-                --model-indices {}" 2>&1 | tee -a "${log_file}"
+                --signal '$SIGNAL' \
+                --channel '$CHANNEL' \
+                --iteration $ITERATION \
+                --device '$DEVICE' \
+                --input '$INPUT_DIR' \
+                --model-indices {} \
+                $PILOT_FLAG $SKIP_EVAL_FLAG $FORCE_EVAL_FLAG" >> "$LOG_FILE" 2>&1
 
-        # Generate summary plots (requires all models to be done)
-        echo "  Generating summary plots..."
+        if [ $? -ne 0 ]; then
+            echo "[$SIGNAL on $DEVICE] ERROR: Parallel processing failed!" | tee -a "$LOG_FILE"
+            return 1
+        fi
+
+        # Run summary generation (processes all models but skips individual evaluation)
+        echo "[$SIGNAL on $DEVICE] Generating summary plots..." | tee -a "$LOG_FILE"
         python3 python/visualizeGAIteration.py \
-            --signal "${signal}" \
-            --channel "${channel}" \
-            --iteration "${iteration}" \
-            --device "${device}" \
-            --input "${input_dir}" \
-            ${pilot_flag} \
-            --skip-eval 2>&1 | tee -a "${log_file}"
-
+            --signal "$SIGNAL" \
+            --channel "$CHANNEL" \
+            --iteration $ITERATION \
+            --device "$DEVICE" \
+            --input "$INPUT_DIR" \
+            --skip-eval \
+            $PILOT_FLAG >> "$LOG_FILE" 2>&1
     else
-        # Sequential mode: process all models in a single invocation
+        # Sequential execution (original behavior)
         python3 python/visualizeGAIteration.py \
-            --signal "${signal}" \
-            --channel "${channel}" \
-            --iteration "${iteration}" \
-            --device "${device}" \
-            --input "${input_dir}" \
-            ${pilot_flag} \
-            ${skip_eval_flag} 2>&1 | tee "${log_file}"
+            --signal "$SIGNAL" \
+            --channel "$CHANNEL" \
+            --iteration $ITERATION \
+            --device "$DEVICE" \
+            --input "$INPUT_DIR" \
+            $PILOT_FLAG $SKIP_EVAL_FLAG $FORCE_EVAL_FLAG >> "$LOG_FILE" 2>&1
     fi
 
-    local exit_code=$?
-
-    if [ $exit_code -eq 0 ]; then
-        echo "  Signal ${signal} completed successfully"
+    local EXIT_CODE=$?
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "[$SIGNAL on $DEVICE] Completed successfully!" | tee -a "$LOG_FILE"
+        return 0
     else
-        echo "  Signal ${signal} failed with exit code ${exit_code}"
+        echo "[$SIGNAL on $DEVICE] ERROR: Visualization failed!" | tee -a "$LOG_FILE"
+        return 1
     fi
-
-    return $exit_code
 }
 
 # Export function and variables for parallel execution
 export -f process_signal
-export CHANNEL ITERATION INPUT_DIR PILOT_FLAG SKIP_EVAL_FLAG PARALLEL_MODE N_JOBS
+export CHANNEL ITERATION INPUT_DIR PILOT_FLAG SKIP_EVAL_FLAG FORCE_EVAL_FLAG PARALLEL JOBS
 
-# Process signals
+# Process signals (either single or multiple)
 if [ $NUM_SIGNALS -eq 1 ]; then
-    # Single signal: run directly
-    process_signal "${SIGNALS[0]}" "${DEVICES[0]}" "$CHANNEL" "$ITERATION" \
-        "$INPUT_DIR" "$PILOT_FLAG" "$SKIP_EVAL_FLAG" "$PARALLEL_MODE" "$N_JOBS"
-    exit_code=$?
+    # Single signal - original behavior
+    SIGNAL=${SIGNALS[0]}
+    DEVICE=${DEVICES[0]}
+    LOG_FILE="${INPUT_DIR}/${CHANNEL}/${SIGNAL}/fold-4/GA-iter${ITERATION}/visualization.log"
+
+    # Create log directory if needed
+    mkdir -p "$(dirname "$LOG_FILE")"
+
+    # Process the signal
+    process_signal "$SIGNAL" "$DEVICE" "$LOG_FILE"
+    FINAL_EXIT_CODE=$?
+
 else
-    # Multiple signals: run in parallel with round-robin device assignment
+    # Multiple signals - distribute across devices
+    echo "Launching visualization for $NUM_SIGNALS signals..."
     echo ""
-    echo "Processing ${NUM_SIGNALS} signals with ${NUM_DEVICES} devices..."
 
-    # Array to store background process PIDs
-    declare -a pids=()
-    declare -a signal_names=()
+    # Array to track PIDs and signals
+    declare -a PIDS
+    declare -a SIGNAL_NAMES
+    declare -a LOG_FILES
 
+    # Launch each signal in background
     for i in "${!SIGNALS[@]}"; do
-        signal="${SIGNALS[$i]}"
-        # Round-robin device assignment
-        device_idx=$((i % NUM_DEVICES))
-        device="${DEVICES[$device_idx]}"
+        SIGNAL="${SIGNALS[$i]}"
+        # Use round-robin for device assignment
+        DEVICE_IDX=$((i % NUM_DEVICES))
+        DEVICE="${DEVICES[$DEVICE_IDX]}"
 
-        echo "Launching signal ${signal} on device ${device}..."
+        LOG_FILE="${INPUT_DIR}/${CHANNEL}/${SIGNAL}/fold-4/GA-iter${ITERATION}/visualization.log"
 
-        # Run in background
-        process_signal "$signal" "$device" "$CHANNEL" "$ITERATION" \
-            "$INPUT_DIR" "$PILOT_FLAG" "$SKIP_EVAL_FLAG" "$PARALLEL_MODE" "$N_JOBS" &
+        # Create log directory if needed
+        mkdir -p "$(dirname "$LOG_FILE")"
 
-        pids+=($!)
-        signal_names+=("$signal")
+        echo "Launching: $SIGNAL on $DEVICE (log: $LOG_FILE)"
+
+        # Launch in background
+        process_signal "$SIGNAL" "$DEVICE" "$LOG_FILE" &
+        PIDS+=($!)
+        SIGNAL_NAMES+=("$SIGNAL")
+        LOG_FILES+=("$LOG_FILE")
+
+        # Small delay to avoid race conditions
+        sleep 2
     done
 
-    # Wait for all background processes
     echo ""
-    echo "Waiting for ${#pids[@]} background processes..."
-    echo "PIDs: ${pids[*]}"
+    echo "All signals launched. Waiting for completion..."
+    echo "======================================================================"
+    echo ""
 
-    exit_code=0
-    for i in "${!pids[@]}"; do
-        pid="${pids[$i]}"
-        signal="${signal_names[$i]}"
+    # Wait for all processes and collect exit codes
+    FINAL_EXIT_CODE=0
+    for i in "${!PIDS[@]}"; do
+        PID=${PIDS[$i]}
+        SIGNAL="${SIGNAL_NAMES[$i]}"
 
-        if wait "$pid"; then
-            echo "Signal ${signal} (PID ${pid}) completed successfully"
+        wait $PID
+        EXIT_CODE=$?
+
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo "OK: $SIGNAL completed successfully"
         else
-            status=$?
-            echo "Signal ${signal} (PID ${pid}) failed with exit code ${status}"
-            exit_code=1
+            echo "FAIL: $SIGNAL failed (exit code: $EXIT_CODE)"
+            FINAL_EXIT_CODE=1
         fi
     done
 fi
 
+# Final status report
 echo ""
-echo "================================================================================"
-if [ $exit_code -eq 0 ]; then
-    echo "ALL SIGNALS COMPLETED SUCCESSFULLY"
+echo "======================================================================"
+if [ $FINAL_EXIT_CODE -eq 0 ]; then
+    echo "All visualizations completed successfully!"
+    echo "======================================================================"
+    echo ""
+    echo "Check the following directories for results:"
+    for SIGNAL in "${SIGNALS[@]}"; do
+        echo "  - ${INPUT_DIR}/${CHANNEL}/${SIGNAL}/fold-4/GA-iter${ITERATION}/overfitting_diagnostics/"
+        echo "  - ${INPUT_DIR}/${CHANNEL}/${SIGNAL}/fold-4/GA-iter${ITERATION}/plots/"
+    done
+    echo ""
 else
-    echo "SOME SIGNALS FAILED - CHECK LOGS FOR DETAILS"
+    echo "ERROR: One or more visualizations failed!"
+    echo "======================================================================"
+    echo ""
+    echo "Check log files for details:"
+    for SIGNAL in "${SIGNALS[@]}"; do
+        echo "  - ${INPUT_DIR}/${CHANNEL}/${SIGNAL}/fold-4/GA-iter${ITERATION}/visualization.log"
+    done
+    echo ""
+    exit 1
 fi
-echo "================================================================================"
-
-exit $exit_code

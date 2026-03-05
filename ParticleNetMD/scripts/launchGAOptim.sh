@@ -70,6 +70,10 @@ else
                 DEVICES="$2"
                 shift 2
                 ;;
+            --resume-from)
+                EXTRA_FLAGS+=("$1" "$2")
+                shift 2
+                ;;
             --pilot|--debug)
                 EXTRA_FLAGS+=("$1")
                 shift
@@ -271,13 +275,17 @@ for i in "${!PIDS[@]}"; do
 done
 
 echo "=========================================="
-if [ $FAILED -eq 0 ]; then
-    echo "All ${NUM_JOBS} GA optimization job(s) completed successfully"
-    echo "=========================================="
-    exit 0
-else
+if [ $FAILED -ne 0 ]; then
     echo "ERROR: ${FAILED}/${NUM_JOBS} job(s) failed"
     echo "Check log files in logs/ directory for details"
     echo "=========================================="
     exit 1
 fi
+
+echo "All ${NUM_JOBS} GA optimization job(s) completed successfully"
+echo "=========================================="
+echo "Next steps: run post-processing (eval / viz / summary) interactively"
+echo "  evaluateGAModels.py --signal <signal> --channel <channel> --device <device> --iteration <N>"
+echo "  visualizeGAIteration.py --signal <signal> --channel <channel> --device <device> --iteration <N>"
+echo "  summarizeGALoss.py --signal <signal> --channel <channel>"
+echo "=========================================="

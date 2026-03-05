@@ -10,7 +10,7 @@ ParticleNetMD implements **mass-decorrelated** training for the ParticleNet GNN 
 
 **Key difference from ParticleNet:** Uses DisCo loss (`L_total = L_CE + λ·DisCo(score, mass1) + λ·DisCo(score, mass2)`) instead of standard cross-entropy alone.
 
-For comprehensive implementation documentation, see also `WORKFLOW.md` in this directory.
+For comprehensive implementation documentation, see also `docs/WORKFLOW.md` in this directory.
 
 ## Environment Setup
 
@@ -46,6 +46,37 @@ python python/trainMultiClass.py --signal MHc130_MA100 --channel Run1E2Mu --conf
 python python/trainMultiClass.py --signal MHc130_MA100 --channel Combined
 ```
 
+### GA Hyperparameter Optimization
+```bash
+# Full GA run (multiple signal:channel pairs in parallel)
+./scripts/launchGAOptim.sh --config MHc130_MA90:Combined,MHc100_MA95:Combined \
+    --device cuda:0,cuda:1
+
+# Resume from iteration N (preserves iters 0..N-1, retrains N onward)
+./scripts/launchGAOptim.sh --config MHc130_MA90:Combined --device cuda:0 --resume-from 2
+```
+
+### Post-GA Visualization and Summary
+```bash
+# Visualize GA iteration results (parallel model evaluation)
+./scripts/visualizeGAIteration.sh "MHc100_MA95,MHc160_MA85,MHc130_MA90" Combined 3 \
+    "cuda:0,cuda:1,cuda:2" --parallel --jobs 8
+
+# Summarize GA loss evolution and select best model
+python python/summarizeGALoss.py --signal MHc130_MA90 --channel Combined
+```
+
+Best model output: `GAOptim/{channel}/{signal}/fold-4/best_model/model.pt`
+
+### Data Augmentation Validation
+```bash
+# Diboson: conditional rank-based b-jet promotion
+python python/dibosonRankPromote.py
+
+# Nonprompt: LNT promotion with fake rate weights from correctionlib
+python python/nonpromptPromotion.py
+```
+
 ## Directory Structure
 
 ```
@@ -57,27 +88,53 @@ ParticleNetMD/
 │       ├── signals/               # PyTorch Geometric datasets per signal × channel × fold
 │       └── backgrounds/           # PyTorch Geometric datasets per background × channel × fold
 ├── python/
-│   ├── trainMultiClass.py         # Main training script
-│   ├── TrainingOrchestrator.py    # Training loop with DisCo loss integration
-│   ├── MultiClassModels.py        # 4-class ParticleNet GNN (3 EdgeConv layers)
-│   ├── WeightedLoss.py            # DisCo + weighted cross-entropy loss functions
-│   ├── DataPipeline.py            # Dataset loading, DataLoader configuration
-│   ├── DynamicDatasetLoader.py    # On-the-fly loading for Combined channel
-│   ├── Preprocess.py              # Extracts mass1, mass2 for decorrelation
-│   ├── saveDataset.py             # ROOT → PyTorch Geometric conversion
-│   ├── SglConfig.py               # JSON config loader
-│   ├── ResultPersistence.py       # Model + GA-compatible JSON output
-│   ├── ROCCurveCalculator.py      # ROC curves and performance metrics
-│   ├── visualizeMultiClass.py     # Visualization utilities
-│   └── (other shared utilities)
+│   ├── trainMultiClass.py         # Entry: main training script
+│   ├── saveDataset.py             # Entry: ROOT → PyTorch Geometric conversion
+│   ├── launchGAOptim.py           # Entry: genetic algorithm hyperparameter search
+│   ├── evaluateGAModels.py        # Entry: post-GA overfitting evaluation (KS tests)
+│   ├── visualizeGAIteration.py    # Entry: GA iteration visualization
+│   ├── summarizeGALoss.py         # Entry: GA loss summary + best model selection
+│   ├── launchLambdaSweep.py       # Entry: DisCo lambda sweep
+│   ├── visualizeMultiClass.py     # Entry: single-model training visualization
+│   ├── compareDecorrelation.py    # Entry: lambda sweep decorrelation comparison
+│   ├── validateDatasets.py        # Entry: dataset validation plots
+│   ├── countEvents.py             # Entry: event count tables
+│   ├── dibosonRankPromote.py      # Entry: diboson b-jet promotion validation
+│   ├── nonpromptPromotion.py      # Entry: nonprompt LNT promotion validation
+│   └── lib/                       # Library modules (imported by entry scripts)
+│       ├── TrainingOrchestrator.py    # Training loop with DisCo loss integration
+│       ├── MultiClassModels.py        # 4-class ParticleNet GNN (3 EdgeConv layers)
+│       ├── WeightedLoss.py            # DisCo + weighted cross-entropy loss functions
+│       ├── DataPipeline.py            # Dataset loading, DataLoader configuration
+│       ├── DynamicDatasetLoader.py    # On-the-fly loading for Combined channel
+│       ├── Preprocess.py              # Extracts mass1, mass2 for decorrelation
+│       ├── SglConfig.py               # JSON config loader
+│       ├── ResultPersistence.py       # Model + GA-compatible JSON output
+│       ├── ROCCurveCalculator.py      # ROC curves and performance metrics
+│       └── (other shared utilities)
 ├── scripts/
-│   └── saveDatasets.sh            # Bulk dataset creation
+│   ├── saveDatasets.sh            # Bulk dataset creation
+│   ├── runLambdaSweep.sh          # Lambda sweep runner
+│   ├── launchGAOptim.sh           # GA optimization launcher
+│   └── visualizeGAIteration.sh    # GA iteration visualization wrapper
 ├── logs/                          # Dataset statistics JSON files from runs
-├── models/                        # Trained model checkpoints
-├── results/                       # Training outputs
-├── plots/                         # Visualization outputs
+├── DataAugment/                   # Step 1: validation + augmentation outputs
+│   ├── diboson/                   # Diboson rank-promote validation
+│   ├── nonprompt/                 # Nonprompt LNT promotion validation
+│   └── validation/                # Dataset validation histograms and plots
+├── LambdaSweep/                   # Step 2: lambda sweep training + viz + comparison
+│   └── {channel}/{signal}/fold-4/ # Self-contained per-signal results
+├── GAOptim/                       # Step 3: GA hyperparameter optimization
+│   └── {channel}/{signal}/fold-4/ # Short signal name (e.g., MHc130_MA90)
+│       ├── GA-iter{N}/            # Per-iteration results (json/, plots/, overfitting_diagnostics/)
+│       ├── best_model/            # Best model from summarizeGALoss.py
+│       ├── ga_loss_summary.json   # Per-iteration statistics
+│       └── ga_loss_evolution.png  # Loss evolution plot
 ├── BackUps/                       # Previous versions
-└── WORKFLOW.md                    # Comprehensive implementation guide (305 lines)
+└── docs/
+    ├── WORKFLOW.md                # Full workflow guide
+    ├── STEP1_PREPROCESSING.md     # Data pipeline documentation
+    └── STEP3_HYPERPARAM.md        # GA optimization deep-dive
 ```
 
 ## Configuration: configs/SglConfig.json
@@ -165,6 +222,8 @@ L_total = L_CE + λ_mass·DisCo(score, mass1) + λ_mass·DisCo(score, mass2) + �
 | `trainMultiClass.py` | DisCo as default loss type |
 | `DataPipeline.py` | ParticleNetMD dataset paths |
 | `ResultPersistence.py` | GA-compatible JSON output |
+| `dibosonRankPromote.py` | Diboson b-jet promotion validation (RDataFrame) |
+| `nonpromptPromotion.py` | Nonprompt LNT fake-rate-weighted promotion validation |
 
 ## Signal/Background Samples
 
@@ -190,5 +249,7 @@ ls dataset/samples/signals/TTToHcToWAToMuMu-MHc130MA100/Run1E2Mu_fold-0.pt
 ```
 
 **GA-compatible JSON format:** The output JSON follows a specific schema for use with genetic algorithm hyperparameter optimization. See `ResultPersistence.py` for format details.
+
+**GA job interrupted (SLURM timeout):** Use `--resume-from N` to continue from iteration N without losing completed iterations 0..N-1. The hyperparameter pool is seeded for reproducibility so the pool is identical across invocations.
 
 **CUDA out of memory:** Reduce `batch_size` in SglConfig.json.

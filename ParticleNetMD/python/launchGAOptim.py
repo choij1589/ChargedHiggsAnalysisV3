@@ -12,6 +12,8 @@ Key features for ParticleNetMD:
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 import shutil
 import logging
 import argparse
@@ -26,6 +28,7 @@ import evaluateGAModels
 from SharedDatasetManager import SharedDatasetManager
 from DynamicDatasetLoader import DynamicDatasetLoader
 from trainWorker import train_worker
+from SharedWorkerUtils import setup_spawn_method
 
 
 def parse_arguments():
@@ -36,26 +39,70 @@ def parse_arguments():
     parser.add_argument("--device", default="cuda", type=str, help="Device (cpu or cuda:X)")
     parser.add_argument("--pilot", action="store_true", default=False, help="Use pilot datasets")
     parser.add_argument("--debug", action="store_true", default=False, help="Debug mode")
+    parser.add_argument("--resume-from", type=int, default=None, metavar="N",
+                        help="Resume GA from iteration N (retrains iter N onward, preserves 0..N-1)")
     return parser.parse_args()
 
 
 def setup_output_directory(config, args):
-    """Setup and validate output directory."""
+    """Setup and validate output directory.
+
+    In resume mode (--resume-from N): keeps base_dir, deletes iter N+ directories,
+    validates iter (N-1) model_info.csv exists.
+    In fresh mode: deletes entire base_dir if it exists.
+    """
     WORKDIR = os.environ.get("WORKDIR")
     if not WORKDIR:
         raise EnvironmentError("WORKDIR not set. Run 'source setup.sh'")
 
     output_config = config.get_output_config()
     dataset_config = config.get_dataset_config()
-    signal_full = dataset_config['signal_prefix'] + args.signal
     results_dir = output_config['results_dir']
+    train_params = config.get_training_parameters()
+    overfitting_config = config.get_overfitting_config()
+    test_folds = overfitting_config.get('test_folds', [4])
 
-    # ParticleNetMD-specific path
-    base_dir = f"{WORKDIR}/ParticleNetMD/{results_dir}/{args.channel}/multiclass/{signal_full}"
+    # ParticleNetMD-specific path: short signal name, fold/pilot at leaf level
+    fold_dir = "pilot" if args.pilot else f"fold-{test_folds[0]}"
+    base_dir = f"{WORKDIR}/ParticleNetMD/{results_dir}/{args.channel}/{args.signal}/{fold_dir}"
 
-    if os.path.exists(base_dir):
-        logging.info(f"Deleting existing directory: {base_dir}")
-        shutil.rmtree(base_dir)
+    resume_from = args.resume_from
+
+    if resume_from is not None:
+        # Resume mode: preserve iterations 0..N-1, clean N+
+        if not os.path.exists(base_dir):
+            raise FileNotFoundError(f"Cannot resume: base directory does not exist: {base_dir}")
+
+        # Validate previous iteration's population CSV exists
+        if resume_from > 0:
+            prev_iter = resume_from - 1
+            prev_ga_subdir = output_config['ga_subdir_pattern'].format(iteration=prev_iter)
+            prev_csv = f"{base_dir}/{prev_ga_subdir}/{output_config['json_subdir']}/{output_config['population_summary_name']}"
+            if not os.path.exists(prev_csv):
+                raise FileNotFoundError(
+                    f"Cannot resume from iteration {resume_from}: "
+                    f"previous iteration's population CSV not found: {prev_csv}"
+                )
+            logging.info(f"Resume validated: found {prev_csv}")
+
+        # Delete iteration N+ directories (partial results)
+        max_iterations = config.get_max_iterations()
+        for i in range(resume_from, max_iterations):
+            iter_dir = f"{base_dir}/{output_config['ga_subdir_pattern'].format(iteration=i)}"
+            if os.path.exists(iter_dir):
+                logging.info(f"Cleaning partial results: {iter_dir}")
+                shutil.rmtree(iter_dir)
+
+        # Also remove final results file since it will be regenerated
+        final_results_path = f"{base_dir}/ga_optimization_results.json"
+        if os.path.exists(final_results_path):
+            os.remove(final_results_path)
+
+    else:
+        # Fresh mode: delete everything
+        if os.path.exists(base_dir):
+            logging.info(f"Deleting existing directory: {base_dir}")
+            shutil.rmtree(base_dir)
 
     return base_dir
 
@@ -86,13 +133,20 @@ def run_training_population(config, args, population, iteration, base_dir):
     # ParticleNetMD always uses datasets with mass tensors
     dataset_root = f"{WORKDIR}/ParticleNetMD/dataset"
 
-    loader = DynamicDatasetLoader(
-        dataset_root=dataset_root,
-        background_groups=bg_groups,
-        background_prefix=dataset_config['background_prefix']
-    )
+    loader = DynamicDatasetLoader(dataset_root=dataset_root)
 
     manager = SharedDatasetManager()
+
+    # Pilot mode: single fold, capped event counts, 10 epochs
+    if args.pilot:
+        use_train_folds = [train_params['train_folds'][0]]
+        max_train_events = 8000
+        max_valid_events = 2000
+        logging.info(f"PILOT MODE: train_folds={use_train_folds} | caps: train={max_train_events} valid={max_valid_events}")
+    else:
+        use_train_folds = train_params['train_folds']
+        max_train_events = train_params.get('max_events_per_fold_per_class')
+        max_valid_events = train_params.get('max_events_per_fold_per_class')
 
     # Load datasets into shared memory (ONE TIME ONLY!)
     train_data_list, valid_data_list = manager.prepare_shared_datasets(
@@ -100,10 +154,11 @@ def run_training_population(config, args, population, iteration, base_dir):
         signal_sample=signal_full,
         background_groups=background_groups_full,
         channel=args.channel,
-        train_folds=train_params['train_folds'],
+        train_folds=use_train_folds,
         valid_folds=train_params['valid_folds'],
         pilot=args.pilot,
-        max_events_per_fold=train_params.get('max_events_per_fold_per_class'),
+        max_events_per_fold=max_train_events,
+        max_valid_events_per_fold=max_valid_events,
         balance_weights=train_params.get('balance_weights', True),
         random_state=42
     )
@@ -113,6 +168,8 @@ def run_training_population(config, args, population, iteration, base_dir):
     logging.info(f"Shared memory usage: {memory_stats['total_gb']:.2f} GB")
 
     # Prepare arguments for workers (including disco_lambda)
+    overfitting_config = config.get_overfitting_config()
+    test_folds = overfitting_config.get('test_folds', [4])
     args_dict = {
         'signal': args.signal,
         'channel': args.channel,
@@ -123,7 +180,9 @@ def run_training_population(config, args, population, iteration, base_dir):
         # ParticleNetMD-specific: fixed disco_lambda
         'disco_lambda': disco_params['disco_lambda'],
         # Phi rotation augmentation
-        'augment_phi_rotation': train_params.get('augment_phi_rotation', True)
+        'augment_phi_rotation': train_params.get('augment_phi_rotation', True),
+        # Test folds for output path construction
+        'test_folds': test_folds
     }
 
     logging.info(f"DisCo lambda: {disco_params['disco_lambda']} (fixed, not optimized)")
@@ -142,11 +201,7 @@ def run_training_population(config, args, population, iteration, base_dir):
         population_hyperparams.append(hyperparams)
 
     # Set multiprocessing start method
-    try:
-        mp.set_start_method('spawn', force=True)
-    except RuntimeError:
-        # Already set, that's fine
-        pass
+    setup_spawn_method()
 
     logging.info(f"[Iter {iteration}] Spawning {len(population)} worker processes...")
 
@@ -268,26 +323,51 @@ def main():
     for space in config.generate_hyperparameter_spaces():
         ga_module.setConfigSpace(space)
 
-    ga_module.generatePopulation()
-    ga_module.randomGeneration(n_population=population_size)
-    logging.info(f"Generated initial population of {population_size} configurations")
+    resume_from = args.resume_from
 
-    # ========== Generation 0 ==========
-    logging.info("=" * 60)
-    logging.info("GENERATION 0 - Initial Population")
-    logging.info("=" * 60)
+    if resume_from is not None:
+        # Resume mode: load population from previous iteration
+        if resume_from == 0:
+            # Resuming from iter 0 means re-run everything from scratch
+            ga_module.generatePopulation()
+            ga_module.randomGeneration(n_population=population_size)
+            logging.info(f"Resume from iter 0: generated fresh population of {population_size}")
+            start_iteration = 0
+        else:
+            # Load population from iter (N-1) CSV
+            output_config = config.get_output_config()
+            prev_iter = resume_from - 1
+            prev_ga_subdir = output_config['ga_subdir_pattern'].format(iteration=prev_iter)
+            prev_csv = f"{base_dir}/{prev_ga_subdir}/{output_config['json_subdir']}/{output_config['population_summary_name']}"
 
-    run_training_population(config, args, ga_module.population, 0, base_dir)
+            ga_module.generatePopulation()  # build pool first
+            ga_module.loadPopulation(prev_csv)
+            logging.info(f"Resumed population of {len(ga_module.population)} from iteration {prev_iter}")
+            start_iteration = resume_from
+    else:
+        # Fresh mode: generate random population
+        ga_module.generatePopulation()
+        ga_module.randomGeneration(n_population=population_size)
+        logging.info(f"Generated initial population of {population_size} configurations")
+        start_iteration = 0
 
-    # IMPORTANT: Update fitness BEFORE filtering to maintain index correspondence
-    # Files are named model0.json, model1.json, etc. matching population indices
-    update_population_fitness(config, ga_module, args, 0, base_dir)
+    # ========== Generation 0 (only for fresh start or resume from 0) ==========
+    if start_iteration == 0:
+        logging.info("=" * 60)
+        logging.info("GENERATION 0 - Initial Population")
+        logging.info("=" * 60)
 
-    if overfitting_config['enabled']:
-        run_overfitting_check(config, args, ga_module, 0, base_dir)
+        run_training_population(config, args, ga_module.population, 0, base_dir)
+
+        # IMPORTANT: Update fitness BEFORE filtering to maintain index correspondence
+        # Files are named model0.json, model1.json, etc. matching population indices
+        update_population_fitness(config, ga_module, args, 0, base_dir)
+
+        if overfitting_config['enabled']:
+            run_overfitting_check(config, args, ga_module, 0, base_dir)
 
     # ========== Evolution Loop ==========
-    for iteration in range(1, max_iterations):
+    for iteration in range(max(1, start_iteration), max_iterations):
         logging.info("=" * 60)
         logging.info(f"GENERATION {iteration}")
         logging.info("=" * 60)

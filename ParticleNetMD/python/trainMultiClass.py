@@ -14,6 +14,8 @@ Key features:
 import argparse
 import logging
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 from typing import Dict, List, Tuple
 
 from SglConfig import load_sgl_config
@@ -84,11 +86,11 @@ class Config:
 
         # System configuration
         self.args.device = system_config['device']
-        self.args.pilot = system_config['pilot']
+        self.args.pilot = False   # default; set via CLI --pilot only
         self.args.debug = system_config['debug']
 
-        # Output configuration - ParticleNetMD always uses "results" directory
-        self.args.results_dir = output_config.get('results_dir', 'results')
+        # Output configuration
+        self.args.results_dir = output_config.get('results_dir', 'LambdaSweep')
 
         # Process background configuration
         self.use_groups = (bg_config['mode'] == 'groups')
@@ -127,11 +129,16 @@ class Config:
         else:
             bg_identifier = f"{len(self.backgrounds_list)}bg"
 
+        loss_label = self.args.loss_type
+        if loss_label == 'disco':
+            lam_str = str(self.args.disco_lambda).replace('.', 'p')
+            loss_label = f"discoL{lam_str}"
+
         model_name = (
             f"{self.args.model}-nNodes{self.args.nNodes}-{self.args.optimizer}-"
             f"initLR{str(format(self.args.initLR, '.4f')).replace('.','p')}-"
             f"decay{str(format(self.args.weight_decay, '.5f')).replace('.', 'p')}-"
-            f"{self.args.scheduler}-{self.args.loss_type}-{bg_identifier}"
+            f"{self.args.scheduler}-{loss_label}-{bg_identifier}"
         )
 
         return model_name
@@ -140,9 +147,9 @@ class Config:
         """Get standardized output paths for model artifacts."""
         # Use results_dir from config
         results_dir = self.args.results_dir
-        output_path = f"{self.workdir}/ParticleNetMD/{results_dir}/{self.args.channel}/multiclass/{self.signal_full_name}/fold-{self.args.fold}"
+        output_path = f"{self.workdir}/ParticleNetMD/{results_dir}/{self.args.channel}/{self.args.signal}/fold-{self.args.fold}"
         if self.args.pilot:
-            output_path = f"{self.workdir}/ParticleNetMD/{results_dir}/{self.args.channel}/multiclass/{self.signal_full_name}/pilot"
+            output_path = f"{self.workdir}/ParticleNetMD/{results_dir}/{self.args.channel}/{self.args.signal}/pilot"
 
         checkpoint_path = f"{output_path}/models/{model_name}.pt"
         summary_path = f"{output_path}/CSV/{model_name}.csv"
@@ -200,7 +207,7 @@ class Config:
             logging.info("Using STANDARD weighted accuracy calculation")
 
 
-def parse_arguments() -> Tuple[str, str, str]:
+def parse_arguments() -> Tuple[str, str, str, float, bool]:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Multi-class ParticleNet training")
 
@@ -214,6 +221,12 @@ def parse_arguments() -> Tuple[str, str, str]:
     parser.add_argument("--config", default=None, type=str,
                        help="Path to configuration JSON file (default: configs/SglConfig.json)")
 
+    # CLI overrides
+    parser.add_argument("--disco-lambda", type=float, default=None,
+                       help="Override disco_lambda from config (0.0 = no decorrelation)")
+    parser.add_argument("--pilot", action="store_true", default=False,
+                       help="Override pilot mode (fast dataset caps, single train fold)")
+
     args = parser.parse_args()
 
     # Validate channel
@@ -221,7 +234,7 @@ def parse_arguments() -> Tuple[str, str, str]:
     if args.channel not in valid_channels:
         raise ValueError(f"Invalid channel {args.channel}. Must be one of: {valid_channels}")
 
-    return args.signal, args.channel, args.config
+    return args.signal, args.channel, args.config, args.disco_lambda, args.pilot
 
 
 def main():
@@ -236,10 +249,15 @@ def main():
     """
 
     # 1. Parse command-line arguments
-    signal, channel, config_path = parse_arguments()
+    signal, channel, config_path, disco_lambda_override, pilot_override = parse_arguments()
 
     # 2. Load configuration from JSON
     config = Config(signal, channel, config_path)
+
+    # Apply CLI overrides
+    if disco_lambda_override is not None:
+        config.args.disco_lambda = disco_lambda_override
+    config.args.pilot = pilot_override
 
     # Setup logging based on debug flag
     logging.basicConfig(
