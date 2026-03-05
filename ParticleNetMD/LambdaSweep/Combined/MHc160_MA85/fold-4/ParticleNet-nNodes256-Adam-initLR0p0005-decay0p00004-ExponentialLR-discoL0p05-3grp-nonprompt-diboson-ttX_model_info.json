@@ -1,0 +1,16 @@
+{
+  "model_name": "ParticleNet-nNodes256-Adam-initLR0p0005-decay0p00004-ExponentialLR-discoL0p05-3grp-nonprompt-diboson-ttX",
+  "model_type": "ParticleNet",
+  "num_parameters": 1070895,
+  "trainable_parameters": 1070895,
+  "num_classes": 4,
+  "input_features": {
+    "node_features": 9,
+    "graph_features": 4
+  },
+  "architecture": {
+    "hidden_nodes": 256,
+    "dropout_p": 0.4
+  },
+  "training_mode": "grouped"
+}

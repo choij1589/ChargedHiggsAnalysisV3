@@ -210,7 +210,10 @@ class BaseCanvas():
         Returns:
             tuple: (lumiInfo, run) for canvas creation
         """
-        if config.get("prescaled", False):
+        if "run_label" in config:
+            lumiInfo = None
+            run = config["run_label"]
+        elif config.get("prescaled", False):
             lumiInfo = None
             run = f"{config['era']}, Prescaled"
         else:
@@ -372,7 +375,7 @@ class ComparisonCanvas(BaseCanvas):
                                         config.get("yTitle", "Events"),
                                         config.get("rTitle", "Data / Pred"),
                                         square=True,
-                                        iPos=11,
+                                        iPos=config.get("iPos", 11),
                                         extraSpace=0)
 
         # Apply logarithmic x-axis if requested (BEFORE creating legend)
@@ -530,7 +533,7 @@ class KinematicCanvas(BaseCanvas):
                                       config.get("xTitle", ""),
                                       config.get("yTitle", "Events"),
                                       square=True,
-                                      iPos=11,
+                                      iPos=config.get("iPos", 11),
                                       extraSpace=0.)
 
         # Apply log scales BEFORE creating legend
@@ -615,7 +618,7 @@ class KinematicCanvasWithRatio(BaseCanvas):
                                         config.get("yTitle", "Events"),
                                         config.get("rTitle", "Ratio"),
                                         square=True,
-                                        iPos=11,
+                                        iPos=config.get("iPos", 11),
                                         extraSpace=0)
 
         # Apply log scales BEFORE creating legend
