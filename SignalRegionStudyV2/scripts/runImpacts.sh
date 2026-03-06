@@ -179,12 +179,8 @@ if [[ "$DO_INITIAL" == true || "$DO_FITS" == true ]]; then
     fi
 fi
 
-# Set parameter range - wider for partial-unblind due to weaker constraints
-if [[ "$PARTIAL_UNBLIND" == true ]]; then
-    R_RANGE="r=-50,50"
-else
-    R_RANGE="r=-5,5"
-fi
+# Set parameter range
+R_RANGE="r=-5,5"
 
 # Build fit options: use Asimov (expected) for blinded, real data for unblinded
 if [[ "$PARTIAL_UNBLIND" == true ]]; then

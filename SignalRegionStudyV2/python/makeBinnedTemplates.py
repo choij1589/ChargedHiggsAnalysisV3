@@ -21,6 +21,11 @@ from template_utils import (
     categorize_systematics
 )
 
+# Signal scaling factor for partial-unblind mode
+# When using --partial-unblind, signal is scaled by this factor
+# The resulting limit on r should be interpreted as limit on (PARTIAL_UNBLIND_SIGNAL_SCALE × σ)
+PARTIAL_UNBLIND_SIGNAL_SCALE = 50
+
 
 def parse_args():
     """Parse command line arguments."""
@@ -794,6 +799,7 @@ def main():
     if args.partial_unblind:
         upper_threshold = 0.3
         logging.info(f"Partial-unblind mode: using upper_threshold = {upper_threshold}")
+        logging.info(f"Partial-unblind mode: signal will be scaled by {PARTIAL_UNBLIND_SIGNAL_SCALE}x")
 
     if args.method == "ParticleNet":
         logging.info("=" * 60)
@@ -805,6 +811,13 @@ def main():
         # Skip threshold optimization for partial-unblind (using upper_threshold instead)
         if args.partial_unblind:
             logging.info("Skipping threshold optimization for partial-unblind mode")
+            # Save partial-unblind configuration for downstream tools
+            save_json({
+                "masspoint": args.masspoint,
+                "upper_threshold": float(upper_threshold),
+                "signal_scale_factor": int(PARTIAL_UNBLIND_SIGNAL_SCALE),
+                "description": f"Signal scaled by {PARTIAL_UNBLIND_SIGNAL_SCALE}x. Limit on r = limit on {PARTIAL_UNBLIND_SIGNAL_SCALE}x original cross-section."
+            }, f"{outdir}/threshold.json")
         else:
             # Load signal dataset
             scores_sig, weights_sig, _ = loadDataset(basedir, args.masspoint, args.masspoint, mA, width, sigma, args.binning, bg_weights)
@@ -920,6 +933,9 @@ def main():
     # Central histogram
     hist_signal_central = getHist(basedir, args.masspoint, bin_edges, mA, width, sigma, args.binning,
                                    "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
+    # Scale signal for partial-unblind mode
+    if args.partial_unblind:
+        hist_signal_central.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
     ensure_positive_integral(hist_signal_central)
     output_file.cd()
     hist_signal_central.Write()
@@ -947,6 +963,9 @@ def main():
                               read_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
                 # Rename histogram to use Run3-style name for output
                 hist.SetName(f"{args.masspoint}_{output_tree.replace('_Up', 'Up').replace('_Down', 'Down')}")
+                # Scale signal for partial-unblind mode
+                if args.partial_unblind:
+                    hist.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
                 ensure_positive_integral(hist)
                 output_file.cd()
                 hist.Write()
@@ -954,6 +973,8 @@ def main():
                 logging.warning(f"    Skipping {syst_name}/{var}: {e}")
 
     # Valued shape systematics (created by scaling Central histogram)
+    # Note: hist_signal_central is already scaled for partial-unblind, so the scaled
+    # histograms created from it will also have the correct scaling applied
     for syst_name, value, group in syst_categories['valued_shape']:
         if "signal" not in group:
             continue
@@ -986,6 +1007,10 @@ def main():
                 basedir, args.masspoint, bin_edges, mA, width, sigma, args.binning,
                 tree_variations, syst_name, best_threshold, upper_threshold, bg_weights, args.masspoint
             )
+            # Scale signal for partial-unblind mode
+            if args.partial_unblind:
+                hist_up.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
+                hist_down.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
             ensure_positive_integral(hist_up)
             ensure_positive_integral(hist_down)
             output_file.cd()
@@ -1125,7 +1150,10 @@ def main():
     logging.info(f"Output file: {outdir}/shapes.root")
     logging.info("=" * 60)
     logging.info("Process yields:")
-    logging.info(f"  Signal ({args.masspoint}):  {hist_signal_central.Integral():>10.4f}")
+    signal_label = f"Signal ({args.masspoint})"
+    if args.partial_unblind:
+        signal_label += f" [x{PARTIAL_UNBLIND_SIGNAL_SCALE}]"
+    logging.info(f"  {signal_label}:  {hist_signal_central.Integral():>10.4f}")
 
     for process in separate_processes:
         logging.info(f"  {process.capitalize():23s} {background_hists[process].Integral():>10.4f}")
