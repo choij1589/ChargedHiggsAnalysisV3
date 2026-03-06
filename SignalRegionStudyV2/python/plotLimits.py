@@ -9,6 +9,11 @@ from plotter import LumiInfo, get_CoM_energy
 
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
 
+# Load luminosity configuration from JSON
+_LUMI_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "Common", "Data", "Luminosity.json")
+with open(_LUMI_JSON_PATH, "r") as f:
+    _LUMI_CONFIG = json.load(f)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--era", type=str, required=True,
                     help="2016preVFP, 2016postVFP, 2017, 2018, 2022, 2022EE, 2023, 2023BPix, Run2, Run3, All")
@@ -28,7 +33,7 @@ if args.era not in VALID_ERAS:
 
 # Extend LumiInfo for "All"
 LumiInfo_extended = dict(LumiInfo)
-LumiInfo_extended["All"] = 200  # Run2 (138) + Run3 (62)
+LumiInfo_extended["All"] = _LUMI_CONFIG["All"]["combined"]
 
 
 def get_CoM_energy_extended(era):
@@ -123,8 +128,10 @@ CMS.SetExtraText("Preliminary")
 CMS.ResetAdditionalInfo()
 
 if args.era == "All":
-    # Combined Run2+Run3: 138+62 fb⁻¹ at 13/13.6 TeV
-    CMS.SetLumi(None, run="Run 2+3, 138+62 fb^{#minus1}")
+    # Combined Run2+Run3 at 13/13.6 TeV
+    run2_lumi = _LUMI_CONFIG["Run2"]["combined"]
+    run3_lumi = _LUMI_CONFIG["Run3"]["combined"]
+    CMS.SetLumi(None, run=f"Run 2+3, {run2_lumi}+{run3_lumi} fb^{{#minus1}}")
     CMS.SetEnergy(0, unit="13/13.6 TeV")  # energy=0 uses unit string directly
     y_max = 14e-6
 elif args.era == "Run2":

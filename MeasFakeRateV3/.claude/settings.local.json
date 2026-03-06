@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source ../setup.sh)",
+      "Bash(python:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(python3:*)",
+      "Bash(echo 'SKNANO_DATA: $SKNANO_DATA' echo 'WORKDIR: $WORKDIR' ls $SKNANO_DATA/2022/MC/)",
+      "Bash(WORKDIR=/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3 ls:*)",
+      "Bash(find:*)",
+      "Bash(head -5 ls /gv0/DATA/SKNano/Run3NanoAODv13p1/2022/TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/260108_035414/0000/*.root)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

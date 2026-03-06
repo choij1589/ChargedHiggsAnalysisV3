@@ -19,6 +19,11 @@ import cmsstyle as CMS
 CMS.setCMSStyle()
 ROOT.gROOT.SetBatch(True)
 
+# Load luminosity configuration from JSON
+_LUMI_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "Common", "Data", "Luminosity.json")
+with open(_LUMI_JSON_PATH, "r") as f:
+    _LUMI_CONFIG = json.load(f)
+
 PALETTE = [
     ROOT.TColor.GetColor("#5790fc"),  # blue
     ROOT.TColor.GetColor("#f89c20"),  # orange
@@ -104,8 +109,8 @@ def create_pull_plot(results_data, masspoint, era, channel, method, binning, out
 
     # Configure CMS style
     CMS.SetExtraText("Simulation Preliminary")
-    CMS.SetLumi(138)
-    CMS.SetEnergy(13)
+    CMS.SetLumi(_LUMI_CONFIG["Run2"]["combined"])
+    CMS.SetEnergy(_LUMI_CONFIG["Run2"]["energy_TeV"])
 
     # Calculate y-axis range
     y_max = max(h.GetMaximum() for h, _ in histograms.values()) * 1.6

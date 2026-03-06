@@ -48,6 +48,53 @@ def load_signal_config():
     return config.get("signals", [])
 
 
+def load_kfactors():
+    """Load K-factors from configuration file."""
+    kfactors_path = f"{WORKDIR}/Common/Data/KFactors.json"
+    if not os.path.exists(kfactors_path):
+        raise FileNotFoundError(f"K-factors configuration not found: {kfactors_path}")
+
+    with open(kfactors_path, 'r') as f:
+        return json.load(f)
+
+
+def get_run_period(era):
+    """Determine run period (Run2/Run3) from era."""
+    if era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
+        return "Run2"
+    elif era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
+        return "Run3"
+    else:
+        raise ValueError(f"Cannot determine run period for era: {era}")
+
+
+def get_kfactor_info(kfactors, sample, run_period):
+    """Get K-factor and cross-section uncertainty for a sample.
+
+    Args:
+        kfactors: Dictionary loaded from KFactors.json
+        sample: Sample name
+        run_period: "Run2" or "Run3"
+
+    Returns:
+        tuple: (kfactor, xsec_rel_unc) where xsec_rel_unc is relative uncertainty (e.g., 0.075 for 7.5%)
+               Returns (1.0, 0.0) if sample not in K-factors config
+    """
+    if run_period not in kfactors:
+        return 1.0, 0.0
+
+    run_kfactors = kfactors[run_period]
+    if sample not in run_kfactors:
+        return 1.0, 0.0
+
+    kfactor = run_kfactors[sample].get("kFactor", 1.0)
+    # xsecErr is stored as multiplicative factor (e.g., 1.075 means 7.5% uncertainty)
+    xsec_err_factor = run_kfactors[sample].get("xsecErr", 1.0)
+    xsec_rel_unc = xsec_err_factor - 1.0
+
+    return kfactor, xsec_rel_unc
+
+
 def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name=None):
     """
     Extract statistical and systematic errors separately.
@@ -235,56 +282,72 @@ def get_conv_scale_factor(era_list, sample, channel):
     between data and MC in the ZG control region.
 
     For multi-era (Run2/Run3), loads individual era SFs and returns weighted average.
-    Uncertainty is calculated from envelope of all systematic variations.
+    Uncertainty is taken from total_up/total_down which already includes all systematics.
     """
     if not channel.startswith("ZG"):
         return 1.0, 0.0
+
+    # Extract channel flag (1E2Mu or 3Mu) from channel name
+    if "1E2Mu" in channel:
+        channel_flag = "1E2Mu"
+    elif "3Mu" in channel:
+        channel_flag = "3Mu"
+    else:
+        raise ValueError(f"Cannot extract channel flag from: {channel}")
 
     # Load conversion SFs for each era
     scales = []
     uncertainties = []
 
     for era in era_list:
-        conv_sf_path = f"{WORKDIR}/TriLepton/results/{channel}/{era}/ConvSF.json"
+        # Determine run period based on era
+        if era in ["2016preVFP", "2016postVFP", "2017", "2018"]:
+            run_period = "Run2"
+        elif era in ["2022", "2022EE", "2023", "2023BPix"]:
+            run_period = "Run3"
+        else:
+            raise ValueError(f"Cannot determine run period for era: {era}")
+
+        conv_sf_path = f"{WORKDIR}/Common/Data/ConvSF/{run_period}/{channel_flag}/{era}.json"
         if not os.path.exists(conv_sf_path):
-            print(f"[WARNING] Conversion SF not found: {conv_sf_path}")
-            continue
+            raise FileNotFoundError(f"Conversion SF not found: {conv_sf_path}")
 
         try:
             with open(conv_sf_path, 'r') as f:
                 conv_data = json.load(f)
 
-            # Find central value
+            # Find central value and total uncertainty
             central_sf = None
-            syst_values = []
+            total_up = None
+            total_down = None
 
             for correction in conv_data.get("corrections", []):
                 name = correction.get("name", "")
                 value = float(correction["data"]["expression"])
 
-                if "Central" in name:
+                if name.endswith("_Central"):
                     central_sf = value
-                else:
-                    # Collect all systematic variations for uncertainty calculation
-                    syst_values.append(value)
+                elif name.endswith("_total_up"):
+                    total_up = value
+                elif name.endswith("_total_down"):
+                    total_down = value
 
             if central_sf is None:
-                print(f"[WARNING] No central SF found in {conv_sf_path}")
-                continue
+                raise ValueError(f"No central SF found in {conv_sf_path}")
 
-            # Calculate uncertainty from envelope of systematics
-            if syst_values:
-                max_variation = max(abs(v - central_sf) for v in syst_values)
+            # Calculate relative uncertainty from total_up/total_down
+            if total_up is not None and total_down is not None:
+                # Use envelope of up/down variations
+                max_variation = max(abs(total_up - central_sf), abs(total_down - central_sf))
                 rel_unc = max_variation / central_sf if central_sf != 0 else 0.0
             else:
-                rel_unc = 0.0
+                raise ValueError(f"Missing total_up or total_down in {conv_sf_path}")
 
             scales.append(central_sf)
             uncertainties.append(rel_unc)
 
-        except Exception as e:
-            print(f"[WARNING] Failed to load conversion SF from {conv_sf_path}: {e}")
-            continue
+        except (json.JSONDecodeError, KeyError) as e:
+            raise RuntimeError(f"Failed to parse conversion SF from {conv_sf_path}: {e}")
 
     # Return weighted average (for now, simple average since we don't have luminosity weights here)
     # TODO: Implement luminosity-weighted average for Run2/Run3
@@ -293,8 +356,7 @@ def get_conv_scale_factor(era_list, sample, channel):
         avg_unc = sqrt(sum(u**2 for u in uncertainties)) / len(uncertainties) if uncertainties else 0.0
         return avg_scale, avg_unc
     else:
-        print(f"[WARNING] No conversion SFs loaded for {channel}, using scale=1.0")
-        return 1.0, 0.0
+        raise RuntimeError(f"No conversion SFs loaded for {channel}")
 
 
 def main():
@@ -344,15 +406,6 @@ def main():
     else:
         raise ValueError(f"Cannot extract channel flag from: {args.channel}")
 
-    # Determine ANALYZER based on channel
-    ANALYZER = ""
-    if "SR" in args.channel or "ZFake" in args.channel:
-        ANALYZER = "PromptSelector"
-    elif "ZG" in args.channel or "WZ" in args.channel:
-        ANALYZER = "CRPromptSelector"
-    else:
-        raise ValueError(f"Cannot determine ANALYZER for channel: {args.channel}")
-
     # Determine FLAG based on channel
     if "1E2Mu" in args.channel:
         FLAG = "Run1E2Mu"
@@ -384,12 +437,14 @@ def main():
     nonprompt = MC_CATEGORIES["nonprompt"]
 
     # Determine WZ sample name based on era (Run2 vs Run3)
-    if args.era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
+    run_period = get_run_period(args.era)
+    if run_period == "Run2":
         WZ_SAMPLES = ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"]
-    elif args.era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
+    elif run_period == "Run3":
         WZ_SAMPLES = ["WZTo3LNu_powheg", "ZZTo4L_powheg"]
-    else:
-        raise ValueError(f"Invalid era: {args.era}")
+
+    # Load K-factors
+    KFACTORS = load_kfactors()
 
     # Initialize output structure
     output = {
@@ -512,18 +567,39 @@ def main():
                     if h_up_total and h_down_total:
                         combined_systs.append((syst_name, h_up_total, h_down_total))
 
-            # Determine rate uncertainty
-            rate_unc = 0.0
-            rate_unc_name = None
+            # Apply K-factor scaling
+            kfactor, xsec_rel_unc = get_kfactor_info(KFACTORS, sample, run_period)
+            if kfactor != 1.0:
+                h_total.Scale(kfactor)
+                # Also scale systematic variations
+                if combined_systs:
+                    for _, h_up, h_down in combined_systs:
+                        h_up.Scale(kfactor)
+                        h_down.Scale(kfactor)
+
+            # Determine rate uncertainty (start with xsec uncertainty from K-factors)
+            rate_unc = xsec_rel_unc
+            rate_unc_name = "xsec" if xsec_rel_unc > 0 else None
+
+            # Add WZ rate uncertainty if applicable
             if sample in WZ_SAMPLES and not (args.exclude == "WZSF"):
-                rate_unc = 0.20  # 20% WZ uncertainty
-                rate_unc_name = "WZ_rate"
+                wz_unc = 0.20  # 20% WZ uncertainty
+                if rate_unc > 0.0:
+                    rate_unc = sqrt(rate_unc**2 + wz_unc**2)
+                else:
+                    rate_unc = wz_unc
+                    rate_unc_name = "WZ_rate"
 
             # Apply conversion scale factor if needed (only for conversion samples in ZG channels)
             if args.channel.startswith("ZG") and not (args.exclude == "ConvSF") and sample in MC_CATEGORIES["conv"]:
                 scale, rel_unc = get_conv_scale_factor(era_list, sample, args.channel)
                 if scale != 1.0:
                     h_total.Scale(scale)
+                    # Also scale systematic variations
+                    if combined_systs:
+                        for _, h_up, h_down in combined_systs:
+                            h_up.Scale(scale)
+                            h_down.Scale(scale)
                     # Combine conversion uncertainty with other rate uncertainties
                     if rate_unc > 0.0:
                         rate_unc = sqrt(rate_unc**2 + rel_unc**2)
@@ -571,8 +647,7 @@ def main():
                     continue
                 signal_name = f"TTToHcToWAToMuMu-{signal_mass}"
                 # Signal files don't have "Skim_TriLep_" prefix, construct path directly
-                # Signal is only for SR channels which use PromptSelector
-                file_path = f"{WORKDIR}/SKNanoOutput/PromptSelector/{FLAG}_RunSyst/{era}/{signal_name}.root"
+                file_path = f"{WORKDIR}/SKNanoOutput/PromptAnalyzer/{FLAG}_RunSyst/{era}/{signal_name}.root"
                 hist_path = f"{args.channel}/Central/{HISTKEY}"
                 h = load_histogram(file_path, hist_path, era)
                 if h:
