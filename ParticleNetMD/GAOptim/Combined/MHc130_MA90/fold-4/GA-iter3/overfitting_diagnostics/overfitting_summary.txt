@@ -2,12 +2,27 @@
 GA ITERATION OVERFITTING ANALYSIS SUMMARY (ParticleNetMD)
 ================================================================================
 
-Total models evaluated: 1
-Models overfitted: 1
-Models OK: 0
+Total models evaluated: 16
+Models overfitted: 14
+Models OK: 2
 
 --------------------------------------------------------------------------------
 Model    Fitness      Min p-val    Overfitted   Optimizer    Nodes   
 --------------------------------------------------------------------------------
-0        0.676476     0.047000     YES          Adam         192     
+15       1.135746     0.090000     NO           Adadelta     128     
+0        0.676476     0.050000     NO           Adam         192     
+12       1.074487     0.033000     YES          Adadelta     128     
+3        0.684085     0.029000     YES          Adam         128     
+1        0.684129     0.019000     YES          Adam         192     
+4        0.685382     0.012000     YES          Adam         128     
+14       0.657206     0.009000     YES          Adam         256     
+8        0.661970     0.007000     YES          Adam         192     
+7        0.697792     0.006000     YES          Adam         128     
+9        0.694964     0.006000     YES          Adam         128     
+10       0.708755     0.006000     YES          Adam         128     
+2        0.695738     0.005000     YES          Adam         128     
+5        0.738649     0.003000     YES          Adam         96      
+6        0.708989     0.003000     YES          Adam         128     
+11       0.727249     0.003000     YES          Adam         192     
+13       0.757887     0.001000     YES          RMSprop      128     
 --------------------------------------------------------------------------------
