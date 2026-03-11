@@ -134,6 +134,14 @@ def combine_eras(eras, channel, masspoint, method, binning, output_era, workdir)
 
 
 def main():
+    # Verify combineCards.py is available
+    if not shutil.which("combineCards.py"):
+        logging.error(
+            "combineCards.py not found in PATH. "
+            "Please set up HiggsCombine (e.g., source setup.sh in a CMSSW environment with HiggsCombine installed)."
+        )
+        sys.exit(1)
+
     parser = argparse.ArgumentParser(description="Combine datacards across channels/eras")
     parser.add_argument("--mode", required=True, choices=["channel", "era"],
                         help="Combination mode: 'channel' or 'era'")
@@ -151,6 +159,8 @@ def main():
                         help="Binning scheme")
     parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
                         help="Use partial-unblind templates (score < 0.3)")
+    parser.add_argument("--unblind", action="store_true",
+                        help="Use full unblind templates")
     parser.add_argument("--output-era", default="Run2",
                         help="Output era name for era combination")
     parser.add_argument("--verbose", action="store_true",
@@ -160,6 +170,9 @@ def main():
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    if args.unblind and args.partial_unblind:
+        raise ValueError("--unblind and --partial-unblind are mutually exclusive")
+
     # Get WORKDIR
     WORKDIR = os.getenv("WORKDIR")
     if not WORKDIR:
@@ -167,7 +180,9 @@ def main():
 
     # Construct binning suffix
     binning_suffix = args.binning
-    if args.partial_unblind:
+    if args.unblind:
+        binning_suffix = f"{args.binning}_unblind"
+    elif args.partial_unblind:
         binning_suffix = f"{args.binning}_partial_unblind"
 
     try:

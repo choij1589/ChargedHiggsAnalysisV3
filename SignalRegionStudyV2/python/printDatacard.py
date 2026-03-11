@@ -513,7 +513,7 @@ class DatacardManager:
 
         return "\n".join(lines)
 
-    def generate_automc_line(self, threshold=10):
+    def generate_automc_line(self, threshold=5):
         """Generate autoMCStats line."""
         return f"{self.channel} autoMCStats {threshold}"
 

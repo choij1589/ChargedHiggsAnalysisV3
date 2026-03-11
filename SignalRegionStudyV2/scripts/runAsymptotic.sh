@@ -15,6 +15,7 @@ MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
 PARTIAL_UNBLIND=false
+UNBLIND=false
 DRY_RUN=false
 VERBOSE=false
 
@@ -45,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             PARTIAL_UNBLIND=true
             shift
             ;;
+        --unblind)
+            UNBLIND=true
+            shift
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -63,6 +68,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
             echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
             echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
+            echo "  --unblind    Use full unblind templates (real data, full score region)"
             echo "  --dry-run    Print commands without executing"
             echo "  --verbose    Enable verbose output"
             exit 0
@@ -80,13 +86,20 @@ if [[ -z "$ERA" || -z "$CHANNEL" || -z "$MASSPOINT" ]]; then
     exit 1
 fi
 
+if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
+    echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
+    exit 1
+fi
+
 # Get WORKDIR
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKDIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Template directory
 BINNING_SUFFIX="${BINNING}"
-if [[ "$PARTIAL_UNBLIND" == true ]]; then
+if [[ "$UNBLIND" == true ]]; then
+    BINNING_SUFFIX="${BINNING}_unblind"
+elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     BINNING_SUFFIX="${BINNING}_partial_unblind"
 fi
 TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV2/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"

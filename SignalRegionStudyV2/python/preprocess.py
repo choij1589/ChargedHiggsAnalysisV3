@@ -47,6 +47,15 @@ from template_utils import (
 
 
 # =============================================================================
+# ParticleNet trained mass points (loaded from configs/masspoints.json)
+# =============================================================================
+_MASSPOINTS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "configs", "masspoints.json")
+with open(_MASSPOINTS_JSON) as _f:
+    _MASSPOINTS_CONFIG = json.load(_f)
+PN_TRAINED_MASSPOINTS = set(_MASSPOINTS_CONFIG["particlenet"])
+
+
+# =============================================================================
 # Channel Mappings
 # =============================================================================
 
@@ -261,7 +270,7 @@ class BasePreprocessor:
         # Parse mass point parameters
         self.mHc = int(masspoint.split("_")[0].replace("MHc", ""))
         self.mA = int(masspoint.split("_")[1].replace("MA", ""))
-        self.is_trained_sample = (83 < self.mA < 100)
+        self.is_trained_sample = masspoint in PN_TRAINED_MASSPOINTS
 
     def set_input_file(self, path):
         """Open input ROOT file."""

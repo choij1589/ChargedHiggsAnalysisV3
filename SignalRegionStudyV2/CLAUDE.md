@@ -75,6 +75,10 @@ python3 python/plotLimits.py --era Run2 --method Baseline --limit_type Asymptoti
 ./automize/makeBinnedTemplates.sh --mode all --method ParticleNet \
   --partial-unblind --binning extended
 
+# Full unblinding (templates + asymptotic)
+./automize/makeBinnedTemplates.sh --mode all --method Baseline --unblind
+./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --unblind
+
 # Single era for quick testing
 ./automize/makeBinnedTemplates.sh --era 2018 --method Baseline
 
@@ -124,12 +128,15 @@ SignalRegionStudyV2/
 │   └── extractInjectionResults.py    # Extract signal injection results
 ├── configs/
 │   ├── samplegroups.json             # Sample lists per era/channel
+│   ├── masspoints.json               # Central mass point arrays (all subsets)
 │   ├── scaling.json                  # Run3 signal scaling factors
+│   ├── dagman.config                 # DAGMan throttling (MAX_JOBS_SUBMITTED=100)
 │   └── systematics.{era}.json        # Systematic uncertainties per era (all 8 eras)
-├── automize/                         # Batch processing scripts (HTCondor DAGMan)
-│   ├── preprocess.sh                 # Batch preprocess with GNU parallel/HTCondor
+├── automize/                         # Batch processing scripts (all condor-only)
+│   ├── load_masspoints.sh            # Sources masspoints.json → bash arrays (single python3 call)
+│   ├── preprocess.sh                 # Batch preprocess (HTCondor DAGMan, condor-only)
 │   ├── makeBinnedTemplates.sh        # DAGMan workflow orchestration
-│   ├── hybridnew.sh                  # Batch HybridNew limit calculation
+│   ├── hybridnew.sh                  # Batch HybridNew limit calculation (--test for subset)
 │   ├── impact.sh                     # Batch systematic impacts
 │   ├── signalInjection.sh            # Batch signal injection
 │   └── plotLimits.sh                 # Batch limit plotting
@@ -138,6 +145,9 @@ SignalRegionStudyV2/
 │   ├── runHybridNew.sh               # Single HybridNew calculation
 │   ├── runSignalInjection.sh         # Single signal injection
 │   ├── runImpacts.sh                 # Single impacts calculation
+│   ├── preprocess_wrapper.sh         # HTCondor wrapper for preprocess jobs
+│   ├── makeBinnedTemplates_wrapper.sh # HTCondor wrapper for template DAG steps
+│   ├── plotScore_wrapper.sh          # HTCondor wrapper for score plotting
 │   └── rsync_templates.sh            # Template synchronization
 ├── templates/                        # Generated histogram templates (output)
 │   └── {era}/{channel}/{masspoint}/{method}/{binning}/
@@ -199,15 +209,12 @@ Systematic uncertainties per channel, organized as:
 
 ## Mass Points and Methods
 
-### Baseline Method (26 mass points)
-Cut-based selection, no MVA. All mass points processed:
-- MHc70_MA{15,18,40,55,65}, MHc85_MA{15,70,80}, MHc100_MA{15,24,60,75,95}
-- MHc115_MA{15,27,87,110}, MHc130_MA{15,30,55,83,90,100,125}
-- MHc145_MA{15,35,92,140}, MHc160_MA{15,50,85,98,120,135,155}
+### Baseline Method (35 mass points)
+Cut-based selection, no MVA. All mass points in `configs/masspoints.json` → `baseline` key.
 
-### ParticleNet Method (6 mass points)
-MVA-based with optimized score threshold. Trained mass points only:
-- MHc100_MA95, MHc115_MA87, MHc130_MA90, MHc145_MA92, MHc160_MA85, MHc160_MA98
+### ParticleNet Method (3 mass points)
+MVA-based with optimized score threshold. Trained mass points in `configs/masspoints.json` → `particlenet` key:
+- MHc100_MA95, MHc130_MA90, MHc160_MA85
 
 **ParticleNet score formula:**
 ```
@@ -217,10 +224,37 @@ Background weights from cross-section ratios in mass window.
 
 **Threshold optimization:** Scans 101 thresholds (0–1.0), maximizes Asimov significance Z = √[2((S+B)ln(1+S/B)−S)].
 
-### Partial-Unblind Mode
-Data visible only in low-score region (score < 0.3) while blinded in signal-sensitive region:
+### Mass Point Subsets
+All subsets defined in `configs/masspoints.json` and loaded by `automize/load_masspoints.sh`:
+| Key | Count | Purpose |
+|-----|-------|---------|
+| `baseline` | 35 | Full Baseline method run |
+| `particlenet` | 3 | Full ParticleNet method run |
+| `run3_real_mc` | 5 | Mass points with real Run3 MC (no scaling needed) |
+| `partial_unblind` | 3 | Partial-unblind subset |
+| `impact.baseline` | 4 | Impact plot subset (Baseline) |
+| `impact.particlenet` | 3 | Impact plot subset (ParticleNet) |
+| `signal_injection.baseline` | 4 | Signal injection subset (Baseline) |
+| `signal_injection.particlenet` | 3 | Signal injection subset (ParticleNet) |
+| `hybridnew.baseline` | 4 | HybridNew vs Asymptotic comparison subset |
+| `hybridnew.particlenet` | 3 | HybridNew vs Asymptotic comparison subset (PN) |
+
+### Blinding Modes (Three-Way Exclusive)
+
+| Flag | Template dir suffix | data_obs | Impact plot |
+|------|---------------------|----------|-------------|
+| (none) | `extended` | Asimov (sum MC) | expected only |
+| `--partial-unblind` | `extended_partial_unblind` | real data, `score_PN < 0.3` | `--blind` (hides r) |
+| `--unblind` | `extended_unblind` | real data, full / `score_PN >= best_threshold` | shows observed r |
+
+All scripts accept the flag except signal injection (`runSignalInjection.sh` / `automize/signalInjection.sh`), which is Asimov-only by design. `--unblind` and `--partial-unblind` are mutually exclusive in all scripts.
+
+**collectLimits/plotLimits unblind:** adds `.unblind` suffix to JSON/plot filenames:
 ```bash
-python3 python/makeBinnedTemplates.py ... --partial-unblind
+python3 python/collectLimits.py --era Run2 --method Baseline --unblind
+# → results/json/limits.Run2.Asymptotic.Baseline.unblind.json
+python3 python/plotLimits.py --era Run2 --method Baseline --limit_type Asymptotic --unblind
+# → results/plots/limit.Run2.Asymptotic.Baseline.unblind.png
 ```
 
 ## Binning Schemes
@@ -249,6 +283,8 @@ Three systematic types:
 - Low-stat processes: shape systematics removed, lnN fallback applied
 - Configuration saved in `lowstat.json`; see `docs/LOWSTAT.md` for details
 
+**autoMCStats:** Threshold is 5 (in `printDatacard.py`). Bins with ≥5 effective MC events get Barlow-Beeston-lite nuisances. Lower threshold = fewer nuisances = faster fits.
+
 ## Run3 Signal Handling
 
 - By default uses real Run3 MC from SKNanoOutput (if available)
@@ -265,10 +301,27 @@ Three systematic types:
 3. Datacards → Validation → Channel combination
 4. Per-era asymptotics → Era combination → Combined asymptotics
 
+**All `automize/` scripts are condor-only.** The `--condor` flag is accepted for backwards compatibility but is a no-op.
+
 **Control options:**
 - `--start-from combine_era`: Skip to era combination (per-era work done)
 - `--dry-run`: Print DAG without submitting
 - `--mode all`: Process all eras and mass points
+
+**HybridNew `--test` flag:** Use subset mass points (`hybridnew.baseline`/`hybridnew.particlenet`) to compare Asymptotic vs HybridNew before running full set:
+```bash
+./automize/hybridnew.sh --mode all --method Baseline --auto-grid --test
+```
+
+**HybridNew auto-grid:** `--auto-grid` reads Asymptotic results and sets the r-scan range to `[0.8×exp-2σ, 1.2×exp+2σ]` with ~20 points:
+```python
+rmin = max(0.01, exp_minus2 * 0.8)
+rmax = exp_plus2 * 1.2
+rstep = round((rmax - rmin) / 20, 3)
+```
+- **Job count:** ~7,000 toy jobs for full Baseline run (35 mass points × ~20 r-points × 10 jobs/point)
+- **Throttling:** `DAGMAN_MAX_JOBS_SUBMITTED=100` is per DAGMan process (one per mass point); 35 simultaneous DAGs → up to 3,500 queued jobs
+- **Toys per job:** 50 (default in `automize/hybridnew.sh`); `runHybridNew.sh` standalone default is 100
 
 ## KNU Tier2/Tier3 Storage and HTCondor
 
@@ -326,8 +379,12 @@ $WORKDIR/SKNanoOutput/PromptAnalyzer/Run1E2Mu/{era}/{data}.root
 
 **Low-stat process merging:** Expected behavior for rare backgrounds. Check `process_list.json` for the final background configuration after merging.
 
-**ParticleNet scores missing / wrong mass point:** Only the 6 trained mass points are supported for ParticleNet method. Other mass points must use Baseline.
+**ParticleNet scores missing / wrong mass point:** Only the 3 trained mass points are supported for ParticleNet method (see `configs/masspoints.json` → `particlenet`). Other mass points must use Baseline.
 
 **HTCondor job failures:** Check `condor/jobs_*/logs/` for detailed error messages. Verify `setup.sh` is sourced in wrapper scripts.
 
 **Zero/negative histogram integrals:** Check mass window selection, sample weights (especially signal normalization ÷3.0), and ConvSF loading from TriLepton results.
+
+**ConvSF fallback:** If `TriLepton/results/{ZG1E2Mu,ZG3Mu}/{era}/ConvSF.json` is not found, `preprocess.py` silently falls back to `ConvSF = 1.0 ± 0.3`. Check the log output for "Using default ConvSF" warnings.
+
+**combineCards.py not found:** `combineDatacards.py` requires `combineCards.py` from HiggsCombine to be in `$PATH`. Ensure the CMSSW environment with HiggsCombine is set up before running datacard combination steps.

@@ -35,6 +35,10 @@ PALETTE = [
 
 # Load luminosity configuration from JSON
 _LUMI_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "Common", "Data", "Luminosity.json")
+if not os.path.exists(_LUMI_JSON_PATH):
+    # Fallback for HTCondor jobs: CMSSW_BASE is always set by cmsenv
+    _cmssw_base = os.environ.get("CMSSW_BASE", "")
+    _LUMI_JSON_PATH = os.path.join(_cmssw_base, "..", "..", "Common", "Data", "Luminosity.json")
 with open(_LUMI_JSON_PATH, "r") as f:
     _LUMI_CONFIG = json.load(f)
 

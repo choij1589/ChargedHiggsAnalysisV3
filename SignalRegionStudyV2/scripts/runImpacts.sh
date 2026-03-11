@@ -16,6 +16,7 @@ MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
 PARTIAL_UNBLIND=false
+UNBLIND=false
 EXPECT_SIGNAL=1  # Default: inject signal (use 0 for background-only)
 CONDOR=false
 PARALLEL=16
@@ -50,6 +51,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --partial-unblind)
             PARTIAL_UNBLIND=true
+            shift
+            ;;
+        --unblind)
+            UNBLIND=true
             shift
             ;;
         --expect-signal)
@@ -120,13 +125,20 @@ if [[ -z "$ERA" || -z "$CHANNEL" || -z "$MASSPOINT" ]]; then
     exit 1
 fi
 
+if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
+    echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
+    exit 1
+fi
+
 # Get WORKDIR
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKDIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Template directory
 BINNING_SUFFIX="${BINNING}"
-if [[ "$PARTIAL_UNBLIND" == true ]]; then
+if [[ "$UNBLIND" == true ]]; then
+    BINNING_SUFFIX="${BINNING}_unblind"
+elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     BINNING_SUFFIX="${BINNING}_partial_unblind"
 fi
 TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV2/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
@@ -138,7 +150,7 @@ if [[ ! -d "$TEMPLATE_DIR" ]]; then
 fi
 
 # Create output directory (include expectSignal in name to avoid overwriting)
-if [[ "$PARTIAL_UNBLIND" == true ]]; then
+if [[ "$UNBLIND" == true || "$PARTIAL_UNBLIND" == true ]]; then
     OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts_obs"
 else
     OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts_r${EXPECT_SIGNAL}"
@@ -173,8 +185,8 @@ if [[ "$DO_INITIAL" == true || "$DO_FITS" == true ]]; then
         echo "[DRY-RUN] rm -f higgsCombine*.root"
         echo "[DRY-RUN] rm -rf ${OUTPUT_DIR}"
     else
-        rm -f higgsCombine*.root
-        rm -rf "${OUTPUT_DIR}"
+        rm -f higgsCombine*.root || true
+        rm -rf "${OUTPUT_DIR}" || true
         mkdir -p "$OUTPUT_DIR"
     fi
 fi
@@ -183,11 +195,11 @@ fi
 R_RANGE="r=-5,5"
 
 # Build fit options: use Asimov (expected) for blinded, real data for unblinded
-if [[ "$PARTIAL_UNBLIND" == true ]]; then
-    # Unblinded: use real data_obs from shapes.root
+if [[ "$UNBLIND" == true || "$PARTIAL_UNBLIND" == true ]]; then
+    # Use real data_obs
     ASIMOV_OPTIONS=""
-    # Hide r values in impact plots for partial-unblind
-    BLIND_OPT="--blind"
+    # Hide r values in impact plot for partial-unblind only
+    BLIND_OPT=$([[ "$PARTIAL_UNBLIND" == true ]] && echo "--blind" || echo "")
 else
     # Blinded: use Asimov dataset
     ASIMOV_OPTIONS="-t -1 --expectSignal ${EXPECT_SIGNAL}"
@@ -466,7 +478,7 @@ EOFCLEANUP
 
     echo "Submitting DAG workflow..."
     cd "${CONDOR_DIR}"
-    condor_submit_dag impacts.dag
+    condor_submit_dag -f impacts.dag
     echo ""
     echo "Monitor with: condor_q -dag"
     echo "DAG log: ${CONDOR_DIR}/impacts.dag.dagman.out"

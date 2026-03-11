@@ -19,6 +19,7 @@ MASSPOINT=""
 METHOD="Baseline"
 BINNING="extended"
 PARTIAL_UNBLIND=false
+UNBLIND=false
 NTOYS=100
 NJOBS=10
 RMIN=0.0
@@ -60,6 +61,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --partial-unblind)
             PARTIAL_UNBLIND=true
+            shift
+            ;;
+        --unblind)
+            UNBLIND=true
             shift
             ;;
         --ntoys)
@@ -121,7 +126,8 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
             echo "  --binning    Binning scheme (uniform, extended) [default: extended]"
-            echo "  --partial-unblind  Use partial-unblind templates"
+            echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
+            echo "  --unblind    Use full unblind templates (real data, full score region)"
             echo "  --ntoys      Number of toys per job [default: 100]"
             echo "  --njobs      Number of parallel jobs per r-point [default: 10]"
             echo "  --rmin       Minimum r value [default: 0.0]"
@@ -153,13 +159,20 @@ if [[ -z "$ERA" || -z "$MASSPOINT" ]]; then
     exit 1
 fi
 
+if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
+    echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
+    exit 1
+fi
+
 # Get WORKDIR
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKDIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-# Template directory with partial-unblind suffix handling
+# Template directory suffix handling
 BINNING_SUFFIX="${BINNING}"
-if [[ "$PARTIAL_UNBLIND" == true ]]; then
+if [[ "$UNBLIND" == true ]]; then
+    BINNING_SUFFIX="${BINNING}_unblind"
+elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     BINNING_SUFFIX="${BINNING}_partial_unblind"
 fi
 TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV2/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
@@ -340,32 +353,11 @@ try:
     if len(limits) >= 5:
         exp_minus2 = limits[0]  # 2.5% quantile
         exp_plus2 = limits[4]   # 97.5% quantile
-        exp_median = limits[2]  # 50% quantile
 
-        # Grid design:
-        # - rmin: 0.5x of exp-2, minimum 0.01
-        # - rmax: 1.5x of exp+2
-        # - rstep: ~5% of median, rounded to nice value
-
-        rmin = max(0.01, exp_minus2 * 0.5)
-        rmax = exp_plus2 * 1.5
-
-        # Round rstep to nice values
-        raw_step = exp_median * 0.1
-        if raw_step < 0.02:
-            rstep = 0.01
-        elif raw_step < 0.05:
-            rstep = 0.02
-        elif raw_step < 0.1:
-            rstep = 0.05
-        elif raw_step < 0.2:
-            rstep = 0.1
-        else:
-            rstep = 0.2
-
-        # Round rmin down and rmax up to step size
-        rmin = max(0.01, int(rmin / rstep) * rstep)
-        rmax = (int(rmax / rstep) + 1) * rstep
+        # Grid design: scan [0.8x exp-2, 1.2x exp+2] with ~20 points
+        rmin = max(0.01, exp_minus2 * 0.8)
+        rmax = exp_plus2 * 1.2
+        rstep = round((rmax - rmin) / 20, 3)
 
         print(f'{rmin:.4f} {rmax:.4f} {rstep:.4f}', file=sys.stdout)
     else:

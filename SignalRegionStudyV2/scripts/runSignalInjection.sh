@@ -368,7 +368,7 @@ echo ""
 echo "===== Preparing HTCondor DAG workflow ====="
 
 # Cleanup and create condor directory
-rm -rf "$OUTPUT_DIR"
+rm -rf "$OUTPUT_DIR" || true
 mkdir -p "${OUTPUT_DIR}/condor/logs"
 
 CONDOR_DIR="${OUTPUT_DIR}/condor"
@@ -581,7 +581,7 @@ fi
 # Submit DAG
 echo "Submitting DAG workflow..."
 cd "${CONDOR_DIR}"
-condor_submit_dag -config dagman.config injection.dag
+condor_submit_dag -f -config dagman.config injection.dag
 echo ""
 echo "Monitor with: condor_q -dag"
 echo "DAG log: ${CONDOR_DIR}/injection.dag.dagman.out"

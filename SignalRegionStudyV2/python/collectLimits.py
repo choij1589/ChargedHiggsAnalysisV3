@@ -9,6 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--era", type=str, required=True,
                     help="2016preVFP, 2016postVFP, 2017, 2018, 2022, 2022EE, 2023, 2023BPix, Run2, Run3, All")
 parser.add_argument("--method", type=str, required=True, help="Baseline, ParticleNet")
+parser.add_argument("--unblind", action="store_true", help="Collect limits from unblind templates")
 parser.add_argument("--debug", action='store_true', default=False, help="Enable debug logging")
 args = parser.parse_args()
 
@@ -24,21 +25,15 @@ VALID_ERAS = [
 if args.era not in VALID_ERAS:
     raise ValueError(f"Invalid era: {args.era}. Must be one of {VALID_ERAS}")
 
-# Mass points
+# Mass points (loaded from configs/masspoints.json)
+_masspoints_json = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "configs", "masspoints.json")
+with open(_masspoints_json) as _f:
+    _masspoints_config = json.load(_f)
+
 if args.method == "Baseline":
-    MASSPOINTs = [
-        "MHc70_MA18", "MHc70_MA40", "MHc70_MA55", "MHc70_MA65",
-        "MHc85_MA15", "MHc85_MA70", "MHc85_MA80",
-        "MHc100_MA24", "MHc100_MA60", "MHc100_MA75", "MHc100_MA95",
-        "MHc115_MA27", "MHc115_MA87", "MHc115_MA110",
-        "MHc130_MA30", "MHc130_MA83", "MHc130_MA90", "MHc130_MA100", "MHc130_MA125",
-        "MHc145_MA35", "MHc145_MA92", "MHc145_MA140",
-        "MHc160_MA50", "MHc160_MA85", "MHc160_MA98", "MHc160_MA120", "MHc160_MA135", "MHc160_MA155"
-    ]
+    MASSPOINTs = _masspoints_config["limits"]
 elif args.method == "ParticleNet":
-    MASSPOINTs = [
-        "MHc100_MA95", "MHc130_MA90", "MHc160_MA85", "MHc115_MA87", "MHc145_MA92", "MHc160_MA98"
-    ]
+    MASSPOINTs = _masspoints_config["particlenet"]
 else:
     raise ValueError(f"Invalid method: {args.method}. Must be Baseline or ParticleNet")
 
@@ -49,10 +44,10 @@ TTBAR_XEC_13TEV = 833.9e3  # fb
 BR_TTBAR_TO_LEPTON = 2 * 0.5456  # 2 for charge conjugation, 0.5456 for non-hadronic decay of two W bosons
 
 
-def parseAsymptoticLimit(masspoint, method, era):
+def parseAsymptoticLimit(masspoint, method, era, binning_suffix="extended"):
     """Parse asymptotic limits from Combine ROOT output file."""
-    base_dir = f"templates/{era}/Combined/{masspoint}/{method}/extended"
-    root_file = f"{base_dir}/combine_output/asymptotic/higgsCombine.{masspoint}.{method}.extended.AsymptoticLimits.mH120.root"
+    base_dir = f"templates/{era}/Combined/{masspoint}/{method}/{binning_suffix}"
+    root_file = f"{base_dir}/combine_output/asymptotic/higgsCombine.{masspoint}.{method}.{binning_suffix}.AsymptoticLimits.mH120.root"
 
     if not os.path.exists(root_file):
         raise FileNotFoundError(f"Limit file not found: {root_file}")
@@ -95,12 +90,14 @@ def parseAsymptoticLimit(masspoint, method, era):
 if __name__ == "__main__":
     logger.info(f"Collecting limits for era={args.era}, method={args.method}")
 
+    binning_suffix = "extended_unblind" if args.unblind else "extended"
+
     limits = {}
     failed_masspoints = []
 
     for masspoint in MASSPOINTs:
         try:
-            limits[masspoint] = parseAsymptoticLimit(masspoint, args.method, args.era)
+            limits[masspoint] = parseAsymptoticLimit(masspoint, args.method, args.era, binning_suffix)
             logger.debug(f"  {masspoint}: exp0 = {limits[masspoint]['exp0']:.2e}")
         except FileNotFoundError as e:
             logger.warning(f"  {masspoint}: SKIPPED - {e}")
@@ -118,7 +115,8 @@ if __name__ == "__main__":
         logger.warning(f"Failed mass points: {failed_masspoints}")
 
     # Save results
-    outpath = f"results/json/limits.{args.era}.Asymptotic.{args.method}.json"
+    suffix = ".unblind" if args.unblind else ""
+    outpath = f"results/json/limits.{args.era}.Asymptotic.{args.method}{suffix}.json"
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
 
     with open(outpath, "w") as f:

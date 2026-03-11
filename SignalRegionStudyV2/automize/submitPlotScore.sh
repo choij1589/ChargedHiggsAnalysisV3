@@ -114,10 +114,8 @@ fi
 
 # Get all masspoints if requested
 if [ "$ALL_MASSPOINTS" = true ]; then
-    MASSPOINTS=(
-        "MHc100_MA95" "MHc115_MA87" "MHc130_MA90" 
-        "MHc145_MA92" "MHc160_MA85" "MHc160_MA98"
-    )
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load_masspoints.sh"
+    MASSPOINTS=("${MASSPOINTs_PARTICLENET[@]}")
 fi
 
 # Validate
@@ -151,7 +149,7 @@ mkdir -p "$JOB_DIR/logs"
 SINGLE_SUB="$JOB_DIR/single_era.sub"
 cat > "$SINGLE_SUB" << EOF
 universe = vanilla
-executable = $CONDOR_DIR/plotScore_wrapper.sh
+executable = $REPO_DIR/scripts/plotScore_wrapper.sh
 arguments = \$(era) \$(channel) \$(masspoint) \$(extra_args)
 output = logs/single_\$(era)_\$(channel)_\$(masspoint).out
 error = logs/single_\$(era)_\$(channel)_\$(masspoint).err
@@ -170,7 +168,7 @@ EOF
 COMBINED_SUB="$JOB_DIR/combined_era.sub"
 cat > "$COMBINED_SUB" << EOF
 universe = vanilla
-executable = $CONDOR_DIR/plotScore_wrapper.sh
+executable = $REPO_DIR/scripts/plotScore_wrapper.sh
 arguments = \$(era) \$(channel) \$(masspoint) \$(extra_args)
 output = logs/combined_\$(era)_\$(channel)_\$(masspoint).out
 error = logs/combined_\$(era)_\$(channel)_\$(masspoint).err

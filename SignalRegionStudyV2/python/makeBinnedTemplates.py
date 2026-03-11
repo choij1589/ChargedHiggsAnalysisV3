@@ -312,7 +312,7 @@ def createEnvelopeHists(basedir, process, bin_edges, mA, width, sigma, binning,
 
 
 def getDataHist(basedir, bin_edges, mA, width, sigma, binning,
-                upper_threshold=None, bg_weights=None, masspoint=None):
+                threshold=-999., upper_threshold=None, bg_weights=None, masspoint=None):
     """Create data histogram from data.root file."""
     file_path = f"{basedir}/data.root"
     hist_name = "data_obs"
@@ -343,14 +343,18 @@ def getDataHist(basedir, bin_edges, mA, width, sigma, binning,
     rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
     logging.debug(f"  Applied mass window cut: [{mass_min:.2f}, {mass_max:.2f}] GeV")
 
-    # Apply upper threshold for partial-unblind
-    if upper_threshold is not None and masspoint:
+    # Apply ParticleNet score cut if threshold or upper_threshold is provided
+    if (threshold > -999. or upper_threshold is not None) and masspoint:
         score_sig = f"score_{masspoint}_signal"
         if score_sig in branches:
             score_formula = build_particlenet_score(masspoint, bg_weights)
             rdf = rdf.Define("score_PN", score_formula)
-            rdf = rdf.Filter(f"score_PN < {upper_threshold}")
-            logging.debug(f"  Applied ParticleNet cut: score_PN < {upper_threshold:.3f}")
+            if upper_threshold is not None:
+                rdf = rdf.Filter(f"score_PN < {upper_threshold}")
+                logging.debug(f"  Applied ParticleNet cut: score_PN < {upper_threshold:.3f}")
+            elif threshold > -999.:
+                rdf = rdf.Filter(f"score_PN >= {threshold}")
+                logging.debug(f"  Applied ParticleNet cut: score_PN >= {threshold:.3f}")
         else:
             raise RuntimeError(
                 f"ParticleNet score branches not found in {file_path}/Central\n"
@@ -911,7 +915,7 @@ def main():
         # Use real data for data_obs
         logging.info("Using real data for data_obs")
         data_obs = getDataHist(basedir, bin_edges, mA, width, sigma, args.binning,
-                               upper_threshold, bg_weights, args.masspoint)
+                               best_threshold, upper_threshold, bg_weights, args.masspoint)
     else:
         # Initialize empty histogram to sum backgrounds
         data_obs = ROOT.TH1D("data_obs", "data_obs", nbins, bin_edges_vector.data())

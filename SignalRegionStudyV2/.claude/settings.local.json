@@ -9,7 +9,36 @@
       "Bash(source ../setup.sh)",
       "Bash(python:*)",
       "Bash(grep:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(echo === $era ===:*)",
+      "Bash(echo === $era \\(Run3Mu\\) ===:*)",
+      "Bash(bash:*)",
+      "Bash(rm:*)",
+      "Bash(sed 's|.*/\\\\\\(MHc[^/]*\\\\\\)/.*|\\\\1|')",
+      "Bash(__NEW_LINE_a5ca3a5b3a72472c__ echo)",
+      "Bash(__NEW_LINE_a5ca3a5b3a72472c__ done)",
+      "Bash(# Check one of the failed unblind Baseline masspoints - MHc100_MA95 cat /d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/condor/jobs_dag_all_20260307_025741/MHc100_MA95/logs/asymptotic_Combined_All.out)",
+      "Bash(__NEW_LINE_7e4b5305883fb4bd__ echo)",
+      "Bash(__NEW_LINE_7e4b5305883fb4bd__ done)",
+      "Bash(source:*)",
+      "Bash(condor_q -dag)",
+      "Bash(condor_q:*)",
+      "Bash(condor_release choij:*)",
+      "Bash(./automize/impact.sh:*)",
+      "Bash(do:*)",
+      "Bash(sort -k2)",
+      "Bash(python3 -c \":*)",
+      "WebSearch",
+      "WebFetch(domain:cms-analysis.github.io)",
+      "Bash(TEMPLATE_BASE=\"/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/templates\")",
+      "Bash(__NEW_LINE_e8226a6f4089043a__ echo \"=== ZERO-BYTE OR MISSING BASELINE FILES ===\")",
+      "Read(//d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/**)",
+      "Bash(__NEW_LINE_e8226a6f4089043a__ echo \"=== ZERO-BYTE OR MISSING PARTICLENET FILES ===\")",
+      "Bash(__NEW_LINE_e8226a6f4089043a__ echo \"Done.\")",
+      "Bash(__NEW_LINE_c52df7617155626e__ echo:*)"
     ]
+  },
+  "remote": {
+    "defaultEnvironmentId": "env_011CUMSz6FHescAB8VAHiTr6"
   }
 }

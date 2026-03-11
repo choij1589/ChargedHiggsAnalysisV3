@@ -30,13 +30,8 @@ set -euo pipefail
 # Get the script directory (SignalRegionStudyV2/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Mass points (same as makeBinnedTemplates.sh)
-MASSPOINTs_BASELINE=(
-    "MHc70_MA15" "MHc100_MA60" "MHc130_MA90" "MHc160_MA155"
-)
-MASSPOINTs_PARTICLENET=(
-    "MHc100_MA95" "MHc130_MA90" "MHc160_MA85"
-)
+# Mass points (loaded from configs/masspoints.json)
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load_masspoints.sh"
 
 # Default values
 MODE="all"  # Options: all, run2, run3
@@ -44,8 +39,8 @@ SINGLE_ERA=""  # Single era mode (overrides MODE)
 METHOD="Baseline"  # Options: Baseline, ParticleNet
 BINNING="extended"
 PARTIAL_UNBLIND=false
+UNBLIND=false
 EXPECT_SIGNAL=1  # Default: inject signal (use 0 for background-only)
-CONDOR=false
 PLOT_ONLY=false
 DRY_RUN=false
 
@@ -72,12 +67,16 @@ while [[ $# -gt 0 ]]; do
             PARTIAL_UNBLIND=true
             shift
             ;;
+        --unblind)
+            UNBLIND=true
+            shift
+            ;;
         --expect-signal)
             EXPECT_SIGNAL="$2"
             shift 2
             ;;
         --condor)
-            CONDOR=true
+            echo "NOTE: --condor is now the default (and only) execution mode. Flag ignored."
             shift
             ;;
         --plot-only)
@@ -106,7 +105,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --expect-signal N      - Expected signal for Asimov (0 or 1) [default: 1]"
             echo ""
             echo "Execution Options:"
-            echo "  --condor               - Submit to HTCondor via DAG"
+            echo "  --condor               - (No-op, condor is now the only execution mode)"
             echo "  --plot-only            - Only generate impact plots from existing json"
             echo ""
             echo "Other:"
@@ -135,20 +134,26 @@ done
 
 # Select mass points based on method
 if [[ "$METHOD" == "ParticleNet" ]]; then
-    MASSPOINTs=("${MASSPOINTs_PARTICLENET[@]}")
+    MASSPOINTs=("${MASSPOINTs_IMPACT_PN[@]}")
 else
-    MASSPOINTs=("${MASSPOINTs_BASELINE[@]}")
+    MASSPOINTs=("${MASSPOINTs_IMPACT_BASELINE[@]}")
+fi
+
+# Validate mutual exclusion
+if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
+    echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
+    exit 1
 fi
 
 # Build extra args for runImpacts.sh
 EXTRA_ARGS=""
-if [[ "$PARTIAL_UNBLIND" == true ]]; then
+if [[ "$UNBLIND" == true ]]; then
+    EXTRA_ARGS="$EXTRA_ARGS --unblind"
+elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     EXTRA_ARGS="$EXTRA_ARGS --partial-unblind"
 fi
 EXTRA_ARGS="$EXTRA_ARGS --expect-signal $EXPECT_SIGNAL"
-if [[ "$CONDOR" == true ]]; then
-    EXTRA_ARGS="$EXTRA_ARGS --condor"
-fi
+EXTRA_ARGS="$EXTRA_ARGS --condor"
 if [[ "$PLOT_ONLY" == true ]]; then
     EXTRA_ARGS="$EXTRA_ARGS --plot-only"
 fi
@@ -166,9 +171,10 @@ fi
 echo "Method: $METHOD"
 echo "Binning: $BINNING"
 echo "Mass points: ${#MASSPOINTs[@]} total"
+echo "Unblind: $UNBLIND"
 echo "Partial unblind: $PARTIAL_UNBLIND"
 echo "Expect signal: $EXPECT_SIGNAL"
-echo "Condor: $CONDOR"
+echo "Execution: HTCondor (condor-only)"
 echo "Plot only: $PLOT_ONLY"
 echo "Dry run: $DRY_RUN"
 echo "============================================================"
@@ -245,10 +251,8 @@ echo ""
 echo "============================================================"
 echo "Batch submission complete!"
 echo ""
-if [[ "$CONDOR" == true ]]; then
-    echo "To monitor jobs:"
-    echo "  condor_q -dag"
-fi
+echo "To monitor jobs:"
+echo "  condor_q -dag"
 echo ""
 echo "After completion, generate plots with:"
 echo "  $0 --mode $MODE --method $METHOD --plot-only"

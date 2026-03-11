@@ -28,19 +28,8 @@ set -euo pipefail
 # Get the script directory (SignalRegionStudyV2/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Mass points (same as makeBinnedTemplates.sh)
-MASSPOINTs_BASELINE=(
-    "MHc70_MA15" "MHc70_MA18" "MHc70_MA40" "MHc70_MA55" "MHc70_MA65"
-    "MHc85_MA15" "MHc85_MA70" "MHc85_MA80"
-    "MHc100_MA15" "MHc100_MA24" "MHc100_MA60" "MHc100_MA75" "MHc100_MA95"
-    "MHc115_MA15" "MHc115_MA27" "MHc115_MA87" "MHc115_MA110"
-    "MHc130_MA15" "MHc130_MA30" "MHc130_MA55" "MHc130_MA83" "MHc130_MA90" "MHc130_MA100" "MHc130_MA125"
-    "MHc145_MA15" "MHc145_MA35" "MHc145_MA92" "MHc145_MA140"
-    "MHc160_MA15" "MHc160_MA50" "MHc160_MA85" "MHc160_MA98" "MHc160_MA120" "MHc160_MA135" "MHc160_MA155"
-)
-MASSPOINTs_PARTICLENET=(
-    "MHc100_MA95" "MHc130_MA90" "MHc160_MA85" "MHc115_MA87" "MHc145_MA92" "MHc160_MA98"
-)
+# Mass points (loaded from configs/masspoints.json)
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load_masspoints.sh"
 
 # Default values
 MODE="all"  # Options: all, run2, run3
@@ -48,10 +37,12 @@ SINGLE_ERA=""  # Single era mode (overrides MODE)
 METHOD="Baseline"  # Options: Baseline, ParticleNet
 BINNING="extended"
 PARTIAL_UNBLIND=false
+UNBLIND=false
 AUTO_GRID=true  # Default to auto-grid
 NTOYS=50
 NJOBS=10
 DRY_RUN=false
+TEST=false
 
 # Post-processing flags
 MERGE_ONLY=false
@@ -80,6 +71,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --partial-unblind)
             PARTIAL_UNBLIND=true
+            shift
+            ;;
+        --unblind)
+            UNBLIND=true
             shift
             ;;
         --auto-grid)
@@ -118,6 +113,10 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --test)
+            TEST=true
+            shift
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -137,7 +136,7 @@ while [[ $# -gt 0 ]]; do
             echo "HybridNew Options:"
             echo "  --auto-grid            - Auto-tune r-range from Asymptotic results (default: true)"
             echo "  --no-auto-grid         - Disable auto-grid, use manual rmin/rmax/rstep"
-            echo "  --ntoys N              - Toys per job (default: 100)"
+            echo "  --ntoys N              - Toys per job (default: 50)"
             echo "  --njobs N              - Jobs per r-point (default: 10)"
             echo ""
             echo "Post-processing:"
@@ -148,6 +147,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Other:"
             echo "  --dry-run              - Print commands without executing"
+            echo "  --test                 - Use subset mass points (hybridnew.baseline/particlenet)"
             echo ""
             echo "Examples:"
             echo "  # Run HybridNew for all Run2 mass points"
@@ -167,16 +167,28 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Select mass points based on method
-if [[ "$METHOD" == "ParticleNet" ]]; then
+# Select mass points based on method and test mode
+if [[ "$METHOD" == "ParticleNet" && "$TEST" == true ]]; then
+    MASSPOINTs=("${MASSPOINTs_HYBRIDNEW_PN[@]}")
+elif [[ "$METHOD" == "ParticleNet" ]]; then
     MASSPOINTs=("${MASSPOINTs_PARTICLENET[@]}")
+elif [[ "$TEST" == true ]]; then
+    MASSPOINTs=("${MASSPOINTs_HYBRIDNEW_BASELINE[@]}")
 else
     MASSPOINTs=("${MASSPOINTs_BASELINE[@]}")
 fi
 
+# Validate mutual exclusion
+if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
+    echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
+    exit 1
+fi
+
 # Build extra args for runHybridNew.sh
 EXTRA_ARGS=""
-if [[ "$PARTIAL_UNBLIND" == true ]]; then
+if [[ "$UNBLIND" == true ]]; then
+    EXTRA_ARGS="$EXTRA_ARGS --unblind"
+elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     EXTRA_ARGS="$EXTRA_ARGS --partial-unblind"
 fi
 if [[ "$AUTO_GRID" == true ]]; then
@@ -208,10 +220,12 @@ fi
 echo "Method: $METHOD"
 echo "Binning: $BINNING"
 echo "Mass points: ${#MASSPOINTs[@]} total"
+echo "Unblind: $UNBLIND"
 echo "Partial unblind: $PARTIAL_UNBLIND"
 echo "Auto-grid: $AUTO_GRID"
 echo "Toys per job: $NTOYS"
 echo "Jobs per r-point: $NJOBS"
+echo "Test mode: $TEST"
 echo "Dry run: $DRY_RUN"
 echo "============================================================"
 echo ""

@@ -19,6 +19,8 @@ parser.add_argument("--era", type=str, required=True,
                     help="2016preVFP, 2016postVFP, 2017, 2018, 2022, 2022EE, 2023, 2023BPix, Run2, Run3, All")
 parser.add_argument("--method", type=str, required=True, help="Baseline, ParticleNet")
 parser.add_argument("--limit_type", type=str, required=True, help="Asymptotic / HybridNew")
+parser.add_argument("--unblind", action="store_true", help="Load limits from unblind JSON")
+parser.add_argument("--blind", action="store_true", help="Hide observed limit (for blinded results)")
 parser.add_argument("--stack_baseline", action="store_true", help="Show baseline expected limit on top (only for ParticleNet method)")
 args = parser.parse_args()
 
@@ -148,10 +150,16 @@ else:
     CMS.SetEnergy(get_CoM_energy(args.era))
     y_max = 45e-6
 
+_unblind_suffix = ".unblind" if args.unblind else ""
+
+# On-Z mass points not covered by ParticleNet (pending future training) — excluded from all plots
+_ON_Z_EXCL = {"MHc115_MA87", "MHc145_MA92", "MHc160_MA98"}
+
 if args.method == "Baseline":
-    with open(f"results/json/limits.{args.era}.{args.limit_type}.Baseline.json") as f:
+    with open(f"results/json/limits.{args.era}.{args.limit_type}.Baseline{_unblind_suffix}.json") as f:
         limits = json.load(f)
 
+    limits = {mp: v for mp, v in limits.items() if mp not in _ON_Z_EXCL}
     graphs = create_graphs(limits)
     
     canv = CMS.cmsCanvas("limit", 15., 155., 0., y_max,
@@ -163,7 +171,8 @@ if args.method == "Baseline":
     CMS.cmsObjectDraw(graphs['exp2sigma'], "E3", FillColor=ROOT.TColor.GetColor("#85D1FBff"))
     CMS.cmsObjectDraw(graphs['exp1sigma'], "E3 same", FillColor=ROOT.TColor.GetColor("#FFDF7Fff"))
     CMS.cmsObjectDraw(graphs['exp'], "L same")
-    CMS.cmsObjectDraw(graphs['obs'], "LP same")
+    if not args.blind:
+        CMS.cmsObjectDraw(graphs['obs'], "LP same")
     if has_cms_ref:
         CMS.cmsObjectDraw(g_cms_ref, "L same")
     if has_atlas_ref:
@@ -171,9 +180,10 @@ if args.method == "Baseline":
     canv.RedrawAxis()
 
     # Legend
-    n_entries = 4 + (1 if has_cms_ref else 0) + (1 if has_atlas_ref else 0)
+    n_entries = (4 if not args.blind else 3) + (1 if has_cms_ref else 0) + (1 if has_atlas_ref else 0)
     leg = CMS.cmsLeg(0.65, 0.90 - 0.05*n_entries, 0.90, 0.90, textSize=0.035)
-    leg.AddEntry(graphs['obs'], "Observed", "lp")
+    if not args.blind:
+        leg.AddEntry(graphs['obs'], "Observed", "lp")
     leg.AddEntry(graphs['exp'], "Expected", "l")
     leg.AddEntry(graphs['exp1sigma'], "Expected #pm1#sigma", "f")
     leg.AddEntry(graphs['exp2sigma'], "Expected #pm2#sigma", "f")
@@ -186,14 +196,16 @@ if args.method == "Baseline":
 
 elif args.method == "ParticleNet":
     # Load limits
-    with open(f"results/json/limits.{args.era}.{args.limit_type}.Baseline.json") as f:
+    with open(f"results/json/limits.{args.era}.{args.limit_type}.Baseline{_unblind_suffix}.json") as f:
         limits_baseline = json.load(f)
-    with open(f"results/json/limits.{args.era}.{args.limit_type}.ParticleNet.json") as f:
+    with open(f"results/json/limits.{args.era}.{args.limit_type}.ParticleNet{_unblind_suffix}.json") as f:
         limits_pnet = json.load(f)
 
     # Split regions
     pnet_mass = [int(mp.split("_")[1][2:]) for mp in limits_pnet.keys()]
     pnet_min, pnet_max = min(pnet_mass), max(pnet_mass)
+
+    limits_baseline = {mp: v for mp, v in limits_baseline.items() if mp not in _ON_Z_EXCL}
 
     limits_below = {mp: limits_baseline[mp] for mp in limits_baseline if int(mp.split("_")[1][2:]) < pnet_min}
     limits_above = {mp: limits_baseline[mp] for mp in limits_baseline if int(mp.split("_")[1][2:]) > pnet_max}
@@ -229,9 +241,10 @@ elif args.method == "ParticleNet":
     CMS.cmsObjectDraw(graphs_pnet['exp'], "L same")
 
     # Draw observed points
-    for g in [graphs_pnet, graphs_below, graphs_above]:
-        if g:
-            CMS.cmsObjectDraw(g['obs'], "LP same")
+    if not args.blind:
+        for g in [graphs_pnet, graphs_below, graphs_above]:
+            if g:
+                CMS.cmsObjectDraw(g['obs'], "LP same")
 
     # Draw vertical lines marking ParticleNet region
     line = ROOT.TLine()
@@ -249,9 +262,10 @@ elif args.method == "ParticleNet":
     canv.RedrawAxis()
 
     # Legend
-    n_entries = 4 + (1 if args.stack_baseline else 0) + (1 if has_cms_ref else 0) + (1 if has_atlas_ref else 0)
+    n_entries = (4 if not args.blind else 3) + (1 if args.stack_baseline else 0) + (1 if has_cms_ref else 0) + (1 if has_atlas_ref else 0)
     leg = CMS.cmsLeg(0.65, 0.90 - 0.05*n_entries, 0.90, 0.90, textSize=0.035)
-    leg.AddEntry(graphs_pnet['obs'], "Observed", "lp")
+    if not args.blind:
+        leg.AddEntry(graphs_pnet['obs'], "Observed", "lp")
     leg.AddEntry(graphs_pnet['exp'], "Expected", "l")
     leg.AddEntry(graphs_pnet['exp1sigma'], "Expected #pm1#sigma", "f")
     leg.AddEntry(graphs_pnet['exp2sigma'], "Expected #pm2#sigma", "f")
@@ -275,7 +289,7 @@ else:
     raise ValueError(f"Method {args.method} is not supported")
 
 # Save outputs
-output_base = f"results/plots/limit.{args.era}.{args.limit_type}.{args.method}"
+output_base = f"results/plots/limit.{args.era}.{args.limit_type}.{args.method}{_unblind_suffix}"
 os.makedirs(os.path.dirname(output_base), exist_ok=True)
 
 canv.SaveAs(f"{output_base}.png")
