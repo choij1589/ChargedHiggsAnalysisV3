@@ -1355,23 +1355,33 @@ if __name__ == "__main__":
                     continue
 
                 # Step 2: Rebin histograms
+                rebin_factor = get_rebin_factor(plot_key)
                 rebinned_hists = rebin_histograms(stored_hists[plot_key], plot_key)
+
+                # Step 3: Calculate errors from combined syst histograms
+                central_processes_for_syst = [p for p in ordered_bkgs if p in rebinned_hists]
+                syst_hists_combined = extract_syst_hists(stored_hists[plot_key], central_processes_for_syst)
+                rebinned_syst_hists = rebin_syst_histograms(syst_hists_combined, plot_key, rebin_factor)
+                hists_with_errors = calculate_errors(
+                    rebinned_hists, syst_categories, args.masspoint,
+                    rebinned_syst_hists, rebin_factor
+                )
 
                 # Build background histograms for plotting
                 bkg_hists = {}
                 for proc in ordered_bkgs:
-                    if proc not in rebinned_hists:
+                    if proc not in hists_with_errors:
                         continue
                     color = get_color(proc)
-                    hist = rebinned_hists[proc].Clone(f"{proc}_{plot_key}_{region_label}")
+                    hist = hists_with_errors[proc].Clone(f"{proc}_{plot_key}_{region_label}")
                     hist.SetLineColor(color)
                     hist.SetFillColor(color)
                     if hist.Integral() > 0:
                         bkg_hists[proc] = hist
 
                 # Signal histogram
-                if sample_channel != "TTZ2E1Mu" and args.masspoint in rebinned_hists:
-                    signal_hist = rebinned_hists[args.masspoint].Clone(f"signal_{plot_key}_{region_label}")
+                if sample_channel != "TTZ2E1Mu" and args.masspoint in hists_with_errors:
+                    signal_hist = hists_with_errors[args.masspoint].Clone(f"signal_{plot_key}_{region_label}")
                     if signal_hist.Integral() > 0:
                         style_signal_histogram(signal_hist)
                     else:

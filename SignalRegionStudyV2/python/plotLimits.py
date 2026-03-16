@@ -4,6 +4,7 @@ from array import array
 import argparse
 import ROOT
 import json
+import yaml
 import cmsstyle as CMS
 from plotter import LumiInfo, get_CoM_energy
 
@@ -22,6 +23,8 @@ parser.add_argument("--limit_type", type=str, required=True, help="Asymptotic / 
 parser.add_argument("--unblind", action="store_true", help="Load limits from unblind JSON")
 parser.add_argument("--blind", action="store_true", help="Hide observed limit (for blinded results)")
 parser.add_argument("--stack_baseline", action="store_true", help="Show baseline expected limit on top (only for ParticleNet method)")
+parser.add_argument("--cnc", action="store_true", help="Load CnC limits (uses .CnC suffix in JSON/plot filenames)")
+parser.add_argument("--nsigma", type=float, default=3.0, help="CnC mass window half-width in sigma_voigt (default: 3.0)")
 args = parser.parse_args()
 
 # Validate era
@@ -56,9 +59,8 @@ def create_graphs(limits_dict):
     x = array('d', [int(mp.split("_")[1][2:]) for mp in mass_points])
     n = len(x)
 
-    # Extract limit values (divide by BR factor to get branching ratio)
-    BR_TTBAR_TO_LEPTON = 2 * 0.5456
-    limits = {key: array('d', [limits_dict[mp][key] / BR_TTBAR_TO_LEPTON for mp in mass_points])
+    # JSON values are already B_sig (converted in collectLimits.py); use directly
+    limits = {key: array('d', [limits_dict[mp][key] for mp in mass_points])
               for key in ["obs", "exp0", "exp-1", "exp-2", "exp+1", "exp+2"]}
 
     # Create graphs
@@ -85,18 +87,14 @@ def create_graphs(limits_dict):
             'values': [v for arr in limits.values() for v in arr]}
 
 
-# Cross section constant used for reference limit conversion
-TTBAR_XEC_13TEV = 832.0e3  # fb
-
-# Load CMS reference limits (PhysRevLett.123.131801)
-cms_ref_path = "results/json/limits.PhysRevLett.123.131801.json"
+# Load CMS reference limits (HEPData ins1735729, Figure 2b)
+cms_ref_path = "results/yaml/HEPData-ins1735729-v2-Figure_2b.yaml"
 if os.path.exists(cms_ref_path):
     with open(cms_ref_path) as f:
-        limits_cms_ref = json.load(f)
-    x_cms_ref = array('d', sorted([float(mp) for mp in limits_cms_ref.keys()]))
-    # Divide by 2 because H+ can appear in either top quark
-    # Use expected limit for reference
-    exp_cms_ref = array('d', [limits_cms_ref[str(mp)]["exp0"] / TTBAR_XEC_13TEV / 2 for mp in x_cms_ref])
+        cms_yaml = yaml.safe_load(f)
+    x_cms_ref = array('d', [v["value"] for v in cms_yaml["independent_variables"][0]["values"]])
+    # dependent_variables[1] is the expected upper limit in units of ×10⁻⁶
+    exp_cms_ref = array('d', [v["value"] * 1e-6 for v in cms_yaml["dependent_variables"][1]["values"]])
     g_cms_ref = ROOT.TGraph(len(x_cms_ref), x_cms_ref, exp_cms_ref)
     g_cms_ref.SetLineWidth(2)
     g_cms_ref.SetLineStyle(2)
@@ -106,16 +104,14 @@ else:
     has_cms_ref = False
     print(f"Warning: CMS reference limits file not found at {cms_ref_path}")
 
-# Load ATLAS reference limits (PhysRevD.108.092007)
-atlas_ref_path = "results/json/limits.PhysRevLett.108.092007.json"
+# Load ATLAS reference limits (HEPData ins2654723, Table 9)
+atlas_ref_path = "results/yaml/HEPData-ins2654723-v1-Table_9.yaml"
 if os.path.exists(atlas_ref_path):
     with open(atlas_ref_path) as f:
-        atlas_data = json.load(f)
-    # Use hplus_160GeV table (closest to our H+ mass assumption)
-    atlas_table = atlas_data["tables"]["hplus_160GeV"]
-    x_atlas_ref = array('d', atlas_table["ma_GeV"])
-    # Values are already BR(t->H+b) x BR(H+->Wa), use directly
-    exp_atlas_ref = array('d', atlas_table["expected_pb"])
+        atlas_yaml = yaml.safe_load(f)
+    x_atlas_ref = array('d', [v["value"] for v in atlas_yaml["independent_variables"][0]["values"]])
+    # dependent_variables[1] is the expected limit, already in absolute B_sig units
+    exp_atlas_ref = array('d', [v["value"] for v in atlas_yaml["dependent_variables"][1]["values"]])
     g_atlas_ref = ROOT.TGraph(len(x_atlas_ref), x_atlas_ref, exp_atlas_ref)
     g_atlas_ref.SetLineWidth(2)
     g_atlas_ref.SetLineStyle(2)
@@ -150,13 +146,15 @@ else:
     CMS.SetEnergy(get_CoM_energy(args.era))
     y_max = 45e-6
 
+_nsigma_tag = f"{args.nsigma:g}sigma"
+_cnc_suffix = f".CnC_{_nsigma_tag}" if args.cnc else ""
 _unblind_suffix = ".unblind" if args.unblind else ""
 
 # On-Z mass points not covered by ParticleNet (pending future training) — excluded from all plots
 _ON_Z_EXCL = {"MHc115_MA87", "MHc145_MA92", "MHc160_MA98"}
 
 if args.method == "Baseline":
-    with open(f"results/json/limits.{args.era}.{args.limit_type}.Baseline{_unblind_suffix}.json") as f:
+    with open(f"results/json/limits.{args.era}.{args.limit_type}.Baseline{_cnc_suffix}{_unblind_suffix}.json") as f:
         limits = json.load(f)
 
     limits = {mp: v for mp, v in limits.items() if mp not in _ON_Z_EXCL}
@@ -196,9 +194,9 @@ if args.method == "Baseline":
 
 elif args.method == "ParticleNet":
     # Load limits
-    with open(f"results/json/limits.{args.era}.{args.limit_type}.Baseline{_unblind_suffix}.json") as f:
+    with open(f"results/json/limits.{args.era}.{args.limit_type}.Baseline{_cnc_suffix}{_unblind_suffix}.json") as f:
         limits_baseline = json.load(f)
-    with open(f"results/json/limits.{args.era}.{args.limit_type}.ParticleNet{_unblind_suffix}.json") as f:
+    with open(f"results/json/limits.{args.era}.{args.limit_type}.ParticleNet{_cnc_suffix}{_unblind_suffix}.json") as f:
         limits_pnet = json.load(f)
 
     # Split regions
@@ -289,7 +287,7 @@ else:
     raise ValueError(f"Method {args.method} is not supported")
 
 # Save outputs
-output_base = f"results/plots/limit.{args.era}.{args.limit_type}.{args.method}{_unblind_suffix}"
+output_base = f"results/plots/limit.{args.era}.{args.limit_type}.{args.method}{_cnc_suffix}{_unblind_suffix}"
 os.makedirs(os.path.dirname(output_base), exist_ok=True)
 
 canv.SaveAs(f"{output_base}.png")
