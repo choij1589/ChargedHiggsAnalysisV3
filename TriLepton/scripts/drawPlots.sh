@@ -48,10 +48,32 @@ draw_plot_blind() {
         plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --blind
     fi
 }
+draw_plot_noHEMVeto() {
+    local histkey=$1
+    if [[ "$histkey" == MHc* ]]; then
+        local mass_point=$(echo "$histkey" | cut -d'/' -f1)
+        plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --noHEMVeto --signals "$mass_point"
+    else
+        plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --noHEMVeto
+    fi
+}
+
+draw_plot_blind_noHEMVeto() {
+    local histkey=$1
+    if [[ "$histkey" == MHc* ]]; then
+        local mass_point=$(echo "$histkey" | cut -d'/' -f1)
+        plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --blind --noHEMVeto --signals "$mass_point"
+    else
+        plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --blind --noHEMVeto
+    fi
+}
+
 export -f draw_plot
 export -f draw_plot_blind
 export -f draw_plot_exclude_WZSF
 export -f draw_plot_exclude_ConvSF
+export -f draw_plot_noHEMVeto
+export -f draw_plot_blind_noHEMVeto
 
 if [[ $CHANNEL == "SR1E2Mu" ]]; then
     histkeys=(
@@ -71,6 +93,9 @@ if [[ $CHANNEL == "SR1E2Mu" ]]; then
         "dR_ele_mu1" "dR_ele_mu2" "dR_min_ele_mu" "dR_mu1_mu2"
     )
     parallel draw_plot_blind ::: ${histkeys[@]}
+    if [[ "$ERA" == "2018" ]]; then
+        parallel draw_plot_blind_noHEMVeto ::: ${histkeys[@]}
+    fi
 elif [[ $CHANNEL == "TTZ2E1Mu" ]]; then
     histkeys=(
         "muons/1/pt" "muons/1/eta" "muons/1/phi" "muons/1/charge" "muons/1/px" "muons/1/py" "muons/1/pz" "muons/1/energy" "muons/1/min_dR_bjets"
@@ -88,6 +113,9 @@ elif [[ $CHANNEL == "TTZ2E1Mu" ]]; then
         "pair/pt" "pair/eta" "pair/phi" "pair/mass"
     )
     parallel draw_plot ::: ${histkeys[@]}
+    if [[ "$ERA" == "2018" ]]; then
+        parallel draw_plot_noHEMVeto ::: ${histkeys[@]}
+    fi
 elif [[ $CHANNEL == "SR3Mu" ]]; then
     histkeys=(
         "muons/1/pt" "muons/1/eta" "muons/1/phi" "muons/1/charge" "muons/1/px" "muons/1/py" "muons/1/pz" "muons/1/energy" "muons/1/min_dR_bjets"
@@ -123,6 +151,9 @@ elif [[ $CHANNEL == "ZFake1E2Mu" ]]; then
         "dR_ele_mu1" "dR_ele_mu2" "dR_min_ele_mu" "dR_mu1_mu2"
     )
     parallel draw_plot ::: ${histkeys[@]}
+    if [[ "$ERA" == "2018" ]]; then
+        parallel draw_plot_noHEMVeto ::: ${histkeys[@]}
+    fi
 elif [[ $CHANNEL == "ZFake3Mu" ]]; then
     histkeys=(
         "muons/1/pt" "muons/1/eta" "muons/1/phi" "muons/1/charge" "muons/1/px" "muons/1/py" "muons/1/pz" "muons/1/energy"

@@ -13,35 +13,11 @@ ROOT.gROOT.SetBatch(True)
 
 WORKDIR = os.environ['WORKDIR']
 
-# All discrimination variables (27 total)
+# Available discrimination variables from C++ analyzer (PairStudy/correctness/)
 DISCRIMINATION_VARIABLES = [
-    "acoplanarity_correct",
-    "scalarPtSum_correct",
-    "ptAsymmetry_correct",
-    "gammaFactor_smaller_correct",
-    "gammaFactor_larger_correct",
-    "gammaAcop_smaller_correct",
-    "gammaAcop_larger_correct",
-    "deltaR_pair_mu3rd_larger_correct",
-    "deltaR_pair_mu3rd_smaller_correct",
-    "deltaPhi_pair_mu3rd_larger_correct",
-    "ptRatio_mu3rd_smaller_correct",
-    "deltaR_nearestBjet_smaller_correct",
-    "deltaR_nearestBjet_larger_correct",
-    "deltaR_leadingNonBjet_smaller_correct",
-    "deltaR_leadingNonBjet_larger_correct",
-    "deltaPhi_pair_MET_smaller_correct",
-    "deltaPhi_pair_MET_larger_correct",
-    "MT_pair_MET_smaller_correct",
-    "MT_pair_MET_larger_correct",
-    "deltaPhi_muSS_MET_larger_correct",
-    "deltaPhi_muSS_MET_smaller_correct",
-    "MT_muSS_MET_larger_correct",
-    "MT_muSS_MET_smaller_correct",
-    "MT_asymmetry_smaller_correct",
-    "MT_asymmetry_larger_correct",
-    "mass_smaller_correct",
-    "mass_larger_correct",
+    "mass",
+    "gamma",
+    "mT",
 ]
 
 
@@ -78,7 +54,7 @@ def extract_correctness(file_path, channel, variable):
     if not f or f.IsZombie():
         raise RuntimeError(f"Cannot open file: {file_path}")
 
-    hist_path = f"{channel}/Discrimination/{variable}"
+    hist_path = f"{channel}/Central/PairStudy/correctness/{variable}"
     h = f.Get(hist_path)
 
     if not h:

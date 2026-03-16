@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--measure", required=True, type=str, help="electron / muon")
 parser.add_argument("--etabin", required=True, type=str, help="eta bin")
+parser.add_argument("--noHEMVeto", default=False, action="store_true", help="Use noHEMVeto sample (2018 electron only)")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 
@@ -25,6 +26,7 @@ PALETTE = [
 ]
 
 WORKDIR = os.environ['WORKDIR']
+subdir = "noHEMVeto/" if args.noHEMVeto else ""
 ptcorr_bins = []
 abseta_bins = []
 if args.measure == "muon":
@@ -51,7 +53,7 @@ logging.debug(f"abseta_bins: {abseta_bins}")
 logging.debug(f"eta_idx: {eta_idx}")
 
 ## Prepare histograms
-file_path = f"{WORKDIR}/MeasFakeRateV4/results/{args.era}/ROOT/{args.measure}/fakerate.root"
+file_path = f"{WORKDIR}/MeasFakeRateV4/results/{args.era}/ROOT/{args.measure}/{subdir}fakerate.root"
 assert os.path.exists(file_path), f"File not found: {file_path}"
 f = ROOT.TFile.Open(file_path)
 h = f.Get("fake rate - (Central)"); h.SetDirectory(0)
@@ -185,7 +187,7 @@ eta_label = "|#eta_{SC}|" if args.measure == "electron" else "|#eta|"
 text.DrawLatexNDC(0.2, 0.8, f"{abseta_bins[eta_idx-1]} < {eta_label} < {abseta_bins[eta_idx]}")
 
 ## Save the plot
-output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{args.measure}/systematics_{args.etabin}.png"
+output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{args.measure}/{subdir}systematics_{args.etabin}.png"
 os.makedirs(os.path.dirname(output_path), exist_ok=True)
 canvas.SaveAs(output_path)
 logging.info(f"Plot saved to {output_path}")

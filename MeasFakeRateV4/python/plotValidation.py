@@ -30,6 +30,7 @@ parser.add_argument("--wp", required=True, type=str, help="wp")
 parser.add_argument("--region", required=True, type=str, help="region (Inclusive/ZEnriched)")
 parser.add_argument("--selection", default="Central", type=str, help="selection")
 parser.add_argument("--histkey", default="MT", type=str, help="histogram key (MT, pt, eta, scEta, MET, ZCand/mass, ...)")
+parser.add_argument("--noHEMVeto", default=False, action="store_true", help="Use noHEMVeto sample (2018 electron only)")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
@@ -133,6 +134,8 @@ QCD = QCD_EMEnriched + QCD_bcToE + QCD_MuEnriched
 
 # V4 consolidated lepton type file
 lepton_type = "MeasFakeEl" if MEASURE == "electron" else "MeasFakeMu"
+dir_suffix = "_RunNoHEMVeto" if args.noHEMVeto else "_RunSyst"
+subdir = "noHEMVeto/" if args.noHEMVeto else ""
 
 def add_hist(name, hist, histDict):
     if not histDict[name]:
@@ -155,7 +158,7 @@ def process_bin(prefix):
     # data - now using (era, data_period) tuples
     data = None
     for era, dataperiod in DATAPERIODs:
-        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst/{era}/{dataperiod}.root"
+        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}{dir_suffix}/{era}/{dataperiod}.root"
         if not os.path.exists(file_path):
             logging.warning(f"{file_path} does not exist")
             continue
@@ -178,7 +181,7 @@ def process_bin(prefix):
 
     # Prompt MC (from _RunSyst files, stat errors only) - now using (era, sample) tuples
     for era, sample in PromptMCList:
-        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst/{era}/{sample}.root"
+        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}{dir_suffix}/{era}/{sample}.root"
         if not os.path.exists(file_path):
             logging.warning(f"{file_path} does not exist")
             continue
@@ -195,27 +198,28 @@ def process_bin(prefix):
         HISTs[(era, sample)] = h.Clone(f"{era}_{sample}")
 
     # QCD MC (from non-_RunSyst files, no systematics) - now using (era, sample) tuples
-    for era, sample in QCD:
-        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}/{era}/{sample}.root"
-        if not os.path.exists(file_path):
-            logging.warning(f"{file_path} does not exist")
-            continue
-        f = ROOT.TFile.Open(file_path)
-        hist_path = get_histogram_path(prefix, is_inclusive)
-        try:
-            h = f.Get(hist_path)
-            h.SetDirectory(0)
-        except:
-            logging.warning(f"Cannot find {hist_path} for {era}/{sample}")
+    if not args.noHEMVeto:
+        for era, sample in QCD:
+            file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}/{era}/{sample}.root"
+            if not os.path.exists(file_path):
+                logging.warning(f"{file_path} does not exist")
+                continue
+            f = ROOT.TFile.Open(file_path)
+            hist_path = get_histogram_path(prefix, is_inclusive)
+            try:
+                h = f.Get(hist_path)
+                h.SetDirectory(0)
+            except:
+                logging.warning(f"Cannot find {hist_path} for {era}/{sample}")
+                f.Close()
+                continue
             f.Close()
-            continue
-        f.Close()
-        HISTs[(era, sample)] = h.Clone(f"{era}_{sample}")
+            HISTs[(era, sample)] = h.Clone(f"{era}_{sample}")
 
     # scale all MC histograms using per-era prompt_scale
     scale_key = f"{args.hlt}_{args.wp}_{args.selection}"
     for (era, sample), hist in HISTs.items():
-        json_path = f"{WORKDIR}/MeasFakeRateV4/results/{era}/JSON/{MEASURE}/prompt_scale.json"
+        json_path = f"{WORKDIR}/MeasFakeRateV4/results/{era}/JSON/{MEASURE}/{subdir}prompt_scale.json"
         with open(json_path, 'r') as f:
             scale_dict = json.load(f)
         scale = scale_dict[scale_key]
@@ -277,7 +281,7 @@ if IS_INCLUSIVE:
     config["legend"] = (0.75, 0.87 - 0.04 * (nBKGs + 2), 0.95, 0.87)
 
     histkey_safe = args.histkey.replace("/", "_")
-    output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{MEASURE}/{args.hlt}/{args.region}/{args.selection}/{args.wp}_{histkey_safe}.png"
+    output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{MEASURE}/{subdir}{args.hlt}/{args.region}/{args.selection}/{args.wp}_{histkey_safe}.png"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     plotter = ComparisonCanvas(data, BKGs, config)
@@ -311,7 +315,7 @@ else:
         config["colors"] = [BKG_COLORS[name] for name in BKGs.keys()]
         config["legend"] = (0.75, 0.87 - 0.04 * (nBKGs + 2), 0.95, 0.87)
 
-        output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{MEASURE}/{args.hlt}/{args.region}/{args.selection}/{prefix}_{args.wp}_{args.histkey}.png"
+        output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{MEASURE}/{subdir}{args.hlt}/{args.region}/{args.selection}/{prefix}_{args.wp}_{args.histkey}.png"
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         plotter = ComparisonCanvas(data, BKGs, config)

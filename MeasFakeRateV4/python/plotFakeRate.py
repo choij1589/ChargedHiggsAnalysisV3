@@ -11,6 +11,7 @@ parser.add_argument("--measure", required=True, type=str, help="electron / muon"
 parser.add_argument("--isQCD", default=False, action="store_true", help="Plot from QCD samples")
 parser.add_argument("--isTT", default=False, action="store_true", help="Plot from TTJJ_powheg")
 parser.add_argument("--isMC", default=False, action="store_true", help="Plot from combined MC (QCD + TTJJ)")
+parser.add_argument("--noHEMVeto", default=False, action="store_true", help="Use noHEMVeto sample (2018 electron only)")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 
@@ -30,6 +31,7 @@ PALETTE = [
 ]
 
 WORKDIR = os.environ['WORKDIR']
+subdir = "noHEMVeto/" if args.noHEMVeto else ""
 ptcorr_bins = []
 abseta_bins = []
 if args.measure == "muon":
@@ -104,7 +106,7 @@ elif args.isTT:
 elif args.isMC:
     file_path = f"{WORKDIR}/MeasFakeRateV4/results/{args.era}/ROOT/{args.measure}/fakerate_MC.root"
 else:
-    file_path = f"{WORKDIR}/MeasFakeRateV4/results/{args.era}/ROOT/{args.measure}/fakerate.root"
+    file_path = f"{WORKDIR}/MeasFakeRateV4/results/{args.era}/ROOT/{args.measure}/{subdir}fakerate.root"
 
 assert os.path.exists(file_path), f"File not found: {file_path}"
 f = ROOT.TFile(file_path)
@@ -154,6 +156,6 @@ else:
     h = f.Get("fake rate - (Central)")
     h.SetDirectory(0)
     f.Close()
-    output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{args.measure}/fakerate.png"
+    output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{args.measure}/{subdir}fakerate.png"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plot_fakerate(h, output_path)

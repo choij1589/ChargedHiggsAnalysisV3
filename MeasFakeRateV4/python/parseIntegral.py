@@ -64,8 +64,8 @@ def get_hist(sample, ptcorr, abseta, wp, syst="Central"):
     # Use MeasFakeRateV4 with consolidated lepton type file
     analyzer = "MeasFakeRateV4"
     lepton_type = "MeasFakeEl" if args.measure == "electron" else "MeasFakeMu"
-    suffix = "_RunNoHEMVeto" if args.noHEMVeto else ""
-    file_path = f"{WORKDIR}/SKNanoOutput/{analyzer}/{lepton_type}_RunSyst{suffix}/{args.era}/{sample}.root"
+    dir_suffix = "_RunNoHEMVeto" if args.noHEMVeto else "_RunSyst"
+    file_path = f"{WORKDIR}/SKNanoOutput/{analyzer}/{lepton_type}{dir_suffix}/{args.era}/{sample}.root"
     logging.debug(f"file_path: {file_path}")
 
     assert os.path.exists(file_path), f"File not found: {file_path}"

@@ -27,35 +27,11 @@ MA_MAP = {
     160: [15, 50, 85, 98, 120, 135, 155]
 }
 
-# All 27 discrimination variables
+# Available discrimination variables from C++ analyzer (PairStudy/correctness/)
 DISCRIMINATION_VARIABLES = [
-    "acoplanarity_correct",
-    "scalarPtSum_correct",
-    "ptAsymmetry_correct",
-    "gammaFactor_smaller_correct",
-    "gammaFactor_larger_correct",
-    "gammaAcop_smaller_correct",
-    "gammaAcop_larger_correct",
-    "deltaR_pair_mu3rd_larger_correct",
-    "deltaR_pair_mu3rd_smaller_correct",
-    "deltaPhi_pair_mu3rd_larger_correct",
-    "ptRatio_mu3rd_smaller_correct",
-    "deltaR_nearestBjet_smaller_correct",
-    "deltaR_nearestBjet_larger_correct",
-    "deltaR_leadingNonBjet_smaller_correct",
-    "deltaR_leadingNonBjet_larger_correct",
-    "deltaPhi_pair_MET_smaller_correct",
-    "deltaPhi_pair_MET_larger_correct",
-    "MT_pair_MET_smaller_correct",
-    "MT_pair_MET_larger_correct",
-    "deltaPhi_muSS_MET_larger_correct",
-    "deltaPhi_muSS_MET_smaller_correct",
-    "MT_muSS_MET_larger_correct",
-    "MT_muSS_MET_smaller_correct",
-    "MT_asymmetry_smaller_correct",
-    "MT_asymmetry_larger_correct",
-    "mass_smaller_correct",
-    "mass_larger_correct",
+    "mass",
+    "gamma",
+    "mT",
 ]
 
 

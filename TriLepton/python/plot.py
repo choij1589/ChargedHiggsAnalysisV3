@@ -38,6 +38,8 @@ parser.add_argument("--signals", default=["MHc70_MA15", "MHc100_MA60", "MHc130_M
                     nargs="+", help="Signal mass points to overlay")
 parser.add_argument("--signal-scale", default=10.0, type=float,
                     help="Scale factor for signal histograms")
+parser.add_argument("--noHEMVeto", default=False, action="store_true",
+                    help="use NoHEMVeto samples (2018 only, SR1E2Mu/ZFake1E2Mu/TTZ2E1Mu)")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 
@@ -80,6 +82,12 @@ else:
 if args.channel not in ["SR1E2Mu", "SR3Mu", "ZFake1E2Mu", "ZFake3Mu", "ZG1E2Mu", "ZG3Mu", "WZ1E2Mu", "WZ3Mu", "TTZ2E1Mu"]:
     raise ValueError(f"Invalid channel: {args.channel}")
 
+if args.noHEMVeto:
+    if args.era != "2018":
+        raise ValueError("--noHEMVeto only valid for era 2018")
+    if args.channel not in ["SR1E2Mu", "ZFake1E2Mu", "TTZ2E1Mu"]:
+        raise ValueError(f"--noHEMVeto not supported for channel {args.channel}")
+
 config["channel"] = args.channel
 
 if "1E2Mu" in args.channel:
@@ -107,6 +115,8 @@ DATAPERIODs, MC_CATEGORIES, MCList = get_sample_lists(ERA_SAMPLES, ["nonprompt",
 
 if args.exclude:
     OUTPUTPATH = f"{WORKDIR}/TriLepton/plots/{args.era}/{args.channel}/No{args.exclude}/{args.histkey.replace('/', '_')}.png"
+elif args.noHEMVeto:
+    OUTPUTPATH = f"{WORKDIR}/TriLepton/plots/{args.era}/{args.channel}/NoHEMVeto/{args.histkey.replace('/', '_')}.png"
 else:
     OUTPUTPATH = f"{WORKDIR}/TriLepton/plots/{args.era}/{args.channel}/Central/{args.histkey.replace('/', '_')}.png"
 
@@ -266,9 +276,10 @@ for era in era_list:
     # Load data for this era
     era_data = []
     for sample in ERA_SAMPLES[era]["data"]:
-        file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample)
+        file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample,
+                                           no_hem_veto=args.noHEMVeto)
         hist_path = f"{args.channel}/Central/{args.histkey}"
-        
+
         h = load_histogram(file_path, hist_path, era, missing_logger)
         if h:
             era_data.append(h)
@@ -301,7 +312,8 @@ HISTs = {}
 for era in era_list:
     # Load nonprompt for this era
     for sample in ERA_SAMPLES[era]["nonprompt"]:
-        file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample, is_nonprompt=True)
+        file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample,
+                                           is_nonprompt=True, no_hem_veto=args.noHEMVeto)
         hist_path = f"{args.channel}/Central/{args.histkey}"
         
         h = load_histogram(file_path, hist_path, era, missing_logger)
@@ -316,7 +328,8 @@ for era in era_list:
     for sample in all_era_samples:
         use_no_wzsf = args.exclude == "WZSF" and ("WZTo3LNu" in sample or "ZZTo4L" in sample)
         file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample,
-                                           run_syst=True, no_wzsf=use_no_wzsf)
+                                           run_syst=True, no_wzsf=use_no_wzsf,
+                                           no_hem_veto=args.noHEMVeto)
 
         hist_path = f"{args.channel}/Central/{args.histkey}"
         h = load_histogram(file_path, hist_path, era, missing_logger)

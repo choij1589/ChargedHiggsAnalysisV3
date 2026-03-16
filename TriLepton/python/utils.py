@@ -18,11 +18,14 @@ def apply_rate_uncertainty(hist, rel_unc):
 
 
 def build_sknanoutput_path(workdir, channel, flag, era, sample,
-                           is_nonprompt=False, run_syst=False, no_wzsf=False):
+                           is_nonprompt=False, run_syst=False, no_wzsf=False,
+                           no_hem_veto=False):
     """Construct SKNanoOutput file path based on channel type and run mode.
 
     All channels use PromptAnalyzer/MatrixAnalyzer naming.
     Control region channels (ZG*, WZ*) add _RunCR_NoTreeMode suffix.
+    For HEM veto studies (2018, electron channels), no_hem_veto appends
+    _RunNoHEMVeto_NoTreeMode instead of _RunCR_NoTreeMode.
 
     Args:
         workdir: Base WORKDIR path
@@ -33,6 +36,7 @@ def build_sknanoutput_path(workdir, channel, flag, era, sample,
         is_nonprompt: True for nonprompt (Matrix) samples
         run_syst: True to include _RunSyst suffix
         no_wzsf: True to include _RunNoWZSF suffix
+        no_hem_veto: True to use NoHEMVeto samples (2018 electron channels only)
 
     Returns:
         str: Full path to ROOT file
@@ -47,7 +51,9 @@ def build_sknanoutput_path(workdir, channel, flag, era, sample,
         flag_parts.append("RunNoWZSF")
     if run_syst:
         flag_parts.append("RunSyst")
-    if is_cr_channel:
+    if no_hem_veto:
+        flag_parts.append("RunNoHEMVeto_NoTreeMode")
+    elif is_cr_channel:
         flag_parts.append("RunCR_NoTreeMode")
     full_flag = "_".join(flag_parts)
 

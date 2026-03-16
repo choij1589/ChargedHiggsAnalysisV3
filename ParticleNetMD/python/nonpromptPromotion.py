@@ -227,7 +227,6 @@ LepKin getLeptonKinPtCorr(
         float pt = muPt[i];
         if (!muIsTight[i]) {
             pt = pt * (1.0f + std::max(0.0f, muMiniIso[i] - 0.1f));
-            if (isRun3 && pt > 50.0f) pt = 49.0f;
         }
         leps.push_back({pt, muEta[i]});
     }
@@ -274,7 +273,6 @@ FlavorLepKin getFlavorLeptonKinPtCorr(
         float pt = muPt[i];
         if (!muIsTight[i]) {
             pt = pt * (1.0f + std::max(0.0f, muMiniIso[i] - 0.1f));
-            if (isRun3 && pt > 50.0f) pt = 49.0f;
         }
         muPtCorr[i] = pt;
     }

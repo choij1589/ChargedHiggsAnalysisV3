@@ -96,12 +96,12 @@ def get_prompt_scale(trig_prefix, wp, syst):
 
     # Use MeasFakeRateV4 with consolidated lepton type file
     lepton_type = "MeasFakeEl" if args.measure == "electron" else "MeasFakeMu"
-    suffix = "_RunNoHEMVeto" if args.noHEMVeto else ""
+    dir_suffix = "_RunNoHEMVeto" if args.noHEMVeto else "_RunSyst"
 
     rate_data = 0.
     rate_data_err_sq = 0.
     for sample in DATAPERIODs:
-        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst{suffix}/{args.era}/{sample}.root"
+        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}{dir_suffix}/{args.era}/{sample}.root"
         assert os.path.exists(file_path), f"File not found: {file_path}"
         f = ROOT.TFile.Open(file_path)
         try:
@@ -118,7 +118,7 @@ def get_prompt_scale(trig_prefix, wp, syst):
     rate_mc = 0.
     rate_mc_err_sq = 0.
     for sample in MCList:
-        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}_RunSyst{suffix}/{args.era}/{sample}.root"
+        file_path = f"{WORKDIR}/SKNanoOutput/MeasFakeRateV4/{lepton_type}{dir_suffix}/{args.era}/{sample}.root"
         assert os.path.exists(file_path), f"File not found: {file_path}"
         f = ROOT.TFile.Open(file_path)
         try:
@@ -354,7 +354,7 @@ if __name__ == "__main__":
         import math
         scale_dict = {}
         stat_dict = {}  # store stat uncertainty for central
-        AllVariationsForScale = SelectionVariations + PhysicsVariations
+        AllVariationsForScale = ["Central"] if args.noHEMVeto else SelectionVariations + PhysicsVariations
         for trig_prefix, wp, syst in product(TrigPrefixes, WPs, AllVariationsForScale):
             scale, stat_pct = get_prompt_scale(trig_prefix, wp, syst)
             scale_dict[f"{trig_prefix}_{wp}_{syst}"] = scale
@@ -370,7 +370,7 @@ if __name__ == "__main__":
 
             entry = {"central": central, "stat": round(stat_pct, 4)}
             syst_sq_sum = 0.
-            for syst in PhysicsVariations:
+            for syst in ([] if args.noHEMVeto else PhysicsVariations):
                 variation_pct = (scale_dict[f"{key}_{syst}"] - central) / central * 100.
                 entry[syst] = round(variation_pct, 4)
                 syst_sq_sum += variation_pct ** 2
@@ -443,7 +443,8 @@ if __name__ == "__main__":
         # Data-based measurement (no flavour breakdown)
         output_path = f"{base_output_path}/fakerate.root"
         out = ROOT.TFile.Open(output_path, "RECREATE")
-        for syst in SelectionVariations:
+        active_variations = ["Central"] if args.noHEMVeto else SelectionVariations
+        for syst in active_variations:
             h = get_fake_rate(mode="data", sample_identifier=syst)
             out.cd()
             h.Write()
