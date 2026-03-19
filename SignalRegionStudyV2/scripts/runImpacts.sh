@@ -25,6 +25,8 @@ VERBOSE=false
 DO_INITIAL=true
 DO_FITS=true
 DO_PLOT=true
+R_RANGE_OVERRIDE=""
+AUTO_EXPECT_SIGNAL=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -90,6 +92,14 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
+        --r-range)
+            R_RANGE_OVERRIDE="$2"
+            shift 2
+            ;;
+        --auto-expect-signal)
+            AUTO_EXPECT_SIGNAL=true
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 --era ERA --channel CHANNEL --masspoint MASSPOINT [OPTIONS]"
             echo ""
@@ -108,6 +118,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-initial  Skip initial fit (use existing)"
             echo "  --skip-fits  Skip nuisance fits (use existing)"
             echo "  --plot-only  Only generate impact plot from existing json"
+            echo "  --r-range    Override r range as 'rMin,rMax' [default: auto from asymptotic, or -5,5]"
+            echo "  --auto-expect-signal  Use median expected limit as expectSignal (output: impacts_med)"
             echo "  --dry-run    Print commands without executing"
             echo "  --verbose    Enable verbose output"
             exit 0
@@ -149,14 +161,6 @@ if [[ ! -d "$TEMPLATE_DIR" ]]; then
     exit 1
 fi
 
-# Create output directory (include expectSignal in name to avoid overwriting)
-if [[ "$UNBLIND" == true || "$PARTIAL_UNBLIND" == true ]]; then
-    OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts_obs"
-else
-    OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts_r${EXPECT_SIGNAL}"
-fi
-mkdir -p "$OUTPUT_DIR"
-
 # Log function
 log() {
     if [[ "$VERBOSE" == true ]]; then
@@ -174,6 +178,78 @@ run_cmd() {
     fi
 }
 
+# Find asymptotic limit file (used for auto r-range and auto expect-signal)
+ASYMPTOTIC_FILE=""
+ASYMPTOTIC_DIR="${TEMPLATE_DIR}/combine_output/asymptotic"
+if [[ -d "$ASYMPTOTIC_DIR" ]]; then
+    ASYMPTOTIC_FILE=$(ls "${ASYMPTOTIC_DIR}"/higgsCombine.*.AsymptoticLimits.mH120.root 2>/dev/null | head -1 || true)
+fi
+
+# Read r values from asymptotic file if available (single ROOT open for both r-range and median)
+AUTO_RMIN=""
+AUTO_RMAX=""
+AUTO_MEDIAN=""
+if [[ -n "$ASYMPTOTIC_FILE" ]]; then
+    AUTO_OUTPUT=$(python3 -c "
+import sys
+try:
+    import ROOT
+    ROOT.gROOT.SetBatch(True)
+    ROOT.gErrorIgnoreLevel = ROOT.kError
+    f = ROOT.TFile.Open('${ASYMPTOTIC_FILE}')
+    if not f or f.IsZombie():
+        sys.exit(1)
+    tree = f.Get('limit')
+    if not tree or tree.GetEntries() < 5:
+        f.Close()
+        sys.exit(1)
+    limits = []
+    for i in range(tree.GetEntries()):
+        tree.GetEntry(i)
+        limits.append(tree.limit)
+    f.Close()
+    exp_plus2 = limits[4]
+    median    = limits[2]
+    rmax = round(2.0 * exp_plus2, 6)
+    rmin = round(-rmax, 6)
+    print(f'{rmin} {rmax} {median:.6f}')
+except Exception:
+    sys.exit(1)
+" 2>/dev/null) && read AUTO_RMIN AUTO_RMAX AUTO_MEDIAN <<< "$AUTO_OUTPUT" || true
+fi
+
+# Set parameter range
+if [[ -n "$R_RANGE_OVERRIDE" ]]; then
+    R_RANGE="r=${R_RANGE_OVERRIDE}"
+elif [[ -n "$AUTO_RMIN" && -n "$AUTO_RMAX" ]]; then
+    R_RANGE="r=${AUTO_RMIN},${AUTO_RMAX}"
+    echo "  Auto r-range from asymptotic: ${R_RANGE}"
+else
+    echo "  WARNING: No asymptotic file found, using default r=-5,5"
+    R_RANGE="r=-5,5"
+fi
+
+# Auto expect-signal: use median expected from asymptotic
+if [[ "$AUTO_EXPECT_SIGNAL" == true ]]; then
+    if [[ -n "$AUTO_MEDIAN" ]]; then
+        EXPECT_SIGNAL="$AUTO_MEDIAN"
+        echo "  Auto expect-signal (median expected): ${EXPECT_SIGNAL}"
+    else
+        echo "  WARNING: No asymptotic file found, using default expectSignal=1"
+        EXPECT_SIGNAL=1
+    fi
+fi
+
+# Set output directory
+if [[ "$AUTO_EXPECT_SIGNAL" == true ]]; then
+    OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts_med"
+elif [[ "$UNBLIND" == true || "$PARTIAL_UNBLIND" == true ]]; then
+    OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts_obs"
+else
+    OUTPUT_DIR="${TEMPLATE_DIR}/combine_output/impacts_r${EXPECT_SIGNAL}"
+fi
+mkdir -p "$OUTPUT_DIR"
+
 # Change to template directory
 cd "$TEMPLATE_DIR"
 log "Working directory: $(pwd)"
@@ -190,9 +266,6 @@ if [[ "$DO_INITIAL" == true || "$DO_FITS" == true ]]; then
         mkdir -p "$OUTPUT_DIR"
     fi
 fi
-
-# Set parameter range
-R_RANGE="r=-5,5"
 
 # Build fit options: use Asimov (expected) for blinded, real data for unblinded
 if [[ "$UNBLIND" == true || "$PARTIAL_UNBLIND" == true ]]; then

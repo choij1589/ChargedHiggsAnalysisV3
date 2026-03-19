@@ -610,7 +610,7 @@ function generate_dag_file() {
             plot_score)
                 if [[ "$DO_PLOT_SCORE" == "false" ]]; then echo " DONE"; return; fi
                 ;;
-            fitdiag|fitdiag_combined|plotpostfit|plotpostfit_combined)
+            fitdiag|fitdiag_combined|plotpostfit|plotpostfit_combined|plotpulls|plotpulls_combined)
                 if [[ "$DO_FITDIAG" == "false" ]]; then echo " DONE"; return; fi
                 ;;
         esac
@@ -695,6 +695,8 @@ EOF
                 echo "VARS fitdiag_${era} step=\"fitdiag\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
                 echo "JOB plotpostfit_${era} jobs.sub${done_sfx}" >> "$dag_file"
                 echo "VARS plotpostfit_${era} step=\"plotpostfit\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+                echo "JOB plotpulls_${era} jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS plotpulls_${era} step=\"plotpulls\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             done
         fi
 
@@ -716,6 +718,8 @@ EOF
             echo "VARS fitdiag_${run_name} step=\"fitdiag\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             echo "JOB plotpostfit_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
             echo "VARS plotpostfit_${run_name} step=\"plotpostfit\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "JOB plotpulls_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS plotpulls_${run_name} step=\"plotpulls\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
         fi
 
         # Step 8c: Combined era plot_score (ParticleNet only)
@@ -786,6 +790,8 @@ EOF
             echo "VARS fitdiag_${era} step=\"fitdiag\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             echo "JOB plotpostfit_${era} jobs.sub${done_sfx}" >> "$dag_file"
             echo "VARS plotpostfit_${era} step=\"plotpostfit\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "JOB plotpulls_${era} jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS plotpulls_${era} step=\"plotpulls\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
         fi
     }
 
@@ -819,6 +825,8 @@ EOF
                 echo "VARS fitdiag_All step=\"fitdiag\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
                 echo "JOB plotpostfit_All jobs.sub${done_sfx}" >> "$dag_file"
                 echo "VARS plotpostfit_All step=\"plotpostfit\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+                echo "JOB plotpulls_All jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS plotpulls_All step=\"plotpulls\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             fi
         fi
     fi
@@ -881,13 +889,14 @@ EOF
         if [[ "$DO_FITDIAG" == "true" ]]; then
             local fitdiag_jobs=$(printf "fitdiag_%s " "${eras[@]}")
             local plotpostfit_jobs=$(printf "plotpostfit_%s " "${eras[@]}")
+            local plotpulls_jobs=$(printf "plotpulls_%s " "${eras[@]}")
             # combine_ch -> fitdiag (parallel with asymptotic)
             echo "PARENT $combine_ch_jobs CHILD $fitdiag_jobs" >> "$dag_file"
-            # fitdiag -> plotpostfit
-            echo "PARENT $fitdiag_jobs CHILD $plotpostfit_jobs" >> "$dag_file"
+            # fitdiag -> plotpostfit + plotpulls (parallel)
+            echo "PARENT $fitdiag_jobs CHILD $plotpostfit_jobs $plotpulls_jobs" >> "$dag_file"
             # combine_era -> fitdiag at run-period level
             echo "PARENT combine_era_${run_name} CHILD fitdiag_${run_name}" >> "$dag_file"
-            echo "PARENT fitdiag_${run_name} CHILD plotpostfit_${run_name}" >> "$dag_file"
+            echo "PARENT fitdiag_${run_name} CHILD plotpostfit_${run_name} plotpulls_${run_name}" >> "$dag_file"
         fi
     }
 
@@ -919,7 +928,7 @@ EOF
         # FitDiagnostics dependencies (parallel with asymptotic)
         if [[ "$DO_FITDIAG" == "true" ]]; then
             echo "PARENT combine_ch_${era} CHILD fitdiag_${era}" >> "$dag_file"
-            echo "PARENT fitdiag_${era} CHILD plotpostfit_${era}" >> "$dag_file"
+            echo "PARENT fitdiag_${era} CHILD plotpostfit_${era} plotpulls_${era}" >> "$dag_file"
         fi
     }
 
@@ -941,7 +950,7 @@ EOF
             # FitDiagnostics at All level
             if [[ "$DO_FITDIAG" == "true" ]]; then
                 echo "PARENT combine_era_All CHILD fitdiag_All" >> "$dag_file"
-                echo "PARENT fitdiag_All CHILD plotpostfit_All" >> "$dag_file"
+                echo "PARENT fitdiag_All CHILD plotpostfit_All plotpulls_All" >> "$dag_file"
             fi
         fi
     fi

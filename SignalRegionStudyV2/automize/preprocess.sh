@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+voms-proxy-init --voms=cms --valid=168:00
+
 # Mass points (loaded from configs/masspoints.json)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load_masspoints.sh"
@@ -50,13 +52,13 @@ function submit_condor_jobs() {
 
     # Generate HTCondor submission file
     local sub_file="$job_dir/preprocess.sub"
-    cat > "$sub_file" << 'CONDOR_SUB'
+    cat > "$sub_file" << CONDOR_SUB
 JobBatchName = preprocess
 universe = vanilla
 executable = WRAPPER_PATH
-arguments = $(era) $(channel) $(masspoint) $(extra_args)
-output = logs/preprocess_$(era)_$(channel)_$(masspoint).out
-error = logs/preprocess_$(era)_$(channel)_$(masspoint).err
+arguments = \$(era) \$(channel) \$(masspoint) \$(extra_args)
+output = logs/preprocess_\$(era)_\$(channel)_\$(masspoint).out
+error = logs/preprocess_\$(era)_\$(channel)_\$(masspoint).err
 log = preprocess.log
 
 request_cpus = 1
@@ -64,6 +66,8 @@ request_memory = 2GB
 request_disk = 1GB
 
 should_transfer_files = NO
+use_x509userproxy = True
+x509userproxy = /tmp/x509up_u$(id -u)
 
 queue era,channel,masspoint,extra_args from job_params.txt
 CONDOR_SUB
@@ -288,6 +292,8 @@ request_cpus = 1
 request_memory = 2GB
 request_disk = 1GB
 should_transfer_files = NO
+use_x509userproxy = True
+x509userproxy = /tmp/x509up_u$(id -u)
 queue
 EOF
 

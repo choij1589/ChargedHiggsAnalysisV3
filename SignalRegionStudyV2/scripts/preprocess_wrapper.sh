@@ -8,6 +8,7 @@ EXTRA_ARGS=${4:-}
 
 # Paths
 PNFS_BASE="/pnfs/knu.ac.kr/data/cms/store/user/choij"
+SE_BASE="root://cluster142.knu.ac.kr//store/user/choij"
 REPO_DIR="/u/user/choij/scratch/ChargedHiggsAnalysisV3"
 LOCAL_WORKDIR="${TMPDIR:-/tmp}/workdir_$$"
 
@@ -46,14 +47,15 @@ export WORKDIR="$LOCAL_WORKDIR"
 python3 "$REPO_DIR/SignalRegionStudyV2/python/preprocess.py" \
     --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" $EXTRA_ARGS
 
-# Copy output to pnfs
+# Copy output to pnfs via xrootd (faster than NFS for writes)
 LOCAL_OUTPUT="$LOCAL_WORKDIR/SignalRegionStudyV2/samples/$ERA/$CHANNEL/$MASSPOINT"
-PNFS_OUTPUT="$PNFS_BASE/SignalRegionStudyV2/samples/$ERA/$CHANNEL/$MASSPOINT"
+SE_OUTPUT="$SE_BASE/SignalRegionStudyV2/samples/$ERA/$CHANNEL/$MASSPOINT"
 
-mkdir -p "$PNFS_OUTPUT"
-cp -r "$LOCAL_OUTPUT"/* "$PNFS_OUTPUT/"
+for f in "$LOCAL_OUTPUT"/*.root; do
+    xrdcp -s "$f" "$SE_OUTPUT/$(basename "$f")"
+done
 
 # Cleanup
 rm -rf "$LOCAL_WORKDIR"
 
-echo "Successfully preprocessed $ERA/$CHANNEL/$MASSPOINT -> $PNFS_OUTPUT"
+echo "Successfully preprocessed $ERA/$CHANNEL/$MASSPOINT -> $SE_OUTPUT"

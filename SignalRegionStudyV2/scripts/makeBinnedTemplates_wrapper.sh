@@ -246,6 +246,12 @@ run_on_scratch() {
                 --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
                 --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
             ;;
+        plotpulls)
+            echo "Running runPullPlots.sh..."
+            bash scripts/runPullPlots.sh \
+                --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+                --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
+            ;;
         *)
             echo "ERROR: Unknown step '$step'"
             exit 1
@@ -261,13 +267,13 @@ case $STEP in
         # Template generation: copy inputs from pnfs, process locally, copy output back
         run_template_local
         ;;
-    validate|datacard|combine_ch|asymptotic|combine_era|plot_score|fitdiag|plotpostfit)
+    validate|datacard|combine_ch|asymptotic|combine_era|plot_score|fitdiag|plotpostfit|plotpulls)
         # Other steps: lighter I/O, run directly on scratch
         run_on_scratch "$STEP"
         ;;
     *)
         echo "ERROR: Unknown step '$STEP'"
-        echo "Valid steps: template, validate, datacard, combine_ch, asymptotic, combine_era, plot_score, fitdiag, plotpostfit"
+        echo "Valid steps: template, validate, datacard, combine_ch, asymptotic, combine_era, plot_score, fitdiag, plotpostfit, plotpulls"
         exit 1
         ;;
 esac
