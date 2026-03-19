@@ -52,6 +52,19 @@ from plotter import KinematicCanvas, ComparisonCanvas, get_CoM_energy
 from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
 
+
+def get_CoM_for_channel(era, channel):
+    """Get CoM energy, deriving from channel name for combined eras (All)."""
+    if era not in ("All",):
+        return get_CoM_energy(era)
+    # Channel names like eraRun2_era2016postVFP_SR1E2Mu → extract sub-era
+    if channel.startswith("eraRun2_"):
+        return get_CoM_energy("Run2")
+    elif channel.startswith("eraRun3_"):
+        return get_CoM_energy("Run3")
+    else:
+        return get_CoM_energy("Run2")  # fallback
+
 # Fixed color mapping for backgrounds (consistent with checkTemplates.py)
 BKG_COLORS = {
     "nonprompt": PALETTE[0],
@@ -182,7 +195,7 @@ def make_postfit_plot(f, channel, fit_type):
 
     # Get signal histogram
     signal_hist = ch_dir.Get(args.masspoint)
-    has_signal = signal_hist is not None
+    has_signal = isinstance(signal_hist, ROOT.TH1)
     if has_signal:
         signal_hist.SetDirectory(0)
 
@@ -221,7 +234,7 @@ def make_postfit_plot(f, channel, fit_type):
 
     config = {
         "era": args.era,
-        "CoM": get_CoM_energy(args.era),
+        "CoM": get_CoM_for_channel(args.era, channel),
         "channel": channel,
         "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
         "yTitle": "Events",
@@ -307,7 +320,7 @@ def make_prefit_vs_postfit_plot(f, channel, fit_type):
 
     config = {
         "era": args.era,
-        "CoM": get_CoM_energy(args.era),
+        "CoM": get_CoM_for_channel(args.era, channel),
         "channel": channel,
         "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
         "yTitle": "Events",

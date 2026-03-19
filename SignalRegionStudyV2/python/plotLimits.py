@@ -131,15 +131,15 @@ if args.era == "All":
     run3_lumi = _LUMI_CONFIG["Run3"]["combined"]
     CMS.SetLumi(None, run=f"Run 2+3, {run2_lumi}+{run3_lumi} fb^{{#minus1}}")
     CMS.SetEnergy(0, unit="13/13.6 TeV")  # energy=0 uses unit string directly
-    y_max = 14e-6
+    y_max = 20e-6
 elif args.era == "Run2":
     CMS.SetLumi(LumiInfo_extended["Run2"], run="Run2")
     CMS.SetEnergy(13)
-    y_max = 14e-6
+    y_max = 20e-6
 elif args.era == "Run3":
     CMS.SetLumi(LumiInfo_extended["Run3"], run="Run3")
     CMS.SetEnergy(13.6)
-    y_max = 14e-6
+    y_max = 20e-6
 else:
     # Individual era
     CMS.SetLumi(LumiInfo.get(args.era, LumiInfo_extended.get(args.era)), run=args.era)

@@ -301,7 +301,7 @@ if [[ "$CONDOR" == false ]]; then
                 -t ${TOYS_PER_BATCH} \
                 --expectSignal ${R} \
                 --saveToys \
-                --bypassFrequentistFit \
+                --toysFrequentist --bypassFrequentistFit \
                 -n .inject_${LABEL}_s${SEED} \
                 -m 120 -s ${SEED}"
 
@@ -415,7 +415,7 @@ combine -M GenerateOnly workspace.root \\
     -t ${TOYS_PER_BATCH} \\
     --expectSignal ${R} \\
     --saveToys \\
-    --bypassFrequentistFit \\
+    --toysFrequentist --bypassFrequentistFit \\
     -n .inject_${LABEL}_s${SEED} \\
     -m 120 -s ${SEED}
 

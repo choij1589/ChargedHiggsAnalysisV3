@@ -16,6 +16,8 @@ print(' '.join(d['signal_injection']['baseline']))
 print(' '.join(d['signal_injection']['particlenet']))
 print(' '.join(d['hybridnew']['baseline']))
 print(' '.join(d['hybridnew']['particlenet']))
+print(' '.join(d['gof']['baseline']))
+print(' '.join(d['gof']['particlenet']))
 ")
 
 read -ra MASSPOINTs_BASELINE        <<< "$(sed -n '1p' <<< "$_mp_all")"
@@ -28,4 +30,6 @@ read -ra MASSPOINTs_SIGINJ_BASELINE <<< "$(sed -n '7p' <<< "$_mp_all")"
 read -ra MASSPOINTs_SIGINJ_PN       <<< "$(sed -n '8p' <<< "$_mp_all")"
 read -ra MASSPOINTs_HYBRIDNEW_BASELINE <<< "$(sed -n '9p' <<< "$_mp_all")"
 read -ra MASSPOINTs_HYBRIDNEW_PN    <<< "$(sed -n '10p' <<< "$_mp_all")"
+read -ra MASSPOINTs_GOF_BASELINE    <<< "$(sed -n '11p' <<< "$_mp_all")"
+read -ra MASSPOINTs_GOF_PN          <<< "$(sed -n '12p' <<< "$_mp_all")"
 unset _mp_all

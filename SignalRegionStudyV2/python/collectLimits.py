@@ -35,7 +35,7 @@ with open(_masspoints_json) as _f:
     _masspoints_config = json.load(_f)
 
 if args.method == "Baseline":
-    MASSPOINTs = _masspoints_config["limits"]
+    MASSPOINTs = _masspoints_config["baseline"]
 elif args.method == "ParticleNet":
     MASSPOINTs = _masspoints_config["particlenet"]
 else:

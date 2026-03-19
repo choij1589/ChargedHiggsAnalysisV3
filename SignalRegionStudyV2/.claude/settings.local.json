@@ -41,7 +41,17 @@
       "Bash(mp=MHc130_MA90 for era in 2016preVFP 2016postVFP 2017 2018)",
       "Bash(LOGS=/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/condor/jobs_partialExtract_Baseline/logs)",
       "Read(//d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/$LOGS/**)",
-      "Bash(LOGS=/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/condor/jobs_partialExtract_Baseline/logs\ntail -1 \"$LOGS/job_MHc160_MA98.out\" | cat -A)"
+      "Bash(LOGS=/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/condor/jobs_partialExtract_Baseline/logs\ntail -1 \"$LOGS/job_MHc160_MA98.out\" | cat -A)",
+      "Bash(du:*)",
+      "Bash(BDIR=/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/BackUps/ANv6/templates)",
+      "Read(//d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/$BDIR/2016preVFP/Combined/MHc130_MA125/Baseline/extended_unblind/combine_output/fitdiag/**)",
+      "Bash(chmod:*)",
+      "Bash(JOBDIR=\"/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/condor/jobs_dag_preprocess_all_20260317_195244\")",
+      "Read(//d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/$JOBDIR/MHc130_MA90/**)",
+      "Bash(TDIR=/d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/templates echo '=== Completed impact plots ===' find $TDIR -name impacts_filtered_summary.pdf)",
+      "Bash(for mp:*)",
+      "Read(//d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/templates/2018/SR1E2Mu/$mp/Baseline/extended/**)",
+      "Bash(done)"
     ]
   },
   "remote": {

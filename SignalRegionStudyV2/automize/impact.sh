@@ -41,6 +41,7 @@ BINNING="extended"
 PARTIAL_UNBLIND=false
 UNBLIND=false
 EXPECT_SIGNAL=1  # Default: inject signal (use 0 for background-only)
+AUTO_EXPECT_SIGNAL=false
 PLOT_ONLY=false
 DRY_RUN=false
 
@@ -75,6 +76,10 @@ while [[ $# -gt 0 ]]; do
             EXPECT_SIGNAL="$2"
             shift 2
             ;;
+        --auto-expect-signal)
+            AUTO_EXPECT_SIGNAL=true
+            shift
+            ;;
         --condor)
             echo "NOTE: --condor is now the default (and only) execution mode. Flag ignored."
             shift
@@ -102,7 +107,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --method METHOD        - Baseline or ParticleNet (default: Baseline)"
             echo "  --binning BINNING      - extended or uniform (default: extended)"
             echo "  --partial-unblind      - Use partial-unblind templates"
-            echo "  --expect-signal N      - Expected signal for Asimov (0 or 1) [default: 1]"
+            echo "  --expect-signal N      - Expected signal for Asimov (0 or 1) [default: 1]
+  --auto-expect-signal   - Use median expected limit as expectSignal (output: impacts_med)"
             echo ""
             echo "Execution Options:"
             echo "  --condor               - (No-op, condor is now the only execution mode)"
@@ -152,7 +158,11 @@ if [[ "$UNBLIND" == true ]]; then
 elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     EXTRA_ARGS="$EXTRA_ARGS --partial-unblind"
 fi
-EXTRA_ARGS="$EXTRA_ARGS --expect-signal $EXPECT_SIGNAL"
+if [[ "$AUTO_EXPECT_SIGNAL" == true ]]; then
+    EXTRA_ARGS="$EXTRA_ARGS --auto-expect-signal"
+else
+    EXTRA_ARGS="$EXTRA_ARGS --expect-signal $EXPECT_SIGNAL"
+fi
 EXTRA_ARGS="$EXTRA_ARGS --condor"
 if [[ "$PLOT_ONLY" == true ]]; then
     EXTRA_ARGS="$EXTRA_ARGS --plot-only"
@@ -173,7 +183,7 @@ echo "Binning: $BINNING"
 echo "Mass points: ${#MASSPOINTs[@]} total"
 echo "Unblind: $UNBLIND"
 echo "Partial unblind: $PARTIAL_UNBLIND"
-echo "Expect signal: $EXPECT_SIGNAL"
+echo "Expect signal: $([ "$AUTO_EXPECT_SIGNAL" == true ] && echo "auto (median expected)" || echo "$EXPECT_SIGNAL")"
 echo "Execution: HTCondor (condor-only)"
 echo "Plot only: $PLOT_ONLY"
 echo "Dry run: $DRY_RUN"
