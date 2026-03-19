@@ -25,6 +25,6 @@ LOCAL_BASE="$PWD"
 echo "Starting rsync with port $PORT"
 [[ -n "$DRY_RUN" ]] && echo "Dry run mode enabled"
 
-rsync -avz --progress --size-only ${DRY_RUN} -e "ssh -p ${PORT}" \
+rsync -avz --progress --size-only ${DRY_RUN} --exclude="*.root" --exclude="*.log" -e "ssh -p ${PORT}" \
     "${REMOTE}:${REMOTE_BASE}/templates" "${LOCAL_BASE}/"
 echo "Done."
