@@ -221,6 +221,9 @@ fi
 # Set parameter range
 if [[ -n "$R_RANGE_OVERRIDE" ]]; then
     R_RANGE="r=${R_RANGE_OVERRIDE}"
+elif [[ "$PARTIAL_UNBLIND" == true ]]; then
+    R_RANGE="r=-5,5"
+    echo "  Using wide r-range for partial-unblind: ${R_RANGE}"
 elif [[ -n "$AUTO_RMIN" && -n "$AUTO_RMAX" ]]; then
     R_RANGE="r=${AUTO_RMIN},${AUTO_RMAX}"
     echo "  Auto r-range from asymptotic: ${R_RANGE}"

@@ -13,7 +13,7 @@
 #./automize/impact.sh --mode all --method Baseline --auto-expect-signal
 #./automize/impact.sh --mode all --method ParticleNet --expect-signal 0
 #./automize/impact.sh --mode all --method ParticleNet --auto-expect-signal
-#./automize/impact.sh --mode all --method ParticleNet --partial-unblind
+./automize/impact.sh --mode all --method ParticleNet --partial-unblind
 
 # Step 3: Goodness-of-Fit test
 #./automize/gof.sh --mode all --method Baseline
@@ -30,7 +30,7 @@
 #./automize/signalInjection.sh --mode all --method Baseline
 #./automize/signalInjection.sh --mode all --method ParticleNet
 # After HTCondor jobs finish plot:
-./automize/signalInjection.sh --mode all --method Baseline --plot-only
+#./automize/signalInjection.sh --mode all --method Baseline --plot-only
 #./automize/signalInjection.sh --mode all --method ParticleNet --plot-only
 
 # Step 6: HybridNew limits (test subset first, then full run)

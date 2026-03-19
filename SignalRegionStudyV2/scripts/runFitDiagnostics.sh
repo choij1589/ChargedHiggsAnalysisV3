@@ -153,7 +153,9 @@ echo "Running FitDiagnostics for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BIN
 COMBINE_CMD="combine -M FitDiagnostics datacard.txt \
     --saveShapes --saveWithUncertainties \
     -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
-    -m 120 --robustFit 1 --robustHesse 1 \
+    -m 120 --robustFit 1 \
+    --cminDefaultMinimizerStrategy 0 \
+    --cminDefaultMinimizerTolerance 0.1 \
     --setParameterRanges r=-5,5 \
     ${ASIMOV_OPTIONS} \
     2>&1 | tee ${OUTPUT_DIR}/combine_logger.out"
