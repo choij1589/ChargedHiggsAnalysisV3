@@ -72,16 +72,45 @@ def configure_cms_style(era):
         CMS.SetLumi(-1)
 
 
-def calculate_pull(r, r_inj, rLoErr, rHiErr):
-    """Calculate pull with asymmetric error selection."""
-    bias = r - r_inj
-    # Use asymmetric error: rHiErr if bias > 0, else rLoErr
-    r_err = rHiErr if bias > 0 else rLoErr
+# Tolerances for filtering suspicious fits (B2G TWiki convention)
+BOUNDARY_TOL = 1e-3  # MINOS error hitting rMin/rMax boundary
+MIN_SIGMA = 1e-3     # Degenerate uncertainty too small to divide by
 
-    if r_err <= 0:
+
+def get_fit_bounds(results_data):
+    """Extract rMin/rMax from fit_config, with safe defaults."""
+    fit_config = results_data.get('fit_config', {})
+    return fit_config.get('rMin', -999), fit_config.get('rMax', 999)
+
+
+def is_boundary_hit(fit, r_min, r_max):
+    """Check if MINOS errors hit the fit range boundary."""
+    return (abs(fit['r_hi'] - r_max) < BOUNDARY_TOL or
+            abs(fit['r_lo'] - r_min) < BOUNDARY_TOL)
+
+
+def calculate_pull(r_fit, r_truth, r_lo, r_hi):
+    """
+    Calculate pull following B2G TWiki convention.
+
+    pull = (r_truth - r_fit) / sigma
+    where sigma is chosen asymmetrically:
+    - If r_truth > r_fit: sigma = |r_hi - r_fit| (up-error, r needs to go up)
+    - If r_truth <= r_fit: sigma = |r_lo - r_fit| (down-error, r needs to go down)
+
+    Caller must filter boundary hits before calling this function.
+    Returns None if sigma is too small.
+    """
+    diff = r_truth - r_fit
+    if diff > 0:
+        sigma = abs(r_hi - r_fit)
+    else:
+        sigma = abs(r_lo - r_fit)
+
+    if sigma < MIN_SIGMA:
         return None
 
-    return bias / r_err
+    return diff / sigma
 
 
 def create_bias_plot(results_data, masspoint, era, method, output_file):
@@ -91,13 +120,19 @@ def create_bias_plot(results_data, masspoint, era, method, output_file):
     if not results:
         raise ValueError("No results to plot")
 
-    # Determine histogram range from all bias values
-    all_bias = []
+    r_min, r_max = get_fit_bounds(results_data)
+
+    # Single pass: compute filtered bias values per r_inj
+    bias_by_rinj = {}
     for r_inj_str, fits in results.items():
         r_inj = float(r_inj_str)
-        for fit in fits:
-            all_bias.append(fit['r'] - r_inj)
+        bias_by_rinj[r_inj] = [
+            fit['r_fit'] - r_inj
+            for fit in fits
+            if not is_boundary_hit(fit, r_min, r_max)
+        ]
 
+    all_bias = [b for biases in bias_by_rinj.values() for b in biases]
     if not all_bias:
         raise ValueError("No bias values found")
 
@@ -109,14 +144,11 @@ def create_bias_plot(results_data, masspoint, era, method, output_file):
     fit_results = {}
     fit_funcs = []
 
-    for i, (r_inj_str, fits) in enumerate(sorted(results.items(), key=lambda x: float(x[0]))):
-        r_inj = float(r_inj_str)
-
+    for i, r_inj in enumerate(sorted(bias_by_rinj.keys())):
         h = ROOT.TH1F(f"h_bias_{r_inj}", "", 50, x_min, x_max)
         h.SetDirectory(0)
 
-        for fit in fits:
-            bias = fit['r'] - r_inj
+        for bias in bias_by_rinj[r_inj]:
             h.Fill(bias)
 
         if h.Integral() > 0:
@@ -210,6 +242,8 @@ def create_pull_plot(results_data, masspoint, era, method, output_file):
 
     x_min, x_max = -5, 5
 
+    r_min, r_max = get_fit_bounds(results_data)
+
     histograms = {}
     fit_results = {}
     fit_funcs = []
@@ -222,7 +256,10 @@ def create_pull_plot(results_data, masspoint, era, method, output_file):
 
         n_skipped = 0
         for fit in fits:
-            pull = calculate_pull(fit['r'], r_inj, fit['rLoErr'], fit['rHiErr'])
+            if is_boundary_hit(fit, r_min, r_max):
+                n_skipped += 1
+                continue
+            pull = calculate_pull(fit['r_fit'], r_inj, fit['r_lo'], fit['r_hi'])
             if pull is not None:
                 h.Fill(pull)
             else:
@@ -253,7 +290,7 @@ def create_pull_plot(results_data, masspoint, era, method, output_file):
     y_max = max(h.GetMaximum() for h, _ in histograms.values()) * 1.6
 
     canv = CMS.cmsCanvas("pull", x_min, x_max, 0, y_max,
-                         "(r - r_{inj}) / #sigma_{r}", "PDF",
+                         "(r_{truth} - r_{fit}) / #sigma_{fit}", "PDF",
                          square=True, iPos=11, extraSpace=0.01)
 
     bin_width = (x_max - x_min) / 40.0

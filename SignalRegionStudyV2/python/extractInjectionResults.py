@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-extractInjectionResults.py - Extract signal injection fit results from FitDiagnostics
+extractInjectionResults.py - Extract signal injection fit results from MultiDimFit
 
-Extracts (r, rLoErr, rHiErr, fit_status) from tree_fit_sb in FitDiagnostics output.
-Filters on fit_status == 0 and warns if >10% of fits fail.
+Extracts (r_fit, r_lo, r_hi) from the limit tree in MultiDimFit --algo singles output.
+Each toy produces 3 entries: best-fit r, -1sigma r, +1sigma r.
 
 Supports two modes:
-1. --input-dir: Scan flat directory for fitDiagnostics.recovery_*.root files (condor output)
+1. --input-dir: Scan flat directory for higgsCombine.recovery_*.MultiDimFit.*.root files
 2. Legacy: Infer path from era/channel/masspoint/method/binning
 
 Usage:
@@ -33,32 +33,51 @@ def get_injection_dir(era, channel, masspoint, method, binning):
     )
 
 
-def extract_from_fitdiag(fitdiag_file):
+def extract_from_multidimfit(mdf_file):
     """
-    Extract fit results from FitDiagnostics output.
+    Extract fit results from MultiDimFit --algo singles output.
 
-    Returns list of dicts: {r, rLoErr, rHiErr, fit_status}
+    The limit tree has 3 entries per toy:
+    - Entry i*3:   best-fit r (r_fit)
+    - Entry i*3+1: -1 sigma r value (r_lo = r_fit - err_down)
+    - Entry i*3+2: +1 sigma r value (r_hi = r_fit + err_up)
+
+    Returns list of dicts: {r_fit, r_lo, r_hi}
     """
     results = []
 
-    f = ROOT.TFile.Open(fitdiag_file)
+    f = ROOT.TFile.Open(mdf_file)
     if not f or f.IsZombie():
-        print(f"WARNING: Cannot open {fitdiag_file}")
+        print(f"WARNING: Cannot open {mdf_file}")
         return results
 
-    tree = f.Get("tree_fit_sb")
+    tree = f.Get("limit")
     if not tree:
-        print(f"WARNING: No 'tree_fit_sb' in {fitdiag_file}")
+        print(f"WARNING: No 'limit' tree in {mdf_file}")
         f.Close()
         return results
 
-    for i in range(tree.GetEntries()):
-        tree.GetEntry(i)
+    n_entries = tree.GetEntries()
+    n_toys = n_entries // 3
+
+    if n_entries % 3 != 0:
+        print(f"WARNING: {mdf_file} has {n_entries} entries (not divisible by 3), "
+              f"using first {n_toys * 3} entries")
+
+    for i in range(n_toys):
+        tree.GetEntry(i * 3)
+        r_fit = float(tree.r)
+
+        tree.GetEntry(i * 3 + 1)
+        r_lo = float(tree.r)
+
+        tree.GetEntry(i * 3 + 2)
+        r_hi = float(tree.r)
+
         results.append({
-            'r': float(tree.r),
-            'rLoErr': float(tree.rLoErr),
-            'rHiErr': float(tree.rHiErr),
-            'fit_status': int(tree.fit_status)
+            'r_fit': r_fit,
+            'r_lo': r_lo,
+            'r_hi': r_hi
         })
 
     f.Close()
@@ -67,16 +86,16 @@ def extract_from_fitdiag(fitdiag_file):
 
 def parse_r_value_from_filename(filename):
     """
-    Extract (r_label, r_value) from fitDiagnostics filename.
+    Extract r_label from MultiDimFit filename.
 
     Expected patterns:
-        fitDiagnostics.recovery_r0_s1.root        -> label="r0"
-        fitDiagnostics.recovery_rM1_s2.root       -> label="rM1"
-        fitDiagnostics.recovery_rMed_s3.root      -> label="rMed"
-        fitDiagnostics.recovery_rP1_s4.root       -> label="rP1"
+        higgsCombine.recovery_r0_s1.MultiDimFit.mH120.1.root     -> label="r0"
+        higgsCombine.recovery_rM1_s2.MultiDimFit.mH120.2.root    -> label="rM1"
+        higgsCombine.recovery_rMed_s3.MultiDimFit.mH120.3.root   -> label="rMed"
+        higgsCombine.recovery_rP1_s4.MultiDimFit.mH120.4.root    -> label="rP1"
     """
     basename = os.path.basename(filename)
-    match = re.match(r'fitDiagnostics\.recovery_(r\w+)_s\d+\.root', basename)
+    match = re.match(r'higgsCombine\.recovery_(r\w+)_s\d+\.MultiDimFit\..*\.root', basename)
     if match:
         return match.group(1)
     return None
@@ -85,32 +104,20 @@ def parse_r_value_from_filename(filename):
 def read_r_values_mapping(input_dir):
     """
     Read r_values.txt and r_labels.txt to build label->value mapping.
-    Falls back to parsing labels directly if files not found.
+    Falls back to condor/ subdirectory if not found in input_dir.
     """
-    r_values_file = os.path.join(input_dir, "r_values.txt")
-    r_labels_file = os.path.join(input_dir, "r_labels.txt")
+    for base_dir in [input_dir, os.path.join(input_dir, "condor")]:
+        r_values_file = os.path.join(base_dir, "r_values.txt")
+        r_labels_file = os.path.join(base_dir, "r_labels.txt")
 
-    if os.path.exists(r_values_file) and os.path.exists(r_labels_file):
-        with open(r_values_file) as f:
-            values = [line.strip() for line in f if line.strip()]
-        with open(r_labels_file) as f:
-            labels = [line.strip() for line in f if line.strip()]
+        if os.path.exists(r_values_file) and os.path.exists(r_labels_file):
+            with open(r_values_file) as fv:
+                values = [line.strip() for line in fv if line.strip()]
+            with open(r_labels_file) as fl:
+                labels = [line.strip() for line in fl if line.strip()]
 
-        if len(values) == len(labels):
-            return dict(zip(labels, [float(v) for v in values]))
-
-    # Fallback: check condor/ subdirectory
-    condor_r_values = os.path.join(input_dir, "condor", "r_values.txt")
-    condor_r_labels = os.path.join(input_dir, "condor", "r_labels.txt")
-
-    if os.path.exists(condor_r_values) and os.path.exists(condor_r_labels):
-        with open(condor_r_values) as f:
-            values = [line.strip() for line in f if line.strip()]
-        with open(condor_r_labels) as f:
-            labels = [line.strip() for line in f if line.strip()]
-
-        if len(values) == len(labels):
-            return dict(zip(labels, [float(v) for v in values]))
+            if len(values) == len(labels):
+                return dict(zip(labels, [float(v) for v in values]))
 
     raise FileNotFoundError(
         f"Cannot find r_values.txt and r_labels.txt in {input_dir} or {input_dir}/condor/. "
@@ -118,9 +125,19 @@ def read_r_values_mapping(input_dir):
     )
 
 
+def read_fit_config(input_dir):
+    """Read fit configuration (rMin, rMax) from fit_config.json."""
+    for base_dir in [input_dir, os.path.join(input_dir, "condor")]:
+        config_file = os.path.join(base_dir, "fit_config.json")
+        if os.path.exists(config_file):
+            with open(config_file) as f:
+                return json.load(f)
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Extract signal injection fit results")
-    parser.add_argument("--input-dir", help="Directory containing fitDiagnostics.recovery_*.root files")
+    parser.add_argument("--input-dir", help="Directory containing higgsCombine.recovery_*.MultiDimFit.*.root files")
     parser.add_argument("--era", help="Data-taking era (for path inference)")
     parser.add_argument("--channel", default="Combined", help="Analysis channel")
     parser.add_argument("--masspoint", help="Signal mass point (for path inference)")
@@ -142,21 +159,24 @@ def main():
     if not os.path.exists(input_dir):
         raise FileNotFoundError(f"Input directory not found: {input_dir}")
 
-    # Find all fitDiagnostics files
-    fitdiag_files = glob.glob(os.path.join(input_dir, "fitDiagnostics.recovery_*.root"))
+    # Find all MultiDimFit output files
+    mdf_files = glob.glob(os.path.join(input_dir, "higgsCombine.recovery_*.MultiDimFit.*.root"))
+    mdf_files += glob.glob(os.path.join(input_dir, "condor", "higgsCombine.recovery_*.MultiDimFit.*.root"))
 
-    # Also check condor/ subdirectory
-    fitdiag_files += glob.glob(os.path.join(input_dir, "condor", "fitDiagnostics.recovery_*.root"))
-
-    if not fitdiag_files:
-        raise FileNotFoundError(f"No fitDiagnostics.recovery_*.root files found in {input_dir}")
+    if not mdf_files:
+        raise FileNotFoundError(
+            f"No higgsCombine.recovery_*.MultiDimFit.*.root files found in {input_dir}"
+        )
 
     # Read r label -> value mapping
     label_to_rvalue = read_r_values_mapping(input_dir)
 
+    # Read fit config (rMin, rMax) for embedding in output
+    fit_config = read_fit_config(input_dir)
+
     # Group files by r_label
     files_by_label = {}
-    for fpath in sorted(fitdiag_files):
+    for fpath in sorted(mdf_files):
         label = parse_r_value_from_filename(fpath)
         if label is None:
             print(f"WARNING: Cannot parse r label from {fpath}, skipping")
@@ -180,28 +200,17 @@ def main():
         # Extract from all batch files
         results = []
         for fpath in files:
-            results.extend(extract_from_fitdiag(fpath))
+            results.extend(extract_from_multidimfit(fpath))
 
-        # Filter on fit_status == 0
         n_total = len(results)
-        good_results = [r for r in results if r['fit_status'] == 0]
-        n_good = len(good_results)
-        fail_rate = (n_total - n_good) / n_total if n_total > 0 else 0
-
-        if fail_rate > 0.1:
-            print(f"WARNING: r={r_inj} ({label}): {fail_rate*100:.1f}% of fits failed (>10% threshold)")
-
-        all_results[str(r_inj)] = good_results
+        all_results[str(r_inj)] = results
         summary[str(r_inj)] = {
             'n_total': n_total,
-            'n_good': n_good,
-            'fail_rate': fail_rate,
             'r_inj': r_inj,
             'label': label
         }
 
-        print(f"  r={r_inj:.4f} ({label}): {n_good}/{n_total} good fits "
-              f"({fail_rate*100:.1f}% failed, {len(files)} files)")
+        print(f"  r={r_inj:.4f} ({label}): {n_total} toys ({len(files)} files)")
 
     if not all_results:
         raise RuntimeError("No valid results found")
@@ -212,11 +221,15 @@ def main():
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
+    output_data = {
+        'results': all_results,
+        'summary': summary
+    }
+    if fit_config:
+        output_data['fit_config'] = fit_config
+
     with open(output_path, 'w') as f:
-        json.dump({
-            'results': all_results,
-            'summary': summary
-        }, f, indent=2)
+        json.dump(output_data, f, indent=2)
 
     print("-" * 60)
     print(f"Results saved to {output_path}")

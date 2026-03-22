@@ -10,6 +10,7 @@ import shutil
 import logging
 import argparse
 import json
+from collections import OrderedDict
 import ROOT
 import numpy as np
 from math import sqrt
@@ -18,13 +19,17 @@ from template_utils import (
     save_json, parse_variations, get_output_tree_name, ensure_positive_integral,
     build_particlenet_score, create_filtered_rdf, create_scaled_hist,
     is_run3_era, is_signal_scaled_from_run2, get_run2_tree_name_for_run3_syst,
-    categorize_systematics
+    categorize_systematics, calculate_adaptive_bins, check_binning_quality
 )
+from plotter import FitCanvasWithRatio
 
 # Signal scaling factor for partial-unblind mode
 # When using --partial-unblind, signal is scaled by this factor
 # The resulting limit on r should be interpreted as limit on (PARTIAL_UNBLIND_SIGNAL_SCALE × σ)
 PARTIAL_UNBLIND_SIGNAL_SCALE = 50
+
+# Floor value for empty/problematic bins when adaptive binning is exhausted
+BIN_FLOOR_VALUE = 1e-6
 
 
 def parse_args():
@@ -78,100 +83,145 @@ def load_config(workdir, era, channel):
 
 
 # =============================================================================
-# Binning Functions
+# A Mass Fitting Functions (Double Crystal Ball)
 # =============================================================================
 
-def get_mass_window(mA, width, sigma, binning="extended"):
-    """Calculate mass window based on binning type. Returns (mass_min, mass_max)."""
-    voigt_width = sqrt(width**2 + sigma**2)
-    if binning == "extended":
-        return mA - 10 * voigt_width, mA + 10 * voigt_width
-    else:  # uniform
-        return mA - 5 * voigt_width, mA + 5 * voigt_width
+def getFitResultDCB(input_path, mA_nominal, outdir, era, masspoint):
+    """
+    Fit A mass distribution using Double Crystal Ball (RooCrystalBall).
 
+    Strategy: wide Voigt pre-fit → get peak scale → narrow DCB fit.
 
-def calculateFixedBins(mA, width, sigma):
-    """Generate 15 uniform bins in [mA - 5*sigma_voigt, mA + 5*sigma_voigt]."""
-    voigt_width = sqrt(width**2 + sigma**2)
-    mass_min = mA - 5 * voigt_width
-    mass_max = mA + 5 * voigt_width
-    nbins = 15
-    bin_edges = np.linspace(mass_min, mass_max, nbins + 1)
+    Args:
+        input_path: Path to signal ROOT file with Central tree
+        mA_nominal: Nominal A mass value
+        outdir: Output directory for fit plot and JSON
+        era: Data-taking era (for CMS style labels on fit plot)
+        masspoint: Mass point name (for plot label)
 
-    logging.info(f"Uniform binning: {nbins} bins, sigma_voigt={voigt_width:.3f} GeV, range=[{mass_min:.2f}, {mass_max:.2f}] GeV")
-    return bin_edges
-
-
-def calculateExtendedBins(mA, width, sigma):
-    """Generate extended bin edges: [-10, -7, -5]*sigma + 15 uniform bins in [-5, +5]*sigma + [+5, +7, +10]*sigma."""
-    voigt_width = sqrt(width**2 + sigma**2)
-
-    # Use same 15 uniform bins as calculateFixedBins in [-5σ, +5σ]
-    uniform_sigma_fractions = np.linspace(-5, 5, 16)  # 16 edges for 15 bins
-
-    # Add extra bins at [-10, -7] on low side and [+7, +10] on high side
-    extra_low = np.array([-10, -7])
-    extra_high = np.array([7, 10])
-
-    sigma_fractions = np.concatenate([extra_low, uniform_sigma_fractions, extra_high])
-    bin_edges = mA + sigma_fractions * voigt_width
-
-    logging.info(f"Extended binning: {len(bin_edges) - 1} bins, sigma_voigt={voigt_width:.3f} GeV")
-    logging.info(f"  Bin edges (in sigma): {sigma_fractions.tolist()}")
-    logging.info(f"  Bin edges (in GeV): [{bin_edges[0]:.2f}, ..., {bin_edges[-1]:.2f}]")
-    return bin_edges
-
-
-# =============================================================================
-# A Mass Fitting Functions
-# =============================================================================
-
-def getFitResult(input_path, output_path, mA_nominal, outdir):
-    """Fit A mass distribution using AmassFitter. Returns (mA, width, sigma)."""
-    logging.info(f"Fitting A mass with nominal mA = {mA_nominal} GeV")
+    Returns:
+        dict with keys: x0, sigmaL, sigmaR, alphaL, nL, alphaR, nR, sigma_eff
+    """
+    logging.info(f"Fitting A mass with DCB, nominal mA = {mA_nominal} GeV")
 
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
-    fitter = ROOT.AmassFitter(input_path, output_path)
-    fitter.fitMass(mA_nominal, mA_nominal - 20., mA_nominal + 20.)
-    fitter.saveCanvas(f"{outdir}/signal_fit.png")
+    ROOT.RooMsgService.instance().setGlobalKillBelow(ROOT.RooFit.WARNING)
 
-    mA = fitter.getRooMA().getVal()
-    width = fitter.getRooWidth().getVal()
-    sigma = fitter.getRooSigma().getVal()
-    fitter.Close()
+    # Step 1: wide Voigt pre-fit to get peak position and scale
+    wide_lo, wide_hi = mA_nominal - 20.0, mA_nominal + 20.0
+    rdf = ROOT.RDataFrame("Central", input_path)
+    rdf = rdf.Filter(f"mass >= {wide_lo} && mass <= {wide_hi}")
+    h_wide = rdf.Histo1D(
+        ROOT.RDF.TH1DModel("h_wide", "", 400, wide_lo, wide_hi), "mass", "weight"
+    ).GetValue().Clone("h_wide_c")
+    h_wide.SetDirectory(0)
 
-    logging.info(f"Fit result: mA={mA:.2f}, width={width:.3f}, sigma={sigma:.3f} GeV")
-    return mA, width, sigma
+    mass_w = ROOT.RooRealVar("mass_w", "mass", wide_lo, wide_hi)
+    data_w = ROOT.RooDataHist("data_w", "", ROOT.RooArgList(mass_w), h_wide)
+    pre_mA = ROOT.RooRealVar("pre_mA", "mA", mA_nominal, wide_lo, wide_hi)
+    pre_w = ROOT.RooRealVar("pre_w", "width", 0.1, 0.0, 5.0)
+    pre_s = ROOT.RooRealVar("pre_s", "sigma", 0.1, 0.0, 5.0)
+    pre_voigt = ROOT.RooVoigtian("pre_voigt", "", mass_w, pre_mA, pre_w, pre_s)
+    pre_voigt.fitTo(data_w, ROOT.RooFit.SumW2Error(True),
+                    ROOT.RooFit.Save(), ROOT.RooFit.PrintLevel(-1))
+    fitted_mA = pre_mA.getVal()
+    vw = sqrt(pre_w.getVal()**2 + pre_s.getVal()**2)
+
+    # Step 2: narrow histogram around peak
+    fit_lo = fitted_mA - 10.0 * vw
+    fit_hi = fitted_mA + 10.0 * vw
+    nbins = 100
+
+    rdf2 = ROOT.RDataFrame("Central", input_path)
+    rdf2 = rdf2.Filter(f"mass >= {fit_lo} && mass <= {fit_hi}")
+    hist = rdf2.Histo1D(
+        ROOT.RDF.TH1DModel("h_fit", "", nbins, fit_lo, fit_hi), "mass", "weight"
+    ).GetValue().Clone("h_fit_c")
+    hist.SetDirectory(0)
+
+    mass = ROOT.RooRealVar("dcb_mass", "mass", fit_lo, fit_hi)
+    roo_data = ROOT.RooDataHist("dcb_data", "", ROOT.RooArgList(mass), hist)
+
+    # Step 3: DCB fit
+    dcb_x0 = ROOT.RooRealVar("dcb_x0", "x0", fitted_mA, fit_lo, fit_hi)
+    dcb_sL = ROOT.RooRealVar("dcb_sL", "sigmaL", 0.8 * vw, 0.01 * vw, 3.0 * vw)
+    dcb_sR = ROOT.RooRealVar("dcb_sR", "sigmaR", 0.8 * vw, 0.01 * vw, 3.0 * vw)
+    dcb_aL = ROOT.RooRealVar("dcb_aL", "alphaL", 1.5, 0.5, 10.0)
+    dcb_nL = ROOT.RooRealVar("dcb_nL", "nL", 2.0, 0.1, 50.0)
+    dcb_aR = ROOT.RooRealVar("dcb_aR", "alphaR", 1.5, 0.5, 10.0)
+    dcb_nR = ROOT.RooRealVar("dcb_nR", "nR", 2.0, 0.1, 50.0)
+    dcb = ROOT.RooCrystalBall("dcb", "", mass, dcb_x0,
+                               dcb_sL, dcb_sR, dcb_aL, dcb_nL, dcb_aR, dcb_nR)
+    dcb.fitTo(roo_data, ROOT.RooFit.SumW2Error(True),
+              ROOT.RooFit.Save(), ROOT.RooFit.PrintLevel(-1))
+
+    sigma_eff = sqrt(0.5 * (dcb_sL.getVal()**2 + dcb_sR.getVal()**2))
+
+    # Save fit plot
+    fit_models = OrderedDict([("DCB", (dcb, 7, ROOT.kSolid))])
+    config = {
+        "era": era, "xTitle": "m_{A} [GeV]", "yTitle": "Events",
+        "rTitle": "Fit / MC", "rRange": [0.5, 1.5],
+        "channel": "", "masspoint": masspoint,
+        "masspointPosX": 0.2, "masspointPosY": 0.80,
+        "masspointFont": 61, "masspointSize": 0.04,
+        "legend": [0.60, 0.65, 0.90, 0.78],
+        "legendTextSize": 0.03, "iPos": 0, "maxDigits": 3,
+    }
+    canvas = FitCanvasWithRatio(roo_data, mass, hist, fit_models, config)
+    canvas.drawPadUp()
+    canvas.drawPadDown()
+    canvas.drawMasspoint()
+    canvas.canv.SaveAs(f"{outdir}/signal_fit.png")
+
+    result = {
+        "x0": float(dcb_x0.getVal()),
+        "sigmaL": float(dcb_sL.getVal()),
+        "sigmaR": float(dcb_sR.getVal()),
+        "alphaL": float(dcb_aL.getVal()),
+        "nL": float(dcb_nL.getVal()),
+        "alphaR": float(dcb_aR.getVal()),
+        "nR": float(dcb_nR.getVal()),
+        "sigma_eff": float(sigma_eff),
+    }
+
+    logging.info(f"DCB fit result: x0={result['x0']:.2f}, "
+                 f"sigmaL={result['sigmaL']:.3f}, sigmaR={result['sigmaR']:.3f}, "
+                 f"sigma_eff={sigma_eff:.3f} GeV")
+
+    return result
 
 
-def loadFitResult(fit_result_path):
-    """Load fit parameters from SR1E2Mu for SR3Mu channel. Returns (mA, width, sigma)."""
-    if not os.path.exists(fit_result_path):
-        raise FileNotFoundError(f"Fit result file not found: {fit_result_path}")
+def loadFitResultDCB(fit_json_path):
+    """
+    Load DCB fit parameters from signal_fit.json (for SR3Mu loading from SR1E2Mu).
 
-    fit_file = ROOT.TFile.Open(fit_result_path, "READ")
-    fit_result = fit_file.Get("fitresult_model_data") or fit_file.Get("fit_result")
-    if not fit_result:
-        fit_file.Close()
-        raise RuntimeError("RooFitResult not found in fit_result.root")
+    Args:
+        fit_json_path: Path to signal_fit.json
 
-    params = fit_result.floatParsFinal()
-    mA = params.find("mA").getVal()
-    width = params.find("width").getVal()
-    sigma = params.find("sigma").getVal()
-    fit_file.Close()
+    Returns:
+        dict with keys: x0, sigmaL, sigmaR, alphaL, nL, alphaR, nR, sigma_eff
+    """
+    if not os.path.exists(fit_json_path):
+        raise FileNotFoundError(f"Fit result not found: {fit_json_path}")
 
-    logging.info(f"Loaded fit: mA={mA:.2f}, width={width:.3f}, sigma={sigma:.3f} GeV (from SR1E2Mu)")
-    return mA, width, sigma
+    with open(fit_json_path) as f:
+        result = json.load(f)
+
+    logging.info(f"Loaded DCB fit: x0={result['x0']:.2f}, "
+                 f"sigmaL={result['sigmaL']:.3f}, sigmaR={result['sigmaR']:.3f}, "
+                 f"sigma_eff={result['sigma_eff']:.3f} GeV (from SR1E2Mu)")
+
+    return result
 
 
 # =============================================================================
 # Histogram Creation Functions
 # =============================================================================
 
-def getHist(basedir, process, bin_edges, mA, width, sigma, binning, syst="Central",
+def getHist(basedir, process, bin_edges, mass_min, mass_max, syst="Central",
             threshold=-999., upper_threshold=None, bg_weights=None, masspoint=None):
     """Create histogram from preprocessed tree using RDataFrame."""
     file_path = f"{basedir}/{process}.root"
@@ -187,7 +237,6 @@ def getHist(basedir, process, bin_edges, mA, width, sigma, binning, syst="Centra
         raise FileNotFoundError(f"Sample file not found: {file_path}")
 
     nbins = len(bin_edges) - 1
-    mass_min, mass_max = get_mass_window(mA, width, sigma, binning)
 
     # Create ROOT vector for histogram binning
     bin_edges_vector = ROOT.std.vector['double'](bin_edges)
@@ -238,20 +287,20 @@ def getHist(basedir, process, bin_edges, mA, width, sigma, binning, syst="Centra
     return hist_result
 
 
-def getHistMerged(basedir, process_list, bin_edges, mA, width, sigma, binning,
+def getHistMerged(basedir, process_list, bin_edges, mass_min, mass_max,
                   syst="Central", threshold=-999., upper_threshold=None, bg_weights=None, masspoint=None):
     """Create merged histogram from multiple processes."""
     if len(process_list) == 0:
         raise ValueError("process_list cannot be empty")
 
     # Get first histogram
-    hist_merged = getHist(basedir, process_list[0], bin_edges, mA, width, sigma, binning,
+    hist_merged = getHist(basedir, process_list[0], bin_edges, mass_min, mass_max,
                           syst, threshold, upper_threshold, bg_weights, masspoint)
 
     # Add remaining processes
     for process in process_list[1:]:
         try:
-            hist_add = getHist(basedir, process, bin_edges, mA, width, sigma, binning,
+            hist_add = getHist(basedir, process, bin_edges, mass_min, mass_max,
                               syst, threshold, upper_threshold, bg_weights, masspoint)
             hist_merged.Add(hist_add)
         except (FileNotFoundError, RuntimeError) as e:
@@ -260,7 +309,7 @@ def getHistMerged(basedir, process_list, bin_edges, mA, width, sigma, binning,
     return hist_merged
 
 
-def createEnvelopeHists(basedir, process, bin_edges, mA, width, sigma, binning,
+def createEnvelopeHists(basedir, process, bin_edges, mass_min, mass_max,
                         variations, syst_name, threshold=-999., upper_threshold=None,
                         bg_weights=None, masspoint=None):
     """Create up/down envelope histograms from multiple variations."""
@@ -270,7 +319,7 @@ def createEnvelopeHists(basedir, process, bin_edges, mA, width, sigma, binning,
     variation_hists = []
     for var in variations:
         try:
-            hist = getHist(basedir, process, bin_edges, mA, width, sigma, binning,
+            hist = getHist(basedir, process, bin_edges, mass_min, mass_max,
                           var, threshold, upper_threshold, bg_weights, masspoint)
             variation_hists.append(hist)
         except (FileNotFoundError, RuntimeError) as e:
@@ -280,7 +329,7 @@ def createEnvelopeHists(basedir, process, bin_edges, mA, width, sigma, binning,
         raise RuntimeError(f"No variation histograms found for {process}_{syst_name}")
 
     # Get central histogram for reference shape
-    central_hist = getHist(basedir, process, bin_edges, mA, width, sigma, binning,
+    central_hist = getHist(basedir, process, bin_edges, mass_min, mass_max,
                            "Central", threshold, upper_threshold, bg_weights, masspoint)
 
     nbins = central_hist.GetNbinsX()
@@ -311,7 +360,7 @@ def createEnvelopeHists(basedir, process, bin_edges, mA, width, sigma, binning,
     return hist_up, hist_down
 
 
-def getDataHist(basedir, bin_edges, mA, width, sigma, binning,
+def getDataHist(basedir, bin_edges, mass_min, mass_max,
                 threshold=-999., upper_threshold=None, bg_weights=None, masspoint=None):
     """Create data histogram from data.root file."""
     file_path = f"{basedir}/data.root"
@@ -323,7 +372,6 @@ def getDataHist(basedir, bin_edges, mA, width, sigma, binning,
         raise FileNotFoundError(f"Data file not found: {file_path}")
 
     nbins = len(bin_edges) - 1
-    mass_min, mass_max = get_mass_window(mA, width, sigma, binning)
     bin_edges_vector = ROOT.std.vector['double'](bin_edges)
 
     # Check if tree exists and get branch list
@@ -376,13 +424,11 @@ def getDataHist(basedir, bin_edges, mA, width, sigma, binning,
 # Background Validation Functions
 # =============================================================================
 
-def validateBackgroundStatistics(basedir, bin_edges, mA, width, sigma, binning,
+def validateBackgroundStatistics(basedir, bin_edges, mass_min, mass_max,
                                   background_categories, masspoint, threshold=-999.,
                                   upper_threshold=None, bg_weights=None, min_total_events=1):
     """Validate statistical quality of each background process."""
     logging.info("Validating background statistics...")
-
-    mass_min, mass_max = get_mass_window(mA, width, sigma, binning)
     nbins = len(bin_edges) - 1
     results = {}
 
@@ -493,11 +539,9 @@ PARTICLENET_CLASS_MAPPING = {
 }
 
 
-def getBackgroundWeights(basedir, mA, width, sigma, binning, outdir):
+def getBackgroundWeights(basedir, mass_min, mass_max, outdir):
     """Calculate normalized background class weights for ParticleNet."""
     logging.info("Calculating background cross-section weights:")
-
-    mass_min, mass_max = get_mass_window(mA, width, sigma, binning)
 
     weights = {}
     for pn_class, possible_categories in PARTICLENET_CLASS_MAPPING.items():
@@ -553,7 +597,7 @@ def getBackgroundWeights(basedir, mA, width, sigma, binning, outdir):
     return weights
 
 
-def loadDataset(basedir, process, masspoint, mA, width, sigma, binning, bg_weights=None):
+def loadDataset(basedir, process, masspoint, mass_min, mass_max, bg_weights=None):
     """Load events with ParticleNet scores from preprocessed samples."""
     file_path = f"{basedir}/{process}.root"
     if not os.path.exists(file_path):
@@ -567,8 +611,6 @@ def loadDataset(basedir, process, masspoint, mA, width, sigma, binning, bg_weigh
         logging.warning(f"Central tree not found in {file_path}")
         rfile.Close()
         return np.array([]), np.array([]), np.array([])
-
-    mass_min, mass_max = get_mass_window(mA, width, sigma, binning)
 
     score_sig = f"score_{masspoint}_signal"
     score_nonprompt = f"score_{masspoint}_nonprompt"
@@ -693,12 +735,6 @@ def main():
     logging.info(f"Input directory: {basedir}")
     logging.info(f"Output directory: {outdir}")
 
-    # Load CommonTools library
-    lib_path = f"{workdir}/Common/Tools/cpp/lib/libCommonTools.so"
-    if not os.path.exists(lib_path):
-        raise FileNotFoundError(f"CommonTools library not found: {lib_path}. Please build Common/Tools/cpp/")
-    ROOT.gSystem.Load(lib_path)
-
     # Load configurations
     config = load_config(workdir, args.era, args.channel)
     syst_categories = categorize_systematics(config['systematics'])
@@ -717,14 +753,14 @@ def main():
     mA_nominal = float(args.masspoint.split("_")[1].replace("MA", ""))
 
     # ========================================
-    # A Mass Fitting
+    # A Mass Fitting (Double Crystal Ball)
     # ========================================
     logging.info("=" * 60)
-    logging.info("A Mass Fitting")
+    logging.info("A Mass Fitting (DCB)")
     logging.info("=" * 60)
 
     if args.channel == "SR3Mu":
-        sr1e2mu_fit_path = f"{workdir}/SignalRegionStudyV2/templates/{args.era}/SR1E2Mu/{args.masspoint}/{args.method}/{binning_suffix}/fit_result.root"
+        sr1e2mu_fit_path = f"{workdir}/SignalRegionStudyV2/templates/{args.era}/SR1E2Mu/{args.masspoint}/{args.method}/{binning_suffix}/signal_fit.json"
 
         if not os.path.exists(sr1e2mu_fit_path):
             raise FileNotFoundError(
@@ -732,57 +768,31 @@ def main():
                 f"Please run makeBinnedTemplates.py for SR1E2Mu first"
             )
 
-        mA, width, sigma = loadFitResult(sr1e2mu_fit_path)
-
-        # Save marker file for SR3Mu
-        marker_file = ROOT.TFile(f"{outdir}/fit_result.root", "RECREATE")
-        marker_file.WriteObject(ROOT.TNamed("source", f"SR1E2Mu/{args.era}/{args.masspoint}"), "fit_source")
-        marker_file.Close()
-
-        save_json({
-            "mass": float(mA),
-            "width": float(width),
-            "sigma": float(sigma),
-            "source": "SR1E2Mu"
-        }, f"{outdir}/signal_fit.json")
+        fit_result = loadFitResultDCB(sr1e2mu_fit_path)
+        fit_result["source"] = "SR1E2Mu"
+        save_json(fit_result, f"{outdir}/signal_fit.json")
 
     else:
-        # SR1E2Mu: Perform direct fit
+        # SR1E2Mu: Perform direct DCB fit
         signal_path = f"{basedir}/{args.masspoint}.root"
-        mA, width, sigma = getFitResult(signal_path, f"{outdir}/fit_result.root", mA_nominal, outdir)
+        fit_result = getFitResultDCB(signal_path, mA_nominal, outdir, args.era, args.masspoint)
+        save_json(fit_result, f"{outdir}/signal_fit.json")
 
-        save_json({
-            "mass": float(mA),
-            "width": float(width),
-            "sigma": float(sigma)
-        }, f"{outdir}/signal_fit.json")
+    x0 = fit_result["x0"]
+    sigma_eff = fit_result["sigma_eff"]
+    mass_min = x0 - 10.0 * sigma_eff
+    mass_max = x0 + 10.0 * sigma_eff
 
     # ========================================
-    # Calculate Binning
+    # Initial Binning (will be refined after background validation)
     # ========================================
     logging.info("=" * 60)
-    logging.info(f"Calculating {args.binning} binning...")
+    logging.info(f"Initial binning with sigma_eff = {sigma_eff:.3f} GeV")
     logging.info("=" * 60)
 
-    if args.binning == "extended":
-        bin_edges = calculateExtendedBins(mA, width, sigma)
-        binning_method = "ExtendedBins"
-    else:
-        bin_edges = calculateFixedBins(mA, width, sigma)
-        binning_method = "UniformMass"
-
-    voigt_width = sqrt(width**2 + sigma**2)
-    mass_min, mass_max = get_mass_window(mA, width, sigma, args.binning)
-
-    save_json({
-        "nbins": len(bin_edges) - 1,
-        "bin_edges": bin_edges.tolist(),
-        "method": binning_method,
-        "voigt_width": float(voigt_width),
-        "mass_min": float(mass_min),
-        "mass_max": float(mass_max),
-        "binning_type": args.binning
-    }, f"{outdir}/binning.json")
+    # Initial bin edges — will be refined by adaptive binning loop below
+    bin_edges = calculate_adaptive_bins(x0, sigma_eff, 15)
+    logging.info(f"Initial binning: {len(bin_edges)-1} bins (15 core + 2 sideband)")
 
     # ========================================
     # Extract Background Categories
@@ -810,7 +820,7 @@ def main():
         logging.info("ParticleNet optimization")
         logging.info("=" * 60)
 
-        bg_weights = getBackgroundWeights(basedir, mA, width, sigma, args.binning, outdir)
+        bg_weights = getBackgroundWeights(basedir, mass_min, mass_max, outdir)
 
         # Skip threshold optimization for partial-unblind (using upper_threshold instead)
         if args.partial_unblind:
@@ -824,7 +834,7 @@ def main():
             }, f"{outdir}/threshold.json")
         else:
             # Load signal dataset
-            scores_sig, weights_sig, _ = loadDataset(basedir, args.masspoint, args.masspoint, mA, width, sigma, args.binning, bg_weights)
+            scores_sig, weights_sig, _ = loadDataset(basedir, args.masspoint, args.masspoint, mass_min, mass_max, bg_weights)
 
             if len(scores_sig) == 0:
                 logging.warning("ParticleNet scores not found! Proceeding without cuts.")
@@ -838,7 +848,7 @@ def main():
                 logging.info(f"Loading backgrounds for optimization: {bkg_processes}")
 
                 for process in bkg_processes:
-                    scores, weights, _ = loadDataset(basedir, process, args.masspoint, mA, width, sigma, args.binning, bg_weights)
+                    scores, weights, _ = loadDataset(basedir, process, args.masspoint, mass_min, mass_max, bg_weights)
                     if len(scores) > 0:
                         scores_bkg_list.append(scores)
                         weights_bkg_list.append(weights)
@@ -868,7 +878,7 @@ def main():
     logging.info("=" * 60)
 
     validation_results = validateBackgroundStatistics(
-        basedir, bin_edges, mA, width, sigma, args.binning,
+        basedir, bin_edges, mass_min, mass_max,
         background_categories, args.masspoint, best_threshold, upper_threshold,
         bg_weights, min_total_events=1
     )
@@ -899,6 +909,76 @@ def main():
     logging.info(f"  Merged to others: {merged_to_others}")
 
     # ========================================
+    # Adaptive Binning Loop
+    # ========================================
+    logging.info("=" * 60)
+    logging.info("Adaptive binning optimization...")
+    logging.info("=" * 60)
+
+    apply_floor = False
+    n_core_final = 15
+    others_process_list = ["others"] + merged_to_others
+
+    for n_core in [15, 13, 11, 9, 7, 5]:
+        candidate_edges = calculate_adaptive_bins(x0, sigma_eff, n_core)
+        logging.info(f"Testing {n_core} core bins ({n_core + 2} total)...")
+
+        # Fill central backgrounds with candidate binning
+        test_hists = {}
+        for process in separate_processes:
+            try:
+                h = getHist(basedir, process, candidate_edges, mass_min, mass_max,
+                            "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
+                ensure_positive_integral(h)
+                test_hists[process] = h
+            except (FileNotFoundError, RuntimeError):
+                pass
+
+        # Others (merged)
+        try:
+            h_others = getHistMerged(basedir, others_process_list, candidate_edges, mass_min, mass_max,
+                                     "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
+            ensure_positive_integral(h_others)
+            test_hists["others"] = h_others
+        except (FileNotFoundError, RuntimeError):
+            pass
+
+        ok, diagnostics = check_binning_quality(test_hists)
+
+        if ok:
+            bin_edges = candidate_edges
+            n_core_final = n_core
+            logging.info(f"  PASS: {n_core} core bins accepted")
+            break
+        else:
+            logging.info(f"  FAIL: {len(diagnostics)} issues")
+            for d in diagnostics[:5]:
+                logging.info(f"    {d}")
+            if len(diagnostics) > 5:
+                logging.info(f"    ... and {len(diagnostics) - 5} more")
+    else:
+        # 5 core bins still failed — keep 5 bins and apply floor
+        bin_edges = candidate_edges
+        n_core_final = 5
+        apply_floor = True
+        logging.warning(f"All bin counts failed. Keeping 5 core bins with floor applied.")
+
+    logging.info(f"Final binning: {n_core_final} core + 2 sideband = {len(bin_edges)-1} total bins")
+
+    save_json({
+        "nbins": len(bin_edges) - 1,
+        "bin_edges": bin_edges.tolist(),
+        "method": "AdaptiveExtendedBins",
+        "sigma_eff": float(sigma_eff),
+        "mass_min": float(mass_min),
+        "mass_max": float(mass_max),
+        "binning_type": args.binning,
+        "n_core_bins": n_core_final,
+        "fit_model": "dcb",
+        "floor_applied": apply_floor
+    }, f"{outdir}/binning.json")
+
+    # ========================================
     # Create Output ROOT File
     # ========================================
     logging.info("=" * 60)
@@ -914,7 +994,7 @@ def main():
     if args.unblind or args.partial_unblind:
         # Use real data for data_obs
         logging.info("Using real data for data_obs")
-        data_obs = getDataHist(basedir, bin_edges, mA, width, sigma, args.binning,
+        data_obs = getDataHist(basedir, bin_edges, mass_min, mass_max,
                                best_threshold, upper_threshold, bg_weights, args.masspoint)
     else:
         # Initialize empty histogram to sum backgrounds
@@ -935,7 +1015,7 @@ def main():
         logging.info(f"  Signal detected as scaled from Run2 (2018) - will remap systematic tree names")
 
     # Central histogram
-    hist_signal_central = getHist(basedir, args.masspoint, bin_edges, mA, width, sigma, args.binning,
+    hist_signal_central = getHist(basedir, args.masspoint, bin_edges, mass_min, mass_max,
                                    "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
     # Scale signal for partial-unblind mode
     if args.partial_unblind:
@@ -963,7 +1043,7 @@ def main():
                 read_tree = output_tree
 
             try:
-                hist = getHist(basedir, args.masspoint, bin_edges, mA, width, sigma, args.binning,
+                hist = getHist(basedir, args.masspoint, bin_edges, mass_min, mass_max,
                               read_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
                 # Rename histogram to use Run3-style name for output
                 hist.SetName(f"{args.masspoint}_{output_tree.replace('_Up', 'Up').replace('_Down', 'Down')}")
@@ -1008,7 +1088,7 @@ def main():
 
         try:
             hist_up, hist_down = createEnvelopeHists(
-                basedir, args.masspoint, bin_edges, mA, width, sigma, args.binning,
+                basedir, args.masspoint, bin_edges, mass_min, mass_max,
                 tree_variations, syst_name, best_threshold, upper_threshold, bg_weights, args.masspoint
             )
             # Scale signal for partial-unblind mode
@@ -1032,7 +1112,7 @@ def main():
         logging.info(f"Processing {process} background (separate template)")
 
         # Central histogram
-        hist_central = getHist(basedir, process, bin_edges, mA, width, sigma, args.binning,
+        hist_central = getHist(basedir, process, bin_edges, mass_min, mass_max,
                                "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
         ensure_positive_integral(hist_central)
         if not (args.unblind or args.partial_unblind):
@@ -1061,7 +1141,7 @@ def main():
                 for var in variations:
                     output_tree = get_output_tree_name(syst_name, var)
                     try:
-                        hist = getHist(basedir, process, bin_edges, mA, width, sigma, args.binning,
+                        hist = getHist(basedir, process, bin_edges, mass_min, mass_max,
                                       output_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
                         ensure_positive_integral(hist)
                         output_file.cd()
@@ -1085,12 +1165,10 @@ def main():
     # Process "others" Background (Merged)
     # ========================================
     logging.info("Processing others background (merged template)")
-
-    others_process_list = ["others"] + merged_to_others
     logging.info(f"  Merging processes: {others_process_list}")
 
     # Central histogram
-    hist_others = getHistMerged(basedir, others_process_list, bin_edges, mA, width, sigma, args.binning,
+    hist_others = getHistMerged(basedir, others_process_list, bin_edges, mass_min, mass_max,
                                 "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
     ensure_positive_integral(hist_others)
     if not (args.unblind or args.partial_unblind):
@@ -1111,7 +1189,7 @@ def main():
         for var in variations:
             output_tree = get_output_tree_name(syst_name, var)
             try:
-                hist = getHistMerged(basedir, others_process_list, bin_edges, mA, width, sigma, args.binning,
+                hist = getHistMerged(basedir, others_process_list, bin_edges, mass_min, mass_max,
                                     output_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
                 ensure_positive_integral(hist)
                 output_file.cd()
@@ -1143,6 +1221,27 @@ def main():
     logging.info(f"Writing data_obs ({data_source}, integral = {data_obs.Integral():.4f})")
     output_file.cd()
     data_obs.Write()
+
+    # Apply floor to empty/bad bins if adaptive binning exhausted all options
+    if apply_floor:
+        logging.warning("Applying bin floor to empty/problematic background bins")
+        output_file.cd()
+        for process in separate_processes + ["others"]:
+            h = background_hists.get(process)
+            if not h:
+                continue
+            modified = False
+            for i in range(1, h.GetNbinsX() + 1):
+                if h.GetBinContent(i) <= 0:
+                    h.SetBinContent(i, BIN_FLOOR_VALUE)
+                    h.SetBinError(i, BIN_FLOOR_VALUE)  # 100% error
+                    modified = True
+                elif h.GetBinError(i) / h.GetBinContent(i) > 1.0:
+                    h.SetBinError(i, h.GetBinContent(i))  # cap at 100%
+                    modified = True
+            if modified:
+                h.Write(process, ROOT.TObject.kOverwrite)
+                logging.warning(f"  Patched {process}")
 
     output_file.Close()
 

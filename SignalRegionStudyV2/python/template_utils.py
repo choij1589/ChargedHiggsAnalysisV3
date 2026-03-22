@@ -5,6 +5,7 @@ import json
 import shutil
 import logging
 import ROOT
+import numpy as np
 
 
 def save_json(data, path):
@@ -264,3 +265,78 @@ def categorize_systematics(config):
             result['valued_lnN'].append((syst_name, syst_config.get('value'), group))
 
     return result
+
+
+# =============================================================================
+# Adaptive Binning
+# =============================================================================
+
+def calculate_adaptive_bins(x0, sigma_eff, n_core_bins):
+    """
+    Generate bin edges: 2 merged sideband bins + n_core uniform core bins.
+
+    Layout: [-10σ, -5σ] + n_core uniform bins in [-5σ, +5σ] + [+5σ, +10σ]
+    Total bins = n_core + 2
+
+    Args:
+        x0: Peak position (fitted A mass)
+        sigma_eff: Effective width for bin scaling
+        n_core_bins: Number of uniform core bins
+
+    Returns:
+        numpy array of bin edges (length n_core_bins + 3)
+    """
+    core_fracs = np.linspace(-5, 5, n_core_bins + 1)
+    sigma_fractions = np.concatenate([[-10], core_fracs, [10]])
+    return x0 + sigma_fractions * sigma_eff
+
+
+def check_binning_quality(background_hists):
+    """
+    Check if binning produces acceptable background statistics.
+
+    Criteria:
+      1. No bin with zero total background
+      2. No individual process has a bin with >100% stat error
+
+    Args:
+        background_hists: dict of {process_name: TH1} for central backgrounds
+
+    Returns:
+        (ok, diagnostics): ok is True if all criteria pass,
+            diagnostics is list of problem descriptions
+    """
+    # Sum all backgrounds for total check
+    h_total = None
+    for name, h in background_hists.items():
+        if h_total is None:
+            h_total = h.Clone("total_bkg_check")
+            h_total.SetDirectory(0)
+        else:
+            h_total.Add(h)
+
+    if h_total is None:
+        return False, ["No background histograms"]
+
+    nbins = h_total.GetNbinsX()
+    diagnostics = []
+
+    # Check 1: no empty total background bins
+    for i in range(1, nbins + 1):
+        bc = h_total.GetBinContent(i)
+        if bc <= 0:
+            diagnostics.append(f"bin {i}: total bkg = {bc:.4f} (empty)")
+
+    # Check 2: no >100% stat error or negative content per process
+    for name, h in background_hists.items():
+        for i in range(1, nbins + 1):
+            bc = h.GetBinContent(i)
+            be = h.GetBinError(i)
+            if bc < 0:
+                diagnostics.append(f"bin {i}: {name} has negative content ({bc:.4f})")
+            elif bc > 0 and be / bc > 1.0:
+                diagnostics.append(f"bin {i}: {name} has {be/bc*100:.0f}% stat error")
+
+    h_total.Delete()
+    ok = len(diagnostics) == 0
+    return ok, diagnostics

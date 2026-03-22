@@ -235,10 +235,11 @@ class BaseCanvas():
         Returns:
             TLegend: Configured legend object
         """
+        textSize = config.get("legendTextSize", 0.04)
         if config.get("legend") is not None:
-            return CMS.cmsLeg(*config["legend"])
+            return CMS.cmsLeg(*config["legend"], textSize=textSize)
         else:
-            return CMS.cmsLeg(0.7, 0.89 - 0.05 * 7, 0.99, 0.89, textSize=0.04, columns=1)
+            return CMS.cmsLeg(0.7, 0.89 - 0.05 * 7, 0.99, 0.89, textSize=textSize, columns=1)
 
     def _draw_channel_text(self, config):
         """
@@ -677,3 +678,173 @@ class KinematicCanvasWithRatio(BaseCanvas):
             CMS.cmsObjectDraw(ratio, "LE", LineColor=self.palette[idx], LineWidth=2, LineStyle=ROOT.kSolid, FillColor=ROOT.kWhite, MarkerSize=0)
 
         self.canv.cd(2).RedrawAxis()
+
+
+class FitCanvasWithRatio(BaseCanvas):
+    """
+    Canvas for comparing fit functions against MC histogram.
+
+    Upper pad: RooPlot frame with MC data points + overlaid fit curves.
+    Lower pad: Fit/MC ratio histograms overlaid with reference line at 1.0.
+
+    Args:
+        roo_data: RooDataHist to plot as data points
+        mass_var: RooRealVar observable (x-axis)
+        mc_hist: TH1 histogram of MC (for ratio computation)
+        fit_models: OrderedDict of {name: (RooAbsPdf, npar, line_style)}
+            - name: legend label (e.g., "Voigtian")
+            - RooAbsPdf: fitted model
+            - npar: number of free parameters (for chi2/ndf)
+            - line_style: ROOT line style (e.g., ROOT.kDashed)
+        config: dict with keys:
+            - era: data-taking period (for lumi/energy labels)
+            - channel: channel label (drawn via _draw_channel_text)
+            - masspoint: mass point label (drawn separately on canvas)
+            - xTitle, yTitle, rTitle, rRange, legend, iPos
+            - xRange: [xmin, xmax] (optional, defaults to mass_var range)
+
+    Usage:
+        canvas = FitCanvasWithRatio(roo_data, mass_var, mc_hist, fit_models, config)
+        canvas.drawPadUp()
+        canvas.drawPadDown()
+        canvas.drawMasspoint()
+        canvas.canv.SaveAs("output.png")
+    """
+
+    def __init__(self, roo_data, mass_var, mc_hist, fit_models, config):
+        super().__init__()
+        self.config = config
+        self.roo_data = roo_data
+        self.mass_var = mass_var
+        self.mc_hist = mc_hist
+        self.fit_models = fit_models
+
+        # Select palette
+        self.palette = self._select_palette(len(fit_models), config)
+
+        # Axis ranges
+        xmin = config.get("xRange", [mass_var.getMin()])[0]
+        xmax = config.get("xRange", [0, mass_var.getMax()])[-1]
+        self.xmin, self.xmax = xmin, xmax
+
+        # y-axis range from MC histogram
+        ymax = mc_hist.GetMaximum() * 1.6
+        ymin = 0.
+        if config.get("yRange") is not None:
+            ymin, ymax = config["yRange"]
+
+        rmin, rmax = config.get("rRange", [0.5, 1.5])
+
+        # Configure CMS style
+        lumiInfo, run = self._configure_cms_style(config)
+        CMS.SetExtraText("Simulation Preliminary")
+
+        # Create canvas
+        self.canv = CMS.cmsDiCanvas("", xmin, xmax,
+                                    ymin, ymax,
+                                    rmin, rmax,
+                                    config.get("xTitle", ""),
+                                    config.get("yTitle", "Events"),
+                                    config.get("rTitle", "Fit / MC"),
+                                    square=True,
+                                    iPos=config.get("iPos", 11),
+                                    extraSpace=0)
+
+        # Create legend
+        self.leg = self._create_legend(config)
+
+        # Pre-compute chi2/ndf and ratio histograms
+        nbins = mc_hist.GetNbinsX()
+        self.chi2_values = {}
+        self.ratio_hists = {}
+
+        for idx, (name, (model, npar, lstyle)) in enumerate(fit_models.items()):
+            # chi2/ndf via RooPlot
+            fr = mass_var.frame()
+            roo_data.plotOn(fr, ROOT.RooFit.Name("d_tmp"))
+            model.plotOn(fr, ROOT.RooFit.Name("m_tmp"))
+            self.chi2_values[name] = fr.chiSquare("m_tmp", "d_tmp", npar)
+
+            # Ratio histogram
+            h_model = model.createHistogram(f"h_ratio_{name}_{id(model)}", mass_var,
+                                            ROOT.RooFit.Binning(nbins))
+            h_model.Scale(mc_hist.Integral() / h_model.Integral()
+                          if h_model.Integral() > 0 else 1.0)
+            ratio = mc_hist.Clone(f"ratio_{name}_{id(model)}")
+            ratio.SetDirectory(0)
+            for i in range(1, nbins + 1):
+                dc = mc_hist.GetBinContent(i)
+                mc = h_model.GetBinContent(i)
+                ratio.SetBinContent(i, mc / dc if dc != 0 else 1.0)
+                ratio.SetBinError(i, 0)
+            ratio.SetLineColor(self.palette[idx])
+            ratio.SetLineWidth(2)
+            ratio.SetLineStyle(lstyle)
+            ratio.SetMarkerSize(0)
+            self.ratio_hists[name] = ratio
+            h_model.Delete()
+
+    def drawPadUp(self):
+        self.canv.cd(1)
+
+        # Build RooPlot frame
+        frame = self.mass_var.frame()
+        self.roo_data.plotOn(frame, ROOT.RooFit.Name("mc_data"),
+                             ROOT.RooFit.MarkerSize(0.8),
+                             ROOT.RooFit.MarkerColor(ROOT.kBlack))
+
+        for idx, (name, (model, npar, lstyle)) in enumerate(self.fit_models.items()):
+            model.plotOn(frame, ROOT.RooFit.Name(f"fit_{name}"),
+                         ROOT.RooFit.LineColor(self.palette[idx]),
+                         ROOT.RooFit.LineStyle(lstyle),
+                         ROOT.RooFit.LineWidth(2))
+
+        frame.SetTitle("")
+        frame.GetYaxis().SetTitle(self.config.get("yTitle", "Events"))
+        frame.GetXaxis().SetLabelSize(0)
+        frame.GetXaxis().SetTitleSize(0)
+        frame.Draw()
+
+        # Re-draw CMS lumi label (RooPlot frame.Draw() overwrites pad content)
+        CMS.CMS_lumi(self.canv.cd(1), self.config.get("iPos", 11))
+
+        # Legend entries
+        CMS.addToLegend(self.leg, (frame.findObject("mc_data"), "Signal MC", "PE"))
+        for idx, (name, (model, npar, lstyle)) in enumerate(self.fit_models.items()):
+            chi2 = self.chi2_values[name]
+            CMS.addToLegend(self.leg, (frame.findObject(f"fit_{name}"),
+                            f"{name}  #chi^{{2}}/ndf = {chi2:.1f}", "L"))
+        self.leg.Draw()
+
+        # Draw channel text
+        self._draw_channel_text(self.config)
+
+        self.canv.cd(1).RedrawAxis()
+
+    def drawPadDown(self):
+        self.canv.cd(2)
+
+        # Reference line at 1.0
+        ref_line = ROOT.TLine()
+        ref_line.SetLineStyle(ROOT.kDotted)
+        ref_line.SetLineColor(ROOT.kBlack)
+        ref_line.SetLineWidth(2)
+        ref_line.DrawLine(self.xmin, 1.0, self.xmax, 1.0)
+
+        # Draw ratio histograms
+        for idx, (name, ratio) in enumerate(self.ratio_hists.items()):
+            CMS.cmsObjectDraw(ratio, "hist", LineColor=ratio.GetLineColor(),
+                              LineWidth=2, LineStyle=ratio.GetLineStyle())
+
+        self.canv.cd(2).RedrawAxis()
+
+    def drawMasspoint(self):
+        """Draw masspoint label on upper pad."""
+        masspoint = self.config.get("masspoint", "")
+        if masspoint:
+            self.canv.cd(1)
+            posX = self.config.get("masspointPosX", 0.2)
+            posY = self.config.get("masspointPosY", 0.82)
+            font = self.config.get("masspointFont", 61)
+            size = self.config.get("masspointSize", 0.04)
+            CMS.drawText(masspoint, posX=posX, posY=posY, font=font, align=0, size=size)

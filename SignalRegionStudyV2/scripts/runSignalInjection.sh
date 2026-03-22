@@ -3,13 +3,14 @@
 # runSignalInjection.sh - Run B2G-compliant signal injection tests via HTCondor DAG
 #
 # Injects signal at expected limit r values (0, exp-1sigma, exp0, exp+1sigma)
-# and verifies recovery using FitDiagnostics.
+# and verifies recovery using MultiDimFit --algo singles.
 #
-# B2G Requirements:
+# B2G Requirements (following B2G TWiki CombineCommandsForOR):
+# - Uses --toysFrequentist in both GenerateOnly and MultiDimFit steps
 # - Uses --bypassFrequentistFit for data-like toy generation
-# - Uses FitDiagnostics (not MultiDimFit) for fitting
-# - Filters on fit_status == 0
-# - Plots bias (r - r_inj) and pull distributions with Gaussian fits
+# - Uses MultiDimFit --algo singles for asymmetric uncertainty handling
+# - Filters on rMin/rMax boundary hits and sigma threshold
+# - Plots pull = (r_truth - r_fit) / sigma_fit with asymmetric sigma
 #
 # Usage:
 #   ./runSignalInjection.sh --era All --channel Combined --masspoint MHc130_MA90 --method Baseline --binning extended --condor
@@ -146,6 +147,18 @@ run_cmd() {
     fi
 }
 
+# Write fit_config.json to a target directory
+write_fit_config() {
+    local dest="$1"
+    cat > "$dest" << EOFCONFIG
+{
+    "rMin": ${R_MIN_FIT},
+    "rMax": ${R_MAX_FIT},
+    "sigma_est": ${SIGMA_EST}
+}
+EOFCONFIG
+}
+
 echo "============================================================"
 echo "Signal Injection Test (B2G-compliant)"
 echo "============================================================"
@@ -258,9 +271,19 @@ if [[ "$DRY_RUN" == false ]]; then
 
     R_VALUES=(0 "${EXP_M1}" "${EXP_0}" "${EXP_P1}")
     R_LABELS=("r0" "rM1" "rMed" "rP1")
+
+    # Estimate fit uncertainty and compute safe rMin/rMax per B2G TWiki
+    read SIGMA_EST R_MIN_FIT R_MAX_FIT <<< $(python3 -c "
+s = max(1.0, (${EXP_P1} - ${EXP_M1}) / 2.0)
+print(s, round(min(-10.0, -5.0*s), 1), round(max(20.0, ${EXP_P1} + 5.0*s), 1))
+")
+    echo "  Fit range: rMin=${R_MIN_FIT}, rMax=${R_MAX_FIT} (sigma_est=${SIGMA_EST})"
 else
     R_VALUES=(0 0.5 1.0 1.5)
     R_LABELS=("r0" "rM1" "rMed" "rP1")
+    SIGMA_EST=1.0
+    R_MIN_FIT=-10.0
+    R_MAX_FIT=20.0
     echo "  [DRY-RUN] Using dummy r values: ${R_VALUES[*]}"
 fi
 
@@ -287,6 +310,8 @@ if [[ "$CONDOR" == false ]]; then
     rm -rf "$OUTPUT_DIR"
     mkdir -p "$OUTPUT_DIR"
 
+    write_fit_config "${OUTPUT_DIR}/fit_config.json"
+
     for idx in "${!R_VALUES[@]}"; do
         R="${R_VALUES[$idx]}"
         LABEL="${R_LABELS[$idx]}"
@@ -302,6 +327,7 @@ if [[ "$CONDOR" == false ]]; then
                 --expectSignal ${R} \
                 --saveToys \
                 --toysFrequentist --bypassFrequentistFit \
+                --rMax ${R_MAX_FIT} \
                 -n .inject_${LABEL}_s${SEED} \
                 -m 120 -s ${SEED}"
 
@@ -311,20 +337,21 @@ if [[ "$CONDOR" == false ]]; then
                 continue
             fi
 
-            echo "  Batch ${SEED}/${NBATCHES}: Running FitDiagnostics..."
+            echo "  Batch ${SEED}/${NBATCHES}: Running MultiDimFit --algo singles..."
 
-            run_cmd "combine -M FitDiagnostics workspace.root \
+            run_cmd "combine -M MultiDimFit workspace.root \
                 -t ${TOYS_PER_BATCH} \
                 --toysFile ${TOY_FILE} \
-                --rMin -5 --rMax 5 \
+                --algo singles \
+                --toysFrequentist \
+                --rMin ${R_MIN_FIT} --rMax ${R_MAX_FIT} \
                 -n .recovery_${LABEL}_s${SEED} \
                 -m 120"
 
             # Move output to injection directory
             if [[ "$DRY_RUN" == false ]]; then
-                mv -f "fitDiagnostics.recovery_${LABEL}_s${SEED}.root" "${OUTPUT_DIR}/" 2>/dev/null || true
+                mv -f "higgsCombine.recovery_${LABEL}_s${SEED}.MultiDimFit.mH120.123456.root" "${OUTPUT_DIR}/" 2>/dev/null || true
                 rm -f "$TOY_FILE"
-                rm -f "higgsCombine.recovery_${LABEL}_s${SEED}.FitDiagnostics.mH120."*.root 2>/dev/null || true
             fi
         done
     done
@@ -382,6 +409,7 @@ if [[ "$DRY_RUN" == false ]]; then
     cp workspace.root "${CONDOR_DIR}/"
     cp "${PYTHON_DIR}/extractInjectionResults.py" "${CONDOR_DIR}/"
     cp "${PYTHON_DIR}/plotBiasTest.py" "${CONDOR_DIR}/"
+    write_fit_config "${CONDOR_DIR}/fit_config.json"
 else
     echo "[DRY-RUN] Would copy workspace.root and python scripts to ${CONDOR_DIR}/"
 fi
@@ -416,19 +444,22 @@ combine -M GenerateOnly workspace.root \\
     --expectSignal ${R} \\
     --saveToys \\
     --toysFrequentist --bypassFrequentistFit \\
+    --rMax ${R_MAX_FIT} \\
     -n .inject_${LABEL}_s${SEED} \\
     -m 120 -s ${SEED}
 
-# Phase 2: FitDiagnostics
-combine -M FitDiagnostics workspace.root \\
+# Phase 2: MultiDimFit --algo singles (B2G TWiki convention)
+combine -M MultiDimFit workspace.root \\
     -t ${TOYS_PER_BATCH} \\
     --toysFile higgsCombine.inject_${LABEL}_s${SEED}.GenerateOnly.mH120.${SEED}.root \\
-    --rMin -5 --rMax 5 \\
+    --algo singles \\
+    --toysFrequentist \\
+    --rMin ${R_MIN_FIT} --rMax ${R_MAX_FIT} \\
     -n .recovery_${LABEL}_s${SEED} \\
     -m 120
 
 echo "Done. Output:"
-ls -la fitDiagnostics.*.root 2>/dev/null || echo "No fitDiagnostics output!"
+ls -la higgsCombine.recovery_*.MultiDimFit.*.root 2>/dev/null || echo "No MultiDimFit output!"
 EOFINJECT
         chmod +x "${CONDOR_DIR}/${JOB_NAME}.sh"
 
@@ -446,7 +477,7 @@ request_disk = 1GB
 
 should_transfer_files = YES
 transfer_input_files = workspace.root
-transfer_output_files = fitDiagnostics.recovery_${LABEL}_s${SEED}.root
+transfer_output_files = higgsCombine.recovery_${LABEL}_s${SEED}.MultiDimFit.mH120.123456.root
 when_to_transfer_output = ON_EXIT
 
 queue
@@ -460,15 +491,15 @@ echo "  Created ${NUM_INJECT} inject jobs (${#R_VALUES[@]} r-values x ${NBATCHES
 # ========== Generate collect_plot job ==========
 echo "Generating collect_plot job..."
 
-# Build list of fitDiagnostics files that will be transferred in
-FITDIAG_FILES=""
+# Build list of MultiDimFit output files that will be transferred in
+MDF_FILES=""
 for idx in "${!R_VALUES[@]}"; do
     LABEL="${R_LABELS[$idx]}"
     for SEED in $(seq 1 "$NBATCHES"); do
-        if [[ -n "$FITDIAG_FILES" ]]; then
-            FITDIAG_FILES="${FITDIAG_FILES},"
+        if [[ -n "$MDF_FILES" ]]; then
+            MDF_FILES="${MDF_FILES},"
         fi
-        FITDIAG_FILES="${FITDIAG_FILES}fitDiagnostics.recovery_${LABEL}_s${SEED}.root"
+        MDF_FILES="${MDF_FILES}higgsCombine.recovery_${LABEL}_s${SEED}.MultiDimFit.mH120.123456.root"
     done
 done
 
@@ -481,7 +512,7 @@ eval \$(scramv1 runtime -sh)
 cd \${_CONDOR_SCRATCH_DIR}
 
 echo "Collecting injection results..."
-ls -la fitDiagnostics.*.root
+ls -la higgsCombine.recovery_*.MultiDimFit.*.root
 
 # Extract results
 python3 extractInjectionResults.py \\
@@ -519,7 +550,7 @@ request_memory = 2GB
 request_disk = 1GB
 
 should_transfer_files = YES
-transfer_input_files = workspace.root,extractInjectionResults.py,plotBiasTest.py,r_values.txt,r_labels.txt,${FITDIAG_FILES}
+transfer_input_files = extractInjectionResults.py,plotBiasTest.py,r_values.txt,r_labels.txt,fit_config.json,${MDF_FILES}
 transfer_output_files = injection_results.json,bias_test.pdf,pull_dist.pdf
 when_to_transfer_output = ON_EXIT
 
