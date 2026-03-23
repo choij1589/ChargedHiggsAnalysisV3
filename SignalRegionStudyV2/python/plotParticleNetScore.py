@@ -112,8 +112,10 @@ reference_era = era_list[0]
 # Input from samples directory (ParticleNet scores are in preprocessed samples)
 # For combined eras, BASEDIR points to reference era (used for config loading)
 BASEDIR = f"{WORKDIR}/SignalRegionStudyV2/samples/{reference_era}/{args.channel}/{args.masspoint}"
-# Config directory (always from base binning, not unblind variants)
+# Config directory (prefer base binning, fall back to current binning_suffix)
 CONFIGDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{reference_era}/{args.channel}/{args.masspoint}/ParticleNet/{args.binning}"
+if not os.path.exists(f"{CONFIGDIR}/binning.json") and binning_suffix != args.binning:
+    CONFIGDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{reference_era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}"
 # Output to ParticleNet template directory (with unblind suffix if applicable)
 OUTDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}"
 

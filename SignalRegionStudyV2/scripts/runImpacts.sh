@@ -462,7 +462,10 @@ python3 filterImpacts.py -i impacts.json -o impacts_filtered.json
 
 echo "Generating impact plots..."
 plotImpacts.py -i impacts.json -o impacts ${BLIND_OPT}
-plotImpacts.py -i impacts_filtered.json -o impacts_filtered --summary ${BLIND_OPT}
+plotImpacts.py -i impacts_filtered.json -o impacts_filtered --summary ${BLIND_OPT} || echo "WARNING: filtered impact plot failed (likely too few params for summary)"
+
+# Ensure expected output files exist for condor transfer
+touch impacts_filtered.json impacts_filtered.pdf
 
 echo "Done!"
 EOFCOLLECT
@@ -481,7 +484,7 @@ request_disk = 500MB
 
 should_transfer_files = YES
 transfer_input_files = ${CONDOR_DIR}/workspace.root,${CONDOR_DIR}/filterImpacts.py,${FIT_OUTPUT_FILES}
-transfer_output_files = impacts.json,impacts.pdf,impacts_filtered.json,impacts_filtered.pdf,impacts_filtered_summary.pdf
+transfer_output_files = impacts.json,impacts.pdf,impacts_filtered.json,impacts_filtered.pdf
 when_to_transfer_output = ON_EXIT
 
 queue

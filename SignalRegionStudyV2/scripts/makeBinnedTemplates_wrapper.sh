@@ -133,20 +133,6 @@ run_template_local() {
     # Copy input files from pnfs to local scratch
     copy_inputs_to_local "$ERA" "$CHANNEL" "$MASSPOINT" "$local_workdir/SignalRegionStudyV2/samples"
 
-    # For SR3Mu, we need the SR1E2Mu fit result - link from scratch
-    if [[ "$CHANNEL" == "SR3Mu" ]]; then
-        local sr1e2mu_dir="$SCRATCH_WORKDIR/SignalRegionStudyV2/templates/$ERA/SR1E2Mu/$MASSPOINT/$METHOD/$BINNING_SUFFIX"
-        if [[ -d "$sr1e2mu_dir" ]]; then
-            mkdir -p "$local_workdir/SignalRegionStudyV2/templates/$ERA/SR1E2Mu/$MASSPOINT/$METHOD"
-            ln -sf "$sr1e2mu_dir" "$local_workdir/SignalRegionStudyV2/templates/$ERA/SR1E2Mu/$MASSPOINT/$METHOD/$BINNING_SUFFIX"
-            echo "Linked SR1E2Mu fit result from: $sr1e2mu_dir"
-        else
-            echo "ERROR: SR1E2Mu fit result not found: $sr1e2mu_dir"
-            echo "SR3Mu requires SR1E2Mu to complete first."
-            exit 1
-        fi
-    fi
-
     # Set WORKDIR to local scratch for processing
     export WORKDIR="$local_workdir"
     cd "$local_workdir/SignalRegionStudyV2"

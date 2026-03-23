@@ -21,6 +21,7 @@ for era, lumi in _LUMI_CONFIG["Run3"].items():
         LumiInfo[era] = lumi
 LumiInfo["Run2"] = _LUMI_CONFIG["Run2"]["combined"]
 LumiInfo["Run3"] = _LUMI_CONFIG["Run3"]["combined"]
+LumiInfo["All"] = _LUMI_CONFIG["All"]["combined"]
 
 # Energy info from JSON
 EnergyInfo = {

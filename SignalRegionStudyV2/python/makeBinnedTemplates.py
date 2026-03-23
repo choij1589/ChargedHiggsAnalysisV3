@@ -86,11 +86,12 @@ def load_config(workdir, era, channel):
 # A Mass Fitting Functions (Double Crystal Ball)
 # =============================================================================
 
-def getFitResultDCB(input_path, mA_nominal, outdir, era, masspoint):
+def getFitResultDCB(input_path, mA_nominal, outdir, era, masspoint, channel=""):
     """
     Fit A mass distribution using Double Crystal Ball (RooCrystalBall).
 
-    Strategy: wide Voigt pre-fit → get peak scale → narrow DCB fit.
+    Strategy: unbinned DCB pre-fit (mA +/- mA/3) → get peak scale →
+              unbinned DCB narrow fit (fitted_mA +/- 10*vw).
 
     Args:
         input_path: Path to signal ROOT file with Central tree
@@ -98,6 +99,7 @@ def getFitResultDCB(input_path, mA_nominal, outdir, era, masspoint):
         outdir: Output directory for fit plot and JSON
         era: Data-taking era (for CMS style labels on fit plot)
         masspoint: Mass point name (for plot label)
+        channel: Channel name (for plot label)
 
     Returns:
         dict with keys: x0, sigmaL, sigmaR, alphaL, nL, alphaR, nR, sigma_eff
@@ -109,42 +111,42 @@ def getFitResultDCB(input_path, mA_nominal, outdir, era, masspoint):
 
     ROOT.RooMsgService.instance().setGlobalKillBelow(ROOT.RooFit.WARNING)
 
-    # Step 1: wide Voigt pre-fit to get peak position and scale
-    wide_lo, wide_hi = mA_nominal - 20.0, mA_nominal + 20.0
-    rdf = ROOT.RDataFrame("Central", input_path)
-    rdf = rdf.Filter(f"mass >= {wide_lo} && mass <= {wide_hi}")
-    h_wide = rdf.Histo1D(
-        ROOT.RDF.TH1DModel("h_wide", "", 400, wide_lo, wide_hi), "mass", "weight"
-    ).GetValue().Clone("h_wide_c")
-    h_wide.SetDirectory(0)
+    f = ROOT.TFile.Open(input_path)
+    tree = f.Get("Central")
 
-    mass_w = ROOT.RooRealVar("mass_w", "mass", wide_lo, wide_hi)
-    data_w = ROOT.RooDataHist("data_w", "", ROOT.RooArgList(mass_w), h_wide)
-    pre_mA = ROOT.RooRealVar("pre_mA", "mA", mA_nominal, wide_lo, wide_hi)
-    pre_w = ROOT.RooRealVar("pre_w", "width", 0.1, 0.0, 5.0)
-    pre_s = ROOT.RooRealVar("pre_s", "sigma", 0.1, 0.0, 5.0)
-    pre_voigt = ROOT.RooVoigtian("pre_voigt", "", mass_w, pre_mA, pre_w, pre_s)
-    pre_voigt.fitTo(data_w, ROOT.RooFit.SumW2Error(True),
-                    ROOT.RooFit.Save(), ROOT.RooFit.PrintLevel(-1))
-    fitted_mA = pre_mA.getVal()
-    vw = sqrt(pre_w.getVal()**2 + pre_s.getVal()**2)
+    # Step 1: unbinned DCB pre-fit to get peak position and scale
+    wide_lo = max(mA_nominal - mA_nominal / 3.0, 12.0)
+    wide_hi = mA_nominal + mA_nominal / 3.0
 
-    # Step 2: narrow histogram around peak
-    fit_lo = fitted_mA - 10.0 * vw
+    mass_w = ROOT.RooRealVar("mass", "mass", wide_lo, wide_hi)
+    weight_w = ROOT.RooRealVar("weight", "weight", -10, 10)
+    ds_wide = ROOT.RooDataSet("ds_wide", "", tree, ROOT.RooArgSet(mass_w, weight_w),
+                               f"mass >= {wide_lo} && mass <= {wide_hi}", "weight")
+
+    pre_x0 = ROOT.RooRealVar("pre_x0", "x0", mA_nominal, wide_lo, wide_hi)
+    pre_sL = ROOT.RooRealVar("pre_sL", "sL", 1.0, 0.01, 10.0)
+    pre_sR = ROOT.RooRealVar("pre_sR", "sR", 1.0, 0.01, 10.0)
+    pre_aL = ROOT.RooRealVar("pre_aL", "aL", 1.5, 0.5, 10.0)
+    pre_nL = ROOT.RooRealVar("pre_nL", "nL", 2.0, 0.1, 50.0)
+    pre_aR = ROOT.RooRealVar("pre_aR", "aR", 1.5, 0.5, 10.0)
+    pre_nR = ROOT.RooRealVar("pre_nR", "nR", 2.0, 0.1, 50.0)
+    pre_dcb = ROOT.RooCrystalBall("pre_dcb", "", mass_w, pre_x0,
+                                   pre_sL, pre_sR, pre_aL, pre_nL, pre_aR, pre_nR)
+    pre_dcb.fitTo(ds_wide, ROOT.RooFit.SumW2Error(True),
+                  ROOT.RooFit.Save(), ROOT.RooFit.PrintLevel(-1))
+
+    fitted_mA = pre_x0.getVal()
+    vw = sqrt(0.5 * (pre_sL.getVal()**2 + pre_sR.getVal()**2))
+
+    # Step 2: unbinned DCB narrow fit
+    fit_lo = max(fitted_mA - 10.0 * vw, 12.0)
     fit_hi = fitted_mA + 10.0 * vw
-    nbins = 100
 
-    rdf2 = ROOT.RDataFrame("Central", input_path)
-    rdf2 = rdf2.Filter(f"mass >= {fit_lo} && mass <= {fit_hi}")
-    hist = rdf2.Histo1D(
-        ROOT.RDF.TH1DModel("h_fit", "", nbins, fit_lo, fit_hi), "mass", "weight"
-    ).GetValue().Clone("h_fit_c")
-    hist.SetDirectory(0)
+    mass_n = ROOT.RooRealVar("mass", "mass", fit_lo, fit_hi)
+    weight_n = ROOT.RooRealVar("weight", "weight", -10, 10)
+    ds_narrow = ROOT.RooDataSet("ds_narrow", "", tree, ROOT.RooArgSet(mass_n, weight_n),
+                                 f"mass >= {fit_lo} && mass <= {fit_hi}", "weight")
 
-    mass = ROOT.RooRealVar("dcb_mass", "mass", fit_lo, fit_hi)
-    roo_data = ROOT.RooDataHist("dcb_data", "", ROOT.RooArgList(mass), hist)
-
-    # Step 3: DCB fit
     dcb_x0 = ROOT.RooRealVar("dcb_x0", "x0", fitted_mA, fit_lo, fit_hi)
     dcb_sL = ROOT.RooRealVar("dcb_sL", "sigmaL", 0.8 * vw, 0.01 * vw, 3.0 * vw)
     dcb_sR = ROOT.RooRealVar("dcb_sR", "sigmaR", 0.8 * vw, 0.01 * vw, 3.0 * vw)
@@ -152,25 +154,54 @@ def getFitResultDCB(input_path, mA_nominal, outdir, era, masspoint):
     dcb_nL = ROOT.RooRealVar("dcb_nL", "nL", 2.0, 0.1, 50.0)
     dcb_aR = ROOT.RooRealVar("dcb_aR", "alphaR", 1.5, 0.5, 10.0)
     dcb_nR = ROOT.RooRealVar("dcb_nR", "nR", 2.0, 0.1, 50.0)
-    dcb = ROOT.RooCrystalBall("dcb", "", mass, dcb_x0,
+    dcb = ROOT.RooCrystalBall("dcb", "", mass_n, dcb_x0,
                                dcb_sL, dcb_sR, dcb_aL, dcb_nL, dcb_aR, dcb_nR)
-    dcb.fitTo(roo_data, ROOT.RooFit.SumW2Error(True),
+    dcb.fitTo(ds_narrow, ROOT.RooFit.SumW2Error(True),
               ROOT.RooFit.Save(), ROOT.RooFit.PrintLevel(-1))
+
+    f.Close()
 
     sigma_eff = sqrt(0.5 * (dcb_sL.getVal()**2 + dcb_sR.getVal()**2))
 
-    # Save fit plot
-    fit_models = OrderedDict([("DCB", (dcb, 7, ROOT.kSolid))])
+    # Save fit plot (binned histogram for visualization, 20 uniform bins)
+    nbins = 100
+    rdf = ROOT.RDataFrame("Central", input_path)
+    rdf = rdf.Filter(f"mass >= {fit_lo} && mass <= {fit_hi}")
+    hist = rdf.Histo1D(
+        ROOT.RDF.TH1DModel("h_fit", "", nbins, fit_lo, fit_hi), "mass", "weight"
+    ).GetValue().Clone("h_fit_c")
+    hist.SetDirectory(0)
+
+    mass_plot = ROOT.RooRealVar("mass_plot", "mass", fit_lo, fit_hi)
+    roo_data = ROOT.RooDataHist("data_plot", "", ROOT.RooArgList(mass_plot), hist)
+
+    # Reconstruct DCB on plot variable with fixed parameters
+    p_x0 = ROOT.RooRealVar("p_x0", "x0", dcb_x0.getVal())
+    p_sL = ROOT.RooRealVar("p_sL", "sL", dcb_sL.getVal())
+    p_sR = ROOT.RooRealVar("p_sR", "sR", dcb_sR.getVal())
+    p_aL = ROOT.RooRealVar("p_aL", "aL", dcb_aL.getVal())
+    p_nL = ROOT.RooRealVar("p_nL", "nL", dcb_nL.getVal())
+    p_aR = ROOT.RooRealVar("p_aR", "aR", dcb_aR.getVal())
+    p_nR = ROOT.RooRealVar("p_nR", "nR", dcb_nR.getVal())
+    for v in [p_x0, p_sL, p_sR, p_aL, p_nL, p_aR, p_nR]:
+        v.setConstant(True)
+    dcb_plot = ROOT.RooCrystalBall("dcb_plot", "", mass_plot, p_x0,
+                                    p_sL, p_sR, p_aL, p_nL, p_aR, p_nR)
+
+    fit_models = OrderedDict([("DCB", (dcb_plot, 7, ROOT.kSolid))])
     config = {
         "era": era, "xTitle": "m_{A} [GeV]", "yTitle": "Events",
         "rTitle": "Fit / MC", "rRange": [0.5, 1.5],
-        "channel": "", "masspoint": masspoint,
-        "masspointPosX": 0.2, "masspointPosY": 0.80,
+        "channel": channel, "masspoint": masspoint,
+        "channelPosX": 0.2, "channelPosY": 0.74,
+        "channelFont": 61, "channelSize": 0.04,
+        "masspointPosX": 0.2, "masspointPosY": 0.69,
         "masspointFont": 61, "masspointSize": 0.04,
         "legend": [0.60, 0.65, 0.90, 0.78],
         "legendTextSize": 0.03, "iPos": 0, "maxDigits": 3,
+        "colors": [ROOT.kRed],
     }
-    canvas = FitCanvasWithRatio(roo_data, mass, hist, fit_models, config)
+    canvas = FitCanvasWithRatio(roo_data, mass_plot, hist, fit_models, config)
     canvas.drawPadUp()
     canvas.drawPadDown()
     canvas.drawMasspoint()
@@ -190,29 +221,6 @@ def getFitResultDCB(input_path, mA_nominal, outdir, era, masspoint):
     logging.info(f"DCB fit result: x0={result['x0']:.2f}, "
                  f"sigmaL={result['sigmaL']:.3f}, sigmaR={result['sigmaR']:.3f}, "
                  f"sigma_eff={sigma_eff:.3f} GeV")
-
-    return result
-
-
-def loadFitResultDCB(fit_json_path):
-    """
-    Load DCB fit parameters from signal_fit.json (for SR3Mu loading from SR1E2Mu).
-
-    Args:
-        fit_json_path: Path to signal_fit.json
-
-    Returns:
-        dict with keys: x0, sigmaL, sigmaR, alphaL, nL, alphaR, nR, sigma_eff
-    """
-    if not os.path.exists(fit_json_path):
-        raise FileNotFoundError(f"Fit result not found: {fit_json_path}")
-
-    with open(fit_json_path) as f:
-        result = json.load(f)
-
-    logging.info(f"Loaded DCB fit: x0={result['x0']:.2f}, "
-                 f"sigmaL={result['sigmaL']:.3f}, sigmaR={result['sigmaR']:.3f}, "
-                 f"sigma_eff={result['sigma_eff']:.3f} GeV (from SR1E2Mu)")
 
     return result
 
@@ -759,28 +767,13 @@ def main():
     logging.info("A Mass Fitting (DCB)")
     logging.info("=" * 60)
 
-    if args.channel == "SR3Mu":
-        sr1e2mu_fit_path = f"{workdir}/SignalRegionStudyV2/templates/{args.era}/SR1E2Mu/{args.masspoint}/{args.method}/{binning_suffix}/signal_fit.json"
-
-        if not os.path.exists(sr1e2mu_fit_path):
-            raise FileNotFoundError(
-                f"SR1E2Mu fit results not found: {sr1e2mu_fit_path}\n"
-                f"Please run makeBinnedTemplates.py for SR1E2Mu first"
-            )
-
-        fit_result = loadFitResultDCB(sr1e2mu_fit_path)
-        fit_result["source"] = "SR1E2Mu"
-        save_json(fit_result, f"{outdir}/signal_fit.json")
-
-    else:
-        # SR1E2Mu: Perform direct DCB fit
-        signal_path = f"{basedir}/{args.masspoint}.root"
-        fit_result = getFitResultDCB(signal_path, mA_nominal, outdir, args.era, args.masspoint)
-        save_json(fit_result, f"{outdir}/signal_fit.json")
+    signal_path = f"{basedir}/{args.masspoint}.root"
+    fit_result = getFitResultDCB(signal_path, mA_nominal, outdir, args.era, args.masspoint, args.channel)
+    save_json(fit_result, f"{outdir}/signal_fit.json")
 
     x0 = fit_result["x0"]
     sigma_eff = fit_result["sigma_eff"]
-    mass_min = x0 - 10.0 * sigma_eff
+    mass_min = max(x0 - 10.0 * sigma_eff, 12.0)
     mass_max = x0 + 10.0 * sigma_eff
 
     # ========================================

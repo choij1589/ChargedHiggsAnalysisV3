@@ -53,6 +53,34 @@ from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
 
 
+def _extract_sub_era(channel):
+    """Extract the actual sub-era from a combined-era channel name.
+
+    Channel names follow the pattern:
+      - All:  eraRun2_era2016postVFP_SR1E2Mu
+      - Run2: era2016postVFP_SR1E2Mu
+      - Run3: era2022_SR1E2Mu
+    Returns the innermost era string (e.g. '2016postVFP', '2022').
+    """
+    parts = channel.split("_")
+    # Walk backwards from the first SR/TTZ token to find the era token
+    for i, part in enumerate(parts):
+        if part.startswith("SR") or part.startswith("TTZ"):
+            if i > 0 and parts[i - 1].startswith("era"):
+                return parts[i - 1][3:]  # strip "era" prefix
+            break
+    return None
+
+
+def get_era_for_channel(era, channel):
+    """Get the per-plot era label for a channel inside a combined fit."""
+    if era in ("All", "Run2", "Run3"):
+        sub = _extract_sub_era(channel)
+        if sub is not None:
+            return sub
+    return era
+
+
 def get_CoM_for_channel(era, channel):
     """Get CoM energy, deriving from channel name for combined eras (All)."""
     if era not in ("All",):
@@ -232,8 +260,9 @@ def make_postfit_plot(f, channel, fit_type):
 
     fit_label = "B-only" if fit_type == "b" else "S+B"
 
+    channel_era = get_era_for_channel(args.era, channel)
     config = {
-        "era": args.era,
+        "era": channel_era,
         "CoM": get_CoM_for_channel(args.era, channel),
         "channel": channel,
         "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
@@ -318,8 +347,9 @@ def make_prefit_vs_postfit_plot(f, channel, fit_type):
     xmin = prefit_clone.GetXaxis().GetXmin()
     xmax = prefit_clone.GetXaxis().GetXmax()
 
+    channel_era = get_era_for_channel(args.era, channel)
     config = {
-        "era": args.era,
+        "era": channel_era,
         "CoM": get_CoM_for_channel(args.era, channel),
         "channel": channel,
         "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",

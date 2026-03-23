@@ -11,7 +11,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load_masspoints.sh"
 ERAs_RUN2=("2016preVFP" "2016postVFP" "2017" "2018")
 ERAs_RUN3=("2022" "2022EE" "2023" "2023BPix")
 
-# Channels - SR1E2Mu must be processed first (SR3Mu loads fit from SR1E2Mu)
+# Channels - SR1E2Mu and SR3Mu are fitted independently (run in parallel)
 CHANNELs=("SR1E2Mu" "SR3Mu")
 
 # HTCondor settings
@@ -462,21 +462,15 @@ function submit_condor_jobs() {
     mkdir -p "$job_dir/logs"
 
     # Generate job_params.txt with all era/channel/masspoint combinations
-    # Process SR1E2Mu first (required for SR3Mu fit)
+    # Generate job parameters for both channels
     local params_file="$job_dir/job_params.txt"
     > "$params_file"
 
-    # SR1E2Mu jobs first
     for era in "${eras_ref[@]}"; do
         for masspoint in "${masspoints_ref[@]}"; do
-            echo "$era,SR1E2Mu,$masspoint,$method,$binning,$extra_args" >> "$params_file"
-        done
-    done
-
-    # SR3Mu jobs second
-    for era in "${eras_ref[@]}"; do
-        for masspoint in "${masspoints_ref[@]}"; do
-            echo "$era,SR3Mu,$masspoint,$method,$binning,$extra_args" >> "$params_file"
+            for channel in SR1E2Mu SR3Mu; do
+                echo "$era,$channel,$masspoint,$method,$binning,$extra_args" >> "$params_file"
+            done
         done
     done
 
@@ -509,8 +503,7 @@ CONDOR_SUB
 
     echo "Created submission file: $sub_file"
     echo ""
-    echo "NOTE: SR3Mu depends on SR1E2Mu templates for fit. Jobs are ordered but not enforced."
-    echo "      Consider submitting SR1E2Mu first, wait for completion, then submit SR3Mu."
+    echo "NOTE: SR1E2Mu and SR3Mu are fitted independently and run in parallel."
     echo ""
 
     # Submit or dry-run
@@ -630,18 +623,14 @@ EOF
         local run_name=$1  # "Run2" or "Run3"
         local -n eras=$2
 
-        # Step 1: SR1E2Mu Templates
+        # Step 1: Templates (SR1E2Mu + SR3Mu, parallel)
         local done_sfx
         done_sfx=$(job_done_suffix "template")
         for era in "${eras[@]}"; do
-            echo "JOB template_SR1E2Mu_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS template_SR1E2Mu_${era} step=\"template\" era=\"${era}\" channel=\"SR1E2Mu\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
-        done
-
-        # Step 2: SR3Mu Templates
-        for era in "${eras[@]}"; do
-            echo "JOB template_SR3Mu_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS template_SR3Mu_${era} step=\"template\" era=\"${era}\" channel=\"SR3Mu\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+            for channel in SR1E2Mu SR3Mu; do
+                echo "JOB template_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS template_${channel}_${era} step=\"template\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+            done
         done
 
         # Step 2b: Plot scores (ParticleNet only)
@@ -740,15 +729,13 @@ EOF
         local bin=$4
         local extra=${5:-}
 
-        # Step 1: SR1E2Mu Template
+        # Step 1: Templates (SR1E2Mu + SR3Mu, parallel)
         local done_sfx
         done_sfx=$(job_done_suffix "template")
-        echo "JOB template_SR1E2Mu_${era} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS template_SR1E2Mu_${era} step=\"template\" era=\"${era}\" channel=\"SR1E2Mu\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
-
-        # Step 2: SR3Mu Template
-        echo "JOB template_SR3Mu_${era} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS template_SR3Mu_${era} step=\"template\" era=\"${era}\" channel=\"SR3Mu\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
+        for channel in SR1E2Mu SR3Mu; do
+            echo "JOB template_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS template_${channel}_${era} step=\"template\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
+        done
 
         # Step 2b: Plot scores (ParticleNet only)
         if [[ "$meth" == "ParticleNet" ]]; then
@@ -839,25 +826,23 @@ EOF
         local run_name=$1
         local -n eras=$2
 
-        # SR1E2Mu templates -> SR3Mu templates (SR3Mu depends on SR1E2Mu fit)
+        # SR1E2Mu + SR3Mu templates (parallel) -> Datacard
         local sr1e2mu_jobs=$(printf "template_SR1E2Mu_%s " "${eras[@]}")
         local sr3mu_jobs=$(printf "template_SR3Mu_%s " "${eras[@]}")
-        echo "PARENT $sr1e2mu_jobs CHILD $sr3mu_jobs" >> "$dag_file"
-
-        # SR3Mu templates -> plot_score (if ParticleNet) and Datacard
+        local template_jobs="$sr1e2mu_jobs $sr3mu_jobs"
         local datacard_jobs=""
         for era in "${eras[@]}"; do
             datacard_jobs+="datacard_SR1E2Mu_${era} datacard_SR3Mu_${era} "
         done
-        echo "PARENT $sr3mu_jobs CHILD $datacard_jobs" >> "$dag_file"
+        echo "PARENT $template_jobs CHILD $datacard_jobs" >> "$dag_file"
 
-        # SR3Mu templates -> per-era plot_score (ParticleNet only, runs in parallel with datacard)
+        # Templates -> per-era plot_score (ParticleNet only, runs in parallel with datacard)
         if [[ "$method" == "ParticleNet" ]]; then
             local plot_jobs=""
             for era in "${eras[@]}"; do
                 plot_jobs+="plot_score_SR1E2Mu_${era} plot_score_SR3Mu_${era} "
             done
-            echo "PARENT $sr3mu_jobs CHILD $plot_jobs" >> "$dag_file"
+            echo "PARENT $template_jobs CHILD $plot_jobs" >> "$dag_file"
 
             # Per-era plot_score -> combined era plot_score
             local combined_plot_jobs="plot_score_SR1E2Mu_${run_name} plot_score_SR3Mu_${run_name}"
@@ -905,15 +890,12 @@ EOF
         local era=$1
         local meth=$2  # method variable passed from parent scope
 
-        # SR1E2Mu template -> SR3Mu template
-        echo "PARENT template_SR1E2Mu_${era} CHILD template_SR3Mu_${era}" >> "$dag_file"
+        # SR1E2Mu + SR3Mu templates (parallel) -> Datacard
+        echo "PARENT template_SR1E2Mu_${era} template_SR3Mu_${era} CHILD datacard_SR1E2Mu_${era} datacard_SR3Mu_${era}" >> "$dag_file"
 
-        # SR3Mu template -> Datacard (produces lowstat.json + filtered shapes.root)
-        echo "PARENT template_SR3Mu_${era} CHILD datacard_SR1E2Mu_${era} datacard_SR3Mu_${era}" >> "$dag_file"
-
-        # SR3Mu template -> plot_score (ParticleNet only, runs in parallel with datacard)
+        # Templates -> plot_score (ParticleNet only, runs in parallel with datacard)
         if [[ "$meth" == "ParticleNet" ]]; then
-            echo "PARENT template_SR3Mu_${era} CHILD plot_score_SR1E2Mu_${era} plot_score_SR3Mu_${era}" >> "$dag_file"
+            echo "PARENT template_SR1E2Mu_${era} template_SR3Mu_${era} CHILD plot_score_SR1E2Mu_${era} plot_score_SR3Mu_${era}" >> "$dag_file"
         fi
 
         # Datacard -> Validate (needs lowstat.json from datacard step)
