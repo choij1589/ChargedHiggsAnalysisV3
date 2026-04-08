@@ -4,6 +4,7 @@ import argparse
 import logging
 import json
 import ROOT
+import cmsstyle as CMS
 from plotter import KinematicCanvas, get_era_list, get_CoM_energy, PALETTE_LONG
 from HistoUtils import setup_missing_histogram_logging, load_histogram, sum_histograms
 ROOT.gROOT.SetBatch(True)
@@ -12,7 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--era", required=True, type=str, help="era")
 parser.add_argument("--channel", required=True, type=str, help="channel (SR3Mu or SR1E2Mu)")
 parser.add_argument("--histkey", required=True, type=str, help="histogram key from histkeys.json")
-parser.add_argument("--sample-list", default="default", choices=["default", "validation", "full"],
+parser.add_argument("--sample-list", default="default", choices=["default", "validation", "full", "MHc160"],
                     help="which sample list to use (default: default)")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
@@ -35,6 +36,7 @@ if args.histkey not in histkeys:
 config = histkeys[args.histkey]
 config["era"] = args.era
 config["CoM"] = get_CoM_energy(args.era)
+config["overflow"] = True
 
 # Determine run key (for samplelist.json lookup)
 if args.era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
@@ -106,20 +108,31 @@ OUTPUTPATH = f"plots/{args.era}/{args.channel}/{subdir}/{out_name}.png"
 os.makedirs(os.path.dirname(OUTPUTPATH), exist_ok=True)
 
 # Scale legend height to number of entries with a compact text size
-n_hists = len(HISTs)
-leg_text_size = 0.035
-leg_row_height = 0.045
-config["legend"] = (0.55, 0.89 - leg_row_height * n_hists, 0.99, 0.89, leg_text_size, 1)
-
-# KinematicCanvas palette supports at most len(PALETTE_LONG) colors; truncate if needed
-max_hists = len(PALETTE_LONG)
+n_cols = 2
+n_rows = (len(HISTs) + n_cols - 1) // n_cols
+leg_text_size = 0.03
+config["legendTextSize"] = leg_text_size
+config["legend"] = (0.35, 0.7 - 0.03 * n_rows, 0.99, 0.7)
+# With solid/dashed alternation, each color supports 2 styles
+max_hists = 2 * len(PALETTE_LONG)
 if len(HISTs) > max_hists:
-    logging.warning(f"Too many mass points ({len(HISTs)}) for palette size ({max_hists}); truncating to first {max_hists}")
+    logging.warning(f"Too many mass points ({len(HISTs)}) for palette capacity ({max_hists}); truncating to first {max_hists}")
     HISTs = dict(list(HISTs.items())[:max_hists])
 
 # Draw
 plotter = KinematicCanvas(HISTs, config)
 plotter.leg.SetTextFont(42)
-plotter.drawPad()
+plotter.leg.SetNColumns(n_cols)
+# Override drawPad to alternate solid/dashed line styles
+plotter.canv.cd()
+n_colors = len(plotter.palette)
+for idx, (name, hist) in enumerate(plotter.hists.items()):
+    color = plotter.palette[idx % n_colors]
+    line_style = ROOT.kDashed if idx >= n_colors else ROOT.kSolid
+    CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=2, LineStyle=line_style)
+    CMS.cmsObjectDraw(hist, "LE", LineColor=color, LineWidth=2, LineStyle=line_style, FillColor=ROOT.kWhite, MarkerSize=0)
+    CMS.addToLegend(plotter.leg, (hist, name, "LE"))
+plotter._draw_channel_text(plotter.config)
+plotter.canv.RedrawAxis()
 plotter.canv.SaveAs(OUTPUTPATH)
 logging.info(f"Saved: {OUTPUTPATH}")

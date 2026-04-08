@@ -64,6 +64,7 @@ config["rTitle"] = "Data / Pred"
 config["maxDigits"] = 3
 config["blind"] = args.blind  # Pass blind flag to ComparisonCanvas
 config["overflow"] = True  # Accumulate overflow into last visible bin
+config["iPos"] = 0
 if not args.blind:
     config["chi2_test"] = True
     config["normalize_chi2"] = False
