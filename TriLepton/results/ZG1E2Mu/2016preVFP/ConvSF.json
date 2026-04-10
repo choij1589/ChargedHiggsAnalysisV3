@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "description": ". Measured in ZG control region. Nonprompt uncertainty: see configs/nonprompt.json",
+  "description": "Conversion K-factor for ZG1E2Mu 2016preVFP. Uncertainties: stat (CR measurement), nonprompt (per-era from FakeNorm.json), theory norms for subtracted backgrounds (per-sample xsecErr from KFactors.json).",
   "corrections": [
     {
       "name": "ConvSF_ZG1E2Mu_2016preVFP_Central",
@@ -54,550 +54,6 @@
       }
     },
     {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_L1Prefire_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (L1Prefire_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5120853191956091",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_L1Prefire_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (L1Prefire_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5022989230288888",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_PileupReweight_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (PileupReweight_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5103221094686298",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_PileupReweight_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (PileupReweight_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.503990831492512",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_PileupJetIDSF_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (PileupJetIDSF_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5066614881835051",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_PileupJetIDSF_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (PileupJetIDSF_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5075292178899945",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_MuonIDSF_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (MuonIDSF_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5029685630871911",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_MuonIDSF_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (MuonIDSF_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5112711002609889",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_ElectronIDSF_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (ElectronIDSF_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.4965060227838302",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_ElectronIDSF_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (ElectronIDSF_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5180923917241999",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_EMuTrigSF_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (EMuTrigSF_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.4880599293779224",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_EMuTrigSF_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (EMuTrigSF_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5268455934897209",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_JetEn_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (JetEn_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5189247439526107",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_JetEn_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (JetEn_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5077247459366899",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_JetRes_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (JetRes_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5121399344145254",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_JetRes_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (JetRes_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5021407792699598",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_MuonEn_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (MuonEn_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5088570780258186",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_MuonEn_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (MuonEn_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5084726969157627",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_ElectronEn_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (ElectronEn_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5068211759246466",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_ElectronEn_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (ElectronEn_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5071357054773011",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_ElectronRes_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (ElectronRes_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5070931175943494",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_ElectronRes_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (ElectronRes_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5070922728673324",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_UnclusteredEn_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (UnclusteredEn_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5082606026138088",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_UnclusteredEn_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (UnclusteredEn_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5175130626026722",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_BtagSF_HFcorr_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (BtagSF_HFcorr_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5073560777582211",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_BtagSF_HFcorr_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (BtagSF_HFcorr_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5068343991681236",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_BtagSF_HFuncorr_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (BtagSF_HFuncorr_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5071598923248505",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_BtagSF_HFuncorr_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (BtagSF_HFuncorr_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5070304133479044",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_BtagSF_LFcorr_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (BtagSF_LFcorr_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5075805384008866",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_BtagSF_LFcorr_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (BtagSF_LFcorr_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5066096549290219",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_BtagSF_LFuncorr_Up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (BtagSF_LFuncorr_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.507270454602504",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_BtagSF_LFuncorr_Down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (BtagSF_LFuncorr_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.5069198552168271",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
       "name": "ConvSF_ZG1E2Mu_2016preVFP_nonprompt_up",
       "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (nonprompt_up)",
       "version": 1,
@@ -609,7 +65,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.4471128749147505",
+        "expression": "0.4831022561014229",
         "parser": "TFormula",
         "variables": []
       }
@@ -626,14 +82,14 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.5670774788703251",
+        "expression": "0.5310880976836527",
         "parser": "TFormula",
         "variables": []
       }
     },
     {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_prompt_up",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (prompt_up)",
+      "name": "ConvSF_ZG1E2Mu_2016preVFP_theory_diboson_up",
+      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (theory_diboson_up)",
       "version": 1,
       "inputs": [],
       "output": {
@@ -643,14 +99,14 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.5361020333717347",
+        "expression": "0.5033635987090187",
         "parser": "TFormula",
         "variables": []
       }
     },
     {
-      "name": "ConvSF_ZG1E2Mu_2016preVFP_prompt_down",
-      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (prompt_down)",
+      "name": "ConvSF_ZG1E2Mu_2016preVFP_theory_diboson_down",
+      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (theory_diboson_down)",
       "version": 1,
       "inputs": [],
       "output": {
@@ -660,7 +116,75 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.47808832041334093",
+        "expression": "0.5108267550760569",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG1E2Mu_2016preVFP_theory_ttX_up",
+      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (theory_ttX_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.5070860290305722",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG1E2Mu_2016preVFP_theory_ttX_down",
+      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (theory_ttX_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.5071043247545035",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG1E2Mu_2016preVFP_theory_others_up",
+      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (theory_others_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.5064937376300774",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG1E2Mu_2016preVFP_theory_others_down",
+      "description": "Conversion scale factor for ZG1E2Mu 2016preVFP (theory_others_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.5076966161549982",
         "parser": "TFormula",
         "variables": []
       }
@@ -677,7 +201,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.5885493017835876",
+        "expression": "0.5598725103331899",
         "parser": "TFormula",
         "variables": []
       }
@@ -694,7 +218,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.42564105200148805",
+        "expression": "0.4543178434518857",
         "parser": "TFormula",
         "variables": []
       }
