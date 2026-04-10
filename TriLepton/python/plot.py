@@ -4,14 +4,12 @@ import argparse
 import logging
 import json
 import ROOT
-from math import sqrt
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 from plotter import PALETTE_LONG as PALETTE
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
                         calculate_systematics, sum_histograms, load_era_configs,
                         get_sample_lists)
 from utils import build_sknanoutput_path, apply_rate_uncertainty
-import correctionlib
 ROOT.gROOT.SetBatch(True)
 
 # Fixed color mapping for backgrounds (consistent across all plots)
@@ -57,6 +55,12 @@ with open("configs/histkeys.json") as f:
 KFACTORS_PATH = f"{WORKDIR}/Common/Data/KFactors.json"
 with open(KFACTORS_PATH) as f:
     KFACTORS = json.load(f)
+
+with open(f"{WORKDIR}/Common/Data/ConvSF.json") as f:
+    CONV_SF_DATA = json.load(f)
+
+with open(f"{WORKDIR}/Common/Data/FakeNorm.json") as f:
+    FAKENORM = json.load(f)
 
 config["era"] = args.era
 config["CoM"] = get_CoM_energy(args.era)
@@ -124,109 +128,27 @@ else:
 os.makedirs(os.path.dirname(OUTPUTPATH), exist_ok=True)
 
 
-def get_zg_channel_for_convsf(channel):
-    """Map channel to corresponding ZG channel for ConvSF loading.
-    Returns None if no ZG measurement exists for this channel."""
-    if "1E2Mu" in channel:
-        return "ZG1E2Mu"
-    elif "3Mu" in channel:
-        return "ZG3Mu"
-    elif "2E1Mu" in channel:
-        # No ZG2E1Mu measurement yet - will use default proxy
-        return None
-    else:
-        return None
-
-def load_conv_scale_factors(channel, era_list):
-    """Load conversion scale factors for the channel.
-    Maps non-ZG channels to their corresponding ZG channel for SF loading."""
-    conv_sf = {}
-
-    # Get the ZG channel for loading ConvSF
-    zg_channel = get_zg_channel_for_convsf(channel)
-
-    if zg_channel is None:
-        # No ZG measurement for this channel - will use default proxy
-        logging.info(f"No ZG measurement for channel {channel}, will use default ConvSF = 1.0 ± 20%")
-        return conv_sf
-
-    for era in era_list:
-        sf_file = f"{WORKDIR}/TriLepton/results/{zg_channel}/{era}/ConvSF.json"
-
-        if not os.path.exists(sf_file):
-            logging.warning(f"Conversion SF file not found: {sf_file}")
-            continue
-
-        try:
-            cset = correctionlib.CorrectionSet.from_file(sf_file)
-            conv_sf[era] = {"cset": cset, "zg_channel": zg_channel}
-        except Exception as e:
-            logging.warning(f"Failed to load conversion SF from {sf_file}: {e}")
-
-    return conv_sf
-
-def apply_conv_scale_factor(hist, sample, era, conv_sf, channel, era_samples):
-    """Apply conversion scale factor to conversion samples.
-    If no ConvSF measurement is available, uses default SF = 1.0 with 20% uncertainty."""
+def apply_conv_scale_factor(hist, sample, era, era_samples):
+    """Apply conversion scale factor and total uncertainty to conversion samples.
+    Uses Common/Data/ConvSF.json. Falls back to SF=1.0 ± 20% for 2E1Mu."""
     if args.exclude == "ConvSF":
         return hist
-
-    # Check if this sample is in the conv list for this era
-    # era_samples[era] already contains the channel-specific data
-    is_conv_sample = sample in era_samples[era]["conv"]
-    if not is_conv_sample:
+    if sample not in era_samples[era]["conv"]:
         return hist
 
-    # Case 1: No ConvSF available for this era - use default proxy (SF = 1.0 ± 20%)
-    if not conv_sf or era not in conv_sf:
+    # 2E1Mu: no dedicated measurement
+    if channel_flag == "2E1Mu":
         apply_rate_uncertainty(hist, 0.20)
         return hist
 
-    # Case 2: ConvSF measurement available - apply measured SF
-    try:
-        cset = conv_sf[era]["cset"]
-        zg_channel = conv_sf[era]["zg_channel"]
-
-        # Get central scale factor using the ZG channel name
-        sf_name = f"ConvSF_{zg_channel}_{era}_Central"
-        sf_central = cset[sf_name].evaluate()
-
-        # Apply scale factor
-        hist.Scale(sf_central)
-
-        # Calculate systematic uncertainty
-        # Get prompt and nonprompt uncertainties
-        sf_prompt_up = cset[f"ConvSF_{zg_channel}_{era}_prompt_up"].evaluate()
-        sf_prompt_down = cset[f"ConvSF_{zg_channel}_{era}_prompt_down"].evaluate()
-        sf_nonprompt_up = cset[f"ConvSF_{zg_channel}_{era}_nonprompt_up"].evaluate()
-        sf_nonprompt_down = cset[f"ConvSF_{zg_channel}_{era}_nonprompt_down"].evaluate()
-
-        # Calculate relative uncertainties
-        prompt_rel_unc = max(abs(sf_prompt_up - sf_central), abs(sf_central - sf_prompt_down)) / sf_central
-        nonprompt_rel_unc = max(abs(sf_nonprompt_up - sf_central), abs(sf_central - sf_nonprompt_down)) / sf_central
-
-        # Quadrature sum of prompt and nonprompt uncertainties
-        total_rel_unc = sqrt(prompt_rel_unc**2 + nonprompt_rel_unc**2)
-
-        apply_rate_uncertainty(hist, total_rel_unc)
-
-    except Exception as e:
-        logging.warning(f"Failed to apply conversion SF to {sample} in {era}: {e}")
-
-    return hist
-
-def apply_wz_uncertainty(hist, sample, args):
-    """Apply 20% flat uncertainty to WZ samples when WZSF is applied"""
-    # Only apply when WZSF is NOT excluded and sample is WZ
-    if args.exclude == "WZSF":
+    era_data = CONV_SF_DATA.get(channel_flag, {}).get(era)
+    if era_data is None:
+        logging.warning(f"No ConvSF for {channel_flag}/{era}, using default SF=1.0 ± 20%")
+        apply_rate_uncertainty(hist, 0.20)
         return hist
 
-    # Check if this is a WZ sample
-    is_wz_sample = "WZTo3LNu" in sample or "ZZTo4L" in sample
-    if not is_wz_sample:
-        return hist
-
-    apply_rate_uncertainty(hist, 0.20)
+    hist.Scale(era_data["central"])
+    apply_rate_uncertainty(hist, era_data["total"])
     return hist
 
 def apply_kfactor(hist, sample, run):
@@ -257,13 +179,6 @@ def apply_kfactor(hist, sample, run):
     return hist
 
 #### Get Histograms
-
-# Load conversion scale factors if not excluded
-# ConvSF is applied to all channels (maps to corresponding ZG channel)
-# For channels without ZG measurement (e.g., TTZ2E1Mu), uses default SF = 1.0 ± 20%
-conv_sf = {}
-if args.exclude != "ConvSF":
-    conv_sf = load_conv_scale_factors(args.channel, era_list)
 
 # Step 1: Load histograms from each era
 era_data_hists = []
@@ -319,9 +234,10 @@ for era in era_list:
         
         h = load_histogram(file_path, hist_path, era, missing_logger)
         if h:
-            # Set 30% systematic uncertainty for nonprompt
+            # Set per-era nonprompt uncertainty from FakeNorm.json (fallback 30%)
+            np_unc = FAKENORM.get(FLAG, {}).get(era, 0.30)
             for bin in range(h.GetNcells()):
-                h.SetBinError(bin, h.GetBinContent(bin) * 0.3)
+                h.SetBinError(bin, h.GetBinContent(bin) * np_unc)
             era_nonprompt_hists[sample].append(h)
 
     # Load MC for this era
@@ -338,10 +254,8 @@ for era in era_list:
             # Apply K-factor before systematics
             h = apply_kfactor(h, sample, RUN)
             h = calculate_systematics(h, ERA_SYSTEMATICS[era], file_path, args, era, missing_logger)
-            # Apply WZ uncertainty when WZSF is applied
-            h = apply_wz_uncertainty(h, sample, args)
             # Apply conversion scale factor
-            h = apply_conv_scale_factor(h, sample, era, conv_sf, args.channel, ERA_SAMPLES)
+            h = apply_conv_scale_factor(h, sample, era, ERA_SAMPLES)
             era_mc_hists[sample].append(h)
 
 # Step 3: Sum histograms across eras

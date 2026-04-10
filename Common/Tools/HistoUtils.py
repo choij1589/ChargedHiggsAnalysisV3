@@ -14,7 +14,6 @@ import os
 import logging
 import json
 import ROOT
-import numpy as np
 from math import sqrt, pow
 
 
@@ -244,95 +243,6 @@ def get_sample_lists(era_samples, categories):
     all_mc_samples = sum(mc_lists.values(), [])
 
     return data_samples, mc_lists, all_mc_samples
-
-
-def rebin_for_chi2_validity(h_obs, h_exp, min_expected=10.0):
-    """
-    Rebin histograms to ensure chi-squared test validity.
-    ROOT's Chi2Test requires:
-    - At least 1 event per bin in observed (unweighted)
-    - At least 10 effective entries per bin in expected (weighted)
-
-    This function merges adjacent bins until each bin has:
-    - expected content >= min_expected
-    - expected effective entries >= min_expected
-
-    Args:
-        h_obs: Observed histogram (data)
-        h_exp: Expected histogram (sum of backgrounds)
-        min_expected: Minimum expected count/effective entries per bin (default 10.0)
-
-    Returns:
-        Tuple of (h_obs_rebinned, h_exp_rebinned)
-    """
-    def get_effective_entries(content, err2):
-        """Calculate effective entries: Neff = (sum w)^2 / (sum w^2)"""
-        if err2 > 0:
-            return content**2 / err2
-        return 0.0
-
-    # First pass: determine bin edges based on expected content AND effective entries
-    bin_edges = [h_exp.GetBinLowEdge(1)]
-    accumulated_exp = 0.0
-    accumulated_err2 = 0.0
-
-    for bin_idx in range(1, h_exp.GetNbinsX() + 1):
-        accumulated_exp += h_exp.GetBinContent(bin_idx)
-        accumulated_err2 += h_exp.GetBinError(bin_idx) ** 2
-
-        eff_entries = get_effective_entries(accumulated_exp, accumulated_err2)
-        should_split = (accumulated_exp >= min_expected and eff_entries >= min_expected)
-        is_last_bin = (bin_idx == h_exp.GetNbinsX())
-
-        if should_split or is_last_bin:
-            bin_edges.append(h_exp.GetBinLowEdge(bin_idx + 1))
-            accumulated_exp = 0.0
-            accumulated_err2 = 0.0
-
-    # If last bin has too few events, merge with previous bin
-    if len(bin_edges) > 2:
-        # Check last bin's effective entries
-        last_bin_start = h_exp.FindBin(bin_edges[-2])
-        last_bin_end = h_exp.GetNbinsX()
-        last_exp = sum(h_exp.GetBinContent(i) for i in range(last_bin_start, last_bin_end + 1))
-        last_err2 = sum(h_exp.GetBinError(i)**2 for i in range(last_bin_start, last_bin_end + 1))
-        last_eff = get_effective_entries(last_exp, last_err2)
-
-        if last_exp < min_expected or last_eff < min_expected:
-            # Merge last bin with previous
-            bin_edges.pop(-2)
-
-    n_bins = len(bin_edges) - 1
-    if n_bins < 1:
-        return h_obs.Clone(), h_exp.Clone()
-
-    bin_edges_arr = np.array(bin_edges, dtype=float)
-    h_obs_rebinned = ROOT.TH1D(h_obs.GetName() + "_chi2", "", n_bins, bin_edges_arr)
-    h_exp_rebinned = ROOT.TH1D(h_exp.GetName() + "_chi2", "", n_bins, bin_edges_arr)
-    h_obs_rebinned.SetDirectory(0)
-    h_exp_rebinned.SetDirectory(0)
-
-    for new_bin in range(1, n_bins + 1):
-        bin_low = h_obs_rebinned.GetBinLowEdge(new_bin)
-        bin_up = h_obs_rebinned.GetBinLowEdge(new_bin + 1)
-        orig_start = h_obs.FindBin(bin_low)
-        orig_end = h_obs.FindBin(bin_up - 0.001)
-
-        sum_obs, sum_exp = 0.0, 0.0
-        sum_obs_err2, sum_exp_err2 = 0.0, 0.0
-
-        for orig_bin in range(orig_start, orig_end + 1):
-            sum_obs += h_obs.GetBinContent(orig_bin)
-            sum_exp += h_exp.GetBinContent(orig_bin)
-            sum_obs_err2 += h_obs.GetBinError(orig_bin) ** 2
-            sum_exp_err2 += h_exp.GetBinError(orig_bin) ** 2
-
-        h_obs_rebinned.SetBinContent(new_bin, sum_obs)
-        h_exp_rebinned.SetBinContent(new_bin, sum_exp)
-        h_obs_rebinned.SetBinError(new_bin, sqrt(sum_obs_err2))
-        h_exp_rebinned.SetBinError(new_bin, sqrt(sum_exp_err2))
-
-    return h_obs_rebinned, h_exp_rebinned
 
 
 def calculate_chi2(h_obs, h_exp, normalize=False):

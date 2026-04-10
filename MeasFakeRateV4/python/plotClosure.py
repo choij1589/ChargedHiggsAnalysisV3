@@ -7,91 +7,6 @@ import json
 import numpy as np
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 
-def get_adaptive_bin_edges(hist, max_frac_error=0.3, min_content=5.0, mass_range=(10.0, 160.0)):
-    """
-    Calculate variable bin edges based on fractional error threshold.
-    """
-    # Find bin range corresponding to mass range
-    bin_start = hist.FindBin(mass_range[0])
-    bin_end = hist.FindBin(mass_range[1])
-
-    # Collect variable bin edges
-    bin_edges = []
-    accumulated_sumW = 0.0
-    accumulated_sumW2 = 0.0  # sum of squared weights
-    
-    # Always start with the lower edge of first bin
-    bin_edges.append(hist.GetBinLowEdge(bin_start))
-
-    for bin in range(bin_start, bin_end + 1):
-        bin_content = hist.GetBinContent(bin)
-        bin_error = hist.GetBinError(bin)
-        sumW2_this_bin = bin_error * bin_error  # sumW² for this bin
-
-        # Accumulate
-        accumulated_sumW += bin_content
-        accumulated_sumW2 += sumW2_this_bin
-
-        # Calculate fractional error
-        accumulated_error = np.sqrt(accumulated_sumW2) if accumulated_sumW2 > 0 else 0.0
-        frac_error = accumulated_error / accumulated_sumW if accumulated_sumW > 0 else float('inf')
-
-        # Check if we should create a bin boundary
-        # Criteria:
-        # 1. Fractional error is below threshold AND
-        # 2. Accumulated content is above minimum
-        should_split = (frac_error <= max_frac_error and accumulated_sumW >= min_content)
-
-        # Also split at the last bin in range
-        is_last_bin = (bin == bin_end)
-
-        if should_split or is_last_bin:
-            # Create bin edge at the upper edge of current bin
-            bin_edges.append(hist.GetBinLowEdge(bin + 1))
-
-            # Reset accumulators for next bin group
-            accumulated_sumW = 0.0
-            accumulated_sumW2 = 0.0
-
-    return np.array(bin_edges, dtype=float)
-
-def apply_variable_binning(hist, bin_edges, suffix="_rebinned"):
-    """
-    Apply variable binning to a histogram.
-    """
-    n_bins = len(bin_edges) - 1
-    if n_bins < 1:
-        logging.warning("Rebinning produced less than 1 bin, returning original histogram")
-        return hist.Clone()
-
-    hist_name = hist.GetName() + suffix
-    h_rebinned = ROOT.TH1D(hist_name, hist.GetTitle(), n_bins, bin_edges)
-    h_rebinned.SetDirectory(0)
-
-    # Fill the rebinned histogram
-    # For each bin in the new histogram, sum up the corresponding bins from the original
-    for new_bin in range(1, h_rebinned.GetNbinsX() + 1):
-        bin_low_edge = h_rebinned.GetBinLowEdge(new_bin)
-        bin_up_edge = h_rebinned.GetBinLowEdge(new_bin + 1)
-
-        # Find corresponding bins in original histogram
-        orig_bin_start = hist.FindBin(bin_low_edge)
-        orig_bin_end = hist.FindBin(bin_up_edge - 0.001)  # Subtract small value to avoid boundary issues
-
-        sum_content = 0.0
-        sum_error2 = 0.0
-
-        for orig_bin in range(orig_bin_start, orig_bin_end + 1):
-            sum_content += hist.GetBinContent(orig_bin)
-            sum_error2 += hist.GetBinError(orig_bin) ** 2
-
-        h_rebinned.SetBinContent(new_bin, sum_content)
-        h_rebinned.SetBinError(new_bin, np.sqrt(sum_error2))
-
-    logging.debug(f"Rebinned {hist.GetName()} from {hist.GetNbinsX()} bins to {h_rebinned.GetNbinsX()} bins")
-    
-    return h_rebinned
-
 def rebin_for_chi2_validity(h_obs, h_exp, min_expected=5.0):
     """
     Rebin histograms to ensure chi-squared test validity.
@@ -180,42 +95,29 @@ def rebin_for_chi2_validity(h_obs, h_exp, min_expected=5.0):
 
     return h_obs_rebinned, h_exp_rebinned
 
-def calculate_chi2_with_scale(h_obs, h_exp, scale_factor, normalize=False):
+def calculate_chi2_with_syst(h_obs, h_exp, syst_frac):
     """
-    Calculate chi-squared test with scaled uncertainties on h_exp.
+    Calculate chi-squared on absolute yields with flat normalization systematic
+    added in quadrature to the statistical uncertainty on h_exp.
 
     Args:
         h_obs: Observed histogram
         h_exp: Expected histogram
-        scale_factor: Scale factor to apply to h_exp uncertainties
-        normalize: If True, normalize histograms before chi2 calculation (shape-only test)
+        syst_frac: Fractional systematic uncertainty (e.g. 0.20 for 20%)
 
     Returns:
         tuple: (chi2, ndf)
     """
-    # Clone histograms to avoid modifying originals
-    h_obs_test = h_obs.Clone()
-    h_exp_test = h_exp.Clone()
-
-    if normalize:
-        # Normalize both histograms to unit area
-        obs_integral = h_obs_test.Integral()
-        exp_integral = h_exp_test.Integral()
-
-        if obs_integral > 0 and exp_integral > 0:
-            h_obs_test.Scale(1.0 / obs_integral)
-            h_exp_test.Scale(1.0 / exp_integral)
-
     chi2 = 0.0
     ndf = 0
-    for bin in range(1, h_obs_test.GetNbinsX() + 1):
-        obs_bin = h_obs_test.GetBinContent(bin)
-        exp_bin = h_exp_test.GetBinContent(bin)
-        obs_err = h_obs_test.GetBinError(bin)
-        exp_err = h_exp_test.GetBinError(bin) * scale_factor
+    for bin in range(1, h_obs.GetNbinsX() + 1):
+        obs_bin = h_obs.GetBinContent(bin)
+        exp_bin = h_exp.GetBinContent(bin)
+        obs_err = h_obs.GetBinError(bin)
+        exp_err = h_exp.GetBinError(bin)
 
         if exp_bin > 0:
-            sigma2 = obs_err**2 + exp_err**2
+            sigma2 = obs_err**2 + exp_err**2 + (syst_frac * exp_bin)**2
             if sigma2 > 0:
                 chi2 += (obs_bin - exp_bin)**2 / sigma2
                 ndf += 1
@@ -351,36 +253,6 @@ for h in exp_hists[1:]:
 
 logging.info(f"Successfully merged histograms from {len(obs_hists)} eras")
 
-# Create rebinned histograms for bin-by-bin uncertainty calculation (mass histograms only)
-# For mass histograms, use adaptive rebinning based on fractional error threshold
-# Keep original 1 GeV bins for chi-squared tests and plotting
-h_obs_for_uncertainty = h_obs
-h_exp_for_uncertainty = h_exp
-mass_histkeys = ["pair/mass", "pair_lowM/mass", "pair_highM/mass"]
-if any(mass_key in args.histkey for mass_key in mass_histkeys):
-    logging.info(f"Mass histogram detected - applying adaptive rebinning for uncertainty calculation")
-    logging.info(f"Rebinning criteria: max fractional error = 30%, min bin content = 5.0, mass range = [10, 160] GeV")
-
-    # Apply adaptive rebinning based on fractional error threshold
-    # This properly handles sumW² for MC histograms
-    # First, derive bin edges from Expected histogram (reference statistics)
-    bin_edges = get_adaptive_bin_edges(
-        h_exp,
-        max_frac_error=0.3,
-        min_content=5.0,
-        mass_range=(10.0, 160.0)
-    )
-
-    # Apply the SAME bin edges to both histograms
-    h_obs_for_uncertainty = apply_variable_binning(h_obs, bin_edges, suffix="_obs_unc")
-    h_exp_for_uncertainty = apply_variable_binning(h_exp, bin_edges, suffix="_exp_unc")
-
-    logging.info(f"Original bins: {h_obs.GetNbinsX()}, Rebinned bins for uncertainty: {h_obs_for_uncertainty.GetNbinsX()}")
-
-# Set systematic uncertainty to 30%
-#for bin in range(1, h_exp.GetNbinsX()+1):
-#    h_exp.SetBinError(bin, h_exp.GetBinContent(bin) * 0.30)
-
 # Prepare histograms for plotting
 h_obs.SetTitle("Observed")
 exp_title = "Expected" if args.syst == "Central" else f"Expected ({args.syst})"
@@ -389,116 +261,89 @@ h_exp.SetTitle(exp_title)
 obs = h_obs.Integral(0, h_obs.GetNbinsX()+1)
 exp = h_exp.Integral(0, h_exp.GetNbinsX()+1)
 
-# Calculate difference and store in JSON format
+# Calculate overall rate difference
 difference = (obs - exp) / exp if exp != 0 else float('inf')
 
-# Calculate bin-by-bin fractional differences
-max_bin_difference = 0.0
-max_bin_difference_bin = -1
-bin_differences = []  # Store all deviations for percentile calculation
-bin_differences_filtered = []  # Store only bins passing stat threshold
-snr_threshold = 3.0  # Signal-to-noise ratio threshold (content/error > 3)
-mass_range_min = 10.0  # GeV
-mass_range_max = 160.0  # GeV
+# Chi2 calculation with systematic uncertainty.
+# For individual eras: scan a flat syst in 5% steps, pick the level closest to
+# chi2/ndf = 1.
+# For Run2/Run3 combined: use per-era systematics from FakeNorm.json applied
+# era-by-era, then sum chi2 and ndf across eras.
+COMBINED_ERAS = ("Run2", "Run3")
 
-# Statistics-filtered maximum (Option A)
-max_bin_difference_filtered = 0.0
-max_bin_difference_filtered_bin = -1
+if args.era in COMBINED_ERAS:
+    fake_norm_path = f"{WORKDIR}/Common/Data/FakeNorm.json"
+    with open(fake_norm_path) as f:
+        fake_norm = json.load(f)
 
-# Use rebinned histograms for bin-by-bin uncertainty calculation
-for bin in range(1, h_obs_for_uncertainty.GetNbinsX() + 1):
-    obs_bin = h_obs_for_uncertainty.GetBinContent(bin)
-    exp_bin = h_exp_for_uncertainty.GetBinContent(bin)
-    exp_err = h_exp_for_uncertainty.GetBinError(bin)
-    bin_center = h_obs_for_uncertainty.GetBinCenter(bin)
+    chi2_total, ndf_total = 0.0, 0
+    era_chi2_breakdown = {}
+    for era, h_obs_era, h_exp_era in zip(era_list, obs_hists, exp_hists):
+        syst_frac = fake_norm[args.channel][era]
+        chi2_era, ndf_era = calculate_chi2_with_syst(h_obs_era, h_exp_era, syst_frac)
+        chi2_total += chi2_era
+        ndf_total  += ndf_era
+        era_chi2_breakdown[era] = {
+            "syst_pct": round(syst_frac * 100),
+            "chi2": chi2_era,
+            "ndf": ndf_era,
+            "chi2_per_ndf": chi2_era / ndf_era if ndf_era > 0 else float('inf'),
+        }
+        logging.info(f"  {era}: syst={syst_frac*100:.0f}%  chi2/ndf={chi2_era/ndf_era:.3f}" if ndf_era > 0 else f"  {era}: ndf=0")
 
-    # Only consider bins within mass range
-    if bin_center < mass_range_min or bin_center > mass_range_max:
-        continue
+    chi2_profile = []  # not applicable for combined eras
+    recommended_systematic_pct = None  # per-era, stored in era_chi2_breakdown
+    rec_chi2_per_ndf = chi2_total / ndf_total if ndf_total > 0 else float('inf')
+    rec_p_value      = ROOT.TMath.Prob(chi2_total, ndf_total)
 
-    if exp_bin > 0:
-        bin_diff = (obs_bin - exp_bin) / exp_bin
-        abs_diff = abs(bin_diff)
-
-        # Store all differences for percentile calculation
-        bin_differences.append(abs_diff)
-
-        # Track overall maximum (store absolute value for consistency with percentiles)
-        if abs_diff > max_bin_difference:
-            max_bin_difference = abs_diff
-            max_bin_difference_bin = bin
-
-        # Track filtered maximum and differences (only bins with good signal-to-noise ratio)
-        # Check SNR for both Observed and Expected
-        snr_exp = exp_bin / exp_err if exp_err > 0 else 0.0
-        
-        obs_err = h_obs_for_uncertainty.GetBinError(bin)
-        snr_obs = obs_bin / obs_err if obs_err > 0 else 0.0
-        
-        if snr_exp > snr_threshold and snr_obs > snr_threshold:
-            bin_differences_filtered.append(abs_diff)
-            if abs_diff > max_bin_difference_filtered:
-                max_bin_difference_filtered = abs_diff
-                max_bin_difference_filtered_bin = bin
-
-# Calculate percentile-based deviations (Option C)
-if bin_differences_filtered:
-    percentile_68_difference = np.percentile(bin_differences_filtered, 68)
-    percentile_95_difference = np.percentile(bin_differences_filtered, 95)
-    rms_bin_difference = np.sqrt(np.mean(np.array(bin_differences_filtered)**2))
 else:
-    percentile_68_difference = 0.0
-    percentile_95_difference = 0.0
-    rms_bin_difference = 0.0
+    era_chi2_breakdown = {}
+    # Scan flat normalization systematic in 5% steps using the original 1 GeV bins.
+    # chi2 is computed on absolute yields (no normalization) because we assign a
+    # rate (lnN) uncertainty.  The systematic term (syst_frac × exp_bin)² is added
+    # in quadrature to the statistical uncertainties of both histograms, which keeps
+    # even sparse bins well-behaved without requiring a minimum-expected rebinning.
+    # Recommended uncertainty = syst_frac closest to chi2/ndf = 1.
+    syst_levels = [i * 0.05 for i in range(0, 21)]  # 0%, 5%, ..., 100%
+    chi2_profile = []
+    for syst_frac in syst_levels:
+        chi2_s, ndf_s = calculate_chi2_with_syst(h_obs, h_exp, syst_frac)
+        chi2_profile.append({
+            "syst_pct": round(syst_frac * 100),
+            "chi2": chi2_s,
+            "ndf": ndf_s,
+            "chi2_per_ndf": chi2_s / ndf_s if ndf_s > 0 else float('inf'),
+        })
 
-# Calculate shape-only chi-squared test (normalized histograms)
-# First, rebin to ensure chi-squared validity (expected >= 5 per bin)
-logging.info("Applying chi-squared validity rebinning (min expected = 5.0)")
+    recommended_systematic_pct = min(
+        chi2_profile, key=lambda e: abs(e["chi2_per_ndf"] - 1.0)
+    )["syst_pct"]
+    rec_entry        = next(e for e in chi2_profile if e["syst_pct"] == recommended_systematic_pct)
+    rec_chi2_per_ndf = rec_entry["chi2_per_ndf"]
+    rec_p_value      = ROOT.TMath.Prob(rec_entry["chi2"], rec_entry["ndf"])
+
+# Reference chi2 via ROOT Chi2Test (needs expected >= 5 per bin for valid chi2 dist.)
 h_obs_chi2, h_exp_chi2 = rebin_for_chi2_validity(h_obs, h_exp, min_expected=5.0)
-logging.info(f"Chi-squared test bins: {h_obs.GetNbinsX()} → {h_obs_chi2.GetNbinsX()}")
-
-# Calculate shape-only chi2 using ROOT's Chi2Test with "WW NORM" options
-# WW = weighted vs weighted (both histograms are MC)
-# NORM = normalize before comparison (shape-only test)
+logging.info(f"Chi-squared reference bins: {h_obs.GetNbinsX()} → {h_obs_chi2.GetNbinsX()}")
+chi2_rate, ndf_rate, p_value_rate = calculate_chi2_root(h_obs_chi2, h_exp_chi2, normalize=False)
 chi2_shape, ndf_shape, p_value_shape = calculate_chi2_root(h_obs_chi2, h_exp_chi2, normalize=True)
-
-# Find optimal uncertainty scale factor for shape-only closure
-# Use chi2-rebinned histograms for this optimization as well
-best_scale_shape = 1.0
-best_diff_shape = abs(chi2_shape/ndf_shape - 1.0) if ndf_shape > 0 else float('inf')
-
-for scale in [i * 0.05 for i in range(2, 101)]:  # 0.1 to 5.0 in steps of 0.05
-    chi2_scaled, ndf_scaled = calculate_chi2_with_scale(h_obs_chi2, h_exp_chi2, scale, normalize=True)
-    if ndf_scaled > 0:
-        chi2_per_ndf = chi2_scaled / ndf_scaled
-        diff = abs(chi2_per_ndf - 1.0)
-        if diff < best_diff_shape:
-            best_diff_shape = diff
-            best_scale_shape = scale
-
-recommended_systematic_shape = abs(best_scale_shape - 1.0) * 100  # in percent
 
 results = {
     "syst": args.syst,
     "observed": obs,
     "expected": exp,
     "difference": difference,
-    "max_bin_difference": max_bin_difference,
-    "max_bin_difference_bin": max_bin_difference_bin,
-    "max_bin_difference_filtered": max_bin_difference_filtered,
-    "max_bin_difference_filtered_bin": max_bin_difference_filtered_bin,
-    "snr_threshold": snr_threshold,
-    "mass_range_min": mass_range_min,
-    "mass_range_max": mass_range_max,
-    "percentile_68_difference": percentile_68_difference,
-    "percentile_95_difference": percentile_95_difference,
-    "rms_bin_difference": rms_bin_difference,
-    "chi2": chi2_shape,
-    "ndf": ndf_shape,
-    "chi2_per_ndf": chi2_shape/ndf_shape if ndf_shape > 0 else 0.0,
-    "p_value": p_value_shape,
-    "closure_uncertainty_scale": best_scale_shape,
-    "recommended_systematic_pct": recommended_systematic_shape,
+    "chi2_rate": chi2_rate,
+    "ndf_rate": ndf_rate,
+    "chi2_per_ndf_rate": chi2_rate / ndf_rate if ndf_rate > 0 else 0.0,
+    "p_value_rate": p_value_rate,
+    "chi2_shape": chi2_shape,
+    "ndf_shape": ndf_shape,
+    "chi2_per_ndf_shape": chi2_shape / ndf_shape if ndf_shape > 0 else 0.0,
+    "p_value_shape": p_value_shape,
+    "recommended_systematic_pct": recommended_systematic_pct,
+    "chi2_profile": chi2_profile,
+    "era_chi2_breakdown": era_chi2_breakdown,
 }
 
 # Save results to JSON file
@@ -509,10 +354,7 @@ with open(json_output_path, 'w') as json_file:
     json.dump(results, json_file, indent=2)
 
 # Create background dictionary for ComparisonCanvas
-# Expected (fake rate prediction) is the background
 BKGs = {"Expected": h_exp}
-
-# Plot configuration (already set above)
 
 # Create output directory and filename
 output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{args.channel}/{args.syst}/closure_{variable_name}.png"
@@ -522,23 +364,70 @@ os.makedirs(os.path.dirname(output_path), exist_ok=True)
 plotter = ComparisonCanvas(h_obs, BKGs, config)
 plotter.drawPadUp()
 
-# Add chi-squared test results to the plot
+# Add chi-squared test result to the plot.
 plotter.canv.cd(1)
-chi2_text = f"#chi^{{2}}/ndf = {chi2_shape/ndf_shape:.2f} (p = {p_value_shape:.2f})"
-# Need to import CMS for drawing text
 import cmsstyle as CMS
-CMS.drawText(chi2_text, posX=0.20, posY=0.62, font=42, align=0, size=0.04)
+if args.era in COMBINED_ERAS:
+    rate_text = f"Rate: #chi^{{2}}/ndf = {rec_chi2_per_ndf:.2f} (p = {rec_p_value:.2f})"
+else:
+    rate_text = f"Rate: #chi^{{2}}/ndf = {rec_chi2_per_ndf:.2f} (p = {rec_p_value:.2f}), syst = {recommended_systematic_pct}%"
+shape_text = f"Shape: #chi^{{2}}/ndf = {chi2_shape/ndf_shape:.2f} (p = {p_value_shape:.2f})"
+CMS.drawText(rate_text,  posX=0.20, posY=0.62, font=42, align=0, size=0.04)
+CMS.drawText(shape_text, posX=0.20, posY=0.57, font=42, align=0, size=0.04)
 
 plotter.drawPadDown()
 plotter.canv.SaveAs(output_path)
 
 logging.info(f"Closure plot saved to: {output_path}")
-logging.info(f"Chi2/ndf: {chi2_shape:.2f}/{ndf_shape} = {chi2_shape/ndf_shape:.2f}, p-value = {p_value_shape:.3f}")
-logging.info(f"Recommended systematic: {recommended_systematic_shape:.1f}%")
-logging.info(f"")
-logging.info(f"Bin-by-bin deviation metrics (mass range: {mass_range_min}-{mass_range_max} GeV):")
-logging.info(f"  Max bin difference (all bins): {max_bin_difference:.3f} (bin {max_bin_difference_bin})")
-logging.info(f"  Max bin difference (SNR>{snr_threshold}): {max_bin_difference_filtered:.3f} (bin {max_bin_difference_filtered_bin})")
-logging.info(f"  68th percentile: {percentile_68_difference:.3f}")
-logging.info(f"  95th percentile: {percentile_95_difference:.3f}")
-logging.info(f"  RMS deviation: {rms_bin_difference:.3f}")
+logging.info(f"Chi2/ndf rate  (stat only): {chi2_rate:.2f}/{ndf_rate} = {chi2_rate/ndf_rate:.2f}, p-value = {p_value_rate:.3f}")
+logging.info(f"Chi2/ndf shape (stat only): {chi2_shape:.2f}/{ndf_shape} = {chi2_shape/ndf_shape:.2f}, p-value = {p_value_shape:.3f}")
+if args.era in COMBINED_ERAS:
+    logging.info(f"Rate chi2/ndf (per-era syst): {rec_chi2_per_ndf:.3f}, p-value = {rec_p_value:.3f}")
+    for era, breakdown in era_chi2_breakdown.items():
+        logging.info(f"  {era}: syst={breakdown['syst_pct']}%  chi2/ndf={breakdown['chi2_per_ndf']:.3f}")
+else:
+    logging.info(f"Recommended systematic: {recommended_systematic_pct}%")
+    logging.info(f"Chi2/ndf profile:")
+    for entry in chi2_profile:
+        logging.info(f"  syst = {entry['syst_pct']:3d}%  chi2/ndf = {entry['chi2_per_ndf']:.3f}")
+
+    # Plot chi2/ndf vs systematic uncertainty profile (individual eras only)
+    profile_syst   = np.array([e["syst_pct"] for e in chi2_profile], dtype=float)
+    profile_chi2ndf = np.array([min(e["chi2_per_ndf"], 10.0) for e in chi2_profile], dtype=float)
+
+    g_profile = ROOT.TGraph(len(profile_syst), profile_syst, profile_chi2ndf)
+    g_profile.SetTitle(";Systematic uncertainty [%];#chi^{2}/ndf")
+    g_profile.SetLineColor(ROOT.kBlue + 1)
+    g_profile.SetLineWidth(2)
+    g_profile.SetMarkerColor(ROOT.kBlue + 1)
+    g_profile.SetMarkerStyle(20)
+    g_profile.SetMarkerSize(0.8)
+
+    line_one = ROOT.TLine(profile_syst[0], 1.0, profile_syst[-1], 1.0)
+    line_one.SetLineColor(ROOT.kRed)
+    line_one.SetLineWidth(2)
+    line_one.SetLineStyle(2)
+
+    line_rec = ROOT.TLine(recommended_systematic_pct, 0.0, recommended_systematic_pct, 1.0)
+    line_rec.SetLineColor(ROOT.kGreen + 2)
+    line_rec.SetLineWidth(2)
+    line_rec.SetLineStyle(3)
+
+    canv_profile = ROOT.TCanvas("canv_profile", "", 600, 500)
+    canv_profile.SetLeftMargin(0.15)
+    canv_profile.SetBottomMargin(0.15)
+
+    g_profile.GetYaxis().SetRangeUser(0.0, min(profile_chi2ndf[0] * 1.2, 10.0))
+    g_profile.Draw("ALP")
+    line_one.Draw("same")
+    line_rec.Draw("same")
+
+    latex = ROOT.TLatex()
+    latex.SetNDC(False)
+    latex.SetTextSize(0.035)
+    latex.SetTextColor(ROOT.kGreen + 2)
+    latex.DrawLatex(recommended_systematic_pct + 1.0, 0.15, f"Rec. = {recommended_systematic_pct}%")
+
+    profile_path = output_path.replace(".png", "_chi2profile.png")
+    canv_profile.SaveAs(profile_path)
+    logging.info(f"Chi2 profile plot saved to: {profile_path}")

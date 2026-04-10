@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "description": ". Measured in ZG control region. Nonprompt uncertainty: see configs/nonprompt.json",
+  "description": "Conversion K-factor for ZG3Mu 2022. Uncertainties: stat (CR measurement), nonprompt (per-era from FakeNorm.json), theory norms for subtracted backgrounds (per-sample xsecErr from KFactors.json).",
   "corrections": [
     {
       "name": "ConvSF_ZG3Mu_2022_Central",
@@ -54,448 +54,6 @@
       }
     },
     {
-      "name": "ConvSF_ZG3Mu_2022_PileupReweight_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (PileupReweight_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9364029132148366",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_PileupReweight_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (PileupReweight_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9697956215031738",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_MuonIDSF_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (MuonIDSF_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9069055886712433",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_MuonIDSF_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (MuonIDSF_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.997513473737073",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_DblMuTrigSF_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (DblMuTrigSF_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9482415988679047",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_DblMuTrigSF_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (DblMuTrigSF_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9551308912284167",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_JetEn_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (JetEn_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9413506079082935",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_JetEn_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (JetEn_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.8793440453420704",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_JetRes_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (JetRes_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.959372004830915",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_JetRes_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (JetRes_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9403458646879118",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_MuonEn_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (MuonEn_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.949649147242729",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_MuonEn_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (MuonEn_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9527620952398512",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_ElectronEn_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (ElectronEn_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9516782282178555",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_ElectronEn_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (ElectronEn_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9516578568523218",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_ElectronRes_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (ElectronRes_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9516290206113749",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_ElectronRes_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (ElectronRes_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9516290206113749",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_UnclusteredEn_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (UnclusteredEn_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9706545353996371",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_UnclusteredEn_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (UnclusteredEn_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9438853433116055",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_BtagSF_HFcorr_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (BtagSF_HFcorr_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9522215061029325",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_BtagSF_HFcorr_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (BtagSF_HFcorr_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9510999152851982",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_BtagSF_HFuncorr_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (BtagSF_HFuncorr_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9522250754662118",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_BtagSF_HFuncorr_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (BtagSF_HFuncorr_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9510963787298368",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_BtagSF_LFcorr_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (BtagSF_LFcorr_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9516592578048996",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_BtagSF_LFcorr_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (BtagSF_LFcorr_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9516668331064867",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_BtagSF_LFuncorr_Up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (BtagSF_LFuncorr_Up)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9516695695311779",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
-      "name": "ConvSF_ZG3Mu_2022_BtagSF_LFuncorr_Down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (BtagSF_LFuncorr_Down)",
-      "version": 1,
-      "inputs": [],
-      "output": {
-        "name": "sf",
-        "type": "real",
-        "description": "Scale factor"
-      },
-      "data": {
-        "nodetype": "formula",
-        "expression": "0.9516556605308242",
-        "parser": "TFormula",
-        "variables": []
-      }
-    },
-    {
       "name": "ConvSF_ZG3Mu_2022_nonprompt_up",
       "description": "Conversion scale factor for ZG3Mu 2022 (nonprompt_up)",
       "version": 1,
@@ -507,7 +65,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.687138058432794",
+        "expression": "0.7249272534550402",
         "parser": "TFormula",
         "variables": []
       }
@@ -524,14 +82,14 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "1.21618678874424",
+        "expression": "1.1783975937219937",
         "parser": "TFormula",
         "variables": []
       }
     },
     {
-      "name": "ConvSF_ZG3Mu_2022_prompt_up",
-      "description": "Conversion scale factor for ZG3Mu 2022 (prompt_up)",
+      "name": "ConvSF_ZG3Mu_2022_theory_diboson_up",
+      "description": "Conversion scale factor for ZG3Mu 2022 (theory_diboson_up)",
       "version": 1,
       "inputs": [],
       "output": {
@@ -541,14 +99,14 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "1.042031478705692",
+        "expression": "0.8602894295402522",
         "parser": "TFormula",
         "variables": []
       }
     },
     {
-      "name": "ConvSF_ZG3Mu_2022_prompt_down",
-      "description": "Conversion scale factor for ZG3Mu 2022 (prompt_down)",
+      "name": "ConvSF_ZG3Mu_2022_theory_diboson_down",
+      "description": "Conversion scale factor for ZG3Mu 2022 (theory_diboson_down)",
       "version": 1,
       "inputs": [],
       "output": {
@@ -558,7 +116,75 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.861293368471342",
+        "expression": "1.0430354176367815",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2022_theory_ttX_up",
+      "description": "Conversion scale factor for ZG3Mu 2022 (theory_ttX_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.9515889294873563",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2022_theory_ttX_down",
+      "description": "Conversion scale factor for ZG3Mu 2022 (theory_ttX_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.9517359176896775",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2022_theory_others_up",
+      "description": "Conversion scale factor for ZG3Mu 2022 (theory_others_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.9468639769350985",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2022_theory_others_down",
+      "description": "Conversion scale factor for ZG3Mu 2022 (theory_others_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.9564608702419354",
         "parser": "TFormula",
         "variables": []
       }
@@ -575,7 +201,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "1.4499167441191603",
+        "expression": "1.4311397994386328",
         "parser": "TFormula",
         "variables": []
       }
@@ -592,7 +218,7 @@
       },
       "data": {
         "nodetype": "formula",
-        "expression": "0.45340810305787366",
+        "expression": "0.47218504773840114",
         "parser": "TFormula",
         "variables": []
       }

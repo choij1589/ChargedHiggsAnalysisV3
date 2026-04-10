@@ -165,38 +165,17 @@ def load_config(workdir, era, channel):
 
 
 def load_convSF(workdir, era, channel):
-    """Load conversion scale factor from TriLepton ZG results."""
-    # Map to config channel for convSF lookup
+    """Load conversion scale factor from Common/Data/ConvSF.json."""
     config_channel = CHANNEL_CONFIG_MAP.get(channel, channel)
-    convSF_file = f"{workdir}/TriLepton/results/{config_channel.replace('SR', 'ZG')}/{era}/ConvSF.json"
+    channel_key = config_channel.replace("SR", "")  # SR1E2Mu → 1E2Mu, SR3Mu → 3Mu
 
-    if not os.path.exists(convSF_file):
-        logging.warning(f"ConvSF file not found: {convSF_file}")
-        logging.warning("Using default ConvSF = 1.0 +/- 0.3")
-        return 1.0, 0.3
-
+    convSF_file = f"{workdir}/Common/Data/ConvSF.json"
     with open(convSF_file) as f:
         data = json.load(f)
 
-    central_corrections = [c for c in data["corrections"] if c["name"].endswith("_Central")]
-    if not central_corrections:
-        logging.error(f"No Central correction found in {convSF_file}")
-        return 1.0, 0.3
-
-    central_sf = float(central_corrections[0]["data"]["expression"])
-
-    syst_sfs = [
-        float(c["data"]["expression"])
-        for c in data["corrections"]
-        if not c["name"].endswith("_Central")
-        and "nonprompt" not in c["name"].lower()
-        and "prompt" not in c["name"].lower()
-    ]
-
-    sf_err = max(abs(central_sf - min(syst_sfs)), abs(max(syst_sfs) - central_sf)) if syst_sfs else 0.3 * central_sf
-
-    logging.info(f"Loaded ConvSF for {era} {channel}: {central_sf:.4f} +/- {sf_err:.4f}")
-    return central_sf, sf_err
+    central_sf = data[channel_key][era]["central"]
+    logging.info(f"Loaded ConvSF for {era} {channel}: {central_sf:.6f}")
+    return central_sf
 
 
 def load_kfactors(workdir, era):
@@ -661,7 +640,7 @@ def main():
     # Load configurations
     config = load_config(workdir, args.era, args.channel)
     syst_categories = categorize_systematics(config['systematics'])
-    convSF, _ = load_convSF(workdir, args.era, args.channel)
+    convSF = load_convSF(workdir, args.era, args.channel)
     kfactors = load_kfactors(workdir, args.era)
 
     logging.info(f"Preprocessing {args.masspoint} for {args.era} era and {args.channel} channel")

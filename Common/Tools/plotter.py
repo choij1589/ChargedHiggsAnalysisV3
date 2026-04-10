@@ -3,7 +3,7 @@ import json
 import ROOT
 import cmsstyle as CMS
 from array import array
-from HistoUtils import rebin_for_chi2_validity, calculate_chi2
+from HistoUtils import calculate_chi2
 CMS.setCMSStyle()
 
 # Load luminosity configuration from JSON
@@ -331,8 +331,7 @@ class ComparisonCanvas(BaseCanvas):
         # Calculate chi^2 if requested (before blind mode replaces data)
         self.chi2_result = None
         if config.get("chi2_test", False) and not config.get("blind", False):
-            h_data_chi2, h_bkg_chi2 = rebin_for_chi2_validity(self.incl, self.systematics)
-            chi2, ndf, p_value = calculate_chi2(h_data_chi2, h_bkg_chi2,
+            chi2, ndf, p_value = calculate_chi2(self.incl, self.systematics,
                                                  normalize=config.get("normalize_chi2", False))
             if ndf > 0:
                 self.chi2_result = {"chi2": chi2, "ndf": ndf, "p_value": p_value}
