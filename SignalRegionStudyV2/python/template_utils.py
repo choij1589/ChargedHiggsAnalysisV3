@@ -4,6 +4,7 @@ import re
 import json
 import shutil
 import logging
+from array import array
 import ROOT
 import numpy as np
 
@@ -24,7 +25,16 @@ def ensure_directory(path, clean=False):
 
 
 def parse_variations(variation_spec):
-    """Parse variation specification strings (e.g., ["Scale_{0..8}//5,7"])."""
+    """Parse variation specification.
+
+    Supports:
+      - list form, e.g. ["PileupReweight_Up", "PileupReweight_Down"]
+      - range-pattern list, e.g. ["Scale_{0..8}//5,7"]
+      - dict form with explicit direction → tree mapping, e.g.
+        {"Up": "Scale_4", "Down": "Scale_3"}
+    """
+    if isinstance(variation_spec, dict):
+        return variation_spec
     if not isinstance(variation_spec, list):
         return []
     if len(variation_spec) == 1 and '{' in variation_spec[0]:
@@ -61,6 +71,46 @@ def get_output_tree_name(syst_name, variation):
     elif variation.endswith("_Down") or variation.endswith("Down"):
         return f"{syst_name}_Down"
     return variation
+
+
+def combine_suffix_from_tree(tree_name):
+    """Convert tree name like 'CMS_pileup_13p6TeV_Up' to Combine suffix 'CMS_pileup_13p6TeVUp'."""
+    if tree_name.endswith("_Up"):
+        return tree_name[:-3] + "Up"
+    if tree_name.endswith("_Down"):
+        return tree_name[:-5] + "Down"
+    return tree_name
+
+
+def iter_shape_variations(syst_name, variations):
+    """Yield (input_tree, output_tree) pairs for preprocessed shape systematics.
+
+    Handles both the legacy list form (where each variation name encodes its
+    direction via an 'Up'/'Down' suffix) and the dict form
+    {"Up": <tree>, "Down": <tree>} used for QCD scale variations whose
+    underlying tree names (e.g. "Scale_4") carry no direction marker.
+    """
+    if isinstance(variations, dict):
+        for direction in ("Up", "Down"):
+            if direction in variations:
+                yield f"Events_{variations[direction]}", f"{syst_name}_{direction}"
+    else:
+        for var in variations:
+            yield f"Events_{var}", get_output_tree_name(syst_name, var)
+
+
+def iter_shape_directions(variations):
+    """Yield 'Up' / 'Down' for each available direction in a variations spec."""
+    if isinstance(variations, dict):
+        for direction in ("Up", "Down"):
+            if direction in variations:
+                yield direction
+    else:
+        for var in variations:
+            if var.endswith("Up"):
+                yield "Up"
+            elif var.endswith("Down"):
+                yield "Down"
 
 
 def calculate_weight_scale(value, direction):
@@ -167,6 +217,18 @@ def is_run3_era(era):
     return era in RUN3_ERAS
 
 
+# Scaled-from-Run2 Run3 signals carry Run2 (NanoAODv9) LHEScaleWeight indexing.
+# The Run3 configs, however, reference Run3 (NanoAODv13) indices. This table maps
+# the Run3 QCD-scale nuisance+direction back to the literal Run2 Scale_N tree
+# present in the scaled file.
+_QCDSCALE_RUN3_TO_RUN2_TREE = {
+    ("QCDScale_muF_BSMsignal_13p6TeV", "Up"): "Scale_4",
+    ("QCDScale_muF_BSMsignal_13p6TeV", "Down"): "Scale_3",
+    ("QCDScale_muR_BSMsignal_13p6TeV", "Up"): "Scale_6",
+    ("QCDScale_muR_BSMsignal_13p6TeV", "Down"): "Scale_1",
+}
+
+
 def get_run2_tree_name_for_run3_syst(syst_name, direction, era):
     """
     Get the Run2 tree name that corresponds to a Run3 systematic.
@@ -180,8 +242,13 @@ def get_run2_tree_name_for_run3_syst(syst_name, direction, era):
         era: Target era (e.g., '2023BPix')
 
     Returns:
-        Run2 tree name (e.g., 'CMS_res_j_2018_Up')
+        Run2 tree name (e.g., 'CMS_res_j_2018_Up'), or the raw Scale_N name
+        for QCD-scale nuisances (Run2 indexing has no direction suffix).
     """
+    qcd_tree = _QCDSCALE_RUN3_TO_RUN2_TREE.get((syst_name, direction))
+    if qcd_tree is not None:
+        return qcd_tree
+
     # Era-specific systematics: {name}_{era} → {name}_2018
     if syst_name.endswith(f'_{era}'):
         base = syst_name[:-len(f'_{era}')]
@@ -251,7 +318,9 @@ def categorize_systematics(config):
 
         if source == 'preprocessed' and syst_type == 'shape':
             variations = parse_variations(syst_config.get('variations', []))
-            if len(variations) > 2:
+            if isinstance(variations, dict):
+                result['preprocessed_shape'].append((syst_name, variations, group))
+            elif len(variations) > 2:
                 result['multi_variation'].append((syst_name, variations, group))
             elif len(variations) == 2:
                 result['preprocessed_shape'].append((syst_name, variations, group))
@@ -340,3 +409,193 @@ def check_binning_quality(background_hists):
     h_total.Delete()
     ok = len(diagnostics) == 0
     return ok, diagnostics
+
+
+# =============================================================================
+# Syst-driven post-binning merge
+# =============================================================================
+
+def rebin_hist_with_edges(h, new_edges, name=None):
+    """Rebin TH1 onto new_edges (must be a subset of current edges). Returns a new detached TH1."""
+    edges_arr = array('d', [float(e) for e in new_edges])
+    out_name = name if name is not None else h.GetName()
+    rebinned = h.Rebin(len(edges_arr) - 1, out_name + "__tmp_rebin", edges_arr)
+    rebinned.SetDirectory(0)
+    rebinned.SetName(out_name)
+    rebinned.SetTitle(h.GetTitle())
+    return rebinned
+
+
+def select_merge_neighbor(nominal, stat_err, i):
+    """Pick neighbour of bin `i` with higher relative stat error. Returns neighbour index or None."""
+    nbins = len(nominal)
+    if nbins <= 1:
+        return None
+    left = i - 1 if i - 1 >= 0 else None
+    right = i + 1 if i + 1 < nbins else None
+    if left is None:
+        return right
+    if right is None:
+        return left
+
+    def rel_err(idx):
+        c = nominal[idx]
+        return float("inf") if c <= 0 else stat_err[idx] / c
+
+    return right if rel_err(right) >= rel_err(left) else left
+
+
+def _hist_to_content_var(h):
+    n = h.GetNbinsX()
+    contents = np.fromiter((h.GetBinContent(i + 1) for i in range(n)), dtype=float, count=n)
+    errors = np.fromiter((h.GetBinError(i + 1) for i in range(n)), dtype=float, count=n)
+    return contents, errors * errors
+
+
+def _snapshot_templates(templates):
+    """Capture every TH1 in `templates` as (content, variance) numpy arrays."""
+    snap = {}
+    for key, val in templates.items():
+        if isinstance(val, dict):
+            snap[key] = {sub: _hist_to_content_var(h) for sub, h in val.items()}
+        else:
+            snap[key] = _hist_to_content_var(val)
+    return snap
+
+
+def _merge_adjacent(cv, lo):
+    c, v = cv
+    new_c = np.concatenate([c[:lo], [c[lo] + c[lo + 1]], c[lo + 2:]])
+    new_v = np.concatenate([v[:lo], [v[lo] + v[lo + 1]], v[lo + 2:]])
+    return new_c, new_v
+
+
+def _merge_snapshot(snap, lo):
+    out = {}
+    for key, val in snap.items():
+        if isinstance(val, dict) and val and isinstance(next(iter(val.values())), tuple):
+            out[key] = {sub: _merge_adjacent(cv, lo) for sub, cv in val.items()}
+        else:
+            out[key] = _merge_adjacent(val, lo)
+    return out
+
+
+def _total_bkg_syst_from_snapshot(snap, bkg_processes, syst_names):
+    """Per-bin (nominal, sigma, stat_err) on the current snapshot binning."""
+    # Nominal + stat from summed bkg nominals
+    nbins = None
+    nominal = None
+    stat_var = None
+    for p in bkg_processes:
+        proc = snap.get(p)
+        if not proc or "nominal" not in proc:
+            continue
+        c, v = proc["nominal"]
+        if nominal is None:
+            nbins = len(c)
+            nominal = np.zeros(nbins)
+            stat_var = np.zeros(nbins)
+        nominal += c
+        stat_var += v
+    if nominal is None:
+        raise RuntimeError("_total_bkg_syst_from_snapshot: no background nominals found")
+
+    sigma_sq = np.zeros(nbins)
+    for syst in syst_names:
+        up_total = np.zeros(nbins)
+        dn_total = np.zeros(nbins)
+        for p in bkg_processes:
+            proc = snap.get(p)
+            if not proc or "nominal" not in proc:
+                continue
+            nom_c = proc["nominal"][0]
+            up_total += proc.get(syst + "Up", (nom_c,))[0]
+            dn_total += proc.get(syst + "Down", (nom_c,))[0]
+        d_up = np.abs(up_total - nominal)
+        d_dn = np.abs(dn_total - nominal)
+        sigma_sq += np.maximum(d_up, d_dn) ** 2
+
+    return nominal, np.sqrt(sigma_sq), np.sqrt(stat_var)
+
+
+def _collect_syst_names(snap, bkg_processes):
+    names = set()
+    for p in bkg_processes:
+        proc = snap.get(p, {})
+        for key in proc:
+            if key == "nominal":
+                continue
+            if key.endswith("Up"):
+                names.add(key[:-2])
+            elif key.endswith("Down"):
+                names.add(key[:-4])
+    return sorted(names)
+
+
+def apply_syst_driven_merging(bin_edges, templates, bkg_processes,
+                              max_rel_syst=2.0, min_nbins=3, logger=None):
+    """
+    Merge bins where total-bkg syst envelope / nominal > max_rel_syst.
+
+    The merge loop operates on numpy (content, variance) snapshots; real TH1s
+    are rebinned only once at the end. The merge target for a flagged bin is
+    the neighbour with the higher relative stat error (see select_merge_neighbor).
+
+    Returns (new_bin_edges, templates, n_merges). `templates` is a new dict;
+    original TH1s are untouched if no merges occurred.
+    """
+    log = logger if logger is not None else logging
+
+    snap = _snapshot_templates(templates)
+    syst_names = _collect_syst_names(snap, bkg_processes)
+    current_edges = np.asarray(bin_edges, dtype=float).copy()
+    n_merges = 0
+
+    while True:
+        nbins = len(current_edges) - 1
+        if nbins <= min_nbins:
+            log.info(f"  Syst-merge: reached minimum nbins={min_nbins}, stopping")
+            break
+
+        nominal, sigma, stat_err = _total_bkg_syst_from_snapshot(snap, bkg_processes, syst_names)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rel = np.where(nominal > 0, sigma / nominal, 0.0)
+        worst = int(np.argmax(rel))
+        worst_rel = float(rel[worst])
+
+        if worst_rel <= max_rel_syst:
+            if n_merges == 0:
+                log.info(f"  Syst-merge: max rel syst = {worst_rel:.3f} <= "
+                         f"{max_rel_syst:.2f}, no merging needed")
+            else:
+                log.info(f"  Syst-merge: converged after {n_merges} merges "
+                         f"(max rel syst = {worst_rel:.3f})")
+            break
+
+        neighbour = select_merge_neighbor(nominal, stat_err, worst)
+        if neighbour is None:
+            log.warning("  Syst-merge: cannot merge further (single bin)")
+            break
+
+        lo = min(worst, neighbour)
+        drop_idx = lo + 1
+        log.info(
+            f"  Syst-merge #{n_merges + 1}: bin {worst} rel syst {worst_rel:.3f} > "
+            f"{max_rel_syst:.2f}; merging with bin {neighbour}; "
+            f"dropping edge at {current_edges[drop_idx]:.4f}"
+        )
+
+        snap = _merge_snapshot(snap, lo)
+        current_edges = np.delete(current_edges, drop_idx)
+        n_merges += 1
+
+    if n_merges > 0:
+        templates = {
+            key: (
+                {sub: rebin_hist_with_edges(h, current_edges) for sub, h in val.items()}
+                if isinstance(val, dict) else rebin_hist_with_edges(val, current_edges)
+            )
+            for key, val in templates.items()
+        }
+
+    return current_edges, templates, n_merges

@@ -53,7 +53,13 @@
       "Read(//d0/scratch/choij/ChargedHiggsAnalysisV3/SignalRegionStudyV2/templates/2018/SR1E2Mu/$mp/Baseline/extended/**)",
       "Bash(done)",
       "WebFetch(domain:github.com)",
-      "Bash(root:*)"
+      "Bash(root:*)",
+      "Read(//d0/scratch/choij/**)",
+      "Bash([ -f \"$d/dag.dag.rescue001\" ])",
+      "Bash(awk -F'/' '{print $\\(NF-3\\)}')",
+      "Bash(env)",
+      "Bash(head -291 /u/user/choij/.claude/plans/concurrent-bubbling-orbit.md)",
+      "Bash(mv /tmp/plan_trimmed.md /u/user/choij/.claude/plans/concurrent-bubbling-orbit.md)"
     ]
   },
   "remote": {

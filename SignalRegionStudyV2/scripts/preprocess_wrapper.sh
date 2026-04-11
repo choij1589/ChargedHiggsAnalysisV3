@@ -52,7 +52,7 @@ LOCAL_OUTPUT="$LOCAL_WORKDIR/SignalRegionStudyV2/samples/$ERA/$CHANNEL/$MASSPOIN
 SE_OUTPUT="$SE_BASE/SignalRegionStudyV2/samples/$ERA/$CHANNEL/$MASSPOINT"
 
 for f in "$LOCAL_OUTPUT"/*.root; do
-    xrdcp -s "$f" "$SE_OUTPUT/$(basename "$f")"
+    xrdcp -s -f "$f" "$SE_OUTPUT/$(basename "$f")"
 done
 
 # Cleanup

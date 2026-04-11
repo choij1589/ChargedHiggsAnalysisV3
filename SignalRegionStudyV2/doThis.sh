@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Step 0: Preprocess
-./automize/preprocess.sh --mode all
+#./automize/preprocess.sh --mode all
 
 # Step 1: Templates + Asymptotic limits (blinded + partial-unblind)
 #./automize/makeBinnedTemplates.sh --mode all --method Baseline
@@ -25,6 +25,10 @@
 # Step 4: FitDiagnostics + post-fit plots + NP pull plots
 #./automize/makeBinnedTemplates.sh --mode all --method Baseline --fitdiag --start-from combine --no-runAsymptotic
 #./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --partial-unblind --fitdiag --start-from combine --no-runAsymptotic
+# After fitdiag, post-fit mass plots with re-filling from the unbinned tree
+#./automize/plotPostfitMass.sh --method ParticleNet --partial-unblind --condor
+./automize/plotPostfitMass.sh --method ParticleNet --partial-unblind --plot-only
+
 
 # Step 5: Signal injection (bias test); re-run needed after new templates
 #./automize/signalInjection.sh --mode all --method Baseline

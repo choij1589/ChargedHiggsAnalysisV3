@@ -39,7 +39,7 @@ import ROOT
 
 from template_utils import (
     parse_variations,
-    get_output_tree_name,
+    iter_shape_variations,
     calculate_weight_scale,
     ensure_directory,
     categorize_systematics,
@@ -370,11 +370,8 @@ class SamplePreprocessor(BasePreprocessor):
         for syst_name, variations, group in syst_categories['preprocessed_shape']:
             if category not in group:
                 continue
-            for var in variations:
-                try:
-                    self.process_tree(f"Events_{var}", get_output_tree_name(syst_name, var), **kwargs)
-                except RuntimeError:
-                    pass  # Tree may not exist
+            for input_tree, output_tree in iter_shape_variations(syst_name, variations):
+                self.process_tree(input_tree, output_tree, **kwargs)
 
         # Multi-variation systematics (PDF, Scale)
         for syst_name, variations, group in syst_categories['multi_variation']:

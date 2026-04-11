@@ -389,12 +389,24 @@
                 "conversion"
             ]
         },
-        "QCDscale_BSMsignal_13TeV": {
+        "QCDScale_muF_BSMsignal_13TeV": {
             "source": "preprocessed",
             "type": "shape",
-            "variations": [
-                "Scale_{0..8}//5,7"
-            ],
+            "variations": {
+                "Up": "Scale_4",
+                "Down": "Scale_3"
+            },
+            "group": [
+                "signal"
+            ]
+        },
+        "QCDScale_muR_BSMsignal_13TeV": {
+            "source": "preprocessed",
+            "type": "shape",
+            "variations": {
+                "Up": "Scale_6",
+                "Down": "Scale_1"
+            },
             "group": [
                 "signal"
             ]
@@ -814,12 +826,24 @@
                 "conversion"
             ]
         },
-        "QCDscale_BSMsignal_13TeV": {
+        "QCDScale_muF_BSMsignal_13TeV": {
             "source": "preprocessed",
             "type": "shape",
-            "variations": [
-                "Scale_{0..8}//5,7"
-            ],
+            "variations": {
+                "Up": "Scale_4",
+                "Down": "Scale_3"
+            },
+            "group": [
+                "signal"
+            ]
+        },
+        "QCDScale_muR_BSMsignal_13TeV": {
+            "source": "preprocessed",
+            "type": "shape",
+            "variations": {
+                "Up": "Scale_6",
+                "Down": "Scale_1"
+            },
             "group": [
                 "signal"
             ]

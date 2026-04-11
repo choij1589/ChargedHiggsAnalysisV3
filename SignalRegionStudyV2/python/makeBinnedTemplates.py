@@ -16,12 +16,19 @@ import numpy as np
 from math import sqrt
 
 from template_utils import (
-    save_json, parse_variations, get_output_tree_name, ensure_positive_integral,
-    build_particlenet_score, create_filtered_rdf, create_scaled_hist,
-    is_run3_era, is_signal_scaled_from_run2, get_run2_tree_name_for_run3_syst,
-    categorize_systematics, calculate_adaptive_bins, check_binning_quality
+    save_json, parse_variations, get_output_tree_name, combine_suffix_from_tree,
+    ensure_positive_integral, build_particlenet_score, create_filtered_rdf,
+    create_scaled_hist, is_run3_era, is_signal_scaled_from_run2,
+    get_run2_tree_name_for_run3_syst, categorize_systematics,
+    calculate_adaptive_bins, check_binning_quality, apply_syst_driven_merging,
+    iter_shape_directions
 )
 from plotter import FitCanvasWithRatio
+
+# Bins with total-bkg syst envelope / nominal above this threshold are merged
+# into a neighbour. Addresses a stat-review concern about sudden-dip bins with
+# very large relative systematic uncertainties underestimating backgrounds.
+SYST_MERGE_THRESHOLD = 2.0
 
 # Signal scaling factor for partial-unblind mode
 # When using --partial-unblind, signal is scaled by this factor
@@ -505,8 +512,12 @@ def validateBackgroundStatistics(basedir, bin_edges, mass_min, mass_max,
 
 def determineProcessList(validation_results, background_categories):
     """Determine final process list based on validation."""
-    # Always keep nonprompt and conversion separate - they have dedicated normalization systematics
-    always_separate = ["nonprompt", "conversion"]
+    # Nonprompt is always kept separate because its transfer-factor uncertainty
+    # is attached to its own column. Conversion can be merged into `others`:
+    # ConvSF is baked in as a per-sample K-factor at preprocess time, and the
+    # CMS_B2G25013_Norm_conversion_* lnN naturally drops out when conversion
+    # no longer has its own column (group filter in printDatacard.py).
+    always_separate = ["nonprompt"]
     separate_processes = ["nonprompt"]  # nonprompt is always first
     merged_to_others = []
 
@@ -514,7 +525,6 @@ def determineProcessList(validation_results, background_categories):
         # Map category name to output file name
         process = "conversion" if category == "conv" else category
 
-        # Always keep nonprompt and conversion separate
         if process in always_separate:
             if process not in separate_processes:
                 separate_processes.append(process)
@@ -958,27 +968,15 @@ def main():
 
     logging.info(f"Final binning: {n_core_final} core + 2 sideband = {len(bin_edges)-1} total bins")
 
-    save_json({
-        "nbins": len(bin_edges) - 1,
-        "bin_edges": bin_edges.tolist(),
-        "method": "AdaptiveExtendedBins",
-        "sigma_eff": float(sigma_eff),
-        "mass_min": float(mass_min),
-        "mass_max": float(mass_max),
-        "binning_type": args.binning,
-        "n_core_bins": n_core_final,
-        "fit_model": "dcb",
-        "floor_applied": apply_floor
-    }, f"{outdir}/binning.json")
-
     # ========================================
-    # Create Output ROOT File
+    # Build histogram templates in memory
     # ========================================
     logging.info("=" * 60)
-    logging.info("Creating histogram templates...")
+    logging.info("Building histogram templates...")
     logging.info("=" * 60)
 
-    output_file = ROOT.TFile(f"{outdir}/shapes.root", "RECREATE")
+    # templates["data_obs"] -> TH1; templates[<process>] -> {"nominal"|"<syst>Up"|"<syst>Down": TH1}
+    templates = {}
 
     # Initialize data_obs histogram
     nbins = len(bin_edges) - 1
@@ -1007,6 +1005,9 @@ def main():
     if signal_scaled_from_run2:
         logging.info(f"  Signal detected as scaled from Run2 (2018) - will remap systematic tree names")
 
+    signal_map = {}
+    templates[args.masspoint] = signal_map
+
     # Central histogram
     hist_signal_central = getHist(basedir, args.masspoint, bin_edges, mass_min, mass_max,
                                    "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
@@ -1014,40 +1015,32 @@ def main():
     if args.partial_unblind:
         hist_signal_central.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
     ensure_positive_integral(hist_signal_central)
-    output_file.cd()
-    hist_signal_central.Write()
+    signal_map["nominal"] = hist_signal_central
 
-    # Preprocessed shape systematics (2 variations each)
+    # Preprocessed shape systematics (Up/Down pairs, list or dict form)
     for syst_name, variations, group in syst_categories['preprocessed_shape']:
         if "signal" not in group:
             continue
         logging.debug(f"  Processing signal systematic: {syst_name}")
-        for var in variations:
-            # Get the output histogram name (Run3-style for datacards)
-            output_tree = get_output_tree_name(syst_name, var)
+        for direction in iter_shape_directions(variations):
+            combine_suffix = f"{syst_name}{direction}"
 
-            # Determine actual tree name to read from file
             if signal_scaled_from_run2:
-                # Map Run3 systematic name to Run2 tree name
-                direction = "Up" if var.endswith("Up") or var.endswith("_Up") else "Down"
                 read_tree = get_run2_tree_name_for_run3_syst(syst_name, direction, args.era)
-                logging.debug(f"    Remapped: {output_tree} -> {read_tree}")
+                logging.debug(f"    Remapped: {combine_suffix} -> {read_tree}")
             else:
-                read_tree = output_tree
+                read_tree = f"{syst_name}_{direction}"
 
             try:
                 hist = getHist(basedir, args.masspoint, bin_edges, mass_min, mass_max,
                               read_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
-                # Rename histogram to use Run3-style name for output
-                hist.SetName(f"{args.masspoint}_{output_tree.replace('_Up', 'Up').replace('_Down', 'Down')}")
-                # Scale signal for partial-unblind mode
+                hist.SetName(f"{args.masspoint}_{combine_suffix}")
                 if args.partial_unblind:
                     hist.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
                 ensure_positive_integral(hist)
-                output_file.cd()
-                hist.Write()
+                signal_map[combine_suffix] = hist
             except (FileNotFoundError, RuntimeError) as e:
-                logging.warning(f"    Skipping {syst_name}/{var}: {e}")
+                logging.warning(f"    Skipping {syst_name}/{direction}: {e}")
 
     # Valued shape systematics (created by scaling Central histogram)
     # Note: hist_signal_central is already scaled for partial-unblind, so the scaled
@@ -1059,23 +1052,21 @@ def main():
         for direction in ["up", "down"]:
             hist = create_scaled_hist(hist_signal_central, args.masspoint, syst_name, value, direction)
             ensure_positive_integral(hist)
-            output_file.cd()
-            hist.Write()
+            suffix = f"{syst_name}Up" if direction == "up" else f"{syst_name}Down"
+            signal_map[suffix] = hist
 
-    # Multi-variation systematics (PDF/Scale envelopes)
+    # Multi-variation systematics (PDF envelopes; QCD scale moved to preprocessed_shape)
     for syst_name, variations, group in syst_categories['multi_variation']:
         if "signal" not in group:
             continue
         logging.info(f"  Creating envelope for signal: {syst_name}")
 
-        # Map variation names to tree names (preprocess uses different naming)
+        # Map variation names to preprocessed tree names
         tree_variations = []
         for var in variations:
             if var.startswith("pdf_"):
                 num = int(var.replace("pdf_", ""))
                 tree_variations.append(f"PDF_{num}")
-            elif var.startswith("Scale_"):
-                tree_variations.append(var)
             else:
                 tree_variations.append(var)
 
@@ -1084,15 +1075,13 @@ def main():
                 basedir, args.masspoint, bin_edges, mass_min, mass_max,
                 tree_variations, syst_name, best_threshold, upper_threshold, bg_weights, args.masspoint
             )
-            # Scale signal for partial-unblind mode
             if args.partial_unblind:
                 hist_up.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
                 hist_down.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
             ensure_positive_integral(hist_up)
             ensure_positive_integral(hist_down)
-            output_file.cd()
-            hist_up.Write()
-            hist_down.Write()
+            signal_map[f"{syst_name}Up"] = hist_up
+            signal_map[f"{syst_name}Down"] = hist_down
         except RuntimeError as e:
             logging.warning(f"    Skipping envelope {syst_name}: {e}")
 
@@ -1103,6 +1092,8 @@ def main():
     # ========================================
     for process in separate_processes:
         logging.info(f"Processing {process} background (separate template)")
+        proc_map = {}
+        templates[process] = proc_map
 
         # Central histogram
         hist_central = getHist(basedir, process, bin_edges, mass_min, mass_max,
@@ -1110,8 +1101,7 @@ def main():
         ensure_positive_integral(hist_central)
         if not (args.unblind or args.partial_unblind):
             data_obs.Add(hist_central)
-        output_file.cd()
-        hist_central.Write()
+        proc_map["nominal"] = hist_central
         background_hists[process] = hist_central
 
         # Determine which systematics apply to this process
@@ -1123,8 +1113,8 @@ def main():
                 for direction in ["up", "down"]:
                     hist = create_scaled_hist(hist_central, process, syst_name, value, direction)
                     ensure_positive_integral(hist)
-                    output_file.cd()
-                    hist.Write()
+                    suffix = f"{syst_name}Up" if direction == "up" else f"{syst_name}Down"
+                    proc_map[suffix] = hist
         else:
             # Prompt systematics - use process name directly
             # Note: systematics config uses "conversion" in groups, not "conv"
@@ -1137,8 +1127,9 @@ def main():
                         hist = getHist(basedir, process, bin_edges, mass_min, mass_max,
                                       output_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
                         ensure_positive_integral(hist)
-                        output_file.cd()
-                        hist.Write()
+                        variation_suffix = combine_suffix_from_tree(output_tree)
+                        hist.SetName(f"{process}_{variation_suffix}")
+                        proc_map[variation_suffix] = hist
                     except (FileNotFoundError, RuntimeError) as e:
                         logging.warning(f"    Skipping {process}/{syst_name}/{var}: {e}")
 
@@ -1149,8 +1140,8 @@ def main():
                 for direction in ["up", "down"]:
                     hist = create_scaled_hist(hist_central, process, syst_name, value, direction)
                     ensure_positive_integral(hist)
-                    output_file.cd()
-                    hist.Write()
+                    suffix = f"{syst_name}Up" if direction == "up" else f"{syst_name}Down"
+                    proc_map[suffix] = hist
 
         logging.info(f"  {process} templates created (integral = {hist_central.Integral():.4f})")
 
@@ -1160,23 +1151,26 @@ def main():
     logging.info("Processing others background (merged template)")
     logging.info(f"  Merging processes: {others_process_list}")
 
+    others_map = {}
+    templates["others"] = others_map
+
     # Central histogram
     hist_others = getHistMerged(basedir, others_process_list, bin_edges, mass_min, mass_max,
                                 "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
     ensure_positive_integral(hist_others)
     if not (args.unblind or args.partial_unblind):
         data_obs.Add(hist_others)
-    output_file.cd()
-    hist_others.Write()
+    others_map["nominal"] = hist_others
     background_hists["others"] = hist_others
 
-    # Prompt systematics for others
-    # Build list of process names that could be in "others" (use actual process names for group matching)
-    others_process_names = [("conversion" if c == "conv" else c) for c in background_categories] + ["others"]
+    # Prompt systematics for others.
+    # Only apply a systematic to the merged `others` template if its group
+    # explicitly contains "others". Per-process normalization systs (e.g.
+    # Norm_WZ with group=["WZ"]) are intentionally skipped — they would fail
+    # to build on the merged template anyway, and Norm_others (50% lnN)
+    # covers the merged bucket's normalization uncertainty.
     for syst_name, variations, group in syst_categories['preprocessed_shape']:
-        # Apply to all prompt backgrounds in "others"
-        applicable = any(proc in group for proc in others_process_names)
-        if not applicable:
+        if "others" not in group:
             continue
 
         for var in variations:
@@ -1185,56 +1179,126 @@ def main():
                 hist = getHistMerged(basedir, others_process_list, bin_edges, mass_min, mass_max,
                                     output_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
                 ensure_positive_integral(hist)
-                output_file.cd()
-                hist.Write()
+                variation_suffix = combine_suffix_from_tree(output_tree)
+                hist.SetName(f"others_{variation_suffix}")
+                others_map[variation_suffix] = hist
             except (FileNotFoundError, RuntimeError) as e:
                 logging.warning(f"    Skipping others/{syst_name}/{var}: {e}")
 
     # Valued shape systematics (created by scaling merged Central histogram)
     for syst_name, value, group in syst_categories['valued_shape']:
-        applicable = any(proc in group for proc in others_process_names)
-        if not applicable:
+        if "others" not in group:
             continue
 
         for direction in ["up", "down"]:
             hist = create_scaled_hist(hist_others, "others", syst_name, value, direction)
             ensure_positive_integral(hist)
-            output_file.cd()
-            hist.Write()
+            suffix = f"{syst_name}Up" if direction == "up" else f"{syst_name}Down"
+            others_map[suffix] = hist
 
     logging.info(f"  Others templates created (integral = {hist_others.Integral():.4f})")
 
-    # ========================================
-    # Write data_obs
-    # ========================================
-    if args.unblind or args.partial_unblind:
-        data_source = "real data" + (" (score < 0.3)" if args.partial_unblind else "")
-    else:
-        data_source = "sum of all backgrounds"
-    logging.info(f"Writing data_obs ({data_source}, integral = {data_obs.Integral():.4f})")
-    output_file.cd()
-    data_obs.Write()
+    templates["data_obs"] = data_obs
 
-    # Apply floor to empty/bad bins if adaptive binning exhausted all options
+    # ========================================
+    # Pre-merge: apply floor if adaptive binning exhausted its options
+    # ========================================
     if apply_floor:
-        logging.warning("Applying bin floor to empty/problematic background bins")
-        output_file.cd()
+        logging.warning("Applying bin floor to empty/problematic bins (nominal + syst variations)")
         for process in separate_processes + ["others"]:
-            h = background_hists.get(process)
-            if not h:
+            proc_map = templates.get(process, {})
+            patched = 0
+            for h in proc_map.values():
+                if not h:
+                    continue
+                modified = False
+                for i in range(1, h.GetNbinsX() + 1):
+                    if h.GetBinContent(i) <= 0:
+                        h.SetBinContent(i, BIN_FLOOR_VALUE)
+                        h.SetBinError(i, BIN_FLOOR_VALUE)  # 100% error
+                        modified = True
+                    elif h.GetBinError(i) / h.GetBinContent(i) > 1.0:
+                        h.SetBinError(i, h.GetBinContent(i))  # cap at 100%
+                        modified = True
+                if modified:
+                    patched += 1
+            if patched > 0:
+                logging.warning(f"  Patched {process}: {patched} histogram(s)")
+
+    # ========================================
+    # Post-binning syst-driven bin merging
+    # ========================================
+    logging.info("=" * 60)
+    logging.info("Post-binning syst-driven bin merging...")
+    logging.info("=" * 60)
+
+    bkg_process_list = list(separate_processes) + ["others"]
+    pre_merge_nbins = len(bin_edges) - 1
+    bin_edges, templates, n_syst_merges = apply_syst_driven_merging(
+        bin_edges, templates, bkg_process_list,
+        max_rel_syst=SYST_MERGE_THRESHOLD, logger=logging)
+    post_merge_nbins = len(bin_edges) - 1
+    if n_syst_merges > 0:
+        logging.warning(
+            f"Syst-merge: {pre_merge_nbins} bins -> {post_merge_nbins} bins "
+            f"({n_syst_merges} merges applied, threshold rel syst = "
+            f"{SYST_MERGE_THRESHOLD:.2f})"
+        )
+
+    # Refresh references used by the summary log after rebinning.
+    hist_signal_central = templates[args.masspoint]["nominal"]
+    for process in separate_processes + ["others"]:
+        background_hists[process] = templates[process]["nominal"]
+    data_obs = templates["data_obs"]
+
+    # ========================================
+    # Persist binning.json with final edges
+    # ========================================
+    save_json({
+        "nbins": len(bin_edges) - 1,
+        "bin_edges": [float(e) for e in bin_edges],
+        "method": "AdaptiveExtendedBins",
+        "sigma_eff": float(sigma_eff),
+        "mass_min": float(mass_min),
+        "mass_max": float(mass_max),
+        "binning_type": args.binning,
+        "n_core_bins": n_core_final,
+        "fit_model": "dcb",
+        "floor_applied": apply_floor,
+        "syst_merge_applied": n_syst_merges > 0,
+        "n_bins_merged": int(n_syst_merges),
+        "syst_merge_threshold": SYST_MERGE_THRESHOLD,
+    }, f"{outdir}/binning.json")
+
+    # ========================================
+    # Write all templates to shapes.root
+    # ========================================
+    logging.info("=" * 60)
+    logging.info("Writing shapes.root...")
+    logging.info("=" * 60)
+    output_file = ROOT.TFile(f"{outdir}/shapes.root", "RECREATE")
+    output_file.cd()
+
+    # data_obs
+    data_source = (
+        "real data" + (" (score < 0.3)" if args.partial_unblind else "")
+        if (args.unblind or args.partial_unblind)
+        else "sum of all backgrounds"
+    )
+    logging.info(f"  data_obs ({data_source}, integral = {data_obs.Integral():.4f})")
+    data_obs.Write("data_obs")
+
+    process_order = [args.masspoint] + list(separate_processes) + ["others"]
+    for process in process_order:
+        proc_map = templates.get(process, {})
+        nominal = proc_map.get("nominal")
+        if nominal is None:
+            continue
+        nominal.Write(process)
+        for key, hist in proc_map.items():
+            if key == "nominal":
                 continue
-            modified = False
-            for i in range(1, h.GetNbinsX() + 1):
-                if h.GetBinContent(i) <= 0:
-                    h.SetBinContent(i, BIN_FLOOR_VALUE)
-                    h.SetBinError(i, BIN_FLOOR_VALUE)  # 100% error
-                    modified = True
-                elif h.GetBinError(i) / h.GetBinContent(i) > 1.0:
-                    h.SetBinError(i, h.GetBinContent(i))  # cap at 100%
-                    modified = True
-            if modified:
-                h.Write(process, ROOT.TObject.kOverwrite)
-                logging.warning(f"  Patched {process}")
+            hist.Write(f"{process}_{key}")
 
     output_file.Close()
 

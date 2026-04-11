@@ -287,12 +287,12 @@
                 "nonprompt"
             ]
         },
-        "CMS_B2G25013_WZNjSF_13p6TeV": {
+        "CMS_B2G25013_Norm_WZ_13p6TeV": {
             "source": "preprocessed",
             "type": "shape",
             "variations": [
-                "WZNjets_Up",
-                "WZNjets_Down"
+                "WZNjetsSF_Up",
+                "WZNjetsSF_Down"
             ],
             "group": [
                 "WZ"
@@ -354,12 +354,24 @@
                 "conversion"
             ]
         },
-        "QCDscale_BSMsignal_13p6TeV": {
+        "QCDScale_muF_BSMsignal_13p6TeV": {
             "source": "preprocessed",
             "type": "shape",
-            "variations": [
-                "Scale_{0..8}//5,7"
-            ],
+            "variations": {
+                "Up": "Scale_5",
+                "Down": "Scale_3"
+            },
+            "group": [
+                "signal"
+            ]
+        },
+        "QCDScale_muR_BSMsignal_13p6TeV": {
+            "source": "preprocessed",
+            "type": "shape",
+            "variations": {
+                "Up": "Scale_7",
+                "Down": "Scale_1"
+            },
             "group": [
                 "signal"
             ]
@@ -677,12 +689,12 @@
                 "nonprompt"
             ]
         },
-        "CMS_B2G25013_WZNjSF_13p6TeV": {
+        "CMS_B2G25013_Norm_WZ_13p6TeV": {
             "source": "preprocessed",
             "type": "shape",
             "variations": [
-                "WZNjets_Up",
-                "WZNjets_Down"
+                "WZNjetsSF_Up",
+                "WZNjetsSF_Down"
             ],
             "group": [
                 "WZ"
@@ -744,12 +756,24 @@
                 "conversion"
             ]
         },
-        "QCDscale_BSMsignal_13p6TeV": {
+        "QCDScale_muF_BSMsignal_13p6TeV": {
             "source": "preprocessed",
             "type": "shape",
-            "variations": [
-                "Scale_{0..8}//5,7"
-            ],
+            "variations": {
+                "Up": "Scale_5",
+                "Down": "Scale_3"
+            },
+            "group": [
+                "signal"
+            ]
+        },
+        "QCDScale_muR_BSMsignal_13p6TeV": {
+            "source": "preprocessed",
+            "type": "shape",
+            "variations": {
+                "Up": "Scale_7",
+                "Down": "Scale_1"
+            },
             "group": [
                 "signal"
             ]
