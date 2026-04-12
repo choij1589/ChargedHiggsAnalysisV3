@@ -34,7 +34,7 @@ parser.add_argument("--exclude", default=None, type=str,
 parser.add_argument("--blind", default=False, action="store_true", help="blind data")
 parser.add_argument("--signals", default=["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"],
                     nargs="+", help="Signal mass points to overlay")
-parser.add_argument("--signal-scale", default=10.0, type=float,
+parser.add_argument("--signal-scale", default=3.0, type=float,
                     help="Scale factor for signal histograms")
 parser.add_argument("--noHEMVeto", default=False, action="store_true",
                     help="use NoHEMVeto samples (2018 only, SR1E2Mu/ZFake1E2Mu/TTZ2E1Mu)")
@@ -151,11 +151,20 @@ def apply_conv_scale_factor(hist, sample, era, era_samples):
     apply_rate_uncertainty(hist, era_data["total"])
     return hist
 
+def apply_others_uncertainty(hist, sample, era, era_samples):
+    """Apply 50% flat normalization uncertainty to 'others' category samples.
+    These samples are absent from KFactors.json and otherwise carry no theory norm."""
+    if sample in era_samples[era]["others"]:
+        apply_rate_uncertainty(hist, 0.50)
+    return hist
+
 def apply_kfactor(hist, sample, run):
     """Apply K-factor and theory uncertainty to sample if defined in KFactors.json
 
     The xsecErr in KFactors.json is a multiplicative factor (e.g., 1.075 means 7.5% uncertainty).
     This uncertainty is applied to all bins in quadrature with existing errors.
+    Run3 WZ is exempt from xsecErr: its normalization uncertainty comes from
+    WZNjetsSF_Up/Down shape variations in systematics.json instead.
     """
     if run not in KFACTORS:
         return hist
@@ -167,6 +176,10 @@ def apply_kfactor(hist, sample, run):
     kfactor = kfactors[sample]["kFactor"]
     hist.Scale(kfactor)
     logging.debug(f"Applied K-factor {kfactor} to {sample}")
+
+    # Run3 WZ: WZNjetsSF shape variations replace the flat xsecErr uncertainty
+    if run == "Run3" and "WZTo3LNu" in sample:
+        return hist
 
     # Apply theory uncertainty if available
     if "xsecErr" in kfactors[sample]:
@@ -256,6 +269,7 @@ for era in era_list:
             h = calculate_systematics(h, ERA_SYSTEMATICS[era], file_path, args, era, missing_logger)
             # Apply conversion scale factor
             h = apply_conv_scale_factor(h, sample, era, ERA_SAMPLES)
+            h = apply_others_uncertainty(h, sample, era, ERA_SAMPLES)
             era_mc_hists[sample].append(h)
 
 # Step 3: Sum histograms across eras
