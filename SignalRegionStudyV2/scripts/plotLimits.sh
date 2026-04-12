@@ -19,25 +19,21 @@ PLOT_LIMITS="${PROJECT_DIR}/python/plotLimits.py"
 cd "$PROJECT_DIR"
 
 # Parse command line arguments
-STACK_BASELINE=false
 UNBLIND=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --stack-baseline)
-            STACK_BASELINE=true
-            shift
-            ;;
         --unblind)
             UNBLIND=true
             shift
             ;;
         --help)
-            echo "Usage: $0 [--stack-baseline] [--unblind]"
+            echo "Usage: $0 [--unblind]"
             echo ""
             echo "Options:"
-            echo "  --stack-baseline  Show baseline expected limit overlay on ParticleNet plots"
             echo "  --unblind         Collect and plot unblinded limits (reads from extended_unblind dirs)"
+            echo ""
+            echo "Note: ParticleNet plots always overlay the baseline expected limit."
             exit 0
             ;;
         *)
@@ -83,17 +79,12 @@ for era in "${ERAs[@]}"; do
     $PLOT_LIMITS --era "$era" --method Baseline --limit_type "$LIMIT_TYPE" $PLOT_FLAGS
 done
 
-# Plot ParticleNet limits
+# Plot ParticleNet limits (always with baseline overlay)
 echo ""
 echo "Plotting ParticleNet limits..."
 for era in "${ERAs[@]}"; do
-    if [[ "$STACK_BASELINE" == true ]]; then
-        echo "  Plotting: era=$era, method=ParticleNet (with baseline overlay)"
-        $PLOT_LIMITS --era "$era" --method ParticleNet --limit_type "$LIMIT_TYPE" --stack_baseline $PLOT_FLAGS
-    else
-        echo "  Plotting: era=$era, method=ParticleNet"
-        $PLOT_LIMITS --era "$era" --method ParticleNet --limit_type "$LIMIT_TYPE" $PLOT_FLAGS
-    fi
+    echo "  Plotting: era=$era, method=ParticleNet (with baseline overlay)"
+    $PLOT_LIMITS --era "$era" --method ParticleNet --limit_type "$LIMIT_TYPE" --stack_baseline $PLOT_FLAGS
 done
 
 echo ""
