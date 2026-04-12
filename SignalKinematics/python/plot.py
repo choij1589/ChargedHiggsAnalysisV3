@@ -99,8 +99,6 @@ logging.info(f"Loaded {len(HISTs)} mass points for {args.histkey}")
 # Output path
 if args.histkey.startswith("GenLevel/"):
     subdir = "GEN"
-elif args.histkey.startswith("GenMatched/"):
-    subdir = "RECO-GENMATCHED"
 else:
     subdir = "RECO"
 out_name = args.histkey.replace("/", "_")
@@ -108,11 +106,13 @@ OUTPUTPATH = f"plots/{args.era}/{args.channel}/{subdir}/{out_name}.png"
 os.makedirs(os.path.dirname(OUTPUTPATH), exist_ok=True)
 
 # Scale legend height to number of entries with a compact text size
-n_cols = 2
-n_rows = (len(HISTs) + n_cols - 1) // n_cols
+n_cols = 1
+n_rows = len(HISTs)
 leg_text_size = 0.03
 config["legendTextSize"] = leg_text_size
-config["legend"] = (0.35, 0.7 - 0.03 * n_rows, 0.99, 0.7)
+config["legend"] = (0.64, 0.82 - 0.04 * n_rows, 0.97, 0.82)
+config["channel"] = args.channel
+config["iPos"] = 11
 # With solid/dashed alternation, each color supports 2 styles
 max_hists = 2 * len(PALETTE_LONG)
 if len(HISTs) > max_hists:

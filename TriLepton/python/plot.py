@@ -163,8 +163,6 @@ def apply_kfactor(hist, sample, run):
 
     The xsecErr in KFactors.json is a multiplicative factor (e.g., 1.075 means 7.5% uncertainty).
     This uncertainty is applied to all bins in quadrature with existing errors.
-    Run3 WZ is exempt from xsecErr: its normalization uncertainty comes from
-    WZNjetsSF_Up/Down shape variations in systematics.json instead.
     """
     if run not in KFACTORS:
         return hist
@@ -176,10 +174,6 @@ def apply_kfactor(hist, sample, run):
     kfactor = kfactors[sample]["kFactor"]
     hist.Scale(kfactor)
     logging.debug(f"Applied K-factor {kfactor} to {sample}")
-
-    # Run3 WZ: WZNjetsSF shape variations replace the flat xsecErr uncertainty
-    if run == "Run3" and "WZTo3LNu" in sample:
-        return hist
 
     # Apply theory uncertainty if available
     if "xsecErr" in kfactors[sample]:

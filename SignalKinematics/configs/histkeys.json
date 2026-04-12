@@ -128,7 +128,7 @@
     "normalize": true
   },
   "jets/size": {
-    "xTitle": "N_{jets}",
+    "xTitle": "N_{j}",
     "yTitle": "Normalized",
     "xRange": [0.0, 10.0],
     "rebin": 1,
@@ -136,7 +136,7 @@
     "normalize": true
   },
   "bjets/size": {
-    "xTitle": "N_{b-jets}",
+    "xTitle": "N_{b}",
     "yTitle": "Normalized",
     "xRange": [0.0, 6.0],
     "rebin": 1,
@@ -144,39 +144,55 @@
     "normalize": true
   },
   "jets/1/pt": {
-    "xTitle": "p_{T}(jet_{1}) [GeV]",
-    "yTitle": "Normalized",
-    "xRange": [0.0, 400.0],
-    "rebin": 5,
-    "logy": false,
-    "normalize": true
-  },
-  "jets/1/eta": {
-    "xTitle": "#eta(jet_{1})",
-    "yTitle": "Normalized",
-    "xRange": [-2.5, 2.5],
-    "rebin": 1,
-    "logy": false,
-    "normalize": true
-  },
-  "jets/2/pt": {
-    "xTitle": "p_{T}(jet_{2}) [GeV]",
+    "xTitle": "p_{T}(j1) [GeV]",
     "yTitle": "Normalized",
     "xRange": [0.0, 300.0],
     "rebin": 5,
     "logy": false,
     "normalize": true
   },
-  "jets/2/eta": {
-    "xTitle": "#eta(jet_{2})",
+  "jets/1/eta": {
+    "xTitle": "#eta(j1)",
     "yTitle": "Normalized",
     "xRange": [-2.5, 2.5],
     "rebin": 1,
     "logy": false,
     "normalize": true
   },
+  "jets/1/phi": {
+    "xTitle": "#phi(j1)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "jets/2/pt": {
+    "xTitle": "p_{T}(j2) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 200.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "jets/2/eta": {
+    "xTitle": "#eta(j2)",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "jets/2/phi": {
+    "xTitle": "#phi(j2)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
   "jets/3/pt": {
-    "xTitle": "p_{T}(jet_{3}) [GeV]",
+    "xTitle": "p_{T}(j3) [GeV]",
     "yTitle": "Normalized",
     "xRange": [0.0, 200.0],
     "rebin": 5,
@@ -184,7 +200,7 @@
     "normalize": true
   },
   "jets/3/eta": {
-    "xTitle": "#eta(jet_{3})",
+    "xTitle": "#eta(j3)",
     "yTitle": "Normalized",
     "xRange": [-2.5, 2.5],
     "rebin": 1,
@@ -192,7 +208,7 @@
     "normalize": true
   },
   "jets/4/pt": {
-    "xTitle": "p_{T}(jet_{4}) [GeV]",
+    "xTitle": "p_{T}(j4) [GeV]",
     "yTitle": "Normalized",
     "xRange": [0.0, 200.0],
     "rebin": 5,
@@ -200,7 +216,7 @@
     "normalize": true
   },
   "jets/4/eta": {
-    "xTitle": "#eta(jet_{4})",
+    "xTitle": "#eta(j4)",
     "yTitle": "Normalized",
     "xRange": [-2.5, 2.5],
     "rebin": 1,
@@ -338,7 +354,7 @@
   "GenMatched/muons_fromA/1/pt": {
     "xTitle": "p_{T}(#mu_{1} from A) [GeV]",
     "yTitle": "Normalized",
-    "xRange": [0.0, 200.0],
+    "xRange": [0.0, 250.0],
     "rebin": 5,
     "logy": false,
     "normalize": true
@@ -346,7 +362,7 @@
   "GenMatched/muons_fromA/1/eta": {
     "xTitle": "#eta(#mu_{1} from A)",
     "yTitle": "Normalized",
-    "xRange": [-2.5, 2.5],
+    "xRange": [-2.4, 2.4],
     "rebin": 1,
     "logy": false,
     "normalize": true
@@ -370,7 +386,7 @@
   "GenMatched/muons_fromA/2/pt": {
     "xTitle": "p_{T}(#mu_{2} from A) [GeV]",
     "yTitle": "Normalized",
-    "xRange": [0.0, 200.0],
+    "xRange": [0.0, 150.0],
     "rebin": 5,
     "logy": false,
     "normalize": true
@@ -378,7 +394,7 @@
   "GenMatched/muons_fromA/2/eta": {
     "xTitle": "#eta(#mu_{2} from A)",
     "yTitle": "Normalized",
-    "xRange": [-2.5, 2.5],
+    "xRange": [-2.4, 2.4],
     "rebin": 1,
     "logy": false,
     "normalize": true
@@ -506,7 +522,7 @@
   "GenMatched/muon_fromW/pt": {
     "xTitle": "p_{T}(#mu from W) [GeV]",
     "yTitle": "Normalized",
-    "xRange": [0.0, 300.0],
+    "xRange": [0.0, 250.0],
     "rebin": 5,
     "logy": false,
     "normalize": true
@@ -538,7 +554,7 @@
   "GenMatched/muon_fromOffshellW/pt": {
     "xTitle": "p_{T}(#mu from off-shell W) [GeV]",
     "yTitle": "Normalized",
-    "xRange": [0.0, 300.0],
+    "xRange": [0.0, 120.0],
     "rebin": 5,
     "logy": false,
     "normalize": true
@@ -583,10 +599,18 @@
     "logy": false,
     "normalize": true
   },
+  "GenMatched/bjet_withW/phi": {
+    "xTitle": "#phi(b-jet with W)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
   "GenMatched/bjet_withHplus/pt": {
     "xTitle": "p_{T}(b-jet with H^{+}) [GeV]",
     "yTitle": "Normalized",
-    "xRange": [0.0, 150.0],
+    "xRange": [0.0, 300.0],
     "rebin": 5,
     "logy": false,
     "normalize": true
@@ -595,6 +619,14 @@
     "xTitle": "#eta(b-jet with H^{+})",
     "yTitle": "Normalized",
     "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "GenMatched/bjet_withHplus/phi": {
+    "xTitle": "#phi(b-jet with H^{+})",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
     "rebin": 1,
     "logy": false,
     "normalize": true
