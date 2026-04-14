@@ -468,11 +468,14 @@ class ComparisonCanvas(BaseCanvas):
         self.update_y_scale(self.signals)
 
         # Now draw all signals
+        n_signals = len(self.signals)
+        use_extended = n_signals > len(PALETTE_LONG)
         for idx, (name, hist) in enumerate(self.signals.items()):
+            color = ROOT.TColor.GetColorDark(PALETTE_LONG[idx % len(PALETTE_LONG)] if use_extended else self.palette[idx])
+            line_style = ROOT.kSolid
             hist.SetStats(0)
-            CMS.cmsObjectDraw(hist, "hist", LineColor=ROOT.TColor.GetColorDark(self.palette[idx]), LineWidth=2, LineStyle=ROOT.kSolid, MarkerSize=0)
-            CMS.cmsObjectDraw(hist, "LE", LineColor=ROOT.TColor.GetColorDark(self.palette[idx]), LineWidth=2, LineStyle=ROOT.kSolid, FillColor=ROOT.kWhite, MarkerSize=0)
-            CMS.addToLegend(self.sigleg, (hist, name, "LE"))
+            CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=2, LineStyle=line_style, MarkerSize=0)
+            CMS.addToLegend(self.sigleg, (hist, name, "L"))
         self.sigleg.Draw()
         self.canv.cd(1).RedrawAxis()
 

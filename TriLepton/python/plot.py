@@ -8,7 +8,7 @@ from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 from plotter import PALETTE_LONG as PALETTE
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
                         calculate_systematics, sum_histograms, load_era_configs,
-                        get_sample_lists)
+                        get_sample_lists, clip_negative_bins)
 from utils import build_sknanoutput_path, apply_rate_uncertainty
 ROOT.gROOT.SetBatch(True)
 
@@ -205,6 +205,7 @@ for era in era_list:
 
         h = load_histogram(file_path, hist_path, era, missing_logger)
         if h:
+            clip_negative_bins(h)
             era_data.append(h)
     
     # Sum data for this era and track which eras have data
@@ -241,6 +242,7 @@ for era in era_list:
         
         h = load_histogram(file_path, hist_path, era, missing_logger)
         if h:
+            clip_negative_bins(h)
             # Set per-era nonprompt uncertainty from FakeNorm.json (fallback 30%)
             np_unc = FAKENORM.get(FLAG, {}).get(era, 0.30)
             for bin in range(h.GetNcells()):
@@ -258,6 +260,7 @@ for era in era_list:
         hist_path = f"{args.channel}/Central/{args.histkey}"
         h = load_histogram(file_path, hist_path, era, missing_logger)
         if h:
+            clip_negative_bins(h)
             # Apply K-factor before systematics
             h = apply_kfactor(h, sample, RUN)
             h = calculate_systematics(h, ERA_SYSTEMATICS[era], file_path, args, era, missing_logger)

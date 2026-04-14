@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import math
 import logging
 import argparse
 import ROOT
@@ -7,93 +8,105 @@ import json
 import numpy as np
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 
-def rebin_for_chi2_validity(h_obs, h_exp, min_expected=5.0):
+def rebin_for_chi2_validity(h_obs, h_exp):
     """
-    Rebin histograms to ensure chi-squared test validity.
+    Merge bins failing ROOT's Chi2Test "WW" validity criteria.
 
-    Chi-squared test requires expected count >= 5 in each bin (classical rule).
-    Merge consecutive bins until this criterion is met.
+    Chi2Test("WW") requires effective entries n_eff = content² / Σw² ≥ 10 in
+    each bin for both histograms. A failing bin is merged into its adjacent
+    neighbor with the lower expected yield. Overflow is folded in as the last
+    group. Iterates until all bins pass or only one bin remains.
+
+    Output histograms use uniform integer binning [0, n_groups] — physical
+    x-edges are discarded because the result is consumed only by Chi2Test,
+    not plotted.
 
     Args:
-        h_obs: Observed histogram
-        h_exp: Expected histogram
-        min_expected: Minimum expected count per bin (default 5.0)
+        h_obs: Observed histogram (MC, weighted — SR)
+        h_exp: Expected histogram (MC, weighted — SB)
 
     Returns:
-        Tuple of (h_obs_rebinned, h_exp_rebinned)
+        Tuple of (h_obs_merged, h_exp_merged)
     """
-    # Collect variable bin edges
-    bin_edges = []
-    accumulated_exp = 0.0
-    accumulated_obs = 0.0
-    accumulated_exp_err2 = 0.0
-    accumulated_obs_err2 = 0.0
+    nbins = h_obs.GetNbinsX()
 
-    # Start with the lower edge of first bin
-    bin_edges.append(h_exp.GetBinLowEdge(1))
+    def group_stats(group):
+        obs_c    = sum(h_obs.GetBinContent(i) for i in group)
+        obs_err2 = sum(h_obs.GetBinError(i)**2 for i in group)
+        exp_c    = sum(h_exp.GetBinContent(i) for i in group)
+        exp_err2 = sum(h_exp.GetBinError(i)**2 for i in group)
+        # Treat non-finite values as 0 effective entries so they get merged away
+        if not (math.isfinite(obs_c) and math.isfinite(obs_err2)
+                and math.isfinite(exp_c) and math.isfinite(exp_err2)):
+            return 0.0, exp_c if math.isfinite(exp_c) else 0.0, 0.0
+        obs_neff = obs_c**2 / obs_err2 if obs_err2 > 0 else 0.0
+        exp_neff = exp_c**2 / exp_err2 if exp_err2 > 0 else 0.0
+        return obs_neff, exp_c, exp_neff
 
-    for bin in range(1, h_exp.GetNbinsX() + 1):
-        exp_content = h_exp.GetBinContent(bin)
-        obs_content = h_obs.GetBinContent(bin)
-        exp_error = h_exp.GetBinError(bin)
-        obs_error = h_obs.GetBinError(bin)
+    def fails(group):
+        obs_neff, _, exp_neff = group_stats(group)
+        return obs_neff < 10 or exp_neff < 10
 
-        # Accumulate
-        accumulated_exp += exp_content
-        accumulated_obs += obs_content
-        accumulated_exp_err2 += exp_error * exp_error
-        accumulated_obs_err2 += obs_error * obs_error
+    # Include overflow (nbins+1) so it can be absorbed if sparse.
+    groups = [[i] for i in range(1, nbins + 2)]
 
-        # Check if we've accumulated enough expected events
-        should_split = (accumulated_exp >= min_expected)
-        is_last_bin = (bin == h_exp.GetNbinsX())
+    while len(groups) > 1:
+        made_change = False
+        for idx in range(len(groups)):
+            if not fails(groups[idx]):
+                continue
 
-        if should_split or is_last_bin:
-            bin_edges.append(h_exp.GetBinLowEdge(bin + 1))
-            # Reset accumulators
-            accumulated_exp = 0.0
-            accumulated_obs = 0.0
-            accumulated_exp_err2 = 0.0
-            accumulated_obs_err2 = 0.0
+            left  = idx - 1 if idx > 0             else None
+            right = idx + 1 if idx < len(groups)-1 else None
 
-    # Create new histograms with variable binning
-    n_bins = len(bin_edges) - 1
-    if n_bins < 1:
-        logging.warning("Chi2 rebinning produced less than 1 bin, returning original histograms")
-        return h_obs.Clone(), h_exp.Clone()
+            if left is None and right is None:
+                break
+            elif left is None:
+                target = right
+            elif right is None:
+                target = left
+            else:
+                _, left_exp,  _ = group_stats(groups[left])
+                _, right_exp, _ = group_stats(groups[right])
+                target = left if left_exp <= right_exp else right
 
-    h_obs_rebinned = ROOT.TH1D(h_obs.GetName() + "_chi2", h_obs.GetTitle(), n_bins, np.array(bin_edges, dtype=float))
-    h_exp_rebinned = ROOT.TH1D(h_exp.GetName() + "_chi2", h_exp.GetTitle(), n_bins, np.array(bin_edges, dtype=float))
-    h_obs_rebinned.SetDirectory(0)
-    h_exp_rebinned.SetDirectory(0)
+            lo, hi = min(idx, target), max(idx, target)
+            groups = groups[:lo] + [sorted(groups[lo] + groups[hi])] + groups[lo+2:]
+            made_change = True
+            break  # restart after structural change
 
-    # Fill the rebinned histograms
-    for new_bin in range(1, h_obs_rebinned.GetNbinsX() + 1):
-        bin_low_edge = h_obs_rebinned.GetBinLowEdge(new_bin)
-        bin_up_edge = h_obs_rebinned.GetBinLowEdge(new_bin + 1)
+        if not made_change:
+            break
 
-        orig_bin_start = h_obs.FindBin(bin_low_edge)
-        orig_bin_end = h_obs.FindBin(bin_up_edge - 0.001)
+    new_nbins = len(groups)
+    logging.debug(f"Chi2 bin merging: {nbins} → {new_nbins} bins")
 
-        sum_obs = 0.0
-        sum_exp = 0.0
-        sum_obs_err2 = 0.0
-        sum_exp_err2 = 0.0
+    if new_nbins == nbins + 1:
+        # No merging needed — return clones with consistent names
+        h_obs_out = h_obs.Clone(h_obs.GetName() + "_chi2")
+        h_exp_out = h_exp.Clone(h_exp.GetName() + "_chi2")
+        h_obs_out.SetDirectory(0)
+        h_exp_out.SetDirectory(0)
+        return h_obs_out, h_exp_out
 
-        for orig_bin in range(orig_bin_start, orig_bin_end + 1):
-            sum_obs += h_obs.GetBinContent(orig_bin)
-            sum_exp += h_exp.GetBinContent(orig_bin)
-            sum_obs_err2 += h_obs.GetBinError(orig_bin) ** 2
-            sum_exp_err2 += h_exp.GetBinError(orig_bin) ** 2
+    h_obs_out = ROOT.TH1D(h_obs.GetName() + "_chi2", "", new_nbins, 0, new_nbins)
+    h_exp_out = ROOT.TH1D(h_exp.GetName() + "_chi2", "", new_nbins, 0, new_nbins)
+    h_obs_out.SetDirectory(0)
+    h_exp_out.SetDirectory(0)
+    h_obs_out.Sumw2()
+    h_exp_out.Sumw2()
 
-        h_obs_rebinned.SetBinContent(new_bin, sum_obs)
-        h_exp_rebinned.SetBinContent(new_bin, sum_exp)
-        h_obs_rebinned.SetBinError(new_bin, np.sqrt(sum_obs_err2))
-        h_exp_rebinned.SetBinError(new_bin, np.sqrt(sum_exp_err2))
+    for new_bin, grp in enumerate(groups, 1):
+        obs_c    = sum(h_obs.GetBinContent(i) for i in grp)
+        obs_err2 = sum(h_obs.GetBinError(i)**2 for i in grp)
+        exp_c    = sum(h_exp.GetBinContent(i) for i in grp)
+        exp_err2 = sum(h_exp.GetBinError(i)**2 for i in grp)
+        h_obs_out.SetBinContent(new_bin, obs_c)
+        h_obs_out.SetBinError(new_bin, np.sqrt(obs_err2))
+        h_exp_out.SetBinContent(new_bin, exp_c)
+        h_exp_out.SetBinError(new_bin, np.sqrt(exp_err2))
 
-    logging.debug(f"Chi2 rebinning: {h_exp.GetNbinsX()} → {h_exp_rebinned.GetNbinsX()} bins (min_exp={min_expected})")
-
-    return h_obs_rebinned, h_exp_rebinned
+    return h_obs_out, h_exp_out
 
 def calculate_chi2_with_syst(h_obs, h_exp, syst_frac):
     """
@@ -116,11 +129,13 @@ def calculate_chi2_with_syst(h_obs, h_exp, syst_frac):
         obs_err = h_obs.GetBinError(bin)
         exp_err = h_exp.GetBinError(bin)
 
-        if exp_bin > 0:
+        if exp_bin > 0 and math.isfinite(exp_bin) and math.isfinite(obs_bin):
             sigma2 = obs_err**2 + exp_err**2 + (syst_frac * exp_bin)**2
-            if sigma2 > 0:
-                chi2 += (obs_bin - exp_bin)**2 / sigma2
-                ndf += 1
+            if sigma2 > 0 and math.isfinite(sigma2):
+                contrib = (obs_bin - exp_bin)**2 / sigma2
+                if math.isfinite(contrib):
+                    chi2 += contrib
+                    ndf += 1
 
     return chi2, ndf
 
@@ -156,7 +171,7 @@ def calculate_chi2_root(h_obs, h_exp, normalize=True):
             h_obs_test.Scale(1.0 / obs_integral)
             h_exp_test.Scale(1.0 / exp_integral)
 
-    options = "WW"  # weighted vs weighted (MC vs MC)
+    options = "WW"  # weighted vs weighted (MC vs MC); overflow folded in by the merger
 
     p_value = h_obs_test.Chi2Test(h_exp_test, options)
     chi2 = h_obs_test.Chi2Test(h_exp_test, options + " CHI2")
@@ -322,8 +337,8 @@ else:
     rec_chi2_per_ndf = rec_entry["chi2_per_ndf"]
     rec_p_value      = ROOT.TMath.Prob(rec_entry["chi2"], rec_entry["ndf"])
 
-# Reference chi2 via ROOT Chi2Test (needs expected >= 5 per bin for valid chi2 dist.)
-h_obs_chi2, h_exp_chi2 = rebin_for_chi2_validity(h_obs, h_exp, min_expected=5.0)
+# Reference chi2 via ROOT Chi2Test — merge bins until n_eff >= 10 on both histograms.
+h_obs_chi2, h_exp_chi2 = rebin_for_chi2_validity(h_obs, h_exp)
 logging.info(f"Chi-squared reference bins: {h_obs.GetNbinsX()} → {h_obs_chi2.GetNbinsX()}")
 chi2_rate, ndf_rate, p_value_rate = calculate_chi2_root(h_obs_chi2, h_exp_chi2, normalize=False)
 chi2_shape, ndf_shape, p_value_shape = calculate_chi2_root(h_obs_chi2, h_exp_chi2, normalize=True)
@@ -371,7 +386,8 @@ if args.era in COMBINED_ERAS:
     rate_text = f"Rate: #chi^{{2}}/ndf = {rec_chi2_per_ndf:.2f} (p = {rec_p_value:.2f})"
 else:
     rate_text = f"Rate: #chi^{{2}}/ndf = {rec_chi2_per_ndf:.2f} (p = {rec_p_value:.2f}), syst = {recommended_systematic_pct}%"
-shape_text = f"Shape: #chi^{{2}}/ndf = {chi2_shape/ndf_shape:.2f} (p = {p_value_shape:.2f})"
+shape_chi2ndf_str = f"{chi2_shape/ndf_shape:.2f}" if ndf_shape > 0 else "N/A"
+shape_text = f"Shape: #chi^{{2}}/ndf = {shape_chi2ndf_str} (p = {p_value_shape:.2f})"
 CMS.drawText(rate_text,  posX=0.20, posY=0.62, font=42, align=0, size=0.04)
 CMS.drawText(shape_text, posX=0.20, posY=0.57, font=42, align=0, size=0.04)
 
@@ -379,8 +395,10 @@ plotter.drawPadDown()
 plotter.canv.SaveAs(output_path)
 
 logging.info(f"Closure plot saved to: {output_path}")
-logging.info(f"Chi2/ndf rate  (stat only): {chi2_rate:.2f}/{ndf_rate} = {chi2_rate/ndf_rate:.2f}, p-value = {p_value_rate:.3f}")
-logging.info(f"Chi2/ndf shape (stat only): {chi2_shape:.2f}/{ndf_shape} = {chi2_shape/ndf_shape:.2f}, p-value = {p_value_shape:.3f}")
+rate_per_ndf_str  = f"{chi2_rate/ndf_rate:.2f}"   if ndf_rate  > 0 else "N/A"
+shape_per_ndf_str = f"{chi2_shape/ndf_shape:.2f}" if ndf_shape > 0 else "N/A"
+logging.info(f"Chi2/ndf rate  (stat only): {chi2_rate:.2f}/{ndf_rate} = {rate_per_ndf_str}, p-value = {p_value_rate:.3f}")
+logging.info(f"Chi2/ndf shape (stat only): {chi2_shape:.2f}/{ndf_shape} = {shape_per_ndf_str}, p-value = {p_value_shape:.3f}")
 if args.era in COMBINED_ERAS:
     logging.info(f"Rate chi2/ndf (per-era syst): {rec_chi2_per_ndf:.3f}, p-value = {rec_p_value:.3f}")
     for era, breakdown in era_chi2_breakdown.items():

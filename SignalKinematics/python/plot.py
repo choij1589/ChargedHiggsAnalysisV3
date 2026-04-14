@@ -15,6 +15,7 @@ parser.add_argument("--channel", required=True, type=str, help="channel (SR3Mu o
 parser.add_argument("--histkey", required=True, type=str, help="histogram key from histkeys.json")
 parser.add_argument("--sample-list", default="default", choices=["default", "validation", "full", "MHc160"],
                     help="which sample list to use (default: default)")
+parser.add_argument("--no-legend", default=False, action="store_true", help="suppress the legend")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 
@@ -110,7 +111,10 @@ n_cols = 1
 n_rows = len(HISTs)
 leg_text_size = 0.03
 config["legendTextSize"] = leg_text_size
-config["legend"] = (0.64, 0.82 - 0.04 * n_rows, 0.97, 0.82)
+if args.no_legend:
+    config["legend"] = (2.0, 2.0, 3.0, 3.0)  # outside NDC [0,1] — effectively hidden
+else:
+    config["legend"] = (0.64, 0.82 - 0.04 * n_rows, 0.97, 0.82)
 config["channel"] = args.channel
 config["iPos"] = 11
 # With solid/dashed alternation, each color supports 2 styles
@@ -128,10 +132,11 @@ plotter.canv.cd()
 n_colors = len(plotter.palette)
 for idx, (name, hist) in enumerate(plotter.hists.items()):
     color = plotter.palette[idx % n_colors]
-    line_style = ROOT.kDashed if idx >= n_colors else ROOT.kSolid
+    line_style = ROOT.kDashed if idx % 2 == 0 else ROOT.kSolid
     CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=2, LineStyle=line_style)
     CMS.cmsObjectDraw(hist, "LE", LineColor=color, LineWidth=2, LineStyle=line_style, FillColor=ROOT.kWhite, MarkerSize=0)
-    CMS.addToLegend(plotter.leg, (hist, name, "LE"))
+    if not args.no_legend:
+        CMS.addToLegend(plotter.leg, (hist, name, "LE"))
 plotter._draw_channel_text(plotter.config)
 plotter.canv.RedrawAxis()
 plotter.canv.SaveAs(OUTPUTPATH)

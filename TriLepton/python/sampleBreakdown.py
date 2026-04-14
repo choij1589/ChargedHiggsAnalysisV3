@@ -273,21 +273,27 @@ def sum_sample_errors(error_dicts):
     }
 
 
+def load_conv_sf_data():
+    """Load conversion SF data from Common/Data/ConvSF.json."""
+    conv_sf_path = f"{WORKDIR}/Common/Data/ConvSF.json"
+    if not os.path.exists(conv_sf_path):
+        raise FileNotFoundError(f"Conversion SF file not found: {conv_sf_path}")
+    with open(conv_sf_path, 'r') as f:
+        return json.load(f)
+
+
 def get_conv_scale_factor(era_list, sample, channel):
     """
     Get conversion scale factor for ZG channels, applied to conversion samples only.
     Returns (scale, relative_uncertainty).
 
-    The scale factor corrects for conversion lepton identification efficiency differences
-    between data and MC in the ZG control region.
-
-    For multi-era (Run2/Run3), loads individual era SFs and returns weighted average.
-    Uncertainty is taken from total_up/total_down which already includes all systematics.
+    Reads Common/Data/ConvSF.json (structure: {channel_flag: {era: {central, total, ...}}}).
+    For multi-era (Run2/Run3), returns a simple average of per-era SFs; the 'total'
+    field is already a relative fraction (e.g. 0.10 = 10%).
     """
     if not channel.startswith("ZG"):
         return 1.0, 0.0
 
-    # Extract channel flag (1E2Mu or 3Mu) from channel name
     if "1E2Mu" in channel:
         channel_flag = "1E2Mu"
     elif "3Mu" in channel:
@@ -295,68 +301,25 @@ def get_conv_scale_factor(era_list, sample, channel):
     else:
         raise ValueError(f"Cannot extract channel flag from: {channel}")
 
-    # Load conversion SFs for each era
+    conv_sf_data = load_conv_sf_data()
+    channel_data = conv_sf_data.get(channel_flag, {})
+
     scales = []
     uncertainties = []
 
     for era in era_list:
-        # Determine run period based on era
-        if era in ["2016preVFP", "2016postVFP", "2017", "2018"]:
-            run_period = "Run2"
-        elif era in ["2022", "2022EE", "2023", "2023BPix"]:
-            run_period = "Run3"
-        else:
-            raise ValueError(f"Cannot determine run period for era: {era}")
+        era_data = channel_data.get(era)
+        if era_data is None:
+            raise KeyError(f"No ConvSF entry for channel_flag={channel_flag}, era={era} in ConvSF.json")
+        scales.append(era_data["central"])
+        uncertainties.append(era_data["total"])  # already a relative fraction
 
-        conv_sf_path = f"{WORKDIR}/Common/Data/ConvSF/{run_period}/{channel_flag}/{era}.json"
-        if not os.path.exists(conv_sf_path):
-            raise FileNotFoundError(f"Conversion SF not found: {conv_sf_path}")
-
-        try:
-            with open(conv_sf_path, 'r') as f:
-                conv_data = json.load(f)
-
-            # Find central value and total uncertainty
-            central_sf = None
-            total_up = None
-            total_down = None
-
-            for correction in conv_data.get("corrections", []):
-                name = correction.get("name", "")
-                value = float(correction["data"]["expression"])
-
-                if name.endswith("_Central"):
-                    central_sf = value
-                elif name.endswith("_total_up"):
-                    total_up = value
-                elif name.endswith("_total_down"):
-                    total_down = value
-
-            if central_sf is None:
-                raise ValueError(f"No central SF found in {conv_sf_path}")
-
-            # Calculate relative uncertainty from total_up/total_down
-            if total_up is not None and total_down is not None:
-                # Use envelope of up/down variations
-                max_variation = max(abs(total_up - central_sf), abs(total_down - central_sf))
-                rel_unc = max_variation / central_sf if central_sf != 0 else 0.0
-            else:
-                raise ValueError(f"Missing total_up or total_down in {conv_sf_path}")
-
-            scales.append(central_sf)
-            uncertainties.append(rel_unc)
-
-        except (json.JSONDecodeError, KeyError) as e:
-            raise RuntimeError(f"Failed to parse conversion SF from {conv_sf_path}: {e}")
-
-    # Return weighted average (for now, simple average since we don't have luminosity weights here)
-    # TODO: Implement luminosity-weighted average for Run2/Run3
-    if scales:
-        avg_scale = sum(scales) / len(scales)
-        avg_unc = sqrt(sum(u**2 for u in uncertainties)) / len(uncertainties) if uncertainties else 0.0
-        return avg_scale, avg_unc
-    else:
+    if not scales:
         raise RuntimeError(f"No conversion SFs loaded for {channel}")
+
+    avg_scale = sum(scales) / len(scales)
+    avg_unc = sqrt(sum(u**2 for u in uncertainties)) / len(uncertainties)
+    return avg_scale, avg_unc
 
 
 def main():
@@ -647,7 +610,7 @@ def main():
                     continue
                 signal_name = f"TTToHcToWAToMuMu-{signal_mass}"
                 # Signal files don't have "Skim_TriLep_" prefix, construct path directly
-                file_path = f"{WORKDIR}/SKNanoOutput/PromptAnalyzer/{FLAG}_RunSyst/{era}/{signal_name}.root"
+                file_path = f"{WORKDIR}/SKNanoOutput/PromptAnalyzer/{FLAG}_RunSyst_RunTheoryUnc/{era}/{signal_name}.root"
                 hist_path = f"{args.channel}/Central/{HISTKEY}"
                 h = load_histogram(file_path, hist_path, era)
                 if h:

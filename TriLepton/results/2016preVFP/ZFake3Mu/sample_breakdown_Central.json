@@ -46,14 +46,14 @@
       "syst_error": 0.0,
       "total_error": 5.916079783099616
     },
-    "nonprompt_DoubleMuon_C": {
-      "events": 7.910940181463957,
-      "stat_error": 1.8155426171876337,
+    "nonprompt_DoubleMuon_E": {
+      "events": 18.99576294235885,
+      "stat_error": 3.108637347119342,
       "systematics": {
-        "nonprompt_rate": 2.373282054439187
+        "nonprompt_rate": 5.698728882707655
       },
-      "syst_error": 2.373282054439187,
-      "total_error": 2.9880867967225466
+      "syst_error": 5.698728882707655,
+      "total_error": 6.491466477962558
     },
     "nonprompt_DoubleMuon_F": {
       "events": 9.827499633654952,
@@ -64,14 +64,14 @@
       "syst_error": 2.9482498900964855,
       "total_error": 3.773417839134248
     },
-    "nonprompt_DoubleMuon_E": {
-      "events": 18.99576294235885,
-      "stat_error": 3.108637347119342,
+    "nonprompt_DoubleMuon_C": {
+      "events": 7.910940181463957,
+      "stat_error": 1.8155426171876337,
       "systematics": {
-        "nonprompt_rate": 5.698728882707655
+        "nonprompt_rate": 2.373282054439187
       },
-      "syst_error": 5.698728882707655,
-      "total_error": 6.491466477962558
+      "syst_error": 2.373282054439187,
+      "total_error": 2.9880867967225466
     },
     "nonprompt_DoubleMuon_D": {
       "events": 19.20927233528346,
@@ -90,29 +90,6 @@
       },
       "syst_error": 5.1059136467054484,
       "total_error": 5.7419592947171205
-    },
-    "TTG": {
-      "events": 0.14998489618301392,
-      "stat_error": 0.14998489618301392,
-      "systematics": {
-        "L1Prefire": 0.0014316290616989136,
-        "PileupReweight": 0.007766097784042358,
-        "PileupJetIDSF": 0.0008296221494674683,
-        "MuonIDSF": 0.000809207558631897,
-        "DblMuTrigSF": 0.00019934773445129395,
-        "JetEn": 0.000385284423828125,
-        "JetRes": 2.7835369110107422e-05,
-        "MuonEn": 0.0,
-        "ElectronEn": 0.0,
-        "ElectronRes": 0.0,
-        "UnclusteredEn": 0.0,
-        "BtagSF_HFcorr": 0.043381571769714355,
-        "BtagSF_HFuncorr": 0.007442101836204529,
-        "BtagSF_LFcorr": 0.0010870099067687988,
-        "BtagSF_LFuncorr": 0.00039614737033843994
-      },
-      "syst_error": 0.044750173820751214,
-      "total_error": 0.15651852011828157
     },
     "WWG": {
       "events": 0.009224536828696728,
@@ -137,53 +114,28 @@
       "syst_error": 0.013190700872543678,
       "total_error": 0.016096169395632826
     },
-    "TTWToLNu": {
-      "events": 0.24358112906338647,
-      "stat_error": 0.036321161515536826,
+    "TTG": {
+      "events": 0.14998489618301392,
+      "stat_error": 0.14998489618301392,
       "systematics": {
-        "L1Prefire": 0.0006419044814768622,
-        "PileupReweight": 0.005174822123087851,
-        "PileupJetIDSF": 0.00024155388775238523,
-        "MuonIDSF": 0.0006463483640837091,
-        "DblMuTrigSF": 0.00012068861747795842,
-        "JetEn": 0.010776706278209095,
-        "JetRes": 0.006538069067731276,
-        "MuonEn": 0.013500968764692712,
+        "L1Prefire": 0.0014316290616989136,
+        "PileupReweight": 0.007766097784042358,
+        "PileupJetIDSF": 0.0008296221494674683,
+        "MuonIDSF": 0.000809207558631897,
+        "DblMuTrigSF": 0.00019934773445129395,
+        "JetEn": 0.000385284423828125,
+        "JetRes": 2.7835369110107422e-05,
+        "MuonEn": 0.0,
         "ElectronEn": 0.0,
         "ElectronRes": 0.0,
         "UnclusteredEn": 0.0,
-        "BtagSF_HFcorr": 0.006185330415782949,
-        "BtagSF_HFuncorr": 0.0021138333895663057,
-        "BtagSF_LFcorr": 0.00026705871144457727,
-        "BtagSF_LFuncorr": 9.772785629840863e-05,
-        "xsec": 0.029229735487606403
+        "BtagSF_HFcorr": 0.043381571769714355,
+        "BtagSF_HFuncorr": 0.007442101836204529,
+        "BtagSF_LFcorr": 0.0010870099067687988,
+        "BtagSF_LFuncorr": 0.00039614737033843994
       },
-      "syst_error": 0.0355812636122179,
-      "total_error": 0.05084538419640327
-    },
-    "TTZToLLNuNu": {
-      "events": 7.281372286379337,
-      "stat_error": 0.1692561201938029,
-      "systematics": {
-        "L1Prefire": 0.018957748160896425,
-        "PileupReweight": 0.03145010624292908,
-        "PileupJetIDSF": 0.005587645588178865,
-        "MuonIDSF": 0.01586384903354287,
-        "DblMuTrigSF": 0.003452880861482944,
-        "JetEn": 0.04298306846778719,
-        "JetRes": 0.015227727421902093,
-        "MuonEn": 0.0819621167936202,
-        "ElectronEn": 0.0020787715911865234,
-        "ElectronRes": 0.0020787715911865234,
-        "UnclusteredEn": 0.0,
-        "BtagSF_HFcorr": 0.11694316429426274,
-        "BtagSF_HFuncorr": 0.041439220956122305,
-        "BtagSF_LFcorr": 0.006496478054724051,
-        "BtagSF_LFuncorr": 0.0022998226637689374,
-        "xsec": 0.54610292147845
-      },
-      "syst_error": 0.5693136018665274,
-      "total_error": 0.5939407474599616
+      "syst_error": 0.044750173820751214,
+      "total_error": 0.15651852011828157
     },
     "TTHToNonbb": {
       "events": 0.2131727427477017,
@@ -233,6 +185,54 @@
       "syst_error": 0.11291679999393725,
       "total_error": 0.16740185551457232
     },
+    "TTWToLNu": {
+      "events": 0.24358112906338647,
+      "stat_error": 0.036321161515536826,
+      "systematics": {
+        "L1Prefire": 0.0006419044814768622,
+        "PileupReweight": 0.005174822123087851,
+        "PileupJetIDSF": 0.00024155388775238523,
+        "MuonIDSF": 0.0006463483640837091,
+        "DblMuTrigSF": 0.00012068861747795842,
+        "JetEn": 0.010776706278209095,
+        "JetRes": 0.006538069067731276,
+        "MuonEn": 0.013500968764692712,
+        "ElectronEn": 0.0,
+        "ElectronRes": 0.0,
+        "UnclusteredEn": 0.0,
+        "BtagSF_HFcorr": 0.006185330415782949,
+        "BtagSF_HFuncorr": 0.0021138333895663057,
+        "BtagSF_LFcorr": 0.00026705871144457727,
+        "BtagSF_LFuncorr": 9.772785629840863e-05,
+        "xsec": 0.029229735487606403
+      },
+      "syst_error": 0.0355812636122179,
+      "total_error": 0.05084538419640327
+    },
+    "TTZToLLNuNu": {
+      "events": 7.281372286379337,
+      "stat_error": 0.1692561201938029,
+      "systematics": {
+        "L1Prefire": 0.018957748160896425,
+        "PileupReweight": 0.03145010624292908,
+        "PileupJetIDSF": 0.005587645588178865,
+        "MuonIDSF": 0.01586384903354287,
+        "DblMuTrigSF": 0.003452880861482944,
+        "JetEn": 0.04298306846778719,
+        "JetRes": 0.015227727421902093,
+        "MuonEn": 0.0819621167936202,
+        "ElectronEn": 0.0020787715911865234,
+        "ElectronRes": 0.0020787715911865234,
+        "UnclusteredEn": 0.0,
+        "BtagSF_HFcorr": 0.11694316429426274,
+        "BtagSF_HFuncorr": 0.041439220956122305,
+        "BtagSF_LFcorr": 0.006496478054724051,
+        "BtagSF_LFuncorr": 0.0022998226637689374,
+        "xsec": 0.54610292147845
+      },
+      "syst_error": 0.5693136018665274,
+      "total_error": 0.5939407474599616
+    },
     "ZZTo4L_powheg": {
       "events": 14.6464015962556,
       "stat_error": 0.08932302918360899,
@@ -281,29 +281,6 @@
       "syst_error": 45.997101579872634,
       "total_error": 46.073715150536444
     },
-    "ZZZ": {
-      "events": 0.11187272964525619,
-      "stat_error": 0.002607881549095755,
-      "systematics": {
-        "L1Prefire": 0.0003075859916960249,
-        "PileupReweight": 0.0004886063577061412,
-        "PileupJetIDSF": 8.72623696664048e-05,
-        "MuonIDSF": 0.0002697142897729799,
-        "DblMuTrigSF": 6.251582199821435e-05,
-        "JetEn": 0.001112156849287027,
-        "JetRes": 0.00027579528603773816,
-        "MuonEn": 0.0014360234375109607,
-        "ElectronEn": 0.0,
-        "ElectronRes": 0.0,
-        "UnclusteredEn": 0.0,
-        "BtagSF_HFcorr": 0.00020382103507317977,
-        "BtagSF_HFuncorr": 7.738394273660458e-05,
-        "BtagSF_LFcorr": 0.00012917327027850406,
-        "BtagSF_LFuncorr": 4.5809818533509935e-05
-      },
-      "syst_error": 0.0019644461903559236,
-      "total_error": 0.003264980093188621
-    },
     "tHq": {
       "events": 0.1691322839469649,
       "stat_error": 0.012659826984211527,
@@ -327,28 +304,28 @@
       "syst_error": 0.007162986241027982,
       "total_error": 0.014545775715283338
     },
-    "ggHToZZTo4L": {
-      "events": 0.7718161153316032,
-      "stat_error": 0.014727528564944737,
+    "WWW": {
+      "events": 0.08922726224409416,
+      "stat_error": 0.008588990522463199,
       "systematics": {
-        "L1Prefire": 0.0010680651661810253,
-        "PileupReweight": 0.0031782373356977365,
-        "PileupJetIDSF": 0.0003911381294508731,
-        "MuonIDSF": 0.0009455814856264454,
-        "DblMuTrigSF": 0.00029104699807941544,
-        "JetEn": 0.012624228239301384,
-        "JetRes": 0.0025672398394030915,
-        "MuonEn": 0.004513039532547221,
+        "L1Prefire": 0.0001644939496336886,
+        "PileupReweight": 0.001376888688851922,
+        "PileupJetIDSF": 5.461744842152521e-05,
+        "MuonIDSF": 0.00016023568882718746,
+        "DblMuTrigSF": 3.606341094953436e-05,
+        "JetEn": 0.0031740941812435117,
+        "JetRes": 0.0012265361113807207,
+        "MuonEn": 0.004209661185968083,
         "ElectronEn": 0.0,
         "ElectronRes": 0.0,
         "UnclusteredEn": 0.0,
-        "BtagSF_HFcorr": 0.0002942339470810816,
-        "BtagSF_HFuncorr": 0.00012422784173173854,
-        "BtagSF_LFcorr": 0.0005694795782214633,
-        "BtagSF_LFuncorr": 0.00020674800420743576
+        "BtagSF_HFcorr": 5.0927010236288504e-05,
+        "BtagSF_HFuncorr": 1.668117280558269e-05,
+        "BtagSF_LFcorr": 0.00010570418932182286,
+        "BtagSF_LFuncorr": 3.606896285534467e-05
       },
-      "syst_error": 0.014112838844522085,
-      "total_error": 0.02039785081528725
+      "syst_error": 0.005591842094015196,
+      "total_error": 0.010248875850519555
     },
     "TTTT": {
       "events": 0.0022518212754221167,
@@ -372,29 +349,6 @@
       },
       "syst_error": 0.00038190038744082455,
       "total_error": 0.0007911064093332255
-    },
-    "VBFHToZZTo4L": {
-      "events": 0.0893666724441573,
-      "stat_error": 0.0018403183946491758,
-      "systematics": {
-        "L1Prefire": 0.00015895038022964715,
-        "PileupReweight": 0.00035988594415504364,
-        "PileupJetIDSF": 3.993643051999969e-05,
-        "MuonIDSF": 0.00011345088007103716,
-        "DblMuTrigSF": 3.593618392909785e-05,
-        "JetEn": 0.001054096686183126,
-        "JetRes": 0.00028285431424068607,
-        "MuonEn": 0.0005274765440631366,
-        "ElectronEn": 0.0,
-        "ElectronRes": 0.0,
-        "UnclusteredEn": 0.0,
-        "BtagSF_HFcorr": 5.3114157182668784e-05,
-        "BtagSF_HFuncorr": 2.0195713686128305e-05,
-        "BtagSF_LFcorr": 6.066944135633792e-05,
-        "BtagSF_LFuncorr": 2.1473567222883446e-05
-      },
-      "syst_error": 0.001283459899394743,
-      "total_error": 0.002243666888608575
     },
     "WZZ": {
       "events": 1.3858036364545114,
@@ -442,28 +396,74 @@
       "syst_error": 0.06205583016241314,
       "total_error": 0.08234136131356942
     },
-    "WWW": {
-      "events": 0.08922726224409416,
-      "stat_error": 0.008588990522463199,
+    "ZZZ": {
+      "events": 0.11187272964525619,
+      "stat_error": 0.002607881549095755,
       "systematics": {
-        "L1Prefire": 0.0001644939496336886,
-        "PileupReweight": 0.001376888688851922,
-        "PileupJetIDSF": 5.461744842152521e-05,
-        "MuonIDSF": 0.00016023568882718746,
-        "DblMuTrigSF": 3.606341094953436e-05,
-        "JetEn": 0.0031740941812435117,
-        "JetRes": 0.0012265361113807207,
-        "MuonEn": 0.004209661185968083,
+        "L1Prefire": 0.0003075859916960249,
+        "PileupReweight": 0.0004886063577061412,
+        "PileupJetIDSF": 8.72623696664048e-05,
+        "MuonIDSF": 0.0002697142897729799,
+        "DblMuTrigSF": 6.251582199821435e-05,
+        "JetEn": 0.001112156849287027,
+        "JetRes": 0.00027579528603773816,
+        "MuonEn": 0.0014360234375109607,
         "ElectronEn": 0.0,
         "ElectronRes": 0.0,
         "UnclusteredEn": 0.0,
-        "BtagSF_HFcorr": 5.0927010236288504e-05,
-        "BtagSF_HFuncorr": 1.668117280558269e-05,
-        "BtagSF_LFcorr": 0.00010570418932182286,
-        "BtagSF_LFuncorr": 3.606896285534467e-05
+        "BtagSF_HFcorr": 0.00020382103507317977,
+        "BtagSF_HFuncorr": 7.738394273660458e-05,
+        "BtagSF_LFcorr": 0.00012917327027850406,
+        "BtagSF_LFuncorr": 4.5809818533509935e-05
       },
-      "syst_error": 0.005591842094015196,
-      "total_error": 0.010248875850519555
+      "syst_error": 0.0019644461903559236,
+      "total_error": 0.003264980093188621
+    },
+    "VBFHToZZTo4L": {
+      "events": 0.0893666724441573,
+      "stat_error": 0.0018403183946491758,
+      "systematics": {
+        "L1Prefire": 0.00015895038022964715,
+        "PileupReweight": 0.00035988594415504364,
+        "PileupJetIDSF": 3.993643051999969e-05,
+        "MuonIDSF": 0.00011345088007103716,
+        "DblMuTrigSF": 3.593618392909785e-05,
+        "JetEn": 0.001054096686183126,
+        "JetRes": 0.00028285431424068607,
+        "MuonEn": 0.0005274765440631366,
+        "ElectronEn": 0.0,
+        "ElectronRes": 0.0,
+        "UnclusteredEn": 0.0,
+        "BtagSF_HFcorr": 5.3114157182668784e-05,
+        "BtagSF_HFuncorr": 2.0195713686128305e-05,
+        "BtagSF_LFcorr": 6.066944135633792e-05,
+        "BtagSF_LFuncorr": 2.1473567222883446e-05
+      },
+      "syst_error": 0.001283459899394743,
+      "total_error": 0.002243666888608575
+    },
+    "ggHToZZTo4L": {
+      "events": 0.7718161153316032,
+      "stat_error": 0.014727528564944737,
+      "systematics": {
+        "L1Prefire": 0.0010680651661810253,
+        "PileupReweight": 0.0031782373356977365,
+        "PileupJetIDSF": 0.0003911381294508731,
+        "MuonIDSF": 0.0009455814856264454,
+        "DblMuTrigSF": 0.00029104699807941544,
+        "JetEn": 0.012624228239301384,
+        "JetRes": 0.0025672398394030915,
+        "MuonEn": 0.004513039532547221,
+        "ElectronEn": 0.0,
+        "ElectronRes": 0.0,
+        "UnclusteredEn": 0.0,
+        "BtagSF_HFcorr": 0.0002942339470810816,
+        "BtagSF_HFuncorr": 0.00012422784173173854,
+        "BtagSF_LFcorr": 0.0005694795782214633,
+        "BtagSF_LFuncorr": 0.00020674800420743576
+      },
+      "syst_error": 0.014112838844522085,
+      "total_error": 0.02039785081528725
     }
   },
   "categories": {
@@ -480,21 +480,21 @@
       "events": 0.15920943301171064,
       "stat_error": 0.15026829726437124,
       "systematics": {
-        "BtagSF_HFuncorr": 0.007442547911587111,
-        "BtagSF_HFcorr": 0.043382529648554304,
-        "BtagSF_LFuncorr": 0.00039643962653592666,
-        "UnclusteredEn": 0.0,
-        "MuonIDSF": 0.000825317334224767,
-        "BtagSF_LFcorr": 0.001087895595310225,
-        "PileupReweight": 0.007999512033222276,
-        "L1Prefire": 0.0014339551154572082,
-        "MuonEn": 0.013045465089753011,
-        "ElectronRes": 0.0,
         "DblMuTrigSF": 0.00020978999642931332,
-        "JetEn": 0.00038692904668699487,
-        "PileupJetIDSF": 0.0008296609547768045,
+        "JetRes": 2.7852935612389986e-05,
+        "L1Prefire": 0.0014339551154572082,
         "ElectronEn": 0.0,
-        "JetRes": 2.7852935612389986e-05
+        "JetEn": 0.00038692904668699487,
+        "BtagSF_LFuncorr": 0.00039643962653592666,
+        "MuonIDSF": 0.000825317334224767,
+        "PileupReweight": 0.007999512033222276,
+        "BtagSF_HFcorr": 0.043382529648554304,
+        "MuonEn": 0.013045465089753011,
+        "UnclusteredEn": 0.0,
+        "PileupJetIDSF": 0.0008296609547768045,
+        "ElectronRes": 0.0,
+        "BtagSF_LFcorr": 0.001087895595310225,
+        "BtagSF_HFuncorr": 0.007442547911587111
       },
       "syst_error": 0.04665375275898362,
       "total_error": 0.15734399832605567
@@ -503,22 +503,22 @@
       "events": 10.112156389339361,
       "stat_error": 0.21374077291783186,
       "systematics": {
-        "BtagSF_HFuncorr": 0.042859507215251696,
-        "BtagSF_HFcorr": 0.12060178478655495,
+        "DblMuTrigSF": 0.0035716825430696865,
+        "JetRes": 0.021787794076846504,
+        "L1Prefire": 0.020077377991980953,
+        "ElectronEn": 0.0020787715911865234,
+        "JetEn": 0.05984755837660713,
         "BtagSF_LFuncorr": 0.002388807660098579,
+        "MuonIDSF": 0.01616037300950375,
+        "PileupReweight": 0.040643919662500985,
+        "BtagSF_HFcorr": 0.12060178478655495,
+        "MuonEn": 0.09700731924843259,
         "xsec": 0.5535714302608385,
         "UnclusteredEn": 0.0,
-        "MuonIDSF": 0.01616037300950375,
-        "BtagSF_LFcorr": 0.00676479197143469,
-        "PileupReweight": 0.040643919662500985,
-        "L1Prefire": 0.020077377991980953,
-        "MuonEn": 0.09700731924843259,
-        "ElectronRes": 0.0020787715911865234,
-        "DblMuTrigSF": 0.0035716825430696865,
-        "JetEn": 0.05984755837660713,
         "PileupJetIDSF": 0.005782219077776202,
-        "ElectronEn": 0.0020787715911865234,
-        "JetRes": 0.021787794076846504
+        "ElectronRes": 0.0020787715911865234,
+        "BtagSF_LFcorr": 0.00676479197143469,
+        "BtagSF_HFuncorr": 0.042859507215251696
       },
       "syst_error": 0.5819900375373656,
       "total_error": 0.6199980014485985
@@ -527,22 +527,22 @@
       "events": 229.52963657397777,
       "stat_error": 2.657414650970422,
       "systematics": {
-        "BtagSF_HFuncorr": 0.05932529772338986,
-        "BtagSF_HFcorr": 0.15049581093970424,
+        "DblMuTrigSF": 0.09596865894594062,
+        "JetRes": 0.32112452248861045,
+        "L1Prefire": 0.4285184810658231,
+        "ElectronEn": 0.0,
+        "JetEn": 2.2985144134991096,
         "BtagSF_LFuncorr": 0.07975303068016319,
+        "MuonIDSF": 0.42584648550009546,
+        "PileupReweight": 1.0043796690071594,
+        "BtagSF_HFcorr": 0.15049581093970424,
+        "MuonEn": 1.4774140732364753,
         "xsec": 46.00200874332479,
         "UnclusteredEn": 0.0,
-        "MuonIDSF": 0.42584648550009546,
-        "BtagSF_LFcorr": 0.229476222233966,
-        "PileupReweight": 1.0043796690071594,
-        "L1Prefire": 0.4285184810658231,
-        "MuonEn": 1.4774140732364753,
-        "ElectronRes": 0.0,
-        "DblMuTrigSF": 0.09596865894594062,
-        "JetEn": 2.2985144134991096,
         "PileupJetIDSF": 0.10976555359564212,
-        "ElectronEn": 0.0,
-        "JetRes": 0.32112452248861045
+        "ElectronRes": 0.0,
+        "BtagSF_LFcorr": 0.229476222233966,
+        "BtagSF_HFuncorr": 0.05932529772338986
       },
       "syst_error": 46.10026083324114,
       "total_error": 46.176789640684845
@@ -551,21 +551,21 @@
       "events": 6.689085204619914,
       "stat_error": 0.060848201800089055,
       "systematics": {
-        "BtagSF_HFuncorr": 0.0029275124067175834,
-        "BtagSF_HFcorr": 0.007217752115126308,
-        "BtagSF_LFuncorr": 0.0023262795551904536,
-        "UnclusteredEn": 0.0,
-        "MuonIDSF": 0.013680501537178159,
-        "BtagSF_LFcorr": 0.006711061496713433,
-        "PileupReweight": 0.023575224787150947,
-        "L1Prefire": 0.012564695056508675,
-        "MuonEn": 0.04968061343363928,
-        "ElectronRes": 0.0,
         "DblMuTrigSF": 0.0028611979334086978,
-        "JetEn": 0.029129033716558665,
-        "PileupJetIDSF": 0.0031739673262386305,
+        "JetRes": 0.005591697311929336,
+        "L1Prefire": 0.012564695056508675,
         "ElectronEn": 0.0,
-        "JetRes": 0.005591697311929336
+        "JetEn": 0.029129033716558665,
+        "BtagSF_LFuncorr": 0.0023262795551904536,
+        "MuonIDSF": 0.013680501537178159,
+        "PileupReweight": 0.023575224787150947,
+        "BtagSF_HFcorr": 0.007217752115126308,
+        "MuonEn": 0.04968061343363928,
+        "UnclusteredEn": 0.0,
+        "PileupJetIDSF": 0.0031739673262386305,
+        "ElectronRes": 0.0,
+        "BtagSF_LFcorr": 0.006711061496713433,
+        "BtagSF_HFuncorr": 0.0029275124067175834
       },
       "syst_error": 0.0661674139047195,
       "total_error": 0.0898923262861899
@@ -575,23 +575,23 @@
     "events": 319.4532748493948,
     "stat_error": 6.558882813397728,
     "systematics": {
-      "BtagSF_HFuncorr": 0.07362329900928655,
+      "DblMuTrigSF": 0.09607794170113908,
+      "JetRes": 0.3219113771970283,
+      "L1Prefire": 0.4291749264706982,
+      "BtagSF_LFuncorr": 0.07982368724667122,
+      "JetEn": 2.299477960239268,
+      "MuonIDSF": 0.42637333891743306,
+      "PileupReweight": 1.0055099358718427,
       "BtagSF_HFcorr": 0.1978077840440179,
       "nonprompt_rate": 10.299522469473727,
-      "BtagSF_LFuncorr": 0.07982368724667122,
+      "MuonEn": 1.4814861157957273,
       "xsec": 46.00533936131035,
       "UnclusteredEn": 0.0,
-      "MuonIDSF": 0.42637333891743306,
-      "BtagSF_LFcorr": 0.22967655701971043,
-      "PileupReweight": 1.0055099358718427,
-      "L1Prefire": 0.4291749264706982,
-      "MuonEn": 1.4814861157957273,
-      "ElectronRes": 0.0020787715911865234,
-      "DblMuTrigSF": 0.09607794170113908,
-      "JetEn": 2.299477960239268,
-      "PileupJetIDSF": 0.109966691409304,
       "ElectronEn": 0.0020787715911865234,
-      "JetRes": 0.3219113771970283
+      "ElectronRes": 0.0020787715911865234,
+      "BtagSF_LFcorr": 0.22967655701971043,
+      "PileupJetIDSF": 0.109966691409304,
+      "BtagSF_HFuncorr": 0.07362329900928655
     },
     "syst_error": 47.24044325676002,
     "total_error": 47.693588907263496
