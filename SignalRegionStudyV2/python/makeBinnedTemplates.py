@@ -16,9 +16,10 @@ import numpy as np
 from math import sqrt
 
 from template_utils import (
+    BIN_FLOOR_VALUE,
     save_json, parse_variations, get_output_tree_name, combine_suffix_from_tree,
-    ensure_positive_integral, build_particlenet_score, create_filtered_rdf,
-    create_scaled_hist, is_run3_era, is_signal_scaled_from_run2,
+    ensure_positive_integral, cap_stat_errors, build_particlenet_score,
+    create_filtered_rdf, create_scaled_hist, is_run3_era, is_signal_scaled_from_run2,
     get_run2_tree_name_for_run3_syst, categorize_systematics,
     calculate_adaptive_bins, check_binning_quality, apply_syst_driven_merging,
     iter_shape_directions
@@ -34,9 +35,6 @@ SYST_MERGE_THRESHOLD = 2.0
 # When using --partial-unblind, signal is scaled by this factor
 # The resulting limit on r should be interpreted as limit on (PARTIAL_UNBLIND_SIGNAL_SCALE × σ)
 PARTIAL_UNBLIND_SIGNAL_SCALE = 50
-
-# Floor value for empty/problematic bins when adaptive binning is exhausted
-BIN_FLOOR_VALUE = 1e-6
 
 
 def parse_args():
@@ -442,7 +440,15 @@ def getDataHist(basedir, bin_edges, mass_min, mass_max,
 def validateBackgroundStatistics(basedir, bin_edges, mass_min, mass_max,
                                   background_categories, masspoint, threshold=-999.,
                                   upper_threshold=None, bg_weights=None, min_total_events=1):
-    """Validate statistical quality of each background process."""
+    """Validate statistical quality of each background process.
+
+    Returns a dict of {process: {total_events, status, reason}} where status is
+    one of: 'present', 'low_stat', 'empty', 'missing_file'.
+
+    The 'decision' key (kept for backward compat) mirrors 'status' but is no
+    longer used to drive the process list — all processes except missing-file
+    cases are kept as separate columns regardless of yield.
+    """
     logging.info("Validating background statistics...")
     nbins = len(bin_edges) - 1
     results = {}
@@ -454,10 +460,11 @@ def validateBackgroundStatistics(basedir, bin_edges, mass_min, mass_max,
 
         file_path = f"{basedir}/{process}.root"
         if not os.path.exists(file_path):
-            logging.warning(f"    File not found, will merge to others")
+            logging.error(f"    {process}: sample file not found — will be dropped from this era/channel")
             results[process] = {
                 "total_events": 0,
-                "decision": "merge",
+                "status": "missing_file",
+                "decision": "missing_file",
                 "reason": "file not found"
             }
             continue
@@ -491,55 +498,66 @@ def validateBackgroundStatistics(basedir, bin_edges, mass_min, mass_max,
             logging.warning(f"    Error processing {process}: {e}")
             total_events = 0
 
-        if total_events < min_total_events:
-            decision = "merge"
-            reason = f"total events ({total_events:.2f}) < {min_total_events}"
+        if total_events <= 0:
+            status = "empty"
+            reason = f"total events ({total_events:.2f}) <= 0"
+        elif total_events < min_total_events:
+            status = "low_stat"
+            reason = f"total events ({total_events:.2f}) < {min_total_events} (low statistics)"
+            logging.warning(f"    {process}: {reason} — kept as separate column; "
+                            f"low-stat handling (floor + shape→lnN fallback) will apply")
         else:
-            decision = "keep"
+            status = "present"
             reason = "passes statistical requirements"
 
         results[process] = {
             "total_events": total_events,
-            "decision": decision,
+            "status": status,
+            "decision": status,   # backward compat alias
             "reason": reason
         }
 
-        logging.info(f"    Total events: {total_events:.2f}")
-        logging.info(f"    Decision: {decision.upper()} ({reason})")
+        logging.info(f"    Total events: {total_events:.2f}, status: {status}")
 
     return results
 
 
 def determineProcessList(validation_results, background_categories):
-    """Determine final process list based on validation."""
-    # Nonprompt is always kept separate because its transfer-factor uncertainty
-    # is attached to its own column. Conversion can be merged into `others`:
-    # ConvSF is baked in as a per-sample K-factor at preprocess time, and the
-    # CMS_B2G25013_Norm_conversion_* lnN naturally drops out when conversion
-    # no longer has its own column (group filter in printDatacard.py).
-    always_separate = ["nonprompt"]
-    separate_processes = ["nonprompt"]  # nonprompt is always first
-    merged_to_others = []
+    """Determine final process list.
 
-    for category in background_categories:
-        # Map category name to output file name
-        process = "conversion" if category == "conv" else category
+    All MC backgrounds are kept as separate columns regardless of yield so that
+    the same NP names appear in every era's datacard, preserving cross-era
+    correlations in Combine. Processes whose sample file is physically absent
+    are recorded in 'dropped_missing' and omitted for this era only.
+    """
+    # Static list: nonprompt first, then all MC background categories in order
+    static_separate = ["nonprompt"] + [
+        ("conversion" if c == "conv" else c) for c in background_categories
+    ]
 
-        if process in always_separate:
-            if process not in separate_processes:
-                separate_processes.append(process)
-            logging.info(f"  {process}: always kept separate (dedicated normalization)")
-        elif process in validation_results and validation_results[process]["decision"] == "keep":
-            separate_processes.append(process)
-            logging.info(f"  {process}: keeping as separate process")
+    separate_processes = []
+    dropped_missing = []
+
+    for process in static_separate:
+        v = validation_results.get(process, {})
+        status = v.get("status", "present")
+
+        if status == "missing_file":
+            dropped_missing.append(process)
+            logging.error(f"  {process}: dropped (sample file missing for this era/channel)")
         else:
-            merged_to_others.append(process)
-            reason = validation_results.get(process, {}).get("reason", "not validated")
-            logging.info(f"  {process}: merging to others ({reason})")
+            separate_processes.append(process)
+            if status == "low_stat":
+                logging.warning(f"  {process}: low-stat but kept separate (NP correlation preserved)")
+            elif status == "empty":
+                logging.warning(f"  {process}: zero yield but kept separate (floor + fallback will apply)")
+            else:
+                logging.info(f"  {process}: kept separate")
 
     return {
         "separate_processes": separate_processes,
-        "merged_to_others": merged_to_others,
+        "merged_to_others": [],
+        "dropped_missing": dropped_missing,
         "validation_results": validation_results
     }
 
@@ -889,7 +907,8 @@ def main():
     save_json({
         process: {
             "total_events": float(result["total_events"]),
-            "decision": result["decision"],
+            "status": result["status"],
+            "decision": result["decision"],   # backward compat
             "reason": result["reason"]
         }
         for process, result in validation_results.items()
@@ -899,17 +918,19 @@ def main():
     logging.info("Determining final process list...")
     process_config = determineProcessList(validation_results, background_categories)
     separate_processes = process_config["separate_processes"]
-    merged_to_others = process_config["merged_to_others"]
+    dropped_missing = process_config["dropped_missing"]
 
     save_json({
         "separate_processes": separate_processes,
-        "merged_to_others": merged_to_others,
-        "description": "Processes kept separate vs merged into 'others' based on statistical validation"
+        "merged_to_others": [],
+        "dropped_missing": dropped_missing,
+        "description": "Static process list — all MC backgrounds kept separate for cross-era NP correlation"
     }, f"{outdir}/process_list.json")
 
     logging.info(f"Final process configuration:")
     logging.info(f"  Separate processes: {separate_processes}")
-    logging.info(f"  Merged to others: {merged_to_others}")
+    if dropped_missing:
+        logging.error(f"  Dropped (missing files): {dropped_missing}")
 
     # ========================================
     # Adaptive Binning Loop
@@ -920,7 +941,7 @@ def main():
 
     apply_floor = False
     n_core_final = 15
-    others_process_list = ["others"] + merged_to_others
+    others_process_list = ["others"]
 
     for n_core in [15, 13, 11, 9, 7, 5]:
         candidate_edges = calculate_adaptive_bins(x0, sigma_eff, n_core)
@@ -932,16 +953,14 @@ def main():
             try:
                 h = getHist(basedir, process, candidate_edges, mass_min, mass_max,
                             "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
-                ensure_positive_integral(h)
                 test_hists[process] = h
             except (FileNotFoundError, RuntimeError):
                 pass
 
-        # Others (merged)
+        # Others (static rare-SM bucket)
         try:
             h_others = getHistMerged(basedir, others_process_list, candidate_edges, mass_min, mass_max,
                                      "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
-            ensure_positive_integral(h_others)
             test_hists["others"] = h_others
         except (FileNotFoundError, RuntimeError):
             pass
@@ -1015,6 +1034,7 @@ def main():
     if args.partial_unblind:
         hist_signal_central.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
     ensure_positive_integral(hist_signal_central)
+    cap_stat_errors(hist_signal_central)
     signal_map["nominal"] = hist_signal_central
 
     # Preprocessed shape systematics (Up/Down pairs, list or dict form)
@@ -1038,6 +1058,7 @@ def main():
                 if args.partial_unblind:
                     hist.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
                 ensure_positive_integral(hist)
+                cap_stat_errors(hist)
                 signal_map[combine_suffix] = hist
             except (FileNotFoundError, RuntimeError) as e:
                 logging.warning(f"    Skipping {syst_name}/{direction}: {e}")
@@ -1052,6 +1073,7 @@ def main():
         for direction in ["up", "down"]:
             hist = create_scaled_hist(hist_signal_central, args.masspoint, syst_name, value, direction)
             ensure_positive_integral(hist)
+            cap_stat_errors(hist)
             suffix = f"{syst_name}Up" if direction == "up" else f"{syst_name}Down"
             signal_map[suffix] = hist
 
@@ -1080,6 +1102,8 @@ def main():
                 hist_down.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
             ensure_positive_integral(hist_up)
             ensure_positive_integral(hist_down)
+            cap_stat_errors(hist_up)
+            cap_stat_errors(hist_down)
             signal_map[f"{syst_name}Up"] = hist_up
             signal_map[f"{syst_name}Down"] = hist_down
         except RuntimeError as e:
@@ -1098,7 +1122,8 @@ def main():
         # Central histogram
         hist_central = getHist(basedir, process, bin_edges, mass_min, mass_max,
                                "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
-        ensure_positive_integral(hist_central)
+        ensure_positive_integral(hist_central, floor_mode="zero")
+        cap_stat_errors(hist_central)
         if not (args.unblind or args.partial_unblind):
             data_obs.Add(hist_central)
         proc_map["nominal"] = hist_central
@@ -1112,7 +1137,8 @@ def main():
                     continue
                 for direction in ["up", "down"]:
                     hist = create_scaled_hist(hist_central, process, syst_name, value, direction)
-                    ensure_positive_integral(hist)
+                    ensure_positive_integral(hist, floor_mode="zero")
+                    cap_stat_errors(hist)
                     suffix = f"{syst_name}Up" if direction == "up" else f"{syst_name}Down"
                     proc_map[suffix] = hist
         else:
@@ -1126,7 +1152,8 @@ def main():
                     try:
                         hist = getHist(basedir, process, bin_edges, mass_min, mass_max,
                                       output_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
-                        ensure_positive_integral(hist)
+                        ensure_positive_integral(hist, floor_mode="zero")
+                        cap_stat_errors(hist)
                         variation_suffix = combine_suffix_from_tree(output_tree)
                         hist.SetName(f"{process}_{variation_suffix}")
                         proc_map[variation_suffix] = hist
@@ -1139,7 +1166,8 @@ def main():
                     continue
                 for direction in ["up", "down"]:
                     hist = create_scaled_hist(hist_central, process, syst_name, value, direction)
-                    ensure_positive_integral(hist)
+                    ensure_positive_integral(hist, floor_mode="zero")
+                    cap_stat_errors(hist)
                     suffix = f"{syst_name}Up" if direction == "up" else f"{syst_name}Down"
                     proc_map[suffix] = hist
 
@@ -1158,6 +1186,7 @@ def main():
     hist_others = getHistMerged(basedir, others_process_list, bin_edges, mass_min, mass_max,
                                 "Central", best_threshold, upper_threshold, bg_weights, args.masspoint)
     ensure_positive_integral(hist_others)
+    cap_stat_errors(hist_others)
     if not (args.unblind or args.partial_unblind):
         data_obs.Add(hist_others)
     others_map["nominal"] = hist_others
@@ -1179,6 +1208,7 @@ def main():
                 hist = getHistMerged(basedir, others_process_list, bin_edges, mass_min, mass_max,
                                     output_tree, best_threshold, upper_threshold, bg_weights, args.masspoint)
                 ensure_positive_integral(hist)
+                cap_stat_errors(hist)
                 variation_suffix = combine_suffix_from_tree(output_tree)
                 hist.SetName(f"others_{variation_suffix}")
                 others_map[variation_suffix] = hist
@@ -1193,6 +1223,7 @@ def main():
         for direction in ["up", "down"]:
             hist = create_scaled_hist(hist_others, "others", syst_name, value, direction)
             ensure_positive_integral(hist)
+            cap_stat_errors(hist)
             suffix = f"{syst_name}Up" if direction == "up" else f"{syst_name}Down"
             others_map[suffix] = hist
 
@@ -1204,26 +1235,20 @@ def main():
     # Pre-merge: apply floor if adaptive binning exhausted its options
     # ========================================
     if apply_floor:
-        logging.warning("Applying bin floor to empty/problematic bins (nominal + syst variations)")
+        logging.warning("Applying bin floor/zero to empty/problematic bins (nominal + syst variations)")
         for process in separate_processes + ["others"]:
             proc_map = templates.get(process, {})
+            mode = "floor" if process == "others" else "zero"
             patched = 0
             for h in proc_map.values():
                 if not h:
                     continue
-                modified = False
-                for i in range(1, h.GetNbinsX() + 1):
-                    if h.GetBinContent(i) <= 0:
-                        h.SetBinContent(i, BIN_FLOOR_VALUE)
-                        h.SetBinError(i, BIN_FLOOR_VALUE)  # 100% error
-                        modified = True
-                    elif h.GetBinError(i) / h.GetBinContent(i) > 1.0:
-                        h.SetBinError(i, h.GetBinContent(i))  # cap at 100%
-                        modified = True
-                if modified:
+                m1 = ensure_positive_integral(h, floor_mode=mode)
+                m2 = cap_stat_errors(h)
+                if m1 or m2:
                     patched += 1
             if patched > 0:
-                logging.warning(f"  Patched {process}: {patched} histogram(s)")
+                logging.warning(f"  Patched {process}: {patched} histogram(s) ({mode})")
 
     # ========================================
     # Post-binning syst-driven bin merging
@@ -1319,8 +1344,8 @@ def main():
         logging.info(f"  {process.capitalize():23s} {background_hists[process].Integral():>10.4f}")
 
     logging.info(f"  {'Others':23s} {background_hists['others'].Integral():>10.4f}")
-    if merged_to_others:
-        logging.info(f"    (merged: {', '.join(merged_to_others)})")
+    if dropped_missing:
+        logging.info(f"    (dropped missing: {', '.join(dropped_missing)})")
 
     logging.info(f"  Total background:            {data_obs.Integral():>10.4f}")
     if data_obs.Integral() > 0:

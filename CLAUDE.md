@@ -14,8 +14,9 @@ source setup.sh   # REQUIRED before any work
 
 ## Common/Tools/ — Shared Framework
 
-- `DataFormat.py`: Particle/Lepton/Electron/Muon classes (extends ROOT.TLorentzVector); lepton type classification (prompt, fromTau, conv, fromC, fromB, fake)
+- `HistoUtils.py`: Histogram utility helpers shared across modules
 - `plotter.py`: `ComparisonCanvas` (data vs MC + ratio), `KinematicCanvas` (multi-sample); CMS style, luminosity labels
+- `cpp/`: Compiled C++ helpers loaded by Python
 
 ## Key Analysis Modules
 
@@ -33,6 +34,8 @@ Each module has its own `CLAUDE.md` with commands and details.
 | `MeasJetTagEff/` | b-tagging (DeepJet) efficiency |
 | `TriggerStrategy/` | Trigger acceptance comparison study |
 | `SignalRegionStudyV2/` | **Current baseline** signal region + limit extraction |
+| `SignalRegionStudyV1/` | Legacy signal region module (deprecated; use V2) |
+| `SignalRegionStudyV3/` | In-progress next-generation signal region study |
 | `SignalRegionStudy/` | Legacy limit extraction (C++/CMake) |
 | `ParticleNet/` | GNN classifier for signal/background discrimination |
 | `ParticleNetMD/` | Mass-decorrelated variant (DisCo loss) |

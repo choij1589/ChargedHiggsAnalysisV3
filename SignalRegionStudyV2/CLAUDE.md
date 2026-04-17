@@ -9,7 +9,7 @@ SignalRegionStudyV2 is the **current baseline** for charged Higgs signal region 
 **Key features vs V1:**
 - Run3 signal scaling from 2018 (cross-section and luminosity ratios)
 - Multi-channel/era combination (SR1E2Mu + SR3Mu → Combined; Run2, Run3, All)
-- Extended 19-bin binning scheme (±10σ capturing mass resolution sidebands)
+- Extended 17-bin binning scheme (±10σ capturing mass resolution sidebands)
 - ParticleNet MVA method with optimized score threshold
 - Full HTCondor DAGMan workflow with dependency management
 
@@ -114,18 +114,30 @@ plotLimits.py           → results/plots/limit.*.png (Brazilian band plots)
 SignalRegionStudyV2/
 ├── setup.sh                          # Module environment setup (source this!)
 ├── python/
-│   ├── preprocess.py                 # Preprocess samples → trees with systematics
-│   ├── makeBinnedTemplates.py        # Generate histogram templates for HiggsCombine
-│   ├── template_utils.py             # Shared: binning, ParticleNet scoring, syst handling
-│   ├── checkTemplates.py             # Validate templates + diagnostic plots
-│   ├── printDatacard.py              # Generate HiggsCombine datacard
-│   ├── combineDatacards.py           # Combine datacards across channels/eras
-│   ├── collectLimits.py              # Collect limit values from ROOT outputs
-│   ├── plotLimits.py                 # Plot exclusion limits (Brazilian bands)
-│   ├── plotParticleNetScore.py       # Plot ParticleNet score distributions
-│   ├── plotBiasTest.py               # Post-fit bias test plots
-│   ├── filterImpacts.py              # Filter systematic impacts
-│   └── extractInjectionResults.py    # Extract signal injection results
+│   ├── preprocess.py                         # Preprocess samples → trees with systematics
+│   ├── makeBinnedTemplates.py                # Generate histogram templates for HiggsCombine
+│   ├── template_utils.py                     # Shared: binning, ParticleNet scoring, syst handling
+│   ├── checkTemplates.py                     # Validate templates + diagnostic plots
+│   ├── printDatacard.py                      # Generate HiggsCombine datacard
+│   ├── printDatacardCnC.py                   # Datacard generator for cut-and-count variant
+│   ├── combineDatacards.py                   # Combine datacards across channels/eras
+│   ├── combineDatacardsCnC.py                # Era combination for cut-and-count datacards
+│   ├── collectLimits.py                      # Collect limit values from ROOT outputs
+│   ├── plotLimits.py                         # Plot exclusion limits (Brazilian bands)
+│   ├── plotLimits2D.py                       # 2D exclusion limit plots
+│   ├── plotParticleNetScore.py               # Plot ParticleNet score distributions
+│   ├── plotPostfit.py                        # Post-fit distribution plots
+│   ├── plotPostfitMass.py                    # Post-fit mass distribution plots
+│   ├── plotBiasTest.py                       # Post-fit bias test plots
+│   ├── plotHybridNewGrid.py                  # HybridNew r-scan grid visualization
+│   ├── plotCombinedMass.py                   # Combined mass distribution plots
+│   ├── plotTestStatDist.py                   # Test statistic distribution plots
+│   ├── filterImpacts.py                      # Filter systematic impacts
+│   ├── extractInjectionResults.py            # Extract signal injection results
+│   ├── generate_interpolated_templates.py    # Generate mass-interpolated templates
+│   ├── scanBinning.py                        # Scan adaptive binning choices
+│   ├── test_interpolation.py                 # Unit tests for template interpolation
+│   └── test_rate_ratio.py                    # Unit tests for rate ratio calculations
 ├── configs/
 │   ├── samplegroups.json             # Sample lists per era/channel
 │   ├── masspoints.json               # Central mass point arrays (all subsets)
@@ -139,14 +151,28 @@ SignalRegionStudyV2/
 │   ├── hybridnew.sh                  # Batch HybridNew limit calculation (--test for subset)
 │   ├── impact.sh                     # Batch systematic impacts
 │   ├── signalInjection.sh            # Batch signal injection
-│   └── plotLimits.sh                 # Batch limit plotting
+│   ├── gof.sh                        # Batch goodness-of-fit tests
+│   ├── partialExtract.sh             # Batch partial result extraction
+│   ├── plotPostfit.sh                # Batch post-fit distribution plotting
+│   ├── plotPostfitMass.sh            # Batch post-fit mass distribution plotting
+│   ├── runAsymptoticCnC.sh           # Batch asymptotic limits (cut-and-count)
+│   └── submitPlotScore.sh            # Submit ParticleNet score plotting jobs
 ├── scripts/
 │   ├── runAsymptotic.sh              # Single asymptotic limit calculation
+│   ├── runAsymptoticCnC.sh           # Single asymptotic limit (cut-and-count)
 │   ├── runHybridNew.sh               # Single HybridNew calculation
 │   ├── runSignalInjection.sh         # Single signal injection
 │   ├── runImpacts.sh                 # Single impacts calculation
+│   ├── runFitDiagnostics.sh          # Single fit diagnostics run
+│   ├── runGoF.sh                     # Single goodness-of-fit run
+│   ├── runPullPlots.sh               # Generate pull plots
+│   ├── collectLimits.sh              # Shell wrapper for limit collection
+│   ├── copyDatacards.sh              # Copy datacards between directories
+│   ├── plotLimits.sh                 # Shell wrapper for limit plotting
 │   ├── preprocess_wrapper.sh         # HTCondor wrapper for preprocess jobs
 │   ├── makeBinnedTemplates_wrapper.sh # HTCondor wrapper for template DAG steps
+│   ├── partialExtract_wrapper.sh     # HTCondor wrapper for partial extraction
+│   ├── plotPostfitMass_wrapper.sh    # HTCondor wrapper for post-fit mass plots
 │   ├── plotScore_wrapper.sh          # HTCondor wrapper for score plotting
 │   └── rsync_templates.sh            # Template synchronization
 ├── templates/                        # Generated histogram templates (output)
@@ -157,7 +183,7 @@ SignalRegionStudyV2/
 │       ├── binning.json              # Bin edges and mass window
 │       ├── background_weights.json   # ParticleNet class weights (if ParticleNet)
 │       ├── threshold.json            # Optimized score threshold (if ParticleNet)
-│       ├── process_list.json         # {separate_processes, merged_to_others}
+│       ├── process_list.json         # {separate_processes, static_separate, dropped_missing, merged_to_others} (merged_to_others always [])
 │       ├── lowstat.json              # Low-stat process fallbacks
 │       ├── validation/               # Diagnostic plots
 │       └── combine_output/           # HiggsCombine outputs (asymptotic, hybridnew, impacts)
@@ -259,7 +285,7 @@ python3 python/plotLimits.py --era Run2 --method Baseline --limit_type Asymptoti
 
 ## Binning Schemes
 
-**Extended (default, 19 bins):** ±10σ coverage; uniform 15-bin core (±5σ) + 4 extra tail bins at ±7σ/±10σ.
+**Extended (default, 17 bins):** ±10σ coverage; 15-bin uniform core (±5σ) + 2 merged sideband bins: [-10σ, -5σ] and [+5σ, +10σ].
 
 **Uniform (15 bins):** Simple uniform bins covering ±5σ only.
 
@@ -267,9 +293,11 @@ Bin edges calculated from A-mass fit parameters (mA, width, sigma) via `template
 
 ## A-Mass Fitting
 
-- **SR1E2Mu:** RooFit Voigt function fit to signal mass1 distribution → (mA, width, sigma)
-- **SR3Mu:** Loads fit results from SR1E2Mu (must process SR1E2Mu first!)
-- Output: `signal_fit.json` and `fit_result.root`
+- **Both channels:** Unbinned DCB (Double Crystal Ball) fit to signal mass1 distribution,
+  two-step: pre-fit (mA ± mA/3) to locate peak, then narrow fit (fitted_mA ± 10·vw) →
+  parameters (x0, vw, sl, nl, sr, nr, sigma_eff). SR1E2Mu and SR3Mu fit independently.
+- Output: `signal_fit.json` and `signal_fit.png`
+- Implemented by `getFitResultDCB` in `python/makeBinnedTemplates.py:96`
 
 ## Systematic Handling (template_utils.py)
 
@@ -296,10 +324,9 @@ Three systematic types:
 `automize/makeBinnedTemplates.sh` builds and submits a DAG that respects pipeline dependencies:
 
 **Key dependencies:**
-1. SR1E2Mu template → SR3Mu template (fit results needed)
-2. Both channel templates → Datacards
-3. Datacards → Validation → Channel combination
-4. Per-era asymptotics → Era combination → Combined asymptotics
+1. Both channel templates → Datacards (SR1E2Mu and SR3Mu run in parallel — each fits A-mass independently)
+2. Datacards → Validation → Channel combination
+3. Per-era asymptotics → Era combination → Combined asymptotics
 
 **All `automize/` scripts are condor-only.** The `--condor` flag is accepted for backwards compatibility but is a no-op.
 
@@ -373,11 +400,9 @@ $WORKDIR/SKNanoOutput/PromptAnalyzer/Run1E2Mu/{era}/{data}.root
 
 **"WORKDIR not set":** Source `setup.sh` inside the SignalRegionStudyV2 directory.
 
-**SR3Mu fit not found:** SR1E2Mu must be processed first — it generates `signal_fit.json` needed by SR3Mu template generation.
-
 **Run3 signal missing:** Check `configs/scaling.json` for correct scaling factors. Use `--scale-from-run2` if Run3 MC is not available.
 
-**Low-stat process merging:** Expected behavior for rare backgrounds. Check `process_list.json` for the final background configuration after merging.
+**Low-stat backgrounds:** All MC processes are always-separate columns (static list across all eras) to preserve cross-era NP correlation. Low-stat handling is done by `ensure_positive_integral(floor_mode)` + `cap_stat_errors` + S1 shape→lnN fallback (rel_err > 30%). Individual backgrounds use `floor_mode="zero"` (empty bins → 0, skipped by autoMCStats); signal and `others` use `floor_mode="floor"` (empty bins → 1e-6). Adaptive binning requires `n_eff >= 5` per bin to match autoMCStats threshold. See `docs/LOWSTAT.md`. Physically-missing samples appear in `process_list.json` → `dropped_missing` (logged as ERROR).
 
 **ParticleNet scores missing / wrong mass point:** Only the 3 trained mass points are supported for ParticleNet method (see `configs/masspoints.json` → `particlenet`). Other mass points must use Baseline.
 

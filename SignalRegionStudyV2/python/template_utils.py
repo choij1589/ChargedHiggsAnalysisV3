@@ -8,6 +8,9 @@ from array import array
 import ROOT
 import numpy as np
 
+BIN_FLOOR_VALUE = 1e-6
+AUTOMC_THRESHOLD = 5  # Combine autoMCStats threshold for BB-lite vs per-process
+
 
 def save_json(data, path):
     """Save data to JSON file."""
@@ -120,24 +123,60 @@ def calculate_weight_scale(value, direction):
     return 1.0 + value if direction == 'up' else 1.0 - value
 
 
-def ensure_positive_integral(hist, min_integral=1e-10):
-    """Ensure histogram has positive integral for Combine normalization."""
+def ensure_positive_integral(hist, floor_mode="floor"):
+    """Handle non-positive bins in histograms.
+
+    Args:
+        hist: ROOT TH1 histogram.
+        floor_mode: "floor" sets empty/negative bins to BIN_FLOOR_VALUE (1e-6).
+                    "zero" sets them to exactly 0 (content and error).
+
+    floor_mode="floor" (default, for signal and 'others'):
+      Guarantees positive bin content so Combine's vertical morphing has no
+      divide-by-zero, and the total background is never empty in any bin.
+
+    floor_mode="zero" (for individual background processes):
+      Sets empty/negative bins to content=0, error=0. Combine sees sigma_p=0
+      for this process in this bin and skips it in autoMCStats — no phantom NP.
+    """
     modified = False
-
     for i in range(1, hist.GetNbinsX() + 1):
-        if hist.GetBinContent(i) < 0:
-            logging.warning(f"  {hist.GetName()}, bin {i}: negative content, setting to 0")
-            hist.SetBinContent(i, 0.0)
-            hist.SetBinError(i, 0.0)
+        if hist.GetBinContent(i) <= 0:
+            if hist.GetBinContent(i) < 0:
+                logging.warning(
+                    f"  {hist.GetName()}, bin {i}: negative content "
+                    f"{hist.GetBinContent(i):.3e}, setting to "
+                    f"{'floor' if floor_mode == 'floor' else 'zero'}"
+                )
+            if floor_mode == "zero":
+                hist.SetBinContent(i, 0.0)
+                hist.SetBinError(i, 0.0)
+            else:
+                hist.SetBinContent(i, BIN_FLOOR_VALUE)
+                hist.SetBinError(i, BIN_FLOOR_VALUE)
             modified = True
+    return modified
 
-    if hist.Integral() <= 0:
-        logging.warning(f"  {hist.GetName()} has non-positive integral")
-        central_bin = hist.GetNbinsX() // 2 + 1
-        hist.SetBinContent(central_bin, min_integral)
-        hist.SetBinError(central_bin, min_integral)
-        modified = True
 
+def cap_stat_errors(hist):
+    """Cap per-bin stat error at 100% of the bin content.
+
+    For any bin where err > content > 0, sets err = content (exactly 100%
+    relative error). This prevents low-stat processes from contributing
+    err > content spikes into the total-background stat-error sum used by
+    check_binning_quality, and ensures shapes.root always has well-defined
+    per-bin errors for autoMCStats / BB-lite nuisances.
+
+    No-op on empty bins (content <= 0) — those are handled by
+    ensure_positive_integral / apply_floor.
+    """
+    modified = False
+    for i in range(1, hist.GetNbinsX() + 1):
+        bc = hist.GetBinContent(i)
+        be = hist.GetBinError(i)
+        if bc > 0 and be > bc:
+            hist.SetBinError(i, bc)
+            modified = True
     return modified
 
 
@@ -364,9 +403,18 @@ def check_binning_quality(background_hists):
     """
     Check if binning produces acceptable background statistics.
 
-    Criteria:
-      1. No bin with zero total background
-      2. No individual process has a bin with >100% stat error
+    Single criterion matching Combine's autoMCStats algorithm:
+      n_eff = round(y^2 / sigma^2) >= AUTOMC_THRESHOLD (=5)
+    where y = total background content, sigma^2 = sum of squared errors.
+
+    This guarantees every bin gets Barlow-Beeston-lite treatment (1 NP per
+    bin) instead of per-process treatment (N_proc NPs per bin). Subsumes the
+    old criteria (content > 0, stat_err < 100%).
+
+    h_total is built via TH1::Add(), which propagates errors in quadrature.
+    No per-process pre-processing is assumed — honest stats drive the
+    binning decision. Numerical hygiene (ensure_positive_integral,
+    cap_stat_errors) is applied post-selection only, not before this check.
 
     Args:
         background_hists: dict of {process_name: TH1} for central backgrounds
@@ -375,7 +423,6 @@ def check_binning_quality(background_hists):
         (ok, diagnostics): ok is True if all criteria pass,
             diagnostics is list of problem descriptions
     """
-    # Sum all backgrounds for total check
     h_total = None
     for name, h in background_hists.items():
         if h_total is None:
@@ -390,21 +437,20 @@ def check_binning_quality(background_hists):
     nbins = h_total.GetNbinsX()
     diagnostics = []
 
-    # Check 1: no empty total background bins
     for i in range(1, nbins + 1):
         bc = h_total.GetBinContent(i)
+        be = h_total.GetBinError(i)
         if bc <= 0:
-            diagnostics.append(f"bin {i}: total bkg = {bc:.4f} (empty)")
-
-    # Check 2: no >100% stat error or negative content per process
-    for name, h in background_hists.items():
-        for i in range(1, nbins + 1):
-            bc = h.GetBinContent(i)
-            be = h.GetBinError(i)
-            if bc < 0:
-                diagnostics.append(f"bin {i}: {name} has negative content ({bc:.4f})")
-            elif bc > 0 and be / bc > 1.0:
-                diagnostics.append(f"bin {i}: {name} has {be/bc*100:.0f}% stat error")
+            diagnostics.append(f"bin {i}: total bkg = {bc:.4f} (non-positive, n_eff undefined)")
+            continue
+        if be <= 0:
+            continue  # perfect stats, no issue
+        neff = round(bc * bc / (be * be))
+        if neff < AUTOMC_THRESHOLD:
+            diagnostics.append(
+                f"bin {i}: n_eff = {neff} < {AUTOMC_THRESHOLD} "
+                f"(content={bc:.4f}, error={be:.4f})"
+            )
 
     h_total.Delete()
     ok = len(diagnostics) == 0

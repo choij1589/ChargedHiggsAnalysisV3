@@ -31,8 +31,10 @@ from template_utils import (
 
 # Argument parsing
 parser = argparse.ArgumentParser(description="Plot ParticleNet score distributions for signal and backgrounds")
-parser.add_argument("--era", required=True, type=str, help="Data-taking period (2016preVFP, 2017, 2018, 2022, etc.)")
-parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
+parser.add_argument("--era", required=True, type=str,
+                    help="Data-taking period (2016preVFP..2023BPix, Run2, Run3, All)")
+parser.add_argument("--channel", required=True, type=str,
+                    help="Analysis channel (SR1E2Mu, SR3Mu, Combined)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
 parser.add_argument("--binning", default="extended", choices=["uniform", "extended"],
                     help="Binning method: 'extended' (19 bins, default) or 'uniform' (15 bins)")
@@ -49,10 +51,11 @@ args = parser.parse_args()
 if args.unblind and args.partial_unblind:
     raise ValueError("--unblind and --partial-unblind are mutually exclusive")
 
-# Validate channel (TTZ2E1Mu is included automatically in validation plots)
-if args.channel not in ["SR1E2Mu", "SR3Mu"]:
-    raise ValueError(f"Invalid channel: {args.channel}. Must be SR1E2Mu or SR3Mu. "
-                     "TTZ2E1Mu control region is automatically included in validation plots.")
+# Validate channel (TTZ2E1Mu is included automatically in validation plots,
+# except in Combined-channel mode where per-channel runs already cover it)
+if args.channel not in ["SR1E2Mu", "SR3Mu", "Combined"]:
+    raise ValueError(f"Invalid channel: {args.channel}. Must be SR1E2Mu, SR3Mu, or Combined. "
+                     "TTZ2E1Mu control region is automatically included in per-channel runs.")
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
@@ -74,12 +77,40 @@ DEFAULT_NBINS = 200
 DEFAULT_XMIN = 0.0
 DEFAULT_XMAX = 1.0
 
-# Expand combined eras
-era_list = get_era_list(args.era)
+# Era handling — accept single eras + Run2, Run3, All. Mirrors plotLimits.py.
+ERAS_RUN2 = ["2016preVFP", "2016postVFP", "2017", "2018"]
+ERAS_RUN3 = ["2022", "2022EE", "2023", "2023BPix"]
+VALID_ERAS = ERAS_RUN2 + ERAS_RUN3 + ["Run2", "Run3", "All"]
+if args.era not in VALID_ERAS:
+    raise ValueError(f"Invalid era: {args.era}. Must be one of {VALID_ERAS}")
+
+
+def expand_eras(era):
+    """Expand era label to list of data-taking periods."""
+    if era == "Run2":
+        return list(ERAS_RUN2)
+    if era == "Run3":
+        return list(ERAS_RUN3)
+    if era == "All":
+        return list(ERAS_RUN2) + list(ERAS_RUN3)
+    return [era]
+
+
+def get_CoM_energy_extended(era):
+    """CoM energy string. Supports Run2/Run3/All in addition to plotter.get_CoM_energy."""
+    if era == "All":
+        return "13/13.6"
+    return get_CoM_energy(era)
+
+
+era_list = expand_eras(args.era)
 is_combined_era = len(era_list) > 1
+is_combined_channel = args.channel == "Combined"
 
 if is_combined_era:
     logging.info(f"Combined era mode: {args.era} -> {era_list}")
+if is_combined_channel:
+    logging.info("Combined channel mode: summing SR1E2Mu + SR3Mu")
 
 # Fixed color mapping for backgrounds (consistent across all plots)
 # Uses PALETTE colors from plotter.py for consistency
@@ -99,6 +130,23 @@ BKG_COLORS = {
 # Legend will display in reverse order (top to bottom) to match visual stacking
 BKG_ORDER = ["others", "conversion", "WZ", "ZZ", "ttW", "ttH", "tZq", "ttZ", "nonprompt"]
 
+# Channel display labels (TLatex; requires font 42 to render #mu as Greek mu).
+# Mirrors plotPostfitMass.py.
+CHANNEL_LATEX = {
+    "SR1E2Mu": "e#mu#mu",
+    "SR3Mu": "#mu#mu#mu",
+    "TTZ2E1Mu": "ee#mu (TTZ CR)",
+}
+
+
+def scope_label(scope):
+    """Return display label for a channel/region scope."""
+    if scope in CHANNEL_LATEX:
+        return CHANNEL_LATEX[scope]
+    if scope == "Combined":
+        return f"{CHANNEL_LATEX['SR1E2Mu']} + {CHANNEL_LATEX['SR3Mu']}"
+    return scope
+
 # Determine binning suffix (with unblind suffix if applicable)
 binning_suffix = args.binning
 if args.unblind:
@@ -106,16 +154,21 @@ if args.unblind:
 elif args.partial_unblind:
     binning_suffix = f"{args.binning}_partial_unblind"
 
-# For combined eras, we use first era's config as reference
+# For combined eras, we use first era's config as reference.
+# For combined channel, SR1E2Mu serves as the reference for config loading
+# (binning/background_weights are channel-specific, but for the combined plot we
+#  fall back to SR1E2Mu's mass window — acceptable since both channels share
+#  the same masspoint and window is a plotting cosmetic).
 reference_era = era_list[0]
+reference_channel = "SR1E2Mu" if is_combined_channel else args.channel
 
 # Input from samples directory (ParticleNet scores are in preprocessed samples)
-# For combined eras, BASEDIR points to reference era (used for config loading)
-BASEDIR = f"{WORKDIR}/SignalRegionStudyV2/samples/{reference_era}/{args.channel}/{args.masspoint}"
+# For combined eras/channels, BASEDIR points to reference era/channel (used for config loading)
+BASEDIR = f"{WORKDIR}/SignalRegionStudyV2/samples/{reference_era}/{reference_channel}/{args.masspoint}"
 # Config directory (prefer base binning, fall back to current binning_suffix)
-CONFIGDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{reference_era}/{args.channel}/{args.masspoint}/ParticleNet/{args.binning}"
+CONFIGDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{reference_era}/{reference_channel}/{args.masspoint}/ParticleNet/{args.binning}"
 if not os.path.exists(f"{CONFIGDIR}/binning.json") and binning_suffix != args.binning:
-    CONFIGDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{reference_era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}"
+    CONFIGDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{reference_era}/{reference_channel}/{args.masspoint}/ParticleNet/{binning_suffix}"
 # Output to ParticleNet template directory (with unblind suffix if applicable)
 OUTDIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}"
 
@@ -164,9 +217,10 @@ else:
     logging.warning(f"Background weights not found: {weights_json_path}")
     logging.warning(f"Using unweighted ParticleNet score (equal priors)")
 
-# Load systematics configuration (only for single era mode - combined eras use pre-stored histograms)
-if is_combined_era:
-    logging.info("Skipping systematics loading for combined era (using pre-stored histograms)")
+# Load systematics configuration (only for single era + single channel mode;
+# combined era or combined channel uses pre-stored histograms.root files)
+if is_combined_era or is_combined_channel:
+    logging.info("Skipping systematics loading for combined mode (using pre-stored histograms)")
     syst_categories = {'preprocessed_shape': [], 'valued_shape': [], 'multi_variation': [], 'valued_lnN': []}
 else:
     syst_config_path = f"{WORKDIR}/SignalRegionStudyV2/configs/systematics.{args.era}.json"
@@ -1064,7 +1118,10 @@ def build_canvas_config(era, region_label, x_title, plot_key, colors, com_energy
     config = {
         "era": era,
         "CoM": com_energy,
-        "channel": region_label,
+        "channel": scope_label(region_label),
+        # Font 42 (Helvetica, TLatex-aware) so #mu renders as Greek mu; default 61
+        # is precision-1 and would show "#mu" literally. Mirrors plotPostfitMass.py.
+        "channelFont": 42,
         "xTitle": x_title,
         "yTitle": "Events",
         "rTitle": "Data / Pred",
@@ -1077,6 +1134,10 @@ def build_canvas_config(era, region_label, x_title, plot_key, colors, com_energy
         config["chi2_test"] = True
         config["normalize_chi2"] = False
         config["chi2_posY"] = 0.58  # Lower position to avoid overlap with masspoint label
+    # "All" era: show "Run2 + Run3" label with combined luminosity.
+    # Uses plotter.LumiInfo["All"] (populated from Luminosity.json).
+    if era == "All":
+        config["run_label"] = f"Run2 + Run3, {LumiInfo['All']} fb^{{#minus1}}"
     return config
 
 
@@ -1093,6 +1154,98 @@ def draw_signal_overlay(plotter, signal_hist, scale=6.0):
         if obj.InheritsFrom("TLegend"):
             obj.AddEntry(signal_hist, f"signal (x{int(scale)})", "l")
             break
+
+
+def draw_blind_plot(bkg_hists_with_errors, signal_hist, config, output_path, masspoint):
+    """
+    Blinded-mode plot: single pad, stack + uncertainty band + signal overlay.
+    No data points, no ratio pad. Used when args.unblind is False (i.e. blinded
+    or partial-unblind).
+    """
+    # Build total systematics histogram (sum of backgrounds) for the error band
+    hists_by_name = {name: h for name, h in bkg_hists_with_errors.items()}
+    if not hists_by_name:
+        logging.warning(f"  No backgrounds for blinded plot, skipping {output_path}")
+        return
+
+    systematics = None
+    for h in hists_by_name.values():
+        if systematics is None:
+            systematics = h.Clone("syst_blind")
+            systematics.SetDirectory(0)
+        else:
+            systematics.Add(h)
+
+    # Axis ranges
+    xmin = systematics.GetXaxis().GetXmin()
+    xmax = systematics.GetXaxis().GetXmax()
+    ymin = 0.0
+    ymax = systematics.GetMaximum() * 2.0
+    if signal_hist is not None and signal_hist.Integral() > 0:
+        scale = 6.0
+        ymax = max(ymax, signal_hist.GetMaximum() * scale * 1.5)
+
+    # CMS style (luminosity + energy). Honor run_label override (e.g. "Run2 + Run3, …")
+    # the same way plotter._configure_cms_style does.
+    if "run_label" in config:
+        CMS.SetLumi(None, run=config["run_label"])
+    else:
+        CMS.SetLumi(LumiInfo.get(config["era"]), run=config["era"])
+    com = config["CoM"] if "CoM" in config else get_CoM_energy_extended(config["era"])
+    if isinstance(com, str):
+        unit = com if com.endswith("TeV") else f"{com} TeV"
+        CMS.SetEnergy(0, unit=unit)
+    else:
+        CMS.SetEnergy(com)
+    CMS.SetExtraText("Preliminary")
+
+    canv = CMS.cmsCanvas("", xmin, xmax, ymin, ymax,
+                         config.get("xTitle", ""),
+                         config.get("yTitle", "Events"),
+                         square=True,
+                         iPos=config.get("iPos", 11),
+                         extraSpace=0)
+    hdf = CMS.GetCmsCanvasHist(canv)
+    hdf.GetYaxis().SetMaxDigits(config.get("maxDigits", 3))
+
+    leg = CMS.cmsLeg(0.7, 0.89 - 0.05 * 7, 0.99, 0.89,
+                     textSize=config.get("legendTextSize", 0.04), columns=1)
+
+    # Stack + syst band
+    palette = config.get("colors", PALETTE)
+    hs = CMS.buildTHStack(list(hists_by_name.values()), palette,
+                          LineColor=-1, FillColor=-1)
+    CMS.cmsObjectDraw(hs, "hist")
+    CMS.cmsObjectDraw(systematics, "FE2", FillStyle=3004, LineWidth=0,
+                      FillColor=12, MarkerSize=0)
+
+    # Legend: backgrounds (reversed order to match visual stack), then syst band
+    for name in reversed(list(hists_by_name.keys())):
+        CMS.addToLegend(leg, (hists_by_name[name], name, "F"))
+    CMS.addToLegend(leg, (systematics, config.get("systSrc", "Stat+Syst"), " FE2"))
+
+    # Signal overlay (scaled, drawn last)
+    if signal_hist is not None and signal_hist.Integral() > 0:
+        scale = 6.0
+        signal_hist.Scale(scale)
+        signal_hist.Draw("HIST SAME")
+        CMS.addToLegend(leg, (signal_hist, f"signal (x{int(scale)})", "l"))
+
+    # Channel text (match ComparisonCanvas behaviour)
+    if "channel" in config:
+        CMS.drawText(config["channel"],
+                     posX=config.get("channelPosX", 0.2),
+                     posY=config.get("channelPosY", 0.7),
+                     font=config.get("channelFont", 61),
+                     align=config.get("channelAlign", 0),
+                     size=config.get("channelSize", 0.05))
+
+    # Masspoint label
+    CMS.drawText(f"{masspoint}", posX=0.2, posY=0.76, font=61, align=0, size=0.03)
+
+    canv.RedrawAxis()
+    canv.SaveAs(output_path)
+    logging.info(f"  Saved: {output_path}")
 
 
 def draw_plot(data_hist, bkg_hists_with_errors, signal_hist, config, output_path, masspoint):
@@ -1170,12 +1323,22 @@ def save_histograms_to_root(histfile_path, stored_hists, all_syst_hists=None):
 
 def process_combined_era(region_label, sample_channel, show_data, region_outdir, ordered_bkgs):
     """
-    Process combined era by loading and summing per-era histograms.
+    Process combined era (and optionally combined channel) by loading and
+    summing per-era (and per-channel) histograms.
 
-    Following TriLepton pattern: sum histograms across eras using TH1::Add
-    which adds errors in quadrature.
+    Following TriLepton pattern: sum histograms across eras/channels using
+    TH1::Add which adds errors in quadrature. For --channel Combined, both
+    SR1E2Mu and SR3Mu histograms.root files are loaded per era and summed
+    before era-level combination.
     """
-    logging.info(f"Processing region: {region_label} (combined era mode: {args.era})")
+    logging.info(f"Processing region: {region_label} (era={args.era}, channel={args.channel})")
+
+    # Channels whose histograms.root files to sum into each per-era dict.
+    # For single-channel runs this is just [args.channel].
+    if is_combined_channel:
+        input_channels = ["SR1E2Mu", "SR3Mu"]
+    else:
+        input_channels = [args.channel]
 
     stored_hists = {}  # {score_type: {process: hist, ...}}
     plot_types = list(HISTKEYS_CONFIG.keys())
@@ -1185,22 +1348,80 @@ def process_combined_era(region_label, sample_channel, show_data, region_outdir,
 
         stored_hists[plot_key] = {}
 
-        # Collect histograms from each era
+        # Collect histograms from each era (merging across channels if combined)
         per_era_hists = {}  # {era: {hist_name: TH1D}}
 
         for era in era_list:
-            hist_file = f"{WORKDIR}/SignalRegionStudyV2/templates/{era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}/scores/{region_label}/histograms.root"
+            # First collect per-channel hist dicts, then merge with syst-substitution.
+            per_channel_hists = {}  # {input_channel: {hname: hist}}
+            for input_channel in input_channels:
+                # In combined-channel mode each per-channel histograms.root lives
+                # under scores/{input_channel}/; in single-channel mode the
+                # region_label matches the channel name, same effective path.
+                scores_region = input_channel if is_combined_channel else region_label
+                hist_file = (
+                    f"{WORKDIR}/SignalRegionStudyV2/templates/{era}/{input_channel}/"
+                    f"{args.masspoint}/ParticleNet/{binning_suffix}/scores/{scores_region}/histograms.root"
+                )
 
-            if not os.path.exists(hist_file):
-                logging.warning(f"Missing histogram file for {era}: {hist_file}")
+                if not os.path.exists(hist_file):
+                    logging.warning(f"Missing histogram file for {era}/{input_channel}: {hist_file}")
+                    continue
+
+                try:
+                    per_channel_hists[input_channel] = load_histograms_from_file(hist_file, plot_key)
+                except Exception as e:
+                    logging.warning(f"Failed to load {plot_key} from {era}/{input_channel}: {e}")
+                    continue
+
+            if not per_channel_hists:
                 continue
 
-            try:
-                era_histograms = load_histograms_from_file(hist_file, plot_key)
-                per_era_hists[era] = era_histograms
-            except Exception as e:
-                logging.warning(f"Failed to load {plot_key} from {era}: {e}")
-                continue
+            # Names that could be processes (for Up/Down parsing).
+            known_procs = list(ordered_bkgs) + [args.masspoint, "data_obs"]
+
+            def _syst_proc(hname):
+                """Return the underlying process name if hname is a syst Up/Down, else None."""
+                if hname.endswith("Up"):
+                    base = hname[:-2]
+                elif hname.endswith("Down"):
+                    base = hname[:-4]
+                else:
+                    return None
+                for p in known_procs:
+                    if base.startswith(p + "_"):
+                        return p
+                return None
+
+            # Union of hist names across input channels
+            all_hnames = set()
+            for ch_hists in per_channel_hists.values():
+                all_hnames.update(ch_hists.keys())
+
+            era_merged = {}
+            for hname in all_hnames:
+                proc = _syst_proc(hname)
+                merged = None
+                for input_channel, ch_hists in per_channel_hists.items():
+                    if hname in ch_hists:
+                        h = ch_hists[hname]
+                    elif proc is not None and proc in ch_hists:
+                        # Syst is missing for this channel: substitute this channel's
+                        # central contribution so the summed Up/Down stays consistent
+                        # with the summed central (otherwise the deviation gets
+                        # inflated by the unrelated channel's central).
+                        h = ch_hists[proc]
+                    else:
+                        continue
+                    if merged is None:
+                        merged = h.Clone(hname)
+                        merged.SetDirectory(0)
+                    else:
+                        merged.Add(h)
+                if merged is not None:
+                    era_merged[hname] = merged
+
+            per_era_hists[era] = era_merged
 
         # Helper functions for decorrelated systematics
         def get_decorrelated_era(hist_name):
@@ -1245,12 +1466,35 @@ def process_combined_era(region_label, sample_channel, show_data, region_outdir,
             else:
                 central_and_correlated.append(name)
 
-        # Combine central and correlated histograms by simple summation
+        # Combine central and correlated histograms. For syst Up/Down hists that
+        # are missing from some eras (e.g. CMS_L1prefiring is Run2-only), substitute
+        # that era's central contribution so the summed Up/Down stays consistent
+        # with the summed central. Without this, the fractional deviation is
+        # inflated by the unrelated era's central and the error band blows up.
+        known_procs_all = list(ordered_bkgs) + [args.masspoint, "data_obs"]
+
+        def _syst_proc_era(hname):
+            if hname.endswith("Up"):
+                base = hname[:-2]
+            elif hname.endswith("Down"):
+                base = hname[:-4]
+            else:
+                return None
+            for p in known_procs_all:
+                if base.startswith(p + "_"):
+                    return p
+            return None
+
         for name in central_and_correlated:
+            proc = _syst_proc_era(name)
             hlist = []
             for era in era_list:
-                if era in per_era_hists and name in per_era_hists[era]:
+                if era not in per_era_hists:
+                    continue
+                if name in per_era_hists[era]:
                     hlist.append(per_era_hists[era][name])
+                elif proc is not None and proc in per_era_hists[era]:
+                    hlist.append(per_era_hists[era][proc])
             if hlist:
                 combined = sum_histograms(hlist, f"{name}_{args.era}")
                 stored_hists[plot_key][name] = combined
@@ -1291,13 +1535,17 @@ if __name__ == "__main__":
     # Helper function to scan for available processes
     def get_background_processes():
         """Get list of available background processes."""
-        if is_combined_era:
-            # For combined eras, get process list from first era's histogram file
-            first_era_hist_file = f"{WORKDIR}/SignalRegionStudyV2/templates/{reference_era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}/scores/{args.channel}/histograms.root"
+        if is_combined_era or is_combined_channel:
+            # Combined mode: discover processes from a reference per-era/per-channel
+            # histogram file (reference_era + reference_channel).
+            first_era_hist_file = (
+                f"{WORKDIR}/SignalRegionStudyV2/templates/{reference_era}/{reference_channel}/"
+                f"{args.masspoint}/ParticleNet/{binning_suffix}/scores/{reference_channel}/histograms.root"
+            )
             if not os.path.exists(first_era_hist_file):
                 raise FileNotFoundError(
                     f"Per-era histogram file not found: {first_era_hist_file}\n"
-                    f"Please run plotParticleNetScore.py for individual eras first"
+                    f"Please run plotParticleNetScore.py for individual eras/channels first"
                 )
             first_score_type = list(HISTKEYS_CONFIG.keys())[0]
             first_era_hists = load_histograms_from_file(first_era_hist_file, first_score_type)
@@ -1305,7 +1553,7 @@ if __name__ == "__main__":
             processes = [p for p in sample_files
                          if p != 'data_obs' and p != args.masspoint
                          and 'Up' not in p and 'Down' not in p]
-            logging.info(f"Found background processes from {reference_era} histogram: {processes}")
+            logging.info(f"Found background processes from {reference_era}/{reference_channel} histogram: {processes}")
         else:
             # For single era, scan samples directory
             if not os.path.exists(BASEDIR):
@@ -1330,11 +1578,17 @@ if __name__ == "__main__":
         if bkg not in ordered_bkgs:
             ordered_bkgs.append(bkg)
 
-    # Define regions to plot
+    # Define regions to plot.
+    # show_data=True for --unblind or --partial-unblind (both show data points
+    # + ratio pad; partial-unblind has the high-score region zeroed out).
+    # Only pure blinded mode (neither flag) drops data/ratio.
+    # TTZ2E1Mu control region is skipped in Combined-channel mode — per-channel
+    # runs already cover it.
     regions = [
         (args.channel, args.channel, args.unblind or args.partial_unblind),
-        ("TTZ2E1Mu", "TTZ2E1Mu", True),  # Control region always unblinded
     ]
+    if not is_combined_channel:
+        regions.append(("TTZ2E1Mu", "TTZ2E1Mu", True))  # Control region always unblinded
 
     # Build plot types from histkeys config
     plot_types = [(key, cfg["xTitle"]) for key, cfg in HISTKEYS_CONFIG.items()]
@@ -1345,9 +1599,10 @@ if __name__ == "__main__":
         os.makedirs(region_outdir, exist_ok=True)
 
         # =================================================================
-        # Combined era mode: Load from per-era ROOT files and sum
+        # Combined mode (combined era and/or combined channel):
+        # Load from per-era / per-channel histograms.root files and sum
         # =================================================================
-        if is_combined_era:
+        if is_combined_era or is_combined_channel:
             stored_hists = process_combined_era(region_label, sample_channel, show_data,
                                                  region_outdir, ordered_bkgs)
 
@@ -1407,13 +1662,18 @@ if __name__ == "__main__":
                 enable_chi2 = args.unblind or sample_channel == "TTZ2E1Mu"
                 config = build_canvas_config(
                     args.era, region_label, x_title, plot_key, colors,
-                    get_CoM_energy(reference_era),
+                    get_CoM_energy_extended(args.era),
                     enable_chi2=enable_chi2
                 )
 
-                # Step 4: Draw plot
-                draw_plot(data_hist, bkg_hists, signal_hist, config,
-                         f"{region_outdir}/{plot_key}.png", args.masspoint)
+                # Step 4: Draw plot. Blinded (show_data=False) → stack-only.
+                output_path = f"{region_outdir}/{plot_key}.png"
+                if show_data:
+                    draw_plot(data_hist, bkg_hists, signal_hist, config,
+                              output_path, args.masspoint)
+                else:
+                    draw_blind_plot(bkg_hists, signal_hist, config,
+                                    output_path, args.masspoint)
 
             # Save combined histograms to ROOT file
             save_histograms_to_root(f"{region_outdir}/histograms.root", stored_hists)
@@ -1504,13 +1764,18 @@ if __name__ == "__main__":
                 enable_chi2 = args.unblind or sample_channel == "TTZ2E1Mu"
                 config = build_canvas_config(
                     args.era, region_label, x_title, plot_key, colors,
-                    get_CoM_energy(args.era),
+                    get_CoM_energy_extended(args.era),
                     enable_chi2=enable_chi2
                 )
 
-                # Step 4: Draw plot
-                draw_plot(data_hist, bkg_hists, signal_hist, config,
-                         f"{region_outdir}/{plot_key}.png", args.masspoint)
+                # Step 4: Draw plot. Blinded (show_data=False) → stack-only.
+                output_path = f"{region_outdir}/{plot_key}.png"
+                if show_data:
+                    draw_plot(data_hist, bkg_hists, signal_hist, config,
+                              output_path, args.masspoint)
+                else:
+                    draw_blind_plot(bkg_hists, signal_hist, config,
+                                    output_path, args.masspoint)
 
             logging.info(f"Validation plots for {region_label} saved to: {region_outdir}")
             continue
@@ -1600,13 +1865,18 @@ if __name__ == "__main__":
             enable_chi2 = args.unblind or sample_channel == "TTZ2E1Mu"
             config = build_canvas_config(
                 args.era, region_label, x_title, plot_key, colors,
-                get_CoM_energy(args.era),
+                get_CoM_energy_extended(args.era),
                 enable_chi2=enable_chi2
             )
 
-            # Step 4: Draw plot
-            draw_plot(data_hist, bkg_hists, signal_hist, config,
-                     f"{region_outdir}/{plot_key}.png", args.masspoint)
+            # Step 4: Draw plot. Blinded (show_data=False) → stack-only.
+            output_path = f"{region_outdir}/{plot_key}.png"
+            if show_data:
+                draw_plot(data_hist, bkg_hists, signal_hist, config,
+                          output_path, args.masspoint)
+            else:
+                draw_blind_plot(bkg_hists, signal_hist, config,
+                                output_path, args.masspoint)
 
         # Save histograms to ROOT file (central histograms have stat errors only,
         # systematic variations stored separately for proper error recalculation)
