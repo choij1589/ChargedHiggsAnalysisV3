@@ -132,7 +132,8 @@ plotter.canv.cd()
 n_colors = len(plotter.palette)
 for idx, (name, hist) in enumerate(plotter.hists.items()):
     color = plotter.palette[idx % n_colors]
-    line_style = ROOT.kDashed if idx % 2 == 0 else ROOT.kSolid
+    #line_style = ROOT.kDashed if idx % 2 == 0 else ROOT.kSolid
+    line_style = ROOT.kSolid
     CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=2, LineStyle=line_style)
     CMS.cmsObjectDraw(hist, "LE", LineColor=color, LineWidth=2, LineStyle=line_style, FillColor=ROOT.kWhite, MarkerSize=0)
     if not args.no_legend:

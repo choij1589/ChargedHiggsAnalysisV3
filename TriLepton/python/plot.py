@@ -72,6 +72,8 @@ config["iPos"] = 0
 if not args.blind:
     config["chi2_test"] = True
     config["normalize_chi2"] = False
+else:
+    config["no_ratio"] = True  # Ratio pad is meaningless when data is blinded
 #### Configurations
 # Get era list for merging
 era_list = get_era_list(args.era)

@@ -1,8 +1,10 @@
 #!/bin/bash
 ERAsRun2=("2016preVFP" "2016postVFP" "2017" "2018" "Run2")
 ERAsRun3=("2022" "2022EE" "2023" "2023BPix" "Run3")
-CHANNELsRun2=("ZG1E2Mu" "ZG3Mu")
-CHANNELsRun3=("ZG1E2Mu" "ZG3Mu" "WZ1E2Mu" "WZ3Mu")
+#CHANNELsRun2=("ZG1E2Mu" "ZG3Mu")
+#CHANNELsRun3=("ZG1E2Mu" "ZG3Mu" "WZ1E2Mu" "WZ3Mu")
+CHANNELsRun2=("SR1E2Mu" "SR3Mu")
+CHANNELsRun3=("SR1E2Mu" "SR3Mu")
 
 for ERA in "${ERAsRun2[@]}"; do
   for CHANNEL in "${CHANNELsRun2[@]}"; do

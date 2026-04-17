@@ -343,9 +343,11 @@ class ComparisonCanvas(BaseCanvas):
             self.incl.SetTitle("Data")
             self.incl.SetDirectory(0)
 
-        # Create ratio histogram
-        self.ratio = self.incl.Clone("ratio")
-        self.ratio.Divide(self.systematics)
+        # Create ratio histogram (only when ratio pad is needed)
+        no_ratio = config.get("no_ratio", False)
+        if not no_ratio:
+            self.ratio = self.incl.Clone("ratio")
+            self.ratio.Divide(self.systematics)
 
         # Get axis ranges
         xmin, xmax = self._get_axis_range(config, self.systematics)
@@ -362,29 +364,38 @@ class ComparisonCanvas(BaseCanvas):
         else:
             ymin, ymax = config.get("yRange")
 
-        rmin, rmax = config.get("rRange", [0.5, 1.5])
-
         # Configure CMS style
         lumiInfo, run = self._configure_cms_style(config)
         CMS.SetExtraText("Preliminary")
 
-        # Create canvas
-        self.canv = CMS.cmsDiCanvas("", xmin, xmax,
-                                        ymin, ymax,
-                                        rmin, rmax,
-                                        config.get("xTitle", ""),
-                                        config.get("yTitle", "Events"),
-                                        config.get("rTitle", "Data / Pred"),
-                                        square=True,
-                                        iPos=config.get("iPos", 11),
-                                        extraSpace=0)
+        # Create canvas — single-pad when no_ratio, two-pad otherwise
+        if no_ratio:
+            self.canv = CMS.cmsCanvas("", xmin, xmax,
+                                          ymin, ymax,
+                                          config.get("xTitle", ""),
+                                          config.get("yTitle", "Events"),
+                                          square=True,
+                                          iPos=config.get("iPos", 11),
+                                          extraSpace=0)
+            if config.get('logx', False):
+                self.canv.SetLogx()
+            hdf = CMS.GetCmsCanvasHist(self.canv)
+        else:
+            rmin, rmax = config.get("rRange", [0.5, 1.5])
+            self.canv = CMS.cmsDiCanvas("", xmin, xmax,
+                                            ymin, ymax,
+                                            rmin, rmax,
+                                            config.get("xTitle", ""),
+                                            config.get("yTitle", "Events"),
+                                            config.get("rTitle", "Data / Pred"),
+                                            square=True,
+                                            iPos=config.get("iPos", 11),
+                                            extraSpace=0)
+            if config.get('logx', False):
+                self.canv.cd(1).SetLogx()
+                self.canv.cd(2).SetLogx()
+            hdf = CMS.GetCmsCanvasHist(self.canv.cd(1))
 
-        # Apply logarithmic x-axis if requested (BEFORE creating legend)
-        if config.get('logx', False):
-            self.canv.cd(1).SetLogx()
-            self.canv.cd(2).SetLogx()
-
-        hdf = CMS.GetCmsCanvasHist(self.canv.cd(1))
         hdf.GetYaxis().SetMaxDigits(config.get("maxDigits", 3))
 
         # Create legend AFTER setting log scales
@@ -421,17 +432,25 @@ class ComparisonCanvas(BaseCanvas):
             ymax = hist_max * 1.5
 
         # Update the canvas histogram's y-axis
-        hdf = CMS.GetCmsCanvasHist(self.canv.cd(1))
+        pad = self.canv.cd() if self.config.get("no_ratio", False) else self.canv.cd(1)
+        hdf = CMS.GetCmsCanvasHist(pad)
         hdf.SetMinimum(ymin)
-        hdf.SetMaximum(ymax)        
+        hdf.SetMaximum(ymax)
+
+    def _cd_main(self):
+        """Switch to the main (upper) pad, supporting both single- and two-pad canvases."""
+        if self.config.get("no_ratio", False):
+            return self.canv.cd()
+        return self.canv.cd(1)
 
     def drawPadUp(self):
-        self.canv.cd(1)
+        self._cd_main()
         self.hs = CMS.buildTHStack(list(self.hists.values()), self.palette, LineColor=-1, FillColor=-1)
         CMS.cmsObjectDraw(self.hs, "hist")
         CMS.cmsObjectDraw(self.systematics, "FE2", FillStyle=3004, LineWidth=0, FillColor=12, MarkerSize=0)
-        CMS.cmsObjectDraw(self.incl, "PE", MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
-        CMS.addToLegend(self.leg, (self.incl, self.incl.GetTitle(), "PE"))
+        if not self.config.get("no_ratio", False):
+            CMS.cmsObjectDraw(self.incl, "PE", MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
+            CMS.addToLegend(self.leg, (self.incl, self.incl.GetTitle(), "PE"))
         # Reverse order so legend matches visual stack (top of stack = first in legend)
         CMS.addToLegend(self.leg, *[(self.hists[name], name, "F") for name in reversed(list(self.hists.keys()))])
         CMS.addToLegend(self.leg, (self.systematics, self.config.get("systSrc", "Stat+Syst"), " FE2"))
@@ -449,10 +468,10 @@ class ComparisonCanvas(BaseCanvas):
             chi2_posY = self.config.get("chi2_posY", 0.62)
             CMS.drawText(chi2_text, posX=chi2_posX, posY=chi2_posY, font=42, align=0, size=0.04)
 
-        self.canv.cd(1).RedrawAxis()
+        self._cd_main().RedrawAxis()
 
     def drawSignals(self, signals):
-        self.canv.cd(1)
+        self._cd_main()
         self.signals = {}
         self.sigleg = CMS.cmsLeg(0.38, 0.6, 0.6, 0.84, textSize=0.04, columns=1)
 
@@ -477,9 +496,11 @@ class ComparisonCanvas(BaseCanvas):
             CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=2, LineStyle=line_style, MarkerSize=0)
             CMS.addToLegend(self.sigleg, (hist, name, "L"))
         self.sigleg.Draw()
-        self.canv.cd(1).RedrawAxis()
+        self._cd_main().RedrawAxis()
 
     def drawPadDown(self):
+        if self.config.get("no_ratio", False):
+            return
         self.canv.cd(2)
 
         # Draw reference line at y=1
