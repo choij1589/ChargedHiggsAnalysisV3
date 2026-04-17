@@ -59,7 +59,15 @@
       "Bash(awk -F'/' '{print $\\(NF-3\\)}')",
       "Bash(env)",
       "Bash(head -291 /u/user/choij/.claude/plans/concurrent-bubbling-orbit.md)",
-      "Bash(mv /tmp/plan_trimmed.md /u/user/choij/.claude/plans/concurrent-bubbling-orbit.md)"
+      "Bash(mv /tmp/plan_trimmed.md /u/user/choij/.claude/plans/concurrent-bubbling-orbit.md)",
+      "Bash(condor_tail 1597611.0)",
+      "Bash(condor_history choij *)",
+      "Bash(awk -F'|' '{dt=$3-$2; printf \"%5ds  %s\\\\n\", dt, $1}')",
+      "Bash(awk '{for\\(i=9;i<=NF;i++\\)printf \"%s \",$i; print \"\"}')",
+      "Bash(echo ---workspace?---)",
+      "Bash(cat templates/Run2/Combined/MHc70_MA15/Baseline/extended/combine_output/impacts_r0/condor/logs/*.err)",
+      "Bash(awk '{print $2}')",
+      "Bash(text2workspace.py datacard.txt -o /tmp/test_ws.root)"
     ]
   },
   "remote": {

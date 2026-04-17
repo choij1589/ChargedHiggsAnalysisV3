@@ -221,7 +221,13 @@ class BaseCanvas():
             lumiInfo = LumiInfo[config["era"]]
             run = config["era"]
 
-        CMS.SetEnergy(config.get("CoM", get_CoM_energy(config["era"])))
+        com = config["CoM"] if "CoM" in config else get_CoM_energy(config["era"])
+        # String CoM (e.g. "13/13.6" for Run2+Run3 combined) must be passed as unit
+        if isinstance(com, str):
+            unit = com if com.endswith("TeV") else f"{com} TeV"
+            CMS.SetEnergy(0, unit=unit)
+        else:
+            CMS.SetEnergy(com)
         CMS.SetLumi(lumiInfo, run=run)
 
         return lumiInfo, run

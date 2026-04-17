@@ -157,7 +157,8 @@ while [[ $# -gt 0 ]]; do
             echo "Workflow Control:"
             echo "  --start-from <step>     - Skip already-completed steps (marks them as DONE in DAG)"
             echo "                            Values: template (default), datacard, validate, combine,"
-            echo "                                    asymptotic, combine_era, asymptotic_combined"
+            echo "                                    asymptotic, combine_era, asymptotic_combined, plot_score"
+            echo "                            (plot_score marks everything else DONE, re-runs score plots only)"
             echo ""
             echo "Datacard & Limits Options (enabled by default):"
             echo "  --no-printDatacard      - Skip datacard generation"
@@ -193,10 +194,10 @@ done
 
 # Validate START_FROM value
 case "$START_FROM" in
-    template|datacard|validate|combine|asymptotic|combine_era|asymptotic_combined) ;;
+    template|datacard|validate|combine|asymptotic|combine_era|asymptotic_combined|plot_score) ;;
     *)
         echo "ERROR: Invalid --start-from value '$START_FROM'"
-        echo "Valid values: template, datacard, validate, combine, asymptotic, combine_era, asymptotic_combined"
+        echo "Valid values: template, datacard, validate, combine, asymptotic, combine_era, asymptotic_combined, plot_score"
         exit 1
         ;;
 esac
@@ -557,7 +558,8 @@ function generate_dag_file() {
     fi
 
     # Step level mapping for --start-from
-    # template=0, datacard=1, validate=2, combine=3, asymptotic=4, combine_era=5, asymptotic_combined=6
+    # template=0, datacard=1, validate=2, combine=3, asymptotic=4, combine_era=5,
+    # asymptotic_combined=6, plot_score=7 (side-branch, re-runnable after everything else)
     step_to_level() {
         case "$1" in
             template)             echo 0 ;;
@@ -567,6 +569,7 @@ function generate_dag_file() {
             asymptotic|fitdiag)   echo 4 ;;
             combine_era)          echo 5 ;;
             asymptotic_combined|fitdiag_combined) echo 6 ;;
+            plot_score)           echo 7 ;;
             *)                    echo 0 ;;
         esac
     }
@@ -633,11 +636,11 @@ EOF
             done
         done
 
-        # Step 2b: Plot scores (ParticleNet only)
+        # Step 2b: Plot scores (ParticleNet only) — per-channel and Combined
         if [[ "$method" == "ParticleNet" ]]; then
             done_sfx=$(job_done_suffix "plot_score")
             for era in "${eras[@]}"; do
-                for channel in SR1E2Mu SR3Mu; do
+                for channel in SR1E2Mu SR3Mu Combined; do
                     echo "JOB plot_score_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
                     echo "VARS plot_score_${channel}_${era} step=\"plot_score\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
                 done
@@ -711,10 +714,10 @@ EOF
             echo "VARS plotpulls_${run_name} step=\"plotpulls\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
         fi
 
-        # Step 8c: Combined era plot_score (ParticleNet only)
+        # Step 8c: Combined era plot_score (ParticleNet only) — per-channel and Combined
         if [[ "$method" == "ParticleNet" ]]; then
             done_sfx=$(job_done_suffix "plot_score")
-            for channel in SR1E2Mu SR3Mu; do
+            for channel in SR1E2Mu SR3Mu Combined; do
                 echo "JOB plot_score_${channel}_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
                 echo "VARS plot_score_${channel}_${run_name} step=\"plot_score\" era=\"${run_name}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
             done
@@ -737,10 +740,10 @@ EOF
             echo "VARS template_${channel}_${era} step=\"template\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
         done
 
-        # Step 2b: Plot scores (ParticleNet only)
+        # Step 2b: Plot scores (ParticleNet only) — per-channel and Combined
         if [[ "$meth" == "ParticleNet" ]]; then
             done_sfx=$(job_done_suffix "plot_score")
-            for channel in SR1E2Mu SR3Mu; do
+            for channel in SR1E2Mu SR3Mu Combined; do
                 echo "JOB plot_score_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
                 echo "VARS plot_score_${channel}_${era} step=\"plot_score\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
             done
@@ -815,6 +818,15 @@ EOF
                 echo "JOB plotpulls_All jobs.sub${done_sfx}" >> "$dag_file"
                 echo "VARS plotpulls_All step=\"plotpulls\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             fi
+
+            # All-era plot_score (ParticleNet only) — per-channel and Combined
+            if [[ "$method" == "ParticleNet" ]]; then
+                done_sfx=$(job_done_suffix "plot_score")
+                for channel in SR1E2Mu SR3Mu Combined; do
+                    echo "JOB plot_score_${channel}_All jobs.sub${done_sfx}" >> "$dag_file"
+                    echo "VARS plot_score_${channel}_All step=\"plot_score\" era=\"All\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+                done
+            fi
         fi
     fi
 
@@ -844,9 +856,19 @@ EOF
             done
             echo "PARENT $template_jobs CHILD $plot_jobs" >> "$dag_file"
 
-            # Per-era plot_score -> combined era plot_score
-            local combined_plot_jobs="plot_score_SR1E2Mu_${run_name} plot_score_SR3Mu_${run_name}"
-            echo "PARENT $plot_jobs CHILD $combined_plot_jobs" >> "$dag_file"
+            # Per-era per-channel plot_score -> per-era Combined plot_score
+            # (each era's Combined plot sums SR1E2Mu + SR3Mu histograms.root for that era)
+            for era in "${eras[@]}"; do
+                echo "PARENT plot_score_SR1E2Mu_${era} plot_score_SR3Mu_${era} CHILD plot_score_Combined_${era}" >> "$dag_file"
+            done
+
+            # Per-era plot_score (all channels) -> combined era plot_score (all channels)
+            local combined_plot_jobs="plot_score_SR1E2Mu_${run_name} plot_score_SR3Mu_${run_name} plot_score_Combined_${run_name}"
+            local combined_plot_parents=""
+            for era in "${eras[@]}"; do
+                combined_plot_parents+="plot_score_SR1E2Mu_${era} plot_score_SR3Mu_${era} plot_score_Combined_${era} "
+            done
+            echo "PARENT $combined_plot_parents CHILD $combined_plot_jobs" >> "$dag_file"
         fi
 
         # Datacard -> Validate (needs lowstat.json from datacard step)
@@ -893,9 +915,11 @@ EOF
         # SR1E2Mu + SR3Mu templates (parallel) -> Datacard
         echo "PARENT template_SR1E2Mu_${era} template_SR3Mu_${era} CHILD datacard_SR1E2Mu_${era} datacard_SR3Mu_${era}" >> "$dag_file"
 
-        # Templates -> plot_score (ParticleNet only, runs in parallel with datacard)
+        # Templates -> per-channel plot_score (ParticleNet only, runs in parallel with datacard);
+        # per-channel plot_score -> Combined plot_score (sums SR1E2Mu + SR3Mu histograms.root)
         if [[ "$meth" == "ParticleNet" ]]; then
             echo "PARENT template_SR1E2Mu_${era} template_SR3Mu_${era} CHILD plot_score_SR1E2Mu_${era} plot_score_SR3Mu_${era}" >> "$dag_file"
+            echo "PARENT plot_score_SR1E2Mu_${era} plot_score_SR3Mu_${era} CHILD plot_score_Combined_${era}" >> "$dag_file"
         fi
 
         # Datacard -> Validate (needs lowstat.json from datacard step)
@@ -933,6 +957,13 @@ EOF
             if [[ "$DO_FITDIAG" == "true" ]]; then
                 echo "PARENT combine_era_All CHILD fitdiag_All" >> "$dag_file"
                 echo "PARENT fitdiag_All CHILD plotpostfit_All plotpulls_All" >> "$dag_file"
+            fi
+
+            # All-era plot_score depends on per-run-period plot_score of the same channel
+            if [[ "$method" == "ParticleNet" ]]; then
+                for channel in SR1E2Mu SR3Mu Combined; do
+                    echo "PARENT plot_score_${channel}_Run2 plot_score_${channel}_Run3 CHILD plot_score_${channel}_All" >> "$dag_file"
+                done
             fi
         fi
     fi
