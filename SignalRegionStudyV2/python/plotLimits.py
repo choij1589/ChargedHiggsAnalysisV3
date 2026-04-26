@@ -71,7 +71,7 @@ def create_graphs(limits_dict):
 
     g_exp = ROOT.TGraph(n, x, limits["exp0"])
     g_exp.SetLineWidth(2)
-    g_exp.SetLineStyle(2)
+    g_exp.SetLineStyle(ROOT.kDashed)
     g_exp.SetLineColor(ROOT.kBlack)
 
     # Error bands
@@ -228,7 +228,7 @@ elif args.method == "ParticleNet":
     if args.stack_baseline:
         graphs_baseline_full = create_graphs(limits_baseline)
         graphs_baseline_full['exp'].SetLineColor(ROOT.kRed+1)
-        graphs_baseline_full['exp'].SetLineWidth(2)
+        graphs_baseline_full['exp'].SetLineWidth(ROOT.kDashed)
         CMS.cmsObjectDraw(graphs_baseline_full['exp'], "L same")
 
     # Draw expected lines (baseline regions first, then ParticleNet on top)
