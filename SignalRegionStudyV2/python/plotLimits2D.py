@@ -64,7 +64,7 @@ _nsigma_tag = f"{args.nsigma:g}sigma"
 _cnc_suffix = f".CnC_{_nsigma_tag}" if args.cnc else ""
 _unblind_suffix = ".unblind" if args.unblind else ""
 
-# Load Baseline limits (35 mass points, multiple mA per MHc)
+# Load Baseline limits (full baseline list, 7 MHc rows × multiple mA each)
 with open(f"results/json/limits.{args.era}.{args.limit_type}.Baseline{_cnc_suffix}{_unblind_suffix}.json") as f:
     limits_baseline = json.load(f)
 
@@ -122,10 +122,6 @@ output_base = f"results/plots/limit2D.{args.era}.{args.limit_type}.ParticleNet{_
 os.makedirs(os.path.dirname(output_base), exist_ok=True)
 
 if args.style == "lines":
-    # Drop sparse MHc rows with too few mA points for a meaningful line
-    _MHC_SKIP = {85, 115, 145}
-    mhc_values = [m for m in mhc_values if m not in _MHC_SKIP]
-
     # Scale each MHc curve by ×10^i to separate overlapping lines on log scale
     # Largest MHc at bottom (×1), smallest MHc at top (×10^(n-1))
     scale_factors = [10**i for i in range(len(mhc_values) - 1, -1, -1)]

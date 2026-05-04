@@ -33,14 +33,19 @@ def _build_parser():
                    help="Fit source: All, Run2, Run3, or per-era (e.g. 2018). "
                         "Selects which fitDiagnostics file to open.")
     p.add_argument("--masspoint", required=True, type=str)
-    p.add_argument("--method", required=True, type=str, choices=["Baseline", "ParticleNet"])
-    p.add_argument("--binning", default="extended", choices=["uniform", "extended"])
+    p.add_argument("--method", required=True, type=str,
+                   help="Template method (Baseline, ParticleNet, CR, ...)")
+    p.add_argument("--binning", default="extended", type=str,
+                   help="Binning suffix tag (e.g. extended, uniform, ZWin_adaptive)")
     p.add_argument("--era-scope", default=None, dest="era_scope",
                    help="Filter plots to this era slice (e.g. 2018, Run2, All). "
                         "Default: iterate every era scope applicable to the fit.")
-    p.add_argument("--channel-scope", default=None,
-                   choices=["SR1E2Mu", "SR3Mu", "Combined"], dest="channel_scope",
-                   help="Filter plots to this channel scope. Default: iterate all three.")
+    p.add_argument("--channel-scope", default=None, type=str, dest="channel_scope",
+                   help="Filter plots to this channel scope. Default: iterate all three "
+                        "(SR1E2Mu/SR3Mu/Combined for SR; pass TTZ2E1Mu for CR).")
+    p.add_argument("--fit-channel", default="Combined", type=str, dest="fit_channel",
+                   help="Channel segment in the fitDiagnostics path. "
+                        "SR uses 'Combined' (default); CR uses 'TTZ2E1Mu'.")
     p.add_argument("--fit-type", default="both", choices=["b", "s", "both"],
                    help="Which post-fit variant(s) to plot [default: both]")
     p.add_argument("--unblind", action="store_true")
@@ -85,6 +90,9 @@ CACHE_PATH = None
 
 
 def _compute_binning_suffix(parsed):
+    # CR mode (method=CR): the binning tag is already final; no _unblind/_partial_unblind suffix.
+    if parsed.method == "CR":
+        return parsed.binning
     if parsed.unblind:
         return f"{parsed.binning}_unblind"
     if parsed.partial_unblind:
@@ -102,8 +110,9 @@ def _compute_paths():
     global binning_suffix, TEMPLATE_DIR, FITDIAG_DIR, FITDIAG_PATH
     global OUTPUT_DIR, CACHE_DIR, CACHE_PATH
     binning_suffix = _compute_binning_suffix(args)
+    fit_channel = getattr(args, "fit_channel", "Combined") or "Combined"
     TEMPLATE_DIR = (f"{WORKDIR}/SignalRegionStudyV2/templates/"
-                    f"{args.era}/Combined/{args.masspoint}/{args.method}/{binning_suffix}")
+                    f"{args.era}/{fit_channel}/{args.masspoint}/{args.method}/{binning_suffix}")
     FITDIAG_DIR = f"{TEMPLATE_DIR}/combine_output/fitdiag"
     FITDIAG_PATH = (f"{FITDIAG_DIR}/fitDiagnostics."
                     f"{args.masspoint}.{args.method}.{binning_suffix}.root")
@@ -129,9 +138,11 @@ def entry_setup(parsed_args, *, require_fitdiag=True, make_output_dir=True):
     global args
     args = parsed_args
 
-    chosen = sum(bool(x) for x in (args.unblind, args.partial_unblind, args.blind))
-    if chosen != 1:
-        raise ValueError("Exactly one of --blind / --partial-unblind / --unblind is required")
+    # CR mode: real data, no blinding concept — bypass the {blind,unblind,partial-unblind} requirement
+    if args.method != "CR":
+        chosen = sum(bool(x) for x in (args.unblind, args.partial_unblind, args.blind))
+        if chosen != 1:
+            raise ValueError("Exactly one of --blind / --partial-unblind / --unblind is required")
 
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
                         format='%(levelname)s - %(message)s')
@@ -264,13 +275,19 @@ BKG_ORDER = ["others", "conversion", "WZ", "ZZ", "ttW", "ttH", "tZq", "ttZ", "no
 
 # Channel display labels
 CHANNEL_LATEX = {
-    "SR1E2Mu": "e#mu#mu",
-    "SR3Mu": "#mu#mu#mu",
+    "SR1E2Mu":  "e#mu#mu",   # 1 electron + OS dimuon (A->mumu)
+    "SR3Mu":    "#mu#mu#mu", # 3 muons
+    "TTZ2E1Mu": "ee#mu",     # OS dielectron (Z->ee) + 1 muon
 }
 
 
 def masspoint_label(masspoint):
-    """Convert 'MHc130_MA90' -> '(m_{H^{+}}, m_{A}) = (130, 90) GeV'."""
+    """Convert 'MHc130_MA90' -> '(m_{H^{+}}, m_{A}) = (130, 90) GeV'.
+
+    For CR plots the masspoint is a placeholder; show 't#bar{t}+Z CR' instead.
+    """
+    if args is not None and getattr(args, "method", None) == "CR":
+        return "t#bar{t}+Z CR"
     try:
         mhc, ma = masspoint.split("_")
         mhc_val = mhc.replace("MHc", "")
@@ -297,14 +314,31 @@ class PlotTarget:
 
 
 def parse_subchannel(subch, fallback_era):
-    """Return (era, channel) from a fitdiag sub-channel name."""
+    """Return (era, channel) from a fitdiag sub-channel name.
+
+    Handles three name shapes:
+      - "era2018_SR1E2Mu", "eraRun2_era2018_SR1E2Mu" -> ("2018", "SR1E2Mu")
+      - "SR1E2Mu", "TTZ2E1Mu" (per-era fit)          -> (fallback_era, channel)
+      - "era2018" (CR-only era combination, channel implicit from fit_channel)
+                                                      -> ("2018", args.fit_channel)
+    """
     parts = subch.split("_")
+    # Standard form: SR/TTZ token present
     for i, part in enumerate(parts):
         if part.startswith("SR") or part.startswith("TTZ"):
             channel = part
             if i > 0 and parts[i - 1].startswith("era"):
                 return parts[i - 1][3:], channel
             return fallback_era, channel
+    # CR-style era-only (single channel per era; channel is implicit).
+    # For nested forms like "eraRun2_era2016postVFP" the innermost era is the
+    # last "era<X>" token in the split.
+    if subch.startswith("era"):
+        last_era = parts[-1]
+        if last_era.startswith("era"):
+            last_era = last_era[3:]
+        implicit_ch = getattr(args, "fit_channel", None) or "Combined"
+        return last_era, implicit_ch
     raise ValueError(f"Cannot parse sub-channel: {subch}")
 
 
@@ -312,7 +346,13 @@ def keep_by_channel(subch, scope):
     """True if sub-channel `subch` belongs to the channel scope."""
     if scope == "Combined":
         return True
-    return subch.endswith("_" + scope) or subch == scope
+    if subch.endswith("_" + scope) or subch == scope:
+        return True
+    # CR-style: era-only sub-channel (e.g. "era2018") implicitly belongs to fit_channel.
+    if subch.startswith("era"):
+        implicit_ch = getattr(args, "fit_channel", None) or "Combined"
+        return scope == implicit_ch
+    return False
 
 
 def keep_by_era(subch, era_scope, fit_era):
@@ -508,10 +548,8 @@ def apply_coarse_scale(fine_hist, scales, mass_edges):
 # =============================================================================
 
 def scope_label(scope):
-    if scope == "SR1E2Mu":
-        return CHANNEL_LATEX["SR1E2Mu"]
-    if scope == "SR3Mu":
-        return CHANNEL_LATEX["SR3Mu"]
+    if scope in CHANNEL_LATEX:
+        return CHANNEL_LATEX[scope]
     return f"{CHANNEL_LATEX['SR1E2Mu']} + {CHANNEL_LATEX['SR3Mu']}"
 
 
@@ -578,7 +616,7 @@ def _make_stack(target, agg_data, agg_bkgs, agg_signal, label_top, systSrc, out_
         "channel": masspoint_label(args.masspoint),
         "channelPosY": 0.58,
         "channelSize": 0.04,
-        "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
+        "xTitle": "M(e^{+}e^{-}) [GeV]" if args.method == "CR" else "M(#mu^{+}#mu^{-}) [GeV]",
         "yTitle": f"Events / {args.bin_width:g} GeV",
         "xRange": list(target.xrange),
         "rTitle": "Data / Pred",
@@ -648,7 +686,7 @@ def make_prefit_vs_postfit(target, agg_total_pre, agg_total_post, fit_type):
         "channel": masspoint_label(args.masspoint),
         "channelPosY": 0.64,
         "channelSize": 0.035,
-        "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
+        "xTitle": "M(e^{+}e^{-}) [GeV]" if args.method == "CR" else "M(#mu^{+}#mu^{-}) [GeV]",
         "yTitle": f"Events / {args.bin_width:g} GeV",
         "xRange": list(target.xrange),
         "maxDigits": 3,

@@ -142,8 +142,9 @@ cd "$TEMPLATE_DIR"
 log "Working directory: $(pwd)"
 
 # Determine Asimov options
+# CR mode (method=CR): real data is always used (no blinding concept), so no Asimov.
 ASIMOV_OPTIONS=""
-if [[ "$UNBLIND" == false && "$PARTIAL_UNBLIND" == false ]]; then
+if [[ "$UNBLIND" == false && "$PARTIAL_UNBLIND" == false && "$METHOD" != "CR" ]]; then
     ASIMOV_OPTIONS="-t -1 --expectSignal 1"
 fi
 

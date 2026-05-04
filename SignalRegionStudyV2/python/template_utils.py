@@ -10,6 +10,7 @@ import numpy as np
 
 BIN_FLOOR_VALUE = 1e-6
 AUTOMC_THRESHOLD = 5  # Combine autoMCStats threshold for BB-lite vs per-process
+SHAPE_REL_ERR_THRESHOLD = 0.30  # Backgrounds above this rel-err drop shape systs (S1 lnN fallback)
 
 
 def save_json(data, path):

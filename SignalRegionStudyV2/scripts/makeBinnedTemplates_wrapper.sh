@@ -10,7 +10,13 @@
 #   3. Copy output back to scratch
 #
 # Usage:
-#   ./makeBinnedTemplates_wrapper.sh <STEP> <ERA> <CHANNEL> <MASSPOINT> <METHOD> <BINNING> [EXTRA_ARGS]
+#   ./makeBinnedTemplates_wrapper.sh <STEP> <ERA> <CHANNEL> <MASSPOINT> <METHOD> <BINNING> <OUTPUT_ERA> [EXTRA_ARGS]
+#
+# Notes:
+#   - OUTPUT_ERA is only meaningful for STEP=combine_era (target era: Run2/Run3/All).
+#     For all other steps it is passed as an empty string and ignored.
+#   - For STEP=combine_era: $ERA is a comma-separated list of input eras and
+#     $CHANNEL is the analysis channel (Combined/SR1E2Mu/SR3Mu).
 #
 set -eo pipefail
 
@@ -21,14 +27,19 @@ CHANNEL=$3
 MASSPOINT=$4
 METHOD=$5
 BINNING=$6
-# Capture all remaining arguments (HTCondor may split extra_args into multiple positional params)
-shift 6
-EXTRA_ARGS="$*"
+# jobs.sub uses HTCondor V2 syntax with each positional wrapped in single
+# quotes, so empty values arrive as literal empty args (positions stable).
+OUTPUT_ERA=${7:-}
+EXTRA_ARGS="${*:8}"
 
 # Validate required arguments
 if [[ -z "$STEP" || -z "$ERA" || -z "$MASSPOINT" || -z "$METHOD" || -z "$BINNING" ]]; then
     echo "ERROR: Missing required arguments"
-    echo "Usage: $0 STEP ERA CHANNEL MASSPOINT METHOD BINNING [EXTRA_ARGS]"
+    echo "Usage: $0 STEP ERA CHANNEL MASSPOINT METHOD BINNING OUTPUT_ERA [EXTRA_ARGS]"
+    exit 1
+fi
+if [[ "$STEP" == "combine_era" && -z "$OUTPUT_ERA" ]]; then
+    echo "ERROR: STEP=combine_era requires OUTPUT_ERA (Run2/Run3/All)"
     exit 1
 fi
 
@@ -41,6 +52,7 @@ echo "Channel: $CHANNEL"
 echo "Masspoint: $MASSPOINT"
 echo "Method: $METHOD"
 echo "Binning: $BINNING"
+echo "Output era: $OUTPUT_ERA"
 echo "Extra args: $EXTRA_ARGS"
 echo "Host: $(hostname)"
 echo "Time: $(date)"
@@ -206,12 +218,13 @@ run_on_scratch() {
                 --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
             ;;
         combine_era)
-            # $ERA contains comma-separated list of eras
-            # $CHANNEL contains output era name (Run2, Run3, All)
+            # $ERA      = comma-separated list of input eras
+            # $CHANNEL  = analysis channel (Combined, SR1E2Mu, SR3Mu)
+            # $OUTPUT_ERA = target era name (Run2, Run3, All)
             echo "Running combineDatacards.py (era combination)..."
             python3 python/combineDatacards.py --mode era \
-                --eras "$ERA" --channel Combined --masspoint "$MASSPOINT" \
-                --method "$METHOD" --binning "$BINNING" --output-era "$CHANNEL" $EXTRA_ARGS
+                --eras "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+                --method "$METHOD" --binning "$BINNING" --output-era "$OUTPUT_ERA" $EXTRA_ARGS
             ;;
         plot_score)
             # Plot ParticleNet scores (only for ParticleNet method)
