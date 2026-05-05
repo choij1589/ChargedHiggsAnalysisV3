@@ -37,11 +37,11 @@ abseta_bins = []
 if args.measure == "muon":
     ptcorr_bins = [10., 12., 14., 17., 20., 30., 50., 100., 200.]
     abseta_bins = [0., 0.9, 1.6, 2.4]
-    title = "fake rate (#mu)"
+    title = "misidentification rate (#mu)"
 elif args.measure == "electron":
     ptcorr_bins = [15., 17., 20., 25., 35., 50., 100., 200.]
     abseta_bins = [0., 0.8, 1.479, 2.5]
-    title = "fake rate (e)"
+    title = "misidentification rate (e)"
 else:
     raise KeyError(f"Wrong measure {args.measure}")
 logging.debug(f"ptcorr_bins: {ptcorr_bins}")
@@ -53,7 +53,7 @@ def setHistStyle(projections):
     for projection in projections.values():
         projection.SetTitle("")
         projection.SetStats(0)
-        projection.GetXaxis().SetTitle("p_{T}^{corr}")
+        projection.GetXaxis().SetTitle("p_{T}^{corr} [GeV]")
         projection.GetXaxis().SetRangeUser(ptcorr_bins[0], ptcorr_bins[-1])
         projection.GetYaxis().SetRangeUser(0., 1.)
         projection.GetYaxis().SetTitle(title)
@@ -74,7 +74,7 @@ def plot_fakerate(h, output_path):
 
     canvas = CMS.cmsCanvas("", ptcorr_bins[0], 100.,
                           0., 1.,
-                          "p_{T}^{corr}",
+                          "p_{T}^{corr} [GeV]",
                           title,
                           square=False,
                           iPos=0,
@@ -82,7 +82,7 @@ def plot_fakerate(h, output_path):
     hdf = CMS.GetCmsCanvasHist(canvas)
     hdf.GetYaxis().SetMaxDigits(1)
 
-    legend = CMS.cmsLeg(0.6, 0.89 - 0.05*3, 0.92, 0.89, textSize=0.04, columns=1)
+    legend = CMS.cmsLeg(0.6, 0.84 - 0.05*3, 0.92, 0.84, textSize=0.04, columns=1)
 
     canvas.cd()
     eta_label = "|#eta_{SC}|" if args.measure == "electron" else "|#eta|"

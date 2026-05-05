@@ -34,7 +34,7 @@ parser.add_argument("--exclude", default=None, type=str,
 parser.add_argument("--blind", default=False, action="store_true", help="blind data")
 parser.add_argument("--signals", default=["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"],
                     nargs="+", help="Signal mass points to overlay")
-parser.add_argument("--signal-scale", default=3.0, type=float,
+parser.add_argument("--signal-scale", default=2.0, type=float,
                     help="Scale factor for signal histograms")
 parser.add_argument("--noHEMVeto", default=False, action="store_true",
                     help="use NoHEMVeto samples (2018 only, SR1E2Mu/ZFake1E2Mu/TTZ2E1Mu)")
@@ -95,7 +95,20 @@ if args.noHEMVeto:
     if args.channel not in ["SR1E2Mu", "ZFake1E2Mu", "TTZ2E1Mu"]:
         raise ValueError(f"--noHEMVeto not supported for channel {args.channel}")
 
-config["channel"] = args.channel
+CHANNEL_LABELS = {
+    "SR1E2Mu":    ("SR",        "e#mu#mu"),
+    "SR3Mu":      ("SR",        "#mu#mu#mu"),
+    "ZFake1E2Mu": ("ZFake CR",  "e#mu#mu"),
+    "ZFake3Mu":   ("ZFake CR",  "#mu#mu#mu"),
+    "ZG1E2Mu":    ("Z+#gamma CR", "e#mu#mu"),
+    "ZG3Mu":      ("Z+#gamma CR", "#mu#mu#mu"),
+    "WZ1E2Mu":    ("WZ CR",     "e#mu#mu"),
+    "WZ3Mu":      ("WZ CR",     "#mu#mu#mu"),
+    "TTZ2E1Mu":   ("TTZ CR",    "ee#mu"),
+}
+config["channel"], config["region"] = CHANNEL_LABELS[args.channel]
+config["channelPosY"] = 0.72
+config["channelPosX"] = 0.22
 
 if "1E2Mu" in args.channel:
     FLAG = "Run1E2Mu"
