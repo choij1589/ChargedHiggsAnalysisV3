@@ -18,6 +18,7 @@
 # Step 3: Goodness-of-Fit test
 #./automize/gof.sh --mode all --method Baseline
 #./automize/gof.sh --mode all --method ParticleNet --partial-unblind
+#./automize/ttz_cr_gof.sh --ntoys 1000
 # After HTCondor jobs finish collect and plot:
 #./automize/gof.sh --mode all --method Baseline --plot-only
 #./automize/gof.sh --mode all --method ParticleNet --partial-unblind --plot-only
@@ -26,7 +27,7 @@
 #./automize/makeBinnedTemplates.sh --mode all --method Baseline --fitdiag --start-from combine --no-runAsymptotic
 #./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --partial-unblind --fitdiag --start-from combine --no-runAsymptotic
 # After fitdiag, post-fit mass plots with re-filling from the unbinned tree
-#./automize/plotPostfitMass.sh --method ParticleNet --partial-unblind --condor
+./automize/plotPostfitMass.sh --method ParticleNet --partial-unblind --condor
 ./automize/plotPostfitMass.sh --method ParticleNet --partial-unblind --plot-only
 
 

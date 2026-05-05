@@ -632,7 +632,7 @@ EOF
         for era in "${eras[@]}"; do
             for channel in SR1E2Mu SR3Mu; do
                 echo "JOB template_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS template_${channel}_${era} step=\"template\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+                echo "VARS template_${channel}_${era} step=\"template\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\"" >> "$dag_file"
             done
         done
 
@@ -642,7 +642,7 @@ EOF
             for era in "${eras[@]}"; do
                 for channel in SR1E2Mu SR3Mu Combined; do
                     echo "JOB plot_score_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
-                    echo "VARS plot_score_${channel}_${era} step=\"plot_score\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+                    echo "VARS plot_score_${channel}_${era} step=\"plot_score\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\"" >> "$dag_file"
                 done
             done
         fi
@@ -652,7 +652,7 @@ EOF
         for era in "${eras[@]}"; do
             for channel in SR1E2Mu SR3Mu; do
                 echo "JOB datacard_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS datacard_${channel}_${era} step=\"datacard\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+                echo "VARS datacard_${channel}_${era} step=\"datacard\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\"" >> "$dag_file"
             done
         done
 
@@ -661,7 +661,7 @@ EOF
         for era in "${eras[@]}"; do
             for channel in SR1E2Mu SR3Mu; do
                 echo "JOB validate_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS validate_${channel}_${era} step=\"validate\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+                echo "VARS validate_${channel}_${era} step=\"validate\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\"" >> "$dag_file"
             done
         done
 
@@ -669,49 +669,49 @@ EOF
         done_sfx=$(job_done_suffix "combine_ch")
         for era in "${eras[@]}"; do
             echo "JOB combine_ch_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS combine_ch_${era} step=\"combine_ch\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+            echo "VARS combine_ch_${era} step=\"combine_ch\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\"" >> "$dag_file"
         done
 
         # Step 6: Per-era Asymptotic
         done_sfx=$(job_done_suffix "asymptotic")
         for era in "${eras[@]}"; do
             echo "JOB asymptotic_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS asymptotic_${era} step=\"asymptotic\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "VARS asymptotic_${era} step=\"asymptotic\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
         done
 
-        # Step 6b: FitDiagnostics (parallel with asymptotic, both depend on combine_ch)
-        if [[ "$DO_FITDIAG" == "true" ]]; then
-            done_sfx=$(job_done_suffix "fitdiag")
-            for era in "${eras[@]}"; do
-                echo "JOB fitdiag_${era} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS fitdiag_${era} step=\"fitdiag\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
-                echo "JOB plotpostfit_${era} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS plotpostfit_${era} step=\"plotpostfit\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
-                echo "JOB plotpulls_${era} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS plotpulls_${era} step=\"plotpulls\" era=\"${era}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
-            done
-        fi
+        # Step 6b: per-era FitDiagnostics intentionally skipped in multi-era mode.
+        # Per-era fits are mostly diagnostic and prone to S+B non-convergence on
+        # low-stat eras (e.g. 2022EE × high-MHc partial-unblind). The run-period
+        # (Run2/Run3) and All-era fitdiags below carry the analysis-relevant info.
 
-        # Step 7: Combine eras
+        # Step 7: Combine eras (Combined channel + per-channel)
         done_sfx=$(job_done_suffix "combine_era")
         local eras_csv=$(IFS=,; echo "${eras[*]}")
-        echo "JOB combine_era_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS combine_era_${run_name} step=\"combine_era\" era=\"${eras_csv}\" channel=\"${run_name}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+        echo "JOB combine_era_Combined_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
+        echo "VARS combine_era_Combined_${run_name} step=\"combine_era\" era=\"${eras_csv}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"${run_name}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+        for ch in SR1E2Mu SR3Mu; do
+            echo "JOB combine_era_${ch}_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS combine_era_${ch}_${run_name} step=\"combine_era\" era=\"${eras_csv}\" channel=\"${ch}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"${run_name}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+        done
 
-        # Step 8: Combined Asymptotic (run-period level)
+        # Step 8: Asymptotic at run-period level (Combined + per-channel)
         done_sfx=$(job_done_suffix "asymptotic_combined")
-        echo "JOB asymptotic_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS asymptotic_${run_name} step=\"asymptotic\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+        echo "JOB asymptotic_Combined_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
+        echo "VARS asymptotic_Combined_${run_name} step=\"asymptotic\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+        for ch in SR1E2Mu SR3Mu; do
+            echo "JOB asymptotic_${ch}_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS asymptotic_${ch}_${run_name} step=\"asymptotic\" era=\"${run_name}\" channel=\"${ch}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+        done
 
-        # Step 8b: FitDiagnostics at run-period level
+        # Step 8b: FitDiagnostics at run-period level (Combined channel only)
         if [[ "$DO_FITDIAG" == "true" ]]; then
             done_sfx=$(job_done_suffix "fitdiag_combined")
-            echo "JOB fitdiag_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS fitdiag_${run_name} step=\"fitdiag\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
-            echo "JOB plotpostfit_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS plotpostfit_${run_name} step=\"plotpostfit\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
-            echo "JOB plotpulls_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS plotpulls_${run_name} step=\"plotpulls\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "JOB fitdiag_Combined_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS fitdiag_Combined_${run_name} step=\"fitdiag\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "JOB plotpostfit_Combined_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS plotpostfit_Combined_${run_name} step=\"plotpostfit\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "JOB plotpulls_Combined_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS plotpulls_Combined_${run_name} step=\"plotpulls\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
         fi
 
         # Step 8c: Combined era plot_score (ParticleNet only) — per-channel and Combined
@@ -719,7 +719,7 @@ EOF
             done_sfx=$(job_done_suffix "plot_score")
             for channel in SR1E2Mu SR3Mu Combined; do
                 echo "JOB plot_score_${channel}_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS plot_score_${channel}_${run_name} step=\"plot_score\" era=\"${run_name}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+                echo "VARS plot_score_${channel}_${run_name} step=\"plot_score\" era=\"${run_name}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\"" >> "$dag_file"
             done
         fi
     }
@@ -737,7 +737,7 @@ EOF
         done_sfx=$(job_done_suffix "template")
         for channel in SR1E2Mu SR3Mu; do
             echo "JOB template_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS template_${channel}_${era} step=\"template\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
+            echo "VARS template_${channel}_${era} step=\"template\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${extra}\"" >> "$dag_file"
         done
 
         # Step 2b: Plot scores (ParticleNet only) — per-channel and Combined
@@ -745,7 +745,7 @@ EOF
             done_sfx=$(job_done_suffix "plot_score")
             for channel in SR1E2Mu SR3Mu Combined; do
                 echo "JOB plot_score_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS plot_score_${channel}_${era} step=\"plot_score\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
+                echo "VARS plot_score_${channel}_${era} step=\"plot_score\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${extra}\"" >> "$dag_file"
             done
         fi
 
@@ -753,35 +753,35 @@ EOF
         done_sfx=$(job_done_suffix "datacard")
         for channel in SR1E2Mu SR3Mu; do
             echo "JOB datacard_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS datacard_${channel}_${era} step=\"datacard\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
+            echo "VARS datacard_${channel}_${era} step=\"datacard\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${extra}\"" >> "$dag_file"
         done
 
         # Step 4: Validate (uses lowstat.json from datacard step)
         done_sfx=$(job_done_suffix "validate")
         for channel in SR1E2Mu SR3Mu; do
             echo "JOB validate_${channel}_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS validate_${channel}_${era} step=\"validate\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
+            echo "VARS validate_${channel}_${era} step=\"validate\" era=\"${era}\" channel=\"${channel}\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${extra}\"" >> "$dag_file"
         done
 
         # Step 5: Combine channels
         done_sfx=$(job_done_suffix "combine_ch")
         echo "JOB combine_ch_${era} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS combine_ch_${era} step=\"combine_ch\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${extra}\"" >> "$dag_file"
+        echo "VARS combine_ch_${era} step=\"combine_ch\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${extra}\"" >> "$dag_file"
 
         # Step 6: Asymptotic (final step for single era)
         done_sfx=$(job_done_suffix "asymptotic")
         echo "JOB asymptotic_${era} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS asymptotic_${era} step=\"asymptotic\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+        echo "VARS asymptotic_${era} step=\"asymptotic\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
 
         # Step 6b: FitDiagnostics (parallel with asymptotic)
         if [[ "$DO_FITDIAG" == "true" ]]; then
             done_sfx=$(job_done_suffix "fitdiag")
             echo "JOB fitdiag_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS fitdiag_${era} step=\"fitdiag\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "VARS fitdiag_${era} step=\"fitdiag\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             echo "JOB plotpostfit_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS plotpostfit_${era} step=\"plotpostfit\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "VARS plotpostfit_${era} step=\"plotpostfit\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             echo "JOB plotpulls_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS plotpulls_${era} step=\"plotpulls\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "VARS plotpulls_${era} step=\"plotpulls\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
         fi
     }
 
@@ -798,25 +798,33 @@ EOF
             add_run_period_jobs "Run3" run3_eras
         fi
 
-        # For --mode all: add final combination
+        # For --mode all: add final combination (Combined + per-channel)
         if [[ "$mode" == "all" ]]; then
             local done_sfx
             done_sfx=$(job_done_suffix "combine_era")
-            echo "JOB combine_era_All jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS combine_era_All step=\"combine_era\" era=\"Run2,Run3\" channel=\"All\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+            echo "JOB combine_era_Combined_All jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS combine_era_Combined_All step=\"combine_era\" era=\"Run2,Run3\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"All\" extra_args=\"${extra_args}\"" >> "$dag_file"
+            for ch in SR1E2Mu SR3Mu; do
+                echo "JOB combine_era_${ch}_All jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS combine_era_${ch}_All step=\"combine_era\" era=\"Run2,Run3\" channel=\"${ch}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"All\" extra_args=\"${extra_args}\"" >> "$dag_file"
+            done
             done_sfx=$(job_done_suffix "asymptotic_combined")
-            echo "JOB asymptotic_All jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS asymptotic_All step=\"asymptotic\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "JOB asymptotic_Combined_All jobs.sub${done_sfx}" >> "$dag_file"
+            echo "VARS asymptotic_Combined_All step=\"asymptotic\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            for ch in SR1E2Mu SR3Mu; do
+                echo "JOB asymptotic_${ch}_All jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS asymptotic_${ch}_All step=\"asymptotic\" era=\"All\" channel=\"${ch}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            done
 
-            # FitDiagnostics at All level
+            # FitDiagnostics at All level (Combined channel only)
             if [[ "$DO_FITDIAG" == "true" ]]; then
                 done_sfx=$(job_done_suffix "fitdiag_combined")
-                echo "JOB fitdiag_All jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS fitdiag_All step=\"fitdiag\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
-                echo "JOB plotpostfit_All jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS plotpostfit_All step=\"plotpostfit\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
-                echo "JOB plotpulls_All jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS plotpulls_All step=\"plotpulls\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+                echo "JOB fitdiag_Combined_All jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS fitdiag_Combined_All step=\"fitdiag\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+                echo "JOB plotpostfit_Combined_All jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS plotpostfit_Combined_All step=\"plotpostfit\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+                echo "JOB plotpulls_Combined_All jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS plotpulls_Combined_All step=\"plotpulls\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             fi
 
             # All-era plot_score (ParticleNet only) — per-channel and Combined
@@ -824,7 +832,7 @@ EOF
                 done_sfx=$(job_done_suffix "plot_score")
                 for channel in SR1E2Mu SR3Mu Combined; do
                     echo "JOB plot_score_${channel}_All jobs.sub${done_sfx}" >> "$dag_file"
-                    echo "VARS plot_score_${channel}_All step=\"plot_score\" era=\"All\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" extra_args=\"${extra_args}\"" >> "$dag_file"
+                    echo "VARS plot_score_${channel}_All step=\"plot_score\" era=\"All\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\"" >> "$dag_file"
                 done
             fi
         fi
@@ -886,24 +894,27 @@ EOF
         local asymptotic_jobs=$(printf "asymptotic_%s " "${eras[@]}")
         echo "PARENT $combine_ch_jobs CHILD $asymptotic_jobs" >> "$dag_file"
 
-        # Per-era Asymptotic -> Era combination
-        echo "PARENT $asymptotic_jobs CHILD combine_era_${run_name}" >> "$dag_file"
+        # Per-era Asymptotic -> Combined era combination
+        echo "PARENT $asymptotic_jobs CHILD combine_era_Combined_${run_name}" >> "$dag_file"
 
-        # Era combination -> Combined Asymptotic
-        echo "PARENT combine_era_${run_name} CHILD asymptotic_${run_name}" >> "$dag_file"
+        # Combined era combination -> Combined run-period Asymptotic
+        echo "PARENT combine_era_Combined_${run_name} CHILD asymptotic_Combined_${run_name}" >> "$dag_file"
 
-        # FitDiagnostics dependencies (parallel with asymptotic)
+        # Per-channel era combination: validate_${ch}_{eras...} -> combine_era_${ch}_${run_name} -> asymptotic_${ch}_${run_name}
+        for ch in SR1E2Mu SR3Mu; do
+            local ch_validate_jobs=""
+            for era in "${eras[@]}"; do
+                ch_validate_jobs+="validate_${ch}_${era} "
+            done
+            echo "PARENT $ch_validate_jobs CHILD combine_era_${ch}_${run_name}" >> "$dag_file"
+            echo "PARENT combine_era_${ch}_${run_name} CHILD asymptotic_${ch}_${run_name}" >> "$dag_file"
+        done
+
+        # FitDiagnostics dependencies — only at run-period and All levels
+        # (per-era fitdiag jobs are not generated; see Step 6b note above).
         if [[ "$DO_FITDIAG" == "true" ]]; then
-            local fitdiag_jobs=$(printf "fitdiag_%s " "${eras[@]}")
-            local plotpostfit_jobs=$(printf "plotpostfit_%s " "${eras[@]}")
-            local plotpulls_jobs=$(printf "plotpulls_%s " "${eras[@]}")
-            # combine_ch -> fitdiag (parallel with asymptotic)
-            echo "PARENT $combine_ch_jobs CHILD $fitdiag_jobs" >> "$dag_file"
-            # fitdiag -> plotpostfit + plotpulls (parallel)
-            echo "PARENT $fitdiag_jobs CHILD $plotpostfit_jobs $plotpulls_jobs" >> "$dag_file"
-            # combine_era -> fitdiag at run-period level
-            echo "PARENT combine_era_${run_name} CHILD fitdiag_${run_name}" >> "$dag_file"
-            echo "PARENT fitdiag_${run_name} CHILD plotpostfit_${run_name} plotpulls_${run_name}" >> "$dag_file"
+            echo "PARENT combine_era_Combined_${run_name} CHILD fitdiag_Combined_${run_name}" >> "$dag_file"
+            echo "PARENT fitdiag_Combined_${run_name} CHILD plotpostfit_Combined_${run_name} plotpulls_Combined_${run_name}" >> "$dag_file"
         fi
     }
 
@@ -950,13 +961,20 @@ EOF
 
         # Final combination dependencies for --mode all
         if [[ "$mode" == "all" ]]; then
-            echo "PARENT asymptotic_Run2 asymptotic_Run3 CHILD combine_era_All" >> "$dag_file"
-            echo "PARENT combine_era_All CHILD asymptotic_All" >> "$dag_file"
+            # Combined channel: Run2 + Run3 run-period asymptotic -> All combine_era -> All asymptotic
+            echo "PARENT asymptotic_Combined_Run2 asymptotic_Combined_Run3 CHILD combine_era_Combined_All" >> "$dag_file"
+            echo "PARENT combine_era_Combined_All CHILD asymptotic_Combined_All" >> "$dag_file"
 
-            # FitDiagnostics at All level
+            # Per-channel: Run2 + Run3 per-channel combine_era -> All combine_era -> All asymptotic
+            for ch in SR1E2Mu SR3Mu; do
+                echo "PARENT combine_era_${ch}_Run2 combine_era_${ch}_Run3 CHILD combine_era_${ch}_All" >> "$dag_file"
+                echo "PARENT combine_era_${ch}_All CHILD asymptotic_${ch}_All" >> "$dag_file"
+            done
+
+            # FitDiagnostics at All level (Combined channel only)
             if [[ "$DO_FITDIAG" == "true" ]]; then
-                echo "PARENT combine_era_All CHILD fitdiag_All" >> "$dag_file"
-                echo "PARENT fitdiag_All CHILD plotpostfit_All plotpulls_All" >> "$dag_file"
+                echo "PARENT combine_era_Combined_All CHILD fitdiag_Combined_All" >> "$dag_file"
+                echo "PARENT fitdiag_Combined_All CHILD plotpostfit_Combined_All plotpulls_Combined_All" >> "$dag_file"
             fi
 
             # All-era plot_score depends on per-run-period plot_score of the same channel
@@ -1000,7 +1018,7 @@ function submit_condor_dags() {
 JobBatchName = ${masspoint}
 universe = vanilla
 executable = $SCRIPT_DIR/scripts/makeBinnedTemplates_wrapper.sh
-arguments = \$(step) \$(era) \$(channel) \$(masspoint) \$(method) \$(binning) \$(extra_args)
+arguments = "'\$(step)' '\$(era)' '\$(channel)' '\$(masspoint)' '\$(method)' '\$(binning)' '\$(output_era)' '\$(extra_args)'"
 output = logs/\$(step)_\$(channel)_\$(era).out
 error = logs/\$(step)_\$(channel)_\$(era).err
 log = dag.log

@@ -29,8 +29,8 @@ parser.add_argument("--era", required=True, type=str, help="Data-taking period (
 parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
 parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet, etc.)")
-parser.add_argument("--binning", default="extended", choices=["uniform", "extended"],
-                    help="Binning method: 'extended' (19 bins, default) or 'uniform' (15 bins)")
+parser.add_argument("--binning", default="extended", type=str,
+                    help="Binning suffix tag (e.g., 'extended', 'uniform', 'ZWin_adaptive')")
 parser.add_argument("--unblind", action="store_true",
                     help="Check templates from unblind run")
 parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
@@ -81,6 +81,19 @@ def get_channel_list(channel):
         return ["SR1E2Mu", "SR3Mu"]
     else:
         return [channel]
+
+
+# Channel-config fallback — if a channel has no dedicated systematics block,
+# fall back to the named SR channel. Mirrors preprocess.py CHANNEL_CONFIG_MAP.
+# The TTZ2E1Mu CR shares SR1E2Mu's systematics by design.
+CHANNEL_CONFIG_FALLBACK = {
+    "TTZ2E1Mu": "SR1E2Mu",
+}
+
+# CR mode: detected via method="CR". Signal hist is a dummy placeholder named
+# 'signal' (not args.masspoint), so signal-related validations are skipped.
+IS_CR = (args.method == "CR")
+SIGNAL_HIST_NAME = "signal" if IS_CR else args.masspoint
 
 
 # Expand era and channel lists
@@ -200,6 +213,16 @@ class CombinedShapesFile:
 # Configuration Loading
 # =============================================================================
 
+def _lookup_channel_block(config, channel, config_path):
+    """Resolve a channel's systematics block, applying CHANNEL_CONFIG_FALLBACK."""
+    if channel in config:
+        return config[channel]
+    fallback = CHANNEL_CONFIG_FALLBACK.get(channel)
+    if fallback and fallback in config:
+        return config[fallback]
+    raise ValueError(f"Channel '{channel}' not found in {config_path}")
+
+
 def load_systematics_config():
     """
     Load shape systematics from era-specific config.
@@ -216,10 +239,7 @@ def load_systematics_config():
         with open(config_path) as f:
             config = json.load(f)
 
-        if channel_list[0] not in config:
-            raise ValueError(f"Channel '{channel_list[0]}' not found in {config_path}")
-
-        return config[channel_list[0]]
+        return _lookup_channel_block(config, channel_list[0], config_path)
 
     # Multiple eras/channels - find common systematics
     all_systs = []
@@ -232,9 +252,7 @@ def load_systematics_config():
             config = json.load(f)
 
         for channel in channel_list:
-            if channel not in config:
-                raise ValueError(f"Channel '{channel}' not found in {config_path}")
-            all_systs.append(config[channel])
+            all_systs.append(_lookup_channel_block(config, channel, config_path))
 
     # Find intersection of systematic names
     common_names = set(all_systs[0].keys())
@@ -394,13 +412,16 @@ def check_systematic_variation(nominal_hist, syst_hist_up, syst_hist_down, proce
 # Systematic Error Calculation
 # =============================================================================
 
-def calculate_systematic_error(shapes_file, process, ibin, shape_systs, lowstat_info=None):
+def calculate_systematic_error(shapes_file, process, ibin, shape_systs,
+                               lowstat_info=None, lnN_systs=None):
     """
     Calculate systematic uncertainty for a specific process and bin.
 
-    For processes with shape histograms, uses envelope method (max deviation).
-    For low-stat processes (listed in lowstat_info), uses lnN fallback values
-    to compute the error contribution.
+    Three contributions are summed in quadrature:
+      1. Shape systematics with Up/Down histograms — envelope method.
+      2. Shape systematics whose histograms were stripped for low-stat processes —
+         lnN-fallback value from lowstat.json (rate effect on this bin).
+      3. lnN systematics from the config — rate effect on this bin.
 
     Args:
         shapes_file: TFile containing histograms
@@ -408,6 +429,7 @@ def calculate_systematic_error(shapes_file, process, ibin, shape_systs, lowstat_
         ibin: Bin number
         shape_systs: Dictionary of shape systematics
         lowstat_info: Optional dict from lowstat.json with fallback values
+        lnN_systs: Optional dict of lnN systematics {name: {value, group}}
 
     Returns:
         Systematic error (absolute)
@@ -420,17 +442,14 @@ def calculate_systematic_error(shapes_file, process, ibin, shape_systs, lowstat_
     if nominal_content <= 0:
         return 0.0
 
+    process_key = "signal" if process == args.masspoint else process
     syst_errors_sq = []
 
+    # 1 & 2: Shape systematics
     for syst_name, props in shape_systs.items():
-        # Check if this systematic applies to this process
-        group = props["group"]
-        process_key = "signal" if process == args.masspoint else process
-
-        if process_key not in group:
+        if process_key not in props["group"]:
             continue
 
-        # Get Up/Down histograms
         up_hist = shapes_file.Get(f"{process}_{syst_name}Up")
         down_hist = shapes_file.Get(f"{process}_{syst_name}Down")
 
@@ -444,11 +463,21 @@ def calculate_systematic_error(shapes_file, process, ibin, shape_systs, lowstat_
             max_dev = max(up_dev, down_dev)
             syst_errors_sq.append(max_dev ** 2)
         elif lowstat_info and process in lowstat_info.get("processes", []):
-            # Low-stat process: use lnN fallback value
+            # Low-stat process: shape histograms were stripped; use lnN fallback value
             fallback_str = lowstat_info["fallbacks"].get(process, {}).get(syst_name, "-")
             if fallback_str != "-":
                 lnn_value = float(fallback_str)
                 max_dev = nominal_content * (lnn_value - 1.0)
+                syst_errors_sq.append(max_dev ** 2)
+
+    # 3: lnN (rate) systematics — flat rate effect on every bin of the process
+    if lnN_systs:
+        for syst_name, props in lnN_systs.items():
+            if process_key not in props.get("group", []):
+                continue
+            value = props.get("value", 1.0)
+            max_dev = nominal_content * abs(value - 1.0)
+            if max_dev > 0:
                 syst_errors_sq.append(max_dev ** 2)
 
     if syst_errors_sq:
@@ -460,7 +489,8 @@ def calculate_systematic_error(shapes_file, process, ibin, shape_systs, lowstat_
 # Plotting Functions
 # =============================================================================
 
-def make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info=None):
+def make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info=None,
+                          lnN_systs=None):
     """
     Create background stack plot with signal overlay and systematic uncertainties.
     """
@@ -475,12 +505,14 @@ def make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info=No
     incl = data_obs.Clone("data_obs_clone")
     incl.SetTitle("data_obs")
 
-    # Get signal histogram
-    signal_hist = shapes_file.Get(args.masspoint)
-    if not signal_hist:
-        logging.warning("Signal histogram not found, skipping background stack plot")
-        return
-    signal = signal_hist.Clone(f"{args.masspoint}_clone")
+    # Get signal histogram (skipped in CR mode — signal is a dummy placeholder)
+    signal = None
+    if not IS_CR:
+        signal_hist = shapes_file.Get(SIGNAL_HIST_NAME)
+        if not signal_hist:
+            logging.warning("Signal histogram not found, skipping background stack plot")
+            return
+        signal = signal_hist.Clone(f"{SIGNAL_HIST_NAME}_clone")
 
     # Get background histograms with systematic uncertainties
     # Order by BKG_ORDER for consistent stacking
@@ -505,7 +537,8 @@ def make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info=No
             # Add systematic uncertainties to each bin
             for ibin in range(1, hist_clone.GetNbinsX() + 1):
                 stat_error = hist_clone.GetBinError(ibin)
-                syst_error = calculate_systematic_error(shapes_file, bkg, ibin, shape_systs, lowstat_info)
+                syst_error = calculate_systematic_error(shapes_file, bkg, ibin, shape_systs,
+                                                        lowstat_info, lnN_systs)
                 total_error = sqrt(stat_error ** 2 + syst_error ** 2)
                 hist_clone.SetBinError(ibin, total_error)
 
@@ -543,26 +576,28 @@ def make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info=No
     plotter = ComparisonCanvas(incl, bkg_hists, config)
     plotter.drawPadUp()
 
-    # Draw signal on upper pad
-    plotter.canv.cd(1)
-    signal.SetLineColor(ROOT.kBlack)
-    signal.SetLineWidth(2)
-    signal.SetLineStyle(1)
-    signal.Draw("HIST SAME")
+    # Draw signal on upper pad (skipped in CR mode)
+    if signal is not None:
+        plotter.canv.cd(1)
+        signal.SetLineColor(ROOT.kBlack)
+        signal.SetLineWidth(2)
+        signal.SetLineStyle(1)
+        signal.Draw("HIST SAME")
 
-    # Add signal to legend
-    current_pad = ROOT.gPad
-    primitives = current_pad.GetListOfPrimitives()
-    for obj in primitives:
-        if obj.InheritsFrom("TLegend"):
-            obj.AddEntry(signal, f"Signal ({signal.Integral():.1f})", "l")
-            break
+        # Add signal to legend
+        current_pad = ROOT.gPad
+        primitives = current_pad.GetListOfPrimitives()
+        for obj in primitives:
+            if obj.InheritsFrom("TLegend"):
+                obj.AddEntry(signal, f"Signal ({signal.Integral():.1f})", "l")
+                break
 
     plotter.drawPadDown()
 
-    # Draw additional text
+    # Draw additional text (CR mode: no label — masspoint is a placeholder)
     plotter.canv.cd()
-    CMS.drawText(f"{args.masspoint} ({args.method})", posX=0.2, posY=0.76, font=61, align=0, size=0.03)
+    if not IS_CR:
+        CMS.drawText(f"{args.masspoint} ({args.method})", posX=0.2, posY=0.76, font=61, align=0, size=0.03)
 
     # Save
     output_path = f"{VALIDATION_DIR}/background_stack.png"
@@ -570,7 +605,8 @@ def make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info=No
 
     logging.info(f"  Saved: {output_path}")
     logging.info(f"  Background yield: {total_bkg_yield:.2f}")
-    logging.info(f"  Signal yield: {signal.Integral():.2f}")
+    if signal is not None:
+        logging.info(f"  Signal yield: {signal.Integral():.2f}")
 
 
 def make_signal_vs_background(shapes_file):
@@ -878,10 +914,11 @@ if __name__ == "__main__":
     valid, issues = validate_histogram(data_obs, "data_obs", min_entries=1)
     all_issues.extend(issues)
 
-    # Check signal
-    signal_hist = shapes_file.Get(args.masspoint)
-    valid, issues = validate_histogram(signal_hist, args.masspoint, min_entries=10)
-    all_issues.extend(issues)
+    # Check signal (skipped in CR mode — placeholder hist)
+    if not IS_CR:
+        signal_hist = shapes_file.Get(SIGNAL_HIST_NAME)
+        valid, issues = validate_histogram(signal_hist, SIGNAL_HIST_NAME, min_entries=10)
+        all_issues.extend(issues)
 
     # Check backgrounds
     for bkg in backgrounds:
@@ -900,6 +937,10 @@ if __name__ == "__main__":
         for process in all_processes:
             process_key = "signal" if process == args.masspoint else process
             if process_key not in group:
+                continue
+
+            # CR mode: signal is a placeholder hist with no variations — skip
+            if IS_CR and process == args.masspoint:
                 continue
 
             # Skip low-stat pairs — histograms intentionally removed by printDatacard.py
@@ -929,8 +970,9 @@ if __name__ == "__main__":
     logging.info("=" * 60)
     logging.info("Generating diagnostic plots...")
 
-    make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info)
-    make_signal_vs_background(shapes_file)
+    make_background_stack(shapes_file, backgrounds, shape_systs, lowstat_info, lnN_systs)
+    if not IS_CR:
+        make_signal_vs_background(shapes_file)
     make_all_systematic_plots(shapes_file, all_processes, shape_systs)
 
     shapes_file.Close()
@@ -957,11 +999,12 @@ if __name__ == "__main__":
     if data_obs:
         logging.info(f"  {'data_obs':<20s}: {data_obs.Integral():>10.4f} events")
 
-    # S/B ratio
-    signal = shapes_file.Get(args.masspoint)
-    if signal and data_obs and data_obs.Integral() > 0:
-        sb_ratio = signal.Integral() / data_obs.Integral()
-        logging.info(f"S/B ratio: {sb_ratio:.4f}")
+    # S/B ratio (signal-vs-data is meaningless in CR mode — skip)
+    if not IS_CR:
+        signal = shapes_file.Get(SIGNAL_HIST_NAME)
+        if signal and data_obs and data_obs.Integral() > 0:
+            sb_ratio = signal.Integral() / data_obs.Integral()
+            logging.info(f"S/B ratio: {sb_ratio:.4f}")
 
     shapes_file.Close()
 

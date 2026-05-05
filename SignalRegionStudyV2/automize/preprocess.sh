@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-voms-proxy-init --voms=cms --valid=168:00
+# voms-proxy-init --voms=cms --valid=168:00  # skipped: existing /tmp/x509up_u$(id -u) is valid
 
 # Mass points (loaded from configs/masspoints.json)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
