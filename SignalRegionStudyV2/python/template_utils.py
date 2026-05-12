@@ -243,11 +243,8 @@ def create_scaled_hist(central_hist, process, syst_name, value, direction):
 
 
 # =============================================================================
-# Run3 Signal Systematic Name Remapping
+# Era helpers
 # =============================================================================
-# When Run3 signal is scaled from Run2 (2018), the preprocessed trees have
-# Run2-style systematic names. These functions help map between Run3 config
-# names and Run2 tree names.
 
 RUN3_ERAS = ["2022", "2022EE", "2023", "2023BPix"]
 
@@ -255,88 +252,6 @@ RUN3_ERAS = ["2022", "2022EE", "2023", "2023BPix"]
 def is_run3_era(era):
     """Check if the era is a Run3 era."""
     return era in RUN3_ERAS
-
-
-# Scaled-from-Run2 Run3 signals carry Run2 (NanoAODv9) LHEScaleWeight indexing.
-# The Run3 configs, however, reference Run3 (NanoAODv13) indices. This table maps
-# the Run3 QCD-scale nuisance+direction back to the literal Run2 Scale_N tree
-# present in the scaled file.
-_QCDSCALE_RUN3_TO_RUN2_TREE = {
-    ("QCDScale_muF_BSMsignal_13p6TeV", "Up"): "Scale_4",
-    ("QCDScale_muF_BSMsignal_13p6TeV", "Down"): "Scale_3",
-    ("QCDScale_muR_BSMsignal_13p6TeV", "Up"): "Scale_6",
-    ("QCDScale_muR_BSMsignal_13p6TeV", "Down"): "Scale_1",
-}
-
-
-def get_run2_tree_name_for_run3_syst(syst_name, direction, era):
-    """
-    Get the Run2 tree name that corresponds to a Run3 systematic.
-
-    For Run3 scaled signal, the preprocessed trees have Run2 names.
-    This maps Run3 systematic names back to their Run2 equivalents.
-
-    Args:
-        syst_name: Run3 systematic name (e.g., 'CMS_res_j_2023BPix')
-        direction: 'Up' or 'Down'
-        era: Target era (e.g., '2023BPix')
-
-    Returns:
-        Run2 tree name (e.g., 'CMS_res_j_2018_Up'), or the raw Scale_N name
-        for QCD-scale nuisances (Run2 indexing has no direction suffix).
-    """
-    qcd_tree = _QCDSCALE_RUN3_TO_RUN2_TREE.get((syst_name, direction))
-    if qcd_tree is not None:
-        return qcd_tree
-
-    # Era-specific systematics: {name}_{era} → {name}_2018
-    if syst_name.endswith(f'_{era}'):
-        base = syst_name[:-len(f'_{era}')]
-        return f"{base}_2018_{direction}"
-
-    # Energy-specific: 13p6TeV → 13TeV
-    if '13p6TeV' in syst_name:
-        run2_name = syst_name.replace('13p6TeV', '13TeV')
-        return f"{run2_name}_{direction}"
-
-    # No remapping needed (correlated systematics)
-    return f"{syst_name}_{direction}"
-
-
-def is_signal_scaled_from_run2(signal_file_path, era):
-    """
-    Check if signal file contains Run2 systematic names (scaled signal).
-
-    For Run3 eras, if the signal was scaled from Run2, it will have
-    Run2-style tree names like 'CMS_pileup_13TeV_Up' instead of
-    'CMS_pileup_13p6TeV_Up'.
-
-    Args:
-        signal_file_path: Path to signal ROOT file
-        era: Target era
-
-    Returns:
-        True if signal appears to be scaled from Run2, False otherwise
-    """
-    if not is_run3_era(era):
-        return False
-
-    rfile = ROOT.TFile.Open(signal_file_path, "READ")
-    if not rfile or rfile.IsZombie():
-        return False
-
-    keys = [k.GetName() for k in rfile.GetListOfKeys()]
-    rfile.Close()
-
-    # Check for Run2-style tree names
-    run2_indicators = [
-        'CMS_pileup_13TeV_Up',
-        'CMS_pileup_13TeV_Down',
-        'CMS_res_j_2018_Up',
-        'CMS_res_j_2018_Down'
-    ]
-
-    return any(indicator in keys for indicator in run2_indicators)
 
 
 def categorize_systematics(config):

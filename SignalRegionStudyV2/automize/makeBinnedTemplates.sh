@@ -26,6 +26,8 @@ SINGLE_ERA=""  # Single era mode (overrides MODE)
 METHOD="Baseline"  # Options: Baseline, ParticleNet
 EXTRA_ARGS=""
 BINNING="extended"
+NUISANCE="fallback_lnn"
+PULL_FIT="b"
 # DO_PLOT_SCORE is set after METHOD is parsed (default depends on method)
 DO_PLOT_SCORE_SET=false
 # Datacard and limits options (enabled by default)
@@ -56,6 +58,15 @@ while [[ $# -gt 0 ]]; do
         --binning)
             BINNING="$2"
             EXTRA_ARGS="$EXTRA_ARGS --binning $2"
+            shift 2
+            ;;
+        --nuisance)
+            NUISANCE="$2"
+            EXTRA_ARGS="$EXTRA_ARGS --nuisance $2"
+            shift 2
+            ;;
+        --pull-fit)
+            PULL_FIT="$2"
             shift 2
             ;;
         --unblind)
@@ -147,6 +158,8 @@ while [[ $# -gt 0 ]]; do
             echo "Template Options:"
             echo "  --binning extended   - Use extended binning (default, 19 bins)"
             echo "  --binning uniform    - Use uniform binning (15 bins)"
+            echo "  --nuisance MODE      - fallback_lnn (default) or preserve_shape"
+            echo "  --pull-fit MODE      - b (default) or both for nuisance pull PDFs"
             echo "  --unblind            - Use real data for data_obs"
             echo "  --partial-unblind    - Unblind low score region (requires ParticleNet)"
             echo "  --validationOnly     - Skip template generation (sets --start-from datacard)"
@@ -202,6 +215,23 @@ case "$START_FROM" in
         ;;
 esac
 
+case "$NUISANCE" in
+    fallback_lnn|preserve_shape) ;;
+    *)
+        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
+        echo "Valid values: fallback_lnn, preserve_shape"
+        exit 1
+        ;;
+esac
+case "$PULL_FIT" in
+    b|both) ;;
+    *)
+        echo "ERROR: Invalid --pull-fit value '$PULL_FIT'"
+        echo "Valid values: b, both"
+        exit 1
+        ;;
+esac
+
 # Set defaults: plot-score enabled for ParticleNet only (if not explicitly set)
 if [[ "$DO_PLOT_SCORE_SET" == "false" ]]; then
     if [[ "$METHOD" == "ParticleNet" ]]; then
@@ -211,11 +241,20 @@ if [[ "$DO_PLOT_SCORE_SET" == "false" ]]; then
     fi
 fi
 
-# Select mass points based on method
+# Select mass points based on method and blinding mode
+# --unblind auto-selects the curated unblind subset; --partial-unblind uses the full list
 if [[ "$METHOD" == "ParticleNet" ]]; then
-    MASSPOINTs=("${MASSPOINTs_PARTICLENET[@]}")
+    if [[ "$EXTRA_ARGS" == *"--unblind"* ]]; then
+        MASSPOINTs=("${MASSPOINTs_UNBLIND_PN[@]}")
+    else
+        MASSPOINTs=("${MASSPOINTs_PARTICLENET[@]}")
+    fi
 else
-    MASSPOINTs=("${MASSPOINTs_BASELINE[@]}")
+    if [[ "$EXTRA_ARGS" == *"--unblind"* ]]; then
+        MASSPOINTs=("${MASSPOINTs_UNBLIND_BASELINE[@]}")
+    else
+        MASSPOINTs=("${MASSPOINTs_BASELINE[@]}")
+    fi
 fi
 
 echo "============================================================"
@@ -228,6 +267,7 @@ fi
 echo "Method: $METHOD"
 echo "Mass points: ${MASSPOINTs[*]}"
 echo "Binning: $BINNING"
+echo "Nuisance mode: $NUISANCE"
 echo "Plot score: $DO_PLOT_SCORE"
 echo "FitDiagnostics: $DO_FITDIAG"
 echo "Start from: $START_FROM"
@@ -250,6 +290,9 @@ function get_template_dir() {
         binning_suffix="${binning}_partial_unblind"
     elif [[ "$extra_args" == *"--unblind"* ]]; then
         binning_suffix="${binning}_unblind"
+    fi
+    if [[ "$extra_args" == *"--nuisance preserve_shape"* ]]; then
+        binning_suffix="${binning_suffix}_preserve_shape"
     fi
     echo "${SCRIPT_DIR}/templates/${era}/${channel}/${masspoint}/${method}/${binning_suffix}"
 }
@@ -556,6 +599,10 @@ function generate_dag_file() {
     elif [[ "$extra_args" == *"--unblind"* ]]; then
         asymptotic_extra_args="--unblind"
     fi
+    if [[ "$extra_args" == *"--nuisance preserve_shape"* ]]; then
+        asymptotic_extra_args="$asymptotic_extra_args --nuisance preserve_shape"
+    fi
+    local pull_extra_args="$asymptotic_extra_args --pull-fit $PULL_FIT"
 
     # Step level mapping for --start-from
     # template=0, datacard=1, validate=2, combine=3, asymptotic=4, combine_era=5,
@@ -711,7 +758,7 @@ EOF
             echo "JOB plotpostfit_Combined_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
             echo "VARS plotpostfit_Combined_${run_name} step=\"plotpostfit\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             echo "JOB plotpulls_Combined_${run_name} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS plotpulls_Combined_${run_name} step=\"plotpulls\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "VARS plotpulls_Combined_${run_name} step=\"plotpulls\" era=\"${run_name}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${pull_extra_args}\"" >> "$dag_file"
         fi
 
         # Step 8c: Combined era plot_score (ParticleNet only) — per-channel and Combined
@@ -781,7 +828,7 @@ EOF
             echo "JOB plotpostfit_${era} jobs.sub${done_sfx}" >> "$dag_file"
             echo "VARS plotpostfit_${era} step=\"plotpostfit\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
             echo "JOB plotpulls_${era} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS plotpulls_${era} step=\"plotpulls\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+            echo "VARS plotpulls_${era} step=\"plotpulls\" era=\"${era}\" channel=\"Combined\" masspoint=\"${mp}\" method=\"${meth}\" binning=\"${bin}\" output_era=\"\" extra_args=\"${pull_extra_args}\"" >> "$dag_file"
         fi
     }
 
@@ -824,7 +871,7 @@ EOF
                 echo "JOB plotpostfit_Combined_All jobs.sub${done_sfx}" >> "$dag_file"
                 echo "VARS plotpostfit_Combined_All step=\"plotpostfit\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
                 echo "JOB plotpulls_Combined_All jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS plotpulls_Combined_All step=\"plotpulls\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\"" >> "$dag_file"
+                echo "VARS plotpulls_Combined_All step=\"plotpulls\" era=\"All\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${pull_extra_args}\"" >> "$dag_file"
             fi
 
             # All-era plot_score (ParticleNet only) — per-channel and Combined

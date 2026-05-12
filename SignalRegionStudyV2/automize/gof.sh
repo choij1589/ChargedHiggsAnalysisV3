@@ -28,6 +28,7 @@ MODE="all"
 SINGLE_ERA=""
 METHOD="Baseline"
 BINNING="extended"
+NUISANCE="fallback_lnn"
 NTOYS=500
 NBATCHES=5
 PARTIAL_UNBLIND=false
@@ -52,6 +53,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --binning)
             BINNING="$2"
+            shift 2
+            ;;
+        --nuisance)
+            NUISANCE="$2"
             shift 2
             ;;
         --ntoys)
@@ -96,6 +101,7 @@ while [[ $# -gt 0 ]]; do
             echo "Template Options:"
             echo "  --method METHOD     - Baseline or ParticleNet [default: Baseline]"
             echo "  --binning BINNING   - extended or uniform [default: extended]"
+            echo "  --nuisance MODE     - fallback_lnn (default) or preserve_shape"
             echo "  --partial-unblind   - Use partial-unblind templates (real data, score < 0.3)"
             echo "  --unblind           - Use fully unblinded templates"
             echo "  --ntoys N           - Total toys for p-value [default: 500]"
@@ -130,18 +136,36 @@ if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
     echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
     exit 1
 fi
+case "$NUISANCE" in
+    fallback_lnn|preserve_shape) ;;
+    *)
+        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
+        echo "Valid values: fallback_lnn, preserve_shape"
+        exit 1
+        ;;
+esac
 
-# Select mass points based on method
+# Select mass points based on method and blinding mode
+# --unblind auto-selects the curated unblind subset
 if [[ "$METHOD" == "ParticleNet" ]]; then
-    MASSPOINTs=("${MASSPOINTs_GOF_PN[@]}")
+    if [[ "$UNBLIND" == true ]]; then
+        MASSPOINTs=("${MASSPOINTs_UNBLIND_PN[@]}")
+    else
+        MASSPOINTs=("${MASSPOINTs_GOF_PN[@]}")
+    fi
 else
-    MASSPOINTs=("${MASSPOINTs_GOF_BASELINE[@]}")
+    if [[ "$UNBLIND" == true ]]; then
+        MASSPOINTs=("${MASSPOINTs_UNBLIND_BASELINE[@]}")
+    else
+        MASSPOINTs=("${MASSPOINTs_GOF_BASELINE[@]}")
+    fi
 fi
 
 # Build extra args
 EXTRA_ARGS="--ntoys ${NTOYS} --nbatches ${NBATCHES} --condor"
 [[ "$PARTIAL_UNBLIND" == true ]] && EXTRA_ARGS="$EXTRA_ARGS --partial-unblind"
 [[ "$UNBLIND"         == true ]] && EXTRA_ARGS="$EXTRA_ARGS --unblind"
+[[ "$NUISANCE" == "preserve_shape" ]] && EXTRA_ARGS="$EXTRA_ARGS --nuisance preserve_shape"
 [[ "$PLOT_ONLY"       == true ]] && EXTRA_ARGS="$EXTRA_ARGS --plot-only"
 [[ "$DRY_RUN"         == true ]] && EXTRA_ARGS="$EXTRA_ARGS --dry-run"
 
@@ -154,6 +178,7 @@ else
 fi
 echo "Method:          $METHOD"
 echo "Binning:         $BINNING"
+echo "Nuisance mode:   $NUISANCE"
 echo "Mass points:     ${#MASSPOINTs[@]} total"
 echo "Partial-unblind: $PARTIAL_UNBLIND"
 echo "Unblind:         $UNBLIND"
@@ -227,5 +252,5 @@ echo "To monitor jobs:"
 echo "  condor_q -dag"
 echo ""
 echo "After completion, generate plots with:"
-echo "  $0 --mode $MODE --method $METHOD $([[ "$PARTIAL_UNBLIND" == true ]] && echo --partial-unblind) --plot-only"
+echo "  $0 --mode $MODE --method $METHOD --binning $BINNING $([[ "$UNBLIND" == true ]] && echo --unblind) $([[ "$PARTIAL_UNBLIND" == true ]] && echo --partial-unblind) $([[ "$NUISANCE" == preserve_shape ]] && echo --nuisance preserve_shape) --plot-only"
 echo "============================================================"

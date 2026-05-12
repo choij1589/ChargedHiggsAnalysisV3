@@ -243,10 +243,11 @@ class BaseCanvas():
             TLegend: Configured legend object
         """
         textSize = config.get("legendTextSize", 0.04)
+        columns = config.get("legendColumns", 1)
         if config.get("legend") is not None:
-            return CMS.cmsLeg(*config["legend"], textSize=textSize)
+            return CMS.cmsLeg(*config["legend"], textSize=textSize, columns=columns)
         else:
-            return CMS.cmsLeg(0.7, 0.89 - 0.05 * 7, 0.99, 0.89, textSize=textSize, columns=1)
+            return CMS.cmsLeg(0.7, 0.89 - 0.05 * 7, 0.99, 0.89, textSize=textSize, columns=columns)
 
     def _draw_channel_text(self, config):
         """

@@ -6,7 +6,7 @@
 #   ./runFitDiagnostics.sh --era 2018 --channel Combined --masspoint MHc130_MA90 --method Baseline --binning extended
 #
 
-set -e
+set -eo pipefail
 
 # Default values
 ERA=""
@@ -14,6 +14,7 @@ CHANNEL=""
 MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
+NUISANCE="fallback_lnn"
 PARTIAL_UNBLIND=false
 UNBLIND=false
 DRY_RUN=false
@@ -42,6 +43,10 @@ while [[ $# -gt 0 ]]; do
             BINNING="$2"
             shift 2
             ;;
+        --nuisance)
+            NUISANCE="$2"
+            shift 2
+            ;;
         --partial-unblind)
             PARTIAL_UNBLIND=true
             shift
@@ -67,6 +72,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --masspoint  Signal mass point (e.g., MHc130_MA90)"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
             echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
+            echo "  --nuisance   Low-stat nuisance mode: fallback_lnn (default) or preserve_shape"
             echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
             echo "  --unblind    Use full unblind templates (real data, full score region)"
             echo "  --dry-run    Print commands without executing"
@@ -90,6 +96,14 @@ if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
     echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
     exit 1
 fi
+case "$NUISANCE" in
+    fallback_lnn|preserve_shape) ;;
+    *)
+        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
+        echo "Valid values: fallback_lnn, preserve_shape"
+        exit 1
+        ;;
+esac
 
 # Get WORKDIR
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -101,6 +115,9 @@ if [[ "$UNBLIND" == true ]]; then
     BINNING_SUFFIX="${BINNING}_unblind"
 elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     BINNING_SUFFIX="${BINNING}_partial_unblind"
+fi
+if [[ "$NUISANCE" == "preserve_shape" ]]; then
+    BINNING_SUFFIX="${BINNING_SUFFIX}_preserve_shape"
 fi
 TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV2/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
 
@@ -223,7 +240,8 @@ if [[ "$DRY_RUN" == false ]]; then
             f->Close();
         " 2>/dev/null || echo "  (Could not print summary)"
     else
-        echo "WARNING: No output file created"
+        echo "ERROR: No output file created"
+        exit 1
     fi
 fi
 

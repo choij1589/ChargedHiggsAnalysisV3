@@ -74,6 +74,9 @@ if [[ "$EXTRA_ARGS" == *"--partial-unblind"* ]]; then
 elif [[ "$EXTRA_ARGS" == *"--unblind"* ]]; then
     BINNING_SUFFIX="${BINNING}_unblind"
 fi
+if [[ "$EXTRA_ARGS" == *"--nuisance preserve_shape"* ]]; then
+    BINNING_SUFFIX="${BINNING_SUFFIX}_preserve_shape"
+fi
 
 # Setup environment for KNU cluster using cvmfs
 setup_environment() {
@@ -240,10 +243,17 @@ run_on_scratch() {
                 --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
             ;;
         plotpostfit)
-            echo "Running plotPostfit.py..."
-            python3 python/plotPostfit.py \
-                --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-                --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
+            echo "Running plotPostfitMass.py..."
+            plot_args=(
+                --era "$ERA"
+                --masspoint "$MASSPOINT"
+                --method "$METHOD"
+                --binning "$BINNING"
+            )
+            if [[ "$CHANNEL" != "Combined" ]]; then
+                plot_args+=(--channel-scope "$CHANNEL")
+            fi
+            python3 python/plotPostfitMass.py "${plot_args[@]}" $EXTRA_ARGS
             ;;
         plotpulls)
             echo "Running runPullPlots.sh..."

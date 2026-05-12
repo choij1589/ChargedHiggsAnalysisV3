@@ -141,7 +141,6 @@ SignalRegionStudyV2/
 ├── configs/
 │   ├── samplegroups.json             # Sample lists per era/channel
 │   ├── masspoints.json               # Central mass point arrays (all subsets)
-│   ├── scaling.json                  # Run3 signal scaling factors
 │   ├── dagman.config                 # DAGMan throttling (MAX_JOBS_SUBMITTED=100)
 │   └── systematics.{era}.json        # Systematic uncertainties per era (all 8 eras)
 ├── automize/                         # Batch processing scripts (all condor-only)
@@ -205,17 +204,6 @@ Sample names per era and channel:
 - **conversion:** DYJets, TTG, WWG
 - **others:** Rare SM processes (WWW, WWZ, etc.)
 
-### configs/scaling.json
-Run3 signal scaling from 2018:
-```json
-{
-  "ttbar_xsec": {"Run2": 833.0, "Run3": 923.0},
-  "luminosity": {"2018": 59.8, "2022": 8.0, ...},
-  "source_era_for_run3": "2018"
-}
-```
-Scale factor = (σ_Run3 / σ_Run2) × (L_target / L_source)
-
 ### configs/systematics.{era}.json
 Systematic uncertainties per channel, organized as:
 ```json
@@ -256,7 +244,6 @@ All subsets defined in `configs/masspoints.json` and loaded by `automize/load_ma
 |-----|-------|---------|
 | `baseline` | 35 | Full Baseline method run |
 | `particlenet` | 3 | Full ParticleNet method run |
-| `run3_real_mc` | 5 | Mass points with real Run3 MC (no scaling needed) |
 | `partial_unblind` | 3 | Partial-unblind subset |
 | `impact.baseline` | 4 | Impact plot subset (Baseline) |
 | `impact.particlenet` | 3 | Impact plot subset (ParticleNet) |
@@ -315,9 +302,7 @@ Three systematic types:
 
 ## Run3 Signal Handling
 
-- By default uses real Run3 MC from SKNanoOutput (if available)
-- Use `--scale-from-run2` in `preprocess.py` to scale 2018 MC to Run3 luminosity
-- Automatic detection in `makeBinnedTemplates.py` via tree name inspection
+Run3 processing always uses real Run3 MC from SKNanoOutput. Mass points without a Run3 signal sample fail at preprocessing with `FileNotFoundError` — the missing-input is surfaced explicitly rather than papered over by scaling.
 
 ## HTCondor DAGMan Workflow
 
@@ -400,7 +385,7 @@ $WORKDIR/SKNanoOutput/PromptAnalyzer/Run1E2Mu/{era}/{data}.root
 
 **"WORKDIR not set":** Source `setup.sh` inside the SignalRegionStudyV2 directory.
 
-**Run3 signal missing:** Check `configs/scaling.json` for correct scaling factors. Use `--scale-from-run2` if Run3 MC is not available.
+**Run3 signal missing:** No Run2-from-Run3 scaling exists anymore — `preprocess.py` raises `FileNotFoundError` for any (era, mass point) without a real Run3 MC file. Either skip that combination or add the missing sample to SKNanoOutput.
 
 **Low-stat backgrounds:** All MC processes are always-separate columns (static list across all eras) to preserve cross-era NP correlation. Low-stat handling is done by `ensure_positive_integral(floor_mode)` + `cap_stat_errors` + S1 shape→lnN fallback (rel_err > 30%). Individual backgrounds use `floor_mode="zero"` (empty bins → 0, skipped by autoMCStats); signal and `others` use `floor_mode="floor"` (empty bins → 1e-6). Adaptive binning requires `n_eff >= 5` per bin to match autoMCStats threshold. See `docs/LOWSTAT.md`. Physically-missing samples appear in `process_list.json` → `dropped_missing` (logged as ERROR).
 

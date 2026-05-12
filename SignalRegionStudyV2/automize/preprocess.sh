@@ -93,35 +93,19 @@ CONDOR_SUB
     fi
 }
 
-# Function to process Run3 mass points (shared by run3 and run3-scaled modes)
-# Args: baseline_only_array pn_array signal_extra_args label
-function process_run3() {
-    local -n baseline_only_ref=$1
-    local -n pn_ref=$2
-    local signal_extra_args=$3
-    local label=$4
-
-    echo "Submitting Run3 ($label) jobs to HTCondor..."
-    if [[ ${#baseline_only_ref[@]} -gt 0 ]]; then
-        echo "  Submitting baseline-only mass points (SR channels)..."
-        submit_condor_jobs ERAs_RUN3 "$1" CHANNELs_SR "$signal_extra_args"
-    fi
-    if [[ ${#pn_ref[@]} -gt 0 ]]; then
-        echo "  Submitting ParticleNet mass points (SR channels)..."
-        submit_condor_jobs ERAs_RUN3 "$2" CHANNELs_SR "$signal_extra_args"
-        echo "  Submitting ParticleNet mass points (TTZ2E1Mu channel)..."
-        submit_condor_jobs ERAs_RUN3 "$2" CHANNELs_TTZ ""
-    fi
-}
-
 # Parse command line arguments
-MODE=""  # Options: run2, run3, run3-scaled, all
+MODE=""    # Options: run2, run3, all
+UNBLIND=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --mode)
             MODE="$2"
             shift 2
+            ;;
+        --unblind)
+            UNBLIND=true
+            shift
             ;;
         --condor)
             echo "NOTE: --condor is now the default (and only) execution mode. Flag ignored."
@@ -132,17 +116,17 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help)
-            echo "Usage: $0 --mode <run2|run3|run3-scaled|all> [--dry-run]"
+            echo "Usage: $0 --mode <run2|run3|all> [--unblind] [--dry-run]"
             echo ""
             echo "Modes:"
-            echo "  run2         - Process Run2 only"
-            echo "  run3         - Process Run3 with real signal MC (if available)"
-            echo "  run3-scaled  - Process Run3 with signal scaled from 2018"
-            echo "                 Requires: Run2 (2018) must be preprocessed first"
-            echo "  all          - Process Run2 + Run3 (real MC + scaled) as a DAG"
-            echo "                 (DAG enforces 2018 -> Run3-scaled deps)"
+            echo "  run2  - Process Run2 only"
+            echo "  run3  - Process Run3 only (real signal MC)"
+            echo "  all   - Process Run2 + Run3 as a DAG (per-masspoint)"
             echo ""
             echo "Options:"
+            echo "  --unblind    - Use the curated unblind mass-point subset"
+            echo "                 (configs/masspoints.json: unblind.{baseline,particlenet})."
+            echo "                 Implies --mode all (or omit --mode)."
             echo "  --condor     - (No-op, condor is now the only execution mode)"
             echo "  --dry-run    - Generate submission files without submitting"
             exit 0
@@ -154,22 +138,43 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# --unblind: filter mass points and force --mode all
+if [[ "$UNBLIND" == "true" ]]; then
+    if [[ -z "$MODE" ]]; then
+        MODE="all"
+    elif [[ "$MODE" != "all" ]]; then
+        echo "Error: --unblind requires --mode all (or omit --mode)."
+        exit 1
+    fi
+
+    # Override the master baseline list with the deduplicated union of unblind subsets.
+    # is_particlenet still resolves against the unchanged MASSPOINTs_PARTICLENET, so per-point
+    # PN classification (which gates TTZ2E1Mu jobs) keeps working.
+    mapfile -t MASSPOINTs_BASELINE < <(
+        printf '%s\n' "${MASSPOINTs_UNBLIND_BASELINE[@]}" "${MASSPOINTs_UNBLIND_PN[@]}" \
+        | awk 'NF && !seen[$0]++'
+    )
+    if [[ ${#MASSPOINTs_BASELINE[@]} -eq 0 ]]; then
+        echo "Error: --unblind selected an empty mass-point set (check configs/masspoints.json)."
+        exit 1
+    fi
+fi
+
 # Validate mode is specified
 if [[ -z "$MODE" ]]; then
     echo "Error: --mode is required. Use --help for usage."
     exit 1
 fi
 
-if [[ "$MODE" != "run2" && "$MODE" != "run3" && "$MODE" != "run3-scaled" && "$MODE" != "all" ]]; then
-    echo "Error: Invalid mode '$MODE'. Must be one of: run2, run3, run3-scaled, all"
+if [[ "$MODE" != "run2" && "$MODE" != "run3" && "$MODE" != "all" ]]; then
+    echo "Error: Invalid mode '$MODE'. Must be one of: run2, run3, all"
     exit 1
 fi
-
-# Validate options
 
 echo "============================================================"
 echo "SignalRegionStudyV2 Preprocessing"
 echo "Mode: $MODE"
+echo "Unblind subset: $UNBLIND"
 echo "Execution: HTCondor (dry-run: $DRY_RUN)"
 echo "============================================================"
 
@@ -177,25 +182,20 @@ echo "============================================================"
 # DAGMan workflow for --mode all
 # =============================================================================
 
-# Helper: check if a masspoint has real Run3 MC
-function has_real_run3_mc() {
-    local mp=$1
-    [[ " ${MASSPOINTs_Run3[*]} " =~ " ${mp} " ]]
-}
-
 # Helper: check if a masspoint is a ParticleNet masspoint
 function is_particlenet() {
     local mp=$1
     [[ " ${MASSPOINTs_PARTICLENET[*]} " =~ " ${mp} " ]]
 }
 
-# Generate DAG file for a single masspoint
-# Writes Run2 jobs, Run3 real/scaled jobs, and dependency lines
+# Generate DAG file for a single masspoint.
+# Emits independent Run2 + Run3 jobs (real MC only — no scaling). preprocess.py raises
+# FileNotFoundError on Run3 eras for masspoints without real Run3 MC; that node fails
+# while the other DAG nodes complete.
 function generate_preprocess_dag_file() {
     local masspoint=$1
     local dag_file=$2
     local is_pn=$3      # true/false
-    local is_run3=$4    # true if real Run3 MC available
 
     cat > "$dag_file" << EOF
 # Preprocess DAG for $masspoint
@@ -211,7 +211,7 @@ EOF
 
     local mp="$masspoint"  # shorthand for node names
 
-    # --- Layer 0: Run2 jobs (all eras, all applicable channels) ---
+    # Run2 jobs (all eras, all applicable channels)
     for era in "${ERAs_RUN2[@]}"; do
         for channel in "${channels_all[@]}"; do
             echo "JOB ${mp}_run2_${channel}_${era} jobs.sub" >> "$dag_file"
@@ -219,46 +219,13 @@ EOF
         done
     done
 
-    # --- Layer 1: Run3 jobs ---
-    if [[ "$is_run3" == "true" ]]; then
-        # Real Run3 MC: all independent (no deps on 2018)
-        for era in "${ERAs_RUN3[@]}"; do
-            for channel in "${channels_all[@]}"; do
-                echo "JOB ${mp}_run3_${channel}_${era} jobs.sub" >> "$dag_file"
-                echo "VARS ${mp}_run3_${channel}_${era} era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" extra_args=\"\"" >> "$dag_file"
-            done
+    # Run3 jobs (all eras, all applicable channels) — independent of Run2
+    for era in "${ERAs_RUN3[@]}"; do
+        for channel in "${channels_all[@]}"; do
+            echo "JOB ${mp}_run3_${channel}_${era} jobs.sub" >> "$dag_file"
+            echo "VARS ${mp}_run3_${channel}_${era} era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" extra_args=\"\"" >> "$dag_file"
         done
-    else
-        # Scaled from Run2: SR channels need --scale-from-run2, depend on 2018
-        for era in "${ERAs_RUN3[@]}"; do
-            for channel in "${CHANNELs_SR[@]}"; do
-                echo "JOB ${mp}_run3s_${channel}_${era} jobs.sub" >> "$dag_file"
-                echo "VARS ${mp}_run3s_${channel}_${era} era=\"${era}\" channel=\"${channel}\" masspoint=\"${masspoint}\" extra_args=\"--scale-from-run2\"" >> "$dag_file"
-            done
-        done
-        # TTZ2E1Mu for ParticleNet: no signal, no scaling dep
-        if [[ "$is_pn" == "true" ]]; then
-            for era in "${ERAs_RUN3[@]}"; do
-                echo "JOB ${mp}_run3_TTZ2E1Mu_${era} jobs.sub" >> "$dag_file"
-                echo "VARS ${mp}_run3_TTZ2E1Mu_${era} era=\"${era}\" channel=\"TTZ2E1Mu\" masspoint=\"${masspoint}\" extra_args=\"\"" >> "$dag_file"
-            done
-        fi
-    fi
-
-    # --- Dependencies ---
-    echo "" >> "$dag_file"
-    echo "# Dependencies" >> "$dag_file"
-
-    if [[ "$is_run3" == "false" ]]; then
-        # Scaled Run3 SR jobs depend on their 2018 counterpart
-        for channel in "${CHANNELs_SR[@]}"; do
-            local run3s_jobs=""
-            for era in "${ERAs_RUN3[@]}"; do
-                run3s_jobs+="${mp}_run3s_${channel}_${era} "
-            done
-            echo "PARENT ${mp}_run2_${channel}_2018 CHILD $run3s_jobs" >> "$dag_file"
-        done
-    fi
+    done
 }
 
 # Submit DAGs for all masspoints
@@ -276,8 +243,6 @@ function submit_preprocess_dags() {
 
         local is_pn="false"
         is_particlenet "$masspoint" && is_pn="true"
-        local is_run3="false"
-        has_real_run3_mc "$masspoint" && is_run3="true"
 
         # Create jobs.sub
         cat > "$mp_dir/jobs.sub" << EOF
@@ -301,9 +266,9 @@ EOF
         cp "$SCRIPT_DIR/../configs/dagman.config" "$mp_dir/"
 
         # Generate DAG file
-        generate_preprocess_dag_file "$masspoint" "$mp_dir/dag.dag" "$is_pn" "$is_run3"
+        generate_preprocess_dag_file "$masspoint" "$mp_dir/dag.dag" "$is_pn"
 
-        echo "Generated DAG: $mp_dir/dag.dag (pn=$is_pn, run3_mc=$is_run3)"
+        echo "Generated DAG: $mp_dir/dag.dag (pn=$is_pn)"
     done
 
     # Create submit_all.sh
@@ -373,9 +338,7 @@ if [[ "$MODE" == "all" ]]; then
     echo ""
     echo "============================================================"
     echo "Submitting all preprocessing as DAGMan workflows..."
-    echo "  Run2: all eras, all mass points"
-    echo "  Run3 real MC: ${MASSPOINTs_Run3[*]}"
-    echo "  Run3 scaled: remaining mass points (depend on 2018)"
+    echo "  Run2 + Run3 (real MC) per mass point: ${#MASSPOINTs_BASELINE[@]} mass points"
     echo "============================================================"
     submit_preprocess_dags
     echo ""
@@ -411,57 +374,32 @@ if [[ "$MODE" == "run2" ]]; then
     echo "Run2 preprocessing complete!"
 fi
 
-# Run3 processing with scaled signal (mass points without real Run3 MC)
-if [[ "$MODE" == "run3-scaled" ]]; then
-    # Compute scaled mass points (BASELINE minus Run3 real MC), split by ParticleNet
-    MASSPOINTs_Run3_SCALED_BASELINE_ONLY=()
-    MASSPOINTs_Run3_SCALED_PN=()
-    for mp in "${MASSPOINTs_BASELINE[@]}"; do
-        has_real_run3_mc "$mp" && continue
-        if is_particlenet "$mp"; then
-            MASSPOINTs_Run3_SCALED_PN+=("$mp")
-        else
-            MASSPOINTs_Run3_SCALED_BASELINE_ONLY+=("$mp")
-        fi
-    done
-
-    echo ""
-    echo "============================================================"
-    echo "Processing Run3 eras (signal scaled from 2018)..."
-    echo "  Baseline-only: ${MASSPOINTs_Run3_SCALED_BASELINE_ONLY[*]}"
-    echo "  ParticleNet:   ${MASSPOINTs_Run3_SCALED_PN[*]}"
-    echo "============================================================"
-
-    process_run3 MASSPOINTs_Run3_SCALED_BASELINE_ONLY MASSPOINTs_Run3_SCALED_PN \
-        "--scale-from-run2" "scaled signal"
-
-    echo "Run3 (scaled signal) preprocessing complete!"
-fi
-
-# Run3 processing with real signal MC
+# Run3 processing (real signal MC). Mass points without Run3 MC will fail at preprocess.py
+# with FileNotFoundError; that is expected and surfaces missing inputs explicitly.
 if [[ "$MODE" == "run3" ]]; then
-    # Split Run3 real MC mass points by ParticleNet
-    MASSPOINTs_Run3_BASELINE_ONLY=()
-    MASSPOINTs_Run3_PN=()
-    for mp in "${MASSPOINTs_Run3[@]}"; do
-        if is_particlenet "$mp"; then
-            MASSPOINTs_Run3_PN+=("$mp")
-        else
-            MASSPOINTs_Run3_BASELINE_ONLY+=("$mp")
-        fi
+    MASSPOINTs_BASELINE_ONLY=()
+    for mp in "${MASSPOINTs_BASELINE[@]}"; do
+        is_particlenet "$mp" || MASSPOINTs_BASELINE_ONLY+=("$mp")
     done
 
     echo ""
     echo "============================================================"
-    echo "Processing Run3 eras (real signal MC)..."
-    echo "  Baseline-only: ${MASSPOINTs_Run3_BASELINE_ONLY[*]}"
-    echo "  ParticleNet:   ${MASSPOINTs_Run3_PN[*]}"
+    echo "Processing Run3 eras..."
     echo "============================================================"
 
-    process_run3 MASSPOINTs_Run3_BASELINE_ONLY MASSPOINTs_Run3_PN \
-        "" "real signal"
+    echo "Submitting Run3 jobs to HTCondor..."
+    if [[ ${#MASSPOINTs_BASELINE_ONLY[@]} -gt 0 ]]; then
+        echo "  Submitting baseline-only mass points (SR channels)..."
+        submit_condor_jobs ERAs_RUN3 MASSPOINTs_BASELINE_ONLY CHANNELs_SR ""
+    fi
+    if [[ ${#MASSPOINTs_PARTICLENET[@]} -gt 0 ]]; then
+        echo "  Submitting ParticleNet mass points (SR channels)..."
+        submit_condor_jobs ERAs_RUN3 MASSPOINTs_PARTICLENET CHANNELs_SR ""
+        echo "  Submitting ParticleNet mass points (TTZ2E1Mu channel)..."
+        submit_condor_jobs ERAs_RUN3 MASSPOINTs_PARTICLENET CHANNELs_TTZ ""
+    fi
 
-    echo "Run3 (real signal) preprocessing complete!"
+    echo "Run3 preprocessing complete!"
 fi
 
 echo ""

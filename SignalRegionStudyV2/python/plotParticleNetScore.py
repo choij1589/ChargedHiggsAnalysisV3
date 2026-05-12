@@ -26,7 +26,6 @@ from math import sqrt
 
 from template_utils import (
     categorize_systematics, parse_variations, get_output_tree_name, calculate_weight_scale,
-    is_signal_scaled_from_run2, get_run2_tree_name_for_run3_syst
 )
 
 # Argument parsing
@@ -42,6 +41,9 @@ parser.add_argument("--unblind", action="store_true",
                     help="Show real data distribution")
 parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
                     help="Show real data only for score < 0.3")
+parser.add_argument("--nuisance", default="fallback_lnn",
+                    choices=["fallback_lnn", "preserve_shape"],
+                    help="Low-stat nuisance handling mode used to choose the template suffix")
 parser.add_argument("--skip-histogram", action="store_true", dest="skip_histogram",
                     help="Load from existing histograms.root instead of reprocessing")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
@@ -153,6 +155,8 @@ if args.unblind:
     binning_suffix = f"{args.binning}_unblind"
 elif args.partial_unblind:
     binning_suffix = f"{args.binning}_partial_unblind"
+if args.nuisance == "preserve_shape":
+    binning_suffix = f"{binning_suffix}_preserve_shape"
 
 # For combined eras, we use first era's config as reference.
 # For combined channel, SR1E2Mu serves as the reference for config loading
@@ -543,16 +547,6 @@ def load_preprocessed_syst_scores(process, masspoint, sample_dir, mass_min, mass
     """
     syst_scores = {}
 
-    # Check if this is signal and if it's scaled from Run2 (has Run2 tree names)
-    is_signal = (process == masspoint)
-    signal_scaled_from_run2 = False
-    if is_signal and era:
-        signal_file = f"{sample_dir}/{process}.root"
-        if os.path.exists(signal_file):
-            signal_scaled_from_run2 = is_signal_scaled_from_run2(signal_file, era)
-            if signal_scaled_from_run2:
-                logging.debug(f"Signal {process} is scaled from Run2, will remap tree names")
-
     for syst_name, variations, group in syst_categories['preprocessed_shape']:
         if not process_in_group(process, group, masspoint):
             continue
@@ -566,15 +560,8 @@ def load_preprocessed_syst_scores(process, masspoint, sample_dir, mass_min, mass
                 down_var = var
 
         if up_var and down_var:
-            # Get output tree names (Run3-style)
             up_tree = get_output_tree_name(syst_name, up_var)
             down_tree = get_output_tree_name(syst_name, down_var)
-
-            # For Run2-scaled signal, map Run3 names to Run2 tree names
-            if is_signal and signal_scaled_from_run2 and era:
-                up_tree = get_run2_tree_name_for_run3_syst(syst_name, "Up", era)
-                down_tree = get_run2_tree_name_for_run3_syst(syst_name, "Down", era)
-                logging.debug(f"  Remapped signal trees: {syst_name} -> {up_tree}, {down_tree}")
 
             # Load scores for up variation (all score types at once)
             up_scores = loadScores(

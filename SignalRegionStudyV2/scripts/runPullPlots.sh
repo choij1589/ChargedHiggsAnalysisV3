@@ -3,7 +3,7 @@
 # runPullPlots.sh - Generate NP pull plots from FitDiagnostics output
 #
 # Runs diffNuisances.py on fitDiagnostics.root to produce:
-#   - nuisance_pulls.{txt,root,pdf}            (all NPs)
+#   - nuisance_pulls.{txt,root,pdf}            (all NPs; b-only PDF by default)
 #   - nuisance_pulls_filtered.{txt,root,pdf}   (stat bin NPs excluded)
 #
 # Must be run after runFitDiagnostics.sh has produced combine_output/fitdiag/.
@@ -21,6 +21,8 @@ CHANNEL=""
 MASSPOINT=""
 METHOD="Baseline"
 BINNING="extended"
+NUISANCE="fallback_lnn"
+PULL_FIT="b"
 PARTIAL_UNBLIND=false
 UNBLIND=false
 DRY_RUN=false
@@ -34,6 +36,8 @@ while [[ $# -gt 0 ]]; do
         --masspoint)     MASSPOINT="$2";     shift 2 ;;
         --method)        METHOD="$2";        shift 2 ;;
         --binning)       BINNING="$2";       shift 2 ;;
+        --nuisance)      NUISANCE="$2";      shift 2 ;;
+        --pull-fit)      PULL_FIT="$2";      shift 2 ;;
         --partial-unblind) PARTIAL_UNBLIND=true; shift ;;
         --unblind)       UNBLIND=true;       shift ;;
         --dry-run)       DRY_RUN=true;       shift ;;
@@ -44,6 +48,8 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --method METHOD         Baseline or ParticleNet [default: Baseline]"
             echo "  --binning BINNING       extended or uniform [default: extended]"
+            echo "  --nuisance MODE         fallback_lnn (default) or preserve_shape"
+            echo "  --pull-fit MODE         b or both [default: b]"
             echo "  --partial-unblind       Use partial-unblind templates"
             echo "  --unblind               Use fully unblinded templates"
             echo "  --dry-run               Print commands without executing"
@@ -64,6 +70,22 @@ if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
     echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
     exit 1
 fi
+case "$NUISANCE" in
+    fallback_lnn|preserve_shape) ;;
+    *)
+        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
+        echo "Valid values: fallback_lnn, preserve_shape"
+        exit 1
+        ;;
+esac
+case "$PULL_FIT" in
+    b|both) ;;
+    *)
+        echo "ERROR: Invalid --pull-fit value '$PULL_FIT'"
+        echo "Valid values: b, both"
+        exit 1
+        ;;
+esac
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -73,6 +95,9 @@ WORKDIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 BINNING_SUFFIX="${BINNING}"
 if   [[ "$UNBLIND"         == true ]]; then BINNING_SUFFIX="${BINNING}_unblind"
 elif [[ "$PARTIAL_UNBLIND" == true ]]; then BINNING_SUFFIX="${BINNING}_partial_unblind"
+fi
+if [[ "$NUISANCE" == "preserve_shape" ]]; then
+    BINNING_SUFFIX="${BINNING_SUFFIX}_preserve_shape"
 fi
 
 TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV2/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
@@ -111,8 +136,18 @@ NPS_PER_PAGE=40
 convert_to_pdf() {
     local ROOT_FILE="$1"
     local PDF_FILE="$2"
+    local PLOT_MODE="$3"
     local BASENAME
     BASENAME="$(basename "$PDF_FILE")"
+
+    local DRAW_B="true"
+    local DRAW_S="true"
+    local TITLE="Nuisance parameters"
+    if [[ "$PLOT_MODE" == "b" ]]; then
+        DRAW_S="false"
+        TITLE="Nuisance parameters: b-only fit"
+    fi
+
     root -l -b -q -e "
         gStyle->SetOptStat(0);
         gStyle->SetPadBottomMargin(0.40);
@@ -149,6 +184,18 @@ convert_to_pdf() {
         }
         if (!hPrefit || !gPostfit) {
             printf(\"WARNING: expected histogram/graph not found\\n\");
+            f->Close(); return;
+        }
+
+        bool drawB = ${DRAW_B};
+        bool drawS = ${DRAW_S};
+        TString titleBase = \"${TITLE}\";
+        if (drawB && !gPrefit) {
+            printf(\"WARNING: b-only graph not found\\n\");
+            f->Close(); return;
+        }
+        if (drawS && !gPostfit) {
+            printf(\"WARNING: s+b graph not found\\n\");
             f->Close(); return;
         }
 
@@ -199,7 +246,7 @@ convert_to_pdf() {
             hFrame->GetYaxis()->SetLabelSize(0.035);
             hFrame->GetXaxis()->SetLabelSize(0.022);
             hFrame->GetXaxis()->LabelsOption(\"v\");
-            hFrame->SetTitle(Form(\"Nuisance parameters (page %d/%d)\", page+1, nPages));
+            hFrame->SetTitle(Form(\"%s (page %d/%d)\", titleBase.Data(), page+1, nPages));
             hFrame->SetStats(0);
 
             // ±1σ and ±2σ bands
@@ -242,8 +289,8 @@ convert_to_pdf() {
             hFrame->Draw(\"AXIS\");
             hBand2->Draw(\"E2 SAME\");
             hBand1->Draw(\"E2 SAME\");
-            gPre->Draw(\"P SAME\");
-            gPost->Draw(\"P SAME\");
+            if (drawB) gPre->Draw(\"P SAME\");
+            if (drawS) gPost->Draw(\"P SAME\");
             gPad->RedrawAxis();
             TFrame *fr = gPad->GetFrame();
             fr->SetFillStyle(0);
@@ -252,12 +299,12 @@ convert_to_pdf() {
             // Legend on first page
             if (page == 0) {
                 TLegend *l = new TLegend(0.70, 0.92, 0.98, 1.0);
-                l->SetNColumns(2);
+                l->SetNColumns(drawB && drawS ? 2 : 1);
                 l->SetBorderSize(0);
                 l->SetFillStyle(0);
                 l->SetTextSize(0.028);
-                l->AddEntry(gPre, \"b-only fit\", \"lp\");
-                l->AddEntry(gPost, \"s+b fit\", \"lp\");
+                if (drawB) l->AddEntry(gPre, \"b-only fit\", \"lp\");
+                if (drawS) l->AddEntry(gPost, \"s+b fit\", \"lp\");
                 l->Draw();
             }
 
@@ -286,25 +333,36 @@ echo "  Channel:   ${CHANNEL}"
 echo "  Masspoint: ${MASSPOINT}"
 echo "  Method:    ${METHOD}"
 echo "  Binning:   ${BINNING_SUFFIX}"
+echo "  Pull fit:  ${PULL_FIT}"
 echo "  Input:     ${FITDIAG_FILE}"
 echo ""
+
+OUTPUT_SUFFIX=""
+case "$PULL_FIT" in
+    both)
+        OUTPUT_SUFFIX="_both"
+        ;;
+esac
+
+PULL_BASE="${FITDIAG_DIR}/nuisance_pulls${OUTPUT_SUFFIX}"
+PULL_FILTERED_BASE="${FITDIAG_DIR}/nuisance_pulls_filtered${OUTPUT_SUFFIX}"
 
 # --- All nuisances ---
 echo "===== Generating text pull table (all NPs) ====="
 run_cmd "python3 '${DIFFNUIS}' '${FITDIAG_FILE}' \
     --all \
     -f text \
-    2>/dev/null > '${FITDIAG_DIR}/nuisance_pulls.txt'"
+    2>/dev/null > '${PULL_BASE}.txt'"
 
 echo "===== Generating pull plot canvas (all NPs) ====="
 run_cmd "python3 '${DIFFNUIS}' '${FITDIAG_FILE}' \
     --all \
-    -g '${FITDIAG_DIR}/nuisance_pulls.root' \
+    -g '${PULL_BASE}.root' \
     2>/dev/null"
 
-if [[ "$DRY_RUN" == false && -f "${FITDIAG_DIR}/nuisance_pulls.root" ]]; then
+if [[ "$DRY_RUN" == false && -f "${PULL_BASE}.root" ]]; then
     echo "===== Converting canvas to PDF (all NPs) ====="
-    convert_to_pdf "${FITDIAG_DIR}/nuisance_pulls.root" "${FITDIAG_DIR}/nuisance_pulls.pdf"
+    convert_to_pdf "${PULL_BASE}.root" "${PULL_BASE}.pdf" "$PULL_FIT"
 fi
 
 # --- Filtered (stat bin nuisances excluded) ---
@@ -313,26 +371,26 @@ run_cmd "python3 '${DIFFNUIS}' '${FITDIAG_FILE}' \
     --all \
     -f text \
     --regex '${FILTER_REGEX}' \
-    2>/dev/null > '${FITDIAG_DIR}/nuisance_pulls_filtered.txt'"
+    2>/dev/null > '${PULL_FILTERED_BASE}.txt'"
 
 echo "===== Generating pull plot canvas (filtered) ====="
 run_cmd "python3 '${DIFFNUIS}' '${FITDIAG_FILE}' \
     --all \
-    -g '${FITDIAG_DIR}/nuisance_pulls_filtered.root' \
+    -g '${PULL_FILTERED_BASE}.root' \
     --regex '${FILTER_REGEX}' \
     2>/dev/null"
 
-if [[ "$DRY_RUN" == false && -f "${FITDIAG_DIR}/nuisance_pulls_filtered.root" ]]; then
+if [[ "$DRY_RUN" == false && -f "${PULL_FILTERED_BASE}.root" ]]; then
     echo "===== Converting canvas to PDF (filtered) ====="
-    convert_to_pdf "${FITDIAG_DIR}/nuisance_pulls_filtered.root" "${FITDIAG_DIR}/nuisance_pulls_filtered.pdf"
+    convert_to_pdf "${PULL_FILTERED_BASE}.root" "${PULL_FILTERED_BASE}.pdf" "$PULL_FIT"
 fi
 
 echo ""
 echo "============================================================"
 if [[ "$DRY_RUN" == false ]]; then
     echo "Output files:"
-    ls -lh "${FITDIAG_DIR}/nuisance_pulls".* 2>/dev/null || true
-    ls -lh "${FITDIAG_DIR}/nuisance_pulls_filtered".* 2>/dev/null || true
+    ls -lh "${PULL_BASE}".* 2>/dev/null || true
+    ls -lh "${PULL_FILTERED_BASE}".* 2>/dev/null || true
 fi
 echo "Done."
 echo "============================================================"

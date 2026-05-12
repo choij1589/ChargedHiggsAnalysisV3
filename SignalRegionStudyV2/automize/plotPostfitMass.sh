@@ -2,13 +2,12 @@
 #
 # plotPostfitMass.sh - Batch real-mass post-fit plots (fine 1-GeV bins).
 #
-# Wraps python/plotPostfitMass.py over all mass points for a single
-# (era-scope, channel-scope) pair. Defaults to the All/Combined fit result
-# with era-scope=All and channel-scope=Combined, since those are the only
-# plots we routinely care about.
+# Wraps python/plotPostfitMass.py over all mass points. By default it uses the
+# All/Combined fit result and lets the Python script render every applicable
+# era scope and channel scope.
 #
 # Usage:
-#   # Default: All fit, era-scope All, channel-scope Combined, both fit types.
+#   # Default: All fit, all era scopes, all channel scopes, both fit types.
 #   ./plotPostfitMass.sh --method ParticleNet --partial-unblind
 #
 #   # Run on a different fit source / era-scope / channel-scope:
@@ -25,14 +24,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load_masspoints.sh"
 
-# Defaults chosen so the shell produces only the top-level All/Combined plot.
+# Defaults chosen so the shell produces the full plot grid from the All fit.
 ERA="All"
-ERA_SCOPE="All"
-CHANNEL_SCOPE="Combined"
+ERA_SCOPE=""
+CHANNEL_SCOPE=""
 METHOD="Baseline"
 BINNING="extended"
+NUISANCE="fallback_lnn"
 FIT_TYPE="both"
-BIN_WIDTH="1.0"
+BIN_WIDTH="auto"
 PARTIAL_UNBLIND=false
 UNBLIND=false
 BLIND=false
@@ -47,6 +47,7 @@ while [[ $# -gt 0 ]]; do
         --channel|--channel-scope) CHANNEL_SCOPE="$2"; shift 2 ;;
         --method)          METHOD="$2"; shift 2 ;;
         --binning)         BINNING="$2"; shift 2 ;;
+        --nuisance)        NUISANCE="$2"; shift 2 ;;
         --fit-type)        FIT_TYPE="$2"; shift 2 ;;
         --bin-width)       BIN_WIDTH="$2"; shift 2 ;;
         --partial-unblind) PARTIAL_UNBLIND=true; shift ;;
@@ -64,16 +65,17 @@ Required (one of):
   --unblind           Use fully unblinded templates
   --blind             Use blinded templates (Asimov data = sum of pre-fit backgrounds)
 
-Defaults (produce only top-level All/Combined plots):
+Defaults (produce all applicable era/channel scopes):
   --era All           Fit source
-  --era-scope All     Era slice within the fit (pass through to Python)
-  --channel Combined  Channel slice (alias: --channel-scope)
+  --era-scope SCOPE   Optional era slice within the fit
+  --channel CHANNEL   Optional channel slice (alias: --channel-scope)
 
 Template options:
   --method METHOD     Baseline or ParticleNet [default: Baseline]
   --binning BINNING   extended or uniform     [default: extended]
+  --nuisance MODE     fallback_lnn (default) or preserve_shape
   --fit-type T        b | s | both            [default: both]
-  --bin-width W       Fine-grid bin width     [default: 1.0 GeV]
+  --bin-width W       Fine-grid bin width     [default: auto]
 
 Execution:
   --condor            Submit one HTCondor job per masspoint
@@ -94,23 +96,40 @@ if [[ "$CHOSEN" -ne 1 ]]; then
     echo "ERROR: must specify exactly one of --blind / --partial-unblind / --unblind" >&2
     exit 1
 fi
+case "$NUISANCE" in
+    fallback_lnn|preserve_shape) ;;
+    *)
+        echo "ERROR: Invalid --nuisance value '$NUISANCE'" >&2
+        echo "Valid values: fallback_lnn, preserve_shape" >&2
+        exit 1
+        ;;
+esac
 
 if [[ "$METHOD" == "ParticleNet" ]]; then
-    MASSPOINTs=("${MASSPOINTs_PARTICLENET[@]}")
+    if [[ "$UNBLIND" == true ]]; then
+        MASSPOINTs=("${MASSPOINTs_UNBLIND_PN[@]}")
+    else
+        MASSPOINTs=("${MASSPOINTs_PARTICLENET[@]}")
+    fi
 else
-    MASSPOINTs=("${MASSPOINTs_BASELINE[@]}")
+    if [[ "$UNBLIND" == true ]]; then
+        MASSPOINTs=("${MASSPOINTs_UNBLIND_BASELINE[@]}")
+    else
+        MASSPOINTs=("${MASSPOINTs_BASELINE[@]}")
+    fi
 fi
 
 # Common extra args (same order for condor and local runs)
 EXTRA_ARGS=(
     --era "${ERA}"
-    --era-scope "${ERA_SCOPE}"
-    --channel-scope "${CHANNEL_SCOPE}"
     --method "${METHOD}"
     --binning "${BINNING}"
+    --nuisance "${NUISANCE}"
     --fit-type "${FIT_TYPE}"
     --bin-width "${BIN_WIDTH}"
 )
+[[ -n "$ERA_SCOPE" ]] && EXTRA_ARGS+=(--era-scope "${ERA_SCOPE}")
+[[ -n "$CHANNEL_SCOPE" ]] && EXTRA_ARGS+=(--channel-scope "${CHANNEL_SCOPE}")
 [[ "$PARTIAL_UNBLIND" == true ]] && EXTRA_ARGS+=(--partial-unblind)
 [[ "$UNBLIND"         == true ]] && EXTRA_ARGS+=(--unblind)
 [[ "$BLIND"           == true ]] && EXTRA_ARGS+=(--blind)
@@ -119,10 +138,11 @@ EXTRA_ARGS=(
 echo "============================================================"
 echo "SignalRegionStudyV2 Real-Mass Post-fit Plot Batch"
 echo "Era (fit):       $ERA"
-echo "Era scope:       $ERA_SCOPE"
-echo "Channel scope:   $CHANNEL_SCOPE"
+echo "Era scope:       ${ERA_SCOPE:-all}"
+echo "Channel scope:   ${CHANNEL_SCOPE:-all}"
 echo "Method:          $METHOD"
 echo "Binning:         $BINNING"
+echo "Nuisance mode:   $NUISANCE"
 echo "Fit type:        $FIT_TYPE"
 echo "Bin width:       $BIN_WIDTH GeV"
 echo "Mass points:     ${#MASSPOINTs[@]} total"
@@ -151,6 +171,9 @@ submit_condor() {
     if [[ "$PARTIAL_UNBLIND" == true ]]; then tag="partial_unblind"
     elif [[ "$UNBLIND"       == true ]]; then tag="unblind"
     else tag="blinded"
+    fi
+    if [[ "$NUISANCE" == "preserve_shape" ]]; then
+        tag="${tag}_preserve_shape"
     fi
 
     local timestamp

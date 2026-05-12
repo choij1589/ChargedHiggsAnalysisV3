@@ -19,8 +19,7 @@ from template_utils import (
     BIN_FLOOR_VALUE,
     save_json, parse_variations, get_output_tree_name, combine_suffix_from_tree,
     ensure_positive_integral, cap_stat_errors, build_particlenet_score,
-    create_filtered_rdf, create_scaled_hist, is_run3_era, is_signal_scaled_from_run2,
-    get_run2_tree_name_for_run3_syst, categorize_systematics,
+    create_filtered_rdf, create_scaled_hist, is_run3_era, categorize_systematics,
     calculate_adaptive_bins, check_binning_quality, apply_syst_driven_merging,
     iter_shape_directions
 )
@@ -50,6 +49,9 @@ def parse_args():
                         help="Use real data for data_obs instead of MC sum")
     parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
                         help="Unblind low LR region (score < 0.3). Requires --method ParticleNet")
+    parser.add_argument("--nuisance", default="fallback_lnn",
+                        choices=["fallback_lnn", "preserve_shape"],
+                        help="Low-stat nuisance handling mode used to choose the output suffix")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args()
 
@@ -760,6 +762,8 @@ def main():
         binning_suffix = f"{args.binning}_unblind"
     elif args.partial_unblind:
         binning_suffix = f"{args.binning}_partial_unblind"
+    if args.nuisance == "preserve_shape":
+        binning_suffix = f"{binning_suffix}_preserve_shape"
     outdir = f"{workdir}/SignalRegionStudyV2/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{binning_suffix}"
 
     logging.info(f"Starting template generation")
@@ -1018,12 +1022,6 @@ def main():
     # ========================================
     logging.info(f"Processing signal: {args.masspoint}")
 
-    # Detect if Run3 signal is scaled from Run2 (2018)
-    signal_file_path = f"{basedir}/{args.masspoint}.root"
-    signal_scaled_from_run2 = is_signal_scaled_from_run2(signal_file_path, args.era)
-    if signal_scaled_from_run2:
-        logging.info(f"  Signal detected as scaled from Run2 (2018) - will remap systematic tree names")
-
     signal_map = {}
     templates[args.masspoint] = signal_map
 
@@ -1044,12 +1042,7 @@ def main():
         logging.debug(f"  Processing signal systematic: {syst_name}")
         for direction in iter_shape_directions(variations):
             combine_suffix = f"{syst_name}{direction}"
-
-            if signal_scaled_from_run2:
-                read_tree = get_run2_tree_name_for_run3_syst(syst_name, direction, args.era)
-                logging.debug(f"    Remapped: {combine_suffix} -> {read_tree}")
-            else:
-                read_tree = f"{syst_name}_{direction}"
+            read_tree = f"{syst_name}_{direction}"
 
             try:
                 hist = getHist(basedir, args.masspoint, bin_edges, mass_min, mass_max,
