@@ -8,7 +8,7 @@ post/pre-fit ratio per coarse bin.
 Aggregates multiple sub-channels (per-era/per-channel) from a combined
 fitDiagnostics file. Each sub-channel's mass window and adaptive coarse bin
 edges are taken from its `binning.json`. The union mass range defines the
-fine uniform-bin grid (default bin width: 1 GeV).
+fine uniform-bin grid (default bin width: auto = sigma_eff of widest sub-channel, snapped to 0.05 GeV).
 
 Usage:
     python3 plotPostfitMass.py --era All --masspoint MHc130_MA90 \
@@ -19,6 +19,7 @@ import os
 import sys
 import json
 import math
+import hashlib
 import logging
 import argparse
 import bisect
@@ -53,8 +54,12 @@ def _build_parser():
     p.add_argument("--blind", action="store_true",
                    help="Asimov mode: data = sum of pre-fit backgrounds; "
                         "samples/.../data.root is never read.")
-    p.add_argument("--bin-width", default=1.0, type=float,
-                   help="Fine-grid bin width in GeV (default 1.0)")
+    p.add_argument("--nuisance", default="fallback_lnn",
+                   choices=["fallback_lnn", "preserve_shape"],
+                   help="Low-stat nuisance handling mode used to choose the template suffix")
+    p.add_argument("--bin-width", default="auto", type=str,
+                   help="Fine-grid bin width in GeV, or 'auto' to derive from "
+                        "sigma_eff of the widest sub-channel, snapped to 0.05 GeV (default: auto)")
     p.add_argument("--plot-only", action="store_true", dest="plot_only",
                    help="Skip tree reads; load cached fine-mass hists from "
                         "{fitdiag}/cached/ and only re-render plots.")
@@ -94,10 +99,14 @@ def _compute_binning_suffix(parsed):
     if parsed.method == "CR":
         return parsed.binning
     if parsed.unblind:
-        return f"{parsed.binning}_unblind"
-    if parsed.partial_unblind:
-        return f"{parsed.binning}_partial_unblind"
-    return parsed.binning
+        suffix = f"{parsed.binning}_unblind"
+    elif parsed.partial_unblind:
+        suffix = f"{parsed.binning}_partial_unblind"
+    else:
+        suffix = parsed.binning
+    if getattr(parsed, "nuisance", "fallback_lnn") == "preserve_shape":
+        suffix = f"{suffix}_preserve_shape"
+    return suffix
 
 
 def _compute_paths():
@@ -118,7 +127,7 @@ def _compute_paths():
                     f"{args.masspoint}.{args.method}.{binning_suffix}.root")
     OUTPUT_DIR = f"{FITDIAG_DIR}/plots_mass"
     CACHE_DIR = f"{FITDIAG_DIR}/cached"
-    CACHE_PATH = f"{CACHE_DIR}/fine_hists_bw{args.bin_width:g}.root"
+    CACHE_PATH = f"{CACHE_DIR}/fine_hists_bw{args.bin_width}.root"
 
 
 def entry_setup(parsed_args, *, require_fitdiag=True, make_output_dir=True):
@@ -311,6 +320,8 @@ class PlotTarget:
     era_scope: str
     channel_scope: str
     xrange: Tuple[float, float]
+    hist_edges: Tuple[float, ...]
+    y_title: str
 
 
 def parse_subchannel(subch, fallback_era):
@@ -420,6 +431,7 @@ def load_subchannel_config(era, channel):
         "mass_min": binning["mass_min"],
         "mass_max": binning["mass_max"],
         "bin_edges": binning["bin_edges"],
+        "sigma_eff": binning.get("sigma_eff", 1.0),
         "threshold": threshold,
         "upper_threshold": upper_threshold,
         "bg_weights": bg_weights,
@@ -527,17 +539,20 @@ def get_coarse_scale(fitdiag_file, channel_key, proc_key, fit_type, n_coarse):
 
 
 def apply_coarse_scale(fine_hist, scales, mass_edges):
-    """Multiply fine bins by the post/pre scale of the coarse bin they fall in."""
+    """Multiply fine bins by the post/pre scale of the coarse bin they fall in.
+
+    Fine bins outside the coarse range are clamped to the nearest edge bin's
+    scale rather than skipped, so the b-only r=0 suppression propagates to all
+    fine bins (not just those strictly inside the coarse window).
+    """
     n_coarse = len(mass_edges) - 1
     for j in range(1, fine_hist.GetNbinsX() + 1):
         x = fine_hist.GetBinCenter(j)
         idx = bisect.bisect_right(mass_edges, x) - 1
-        if idx < 0 or idx >= n_coarse:
-            # Rescue: x exactly at the upper edge lands on n_coarse.
-            if x == mass_edges[-1]:
-                idx = n_coarse - 1
-            else:
-                continue
+        if idx < 0:
+            idx = 0
+        elif idx >= n_coarse:
+            idx = n_coarse - 1
         s = scales[idx]
         fine_hist.SetBinContent(j, fine_hist.GetBinContent(j) * s)
         fine_hist.SetBinError(j, fine_hist.GetBinError(j) * abs(s))
@@ -594,6 +609,20 @@ def build_uniform_edges(mass_lo, mass_hi, bin_width):
     return [lo + i * bin_width for i in range(n + 1)]
 
 
+def is_atomic_template_target(era_scope, channel_scope):
+    """Use original template bins only for single era x single SR channel."""
+    return era_scope not in ("All", "Run2", "Run3") and channel_scope in ("SR1E2Mu", "SR3Mu")
+
+
+def edge_cache_id(edges):
+    payload = ",".join(f"{float(x):.8g}" for x in edges)
+    return hashlib.md5(payload.encode("ascii")).hexdigest()[:12]
+
+
+def target_y_title(target):
+    return target.y_title
+
+
 # =============================================================================
 # Plot-drawing helpers
 # =============================================================================
@@ -605,24 +634,43 @@ def _blinding_label():
     return ""
 
 
-def _make_stack(target, agg_data, agg_bkgs, agg_signal, label_top, systSrc, out_path):
+def _make_stack(target, agg_data, agg_bkgs, agg_signal, label_top, out_path):
     """Generic stack-plot builder shared by pre-fit and post-fit plots."""
     if not agg_bkgs:
         logging.warning(f"No backgrounds; skipping {out_path}")
         return
     agg_data.SetTitle("data")
     colors = [BKG_COLORS.get(b, ROOT.kGray) for b in agg_bkgs.keys()]
+
+    # Compute stack total to derive y-max and trim empty edge bins.
+    ref_h = next(iter(agg_bkgs.values()))
+    stack_total = ref_h.Clone("_stack_total_tmp")
+    stack_total.SetDirectory(0)
+    for h in list(agg_bkgs.values())[1:]:
+        stack_total.Add(h)
+    stack_max = stack_total.GetMaximum()
+    sig_max = (agg_signal.GetMaximum()
+               if agg_signal is not None and agg_signal.Integral() > 0 else 0.0)
+    data_max = agg_data.GetMaximum() if agg_data.Integral() > 0 else 0.0
+    y_max = max(stack_max, sig_max, data_max) * 2
+
+    x_lo, x_hi = target.xrange
+
     config = make_canvas_config(target.era_scope, {
         "channel": masspoint_label(args.masspoint),
         "channelPosY": 0.58,
         "channelSize": 0.04,
         "xTitle": "M(e^{+}e^{-}) [GeV]" if args.method == "CR" else "M(#mu^{+}#mu^{-}) [GeV]",
-        "yTitle": f"Events / {args.bin_width:g} GeV",
-        "xRange": list(target.xrange),
+        "yTitle": target_y_title(target),
+        "xRange": [x_lo, x_hi],
+        "yRange": [0, y_max],
         "rTitle": "Data / Pred",
         "rRange": [0, 2.5],
         "maxDigits": 3,
-        "systSrc": systSrc,
+        "systSrc": "Stat+Syst",
+        "legend": [0.5, 0.62, 0.99, 0.89],
+        "legendColumns": 2,
+        "legendTextSize": 0.035,
         "colors": colors,
     })
     plotter = select_comparison_cls(target.era_scope)(agg_data, agg_bkgs, config)
@@ -664,7 +712,6 @@ def make_postfit_stack(target, agg_data, post_bkgs, post_signal, fit_type):
     out = f"{OUTPUT_DIR}/postfit_{fit_type}_mass_{target.era_scope}_{target.channel_scope}.png"
     _make_stack(target, agg_data, post_bkgs, post_signal,
                 label_top=f"Post-fit {fit_label}",
-                systSrc=f"Post-fit ({fit_label})",
                 out_path=out)
 
 
@@ -672,7 +719,6 @@ def make_prefit_stack(target, agg_data, pre_bkgs, pre_signal):
     out = f"{OUTPUT_DIR}/prefit_mass_{target.era_scope}_{target.channel_scope}.png"
     _make_stack(target, agg_data, pre_bkgs, pre_signal,
                 label_top="Pre-fit",
-                systSrc="Pre-fit",
                 out_path=out)
 
 
@@ -687,7 +733,7 @@ def make_prefit_vs_postfit(target, agg_total_pre, agg_total_post, fit_type):
         "channelPosY": 0.64,
         "channelSize": 0.035,
         "xTitle": "M(e^{+}e^{-}) [GeV]" if args.method == "CR" else "M(#mu^{+}#mu^{-}) [GeV]",
-        "yTitle": f"Events / {args.bin_width:g} GeV",
+        "yTitle": target_y_title(target),
         "xRange": list(target.xrange),
         "maxDigits": 3,
     })
@@ -712,9 +758,9 @@ def make_prefit_vs_postfit(target, agg_total_pre, agg_total_post, fit_type):
     logging.info(f"Saved: {out}")
 
 
-def sum_total(hists, uniform_edges, name):
-    edges_arr = array('d', uniform_edges)
-    total = ROOT.TH1D(name, "", len(uniform_edges) - 1, edges_arr)
+def sum_total(hists, hist_edges, name):
+    edges_arr = array('d', hist_edges)
+    total = ROOT.TH1D(name, "", len(hist_edges) - 1, edges_arr)
     total.SetDirectory(0)
     for h in hists.values():
         total.Add(h)
@@ -725,7 +771,7 @@ def sum_total(hists, uniform_edges, name):
 # Main
 # =============================================================================
 
-_FINE_CACHE = {}  # (subch, process, is_data) -> unscaled fine TH1D (shared grid)
+_FINE_CACHE = {}  # (edge_id, subch, process, is_data) -> unscaled TH1D
 _GLOBAL_EDGES = None  # fine-mass edges shared by every cached hist
 
 
@@ -734,17 +780,17 @@ def set_global_edges(edges):
     _GLOBAL_EDGES = edges
 
 
-def _cache_key_to_name(subch, process, is_data):
+def _cache_key_to_name(edge_id, subch, process, is_data):
     # Sub-channels have single underscores; use "__" as a safe separator.
-    return f"{subch}__{process}__{int(is_data)}"
+    return f"{edge_id}__{subch}__{process}__{int(is_data)}"
 
 
 def _cache_name_to_key(name):
     parts = name.split("__")
-    if len(parts) != 3:
+    if len(parts) != 4:
         return None
-    subch, process, flag = parts
-    return (subch, process, flag == "1")
+    edge_id, subch, process, flag = parts
+    return (edge_id, subch, process, flag == "1")
 
 
 def load_cache_from_file(path):
@@ -775,15 +821,15 @@ def save_cache_to_file(path):
     """Write _FINE_CACHE to a ROOT file (for later --plot-only runs)."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     f = ROOT.TFile.Open(path, "RECREATE")
-    for (subch, process, is_data), h in _FINE_CACHE.items():
-        name = _cache_key_to_name(subch, process, is_data)
+    for (edge_id, subch, process, is_data), h in _FINE_CACHE.items():
+        name = _cache_key_to_name(edge_id, subch, process, is_data)
         h_clone = h.Clone(name)
         h_clone.Write()
     f.Close()
     logging.info(f"  Saved {len(_FINE_CACHE)} fine-mass hists to {path}")
 
 
-def cached_fine(subch, process, cfg, is_data=False):
+def cached_fine(subch, process, cfg, hist_edges, is_data=False):
     """Fill a sub-channel's fine-mass hist once and cache it.
 
     Returns the cached TH1D directly (not a clone) — callers that need to
@@ -791,9 +837,8 @@ def cached_fine(subch, process, cfg, is_data=False):
     hist is safe (it doesn't touch the source).
     Raises KeyError in --plot-only mode if the key is missing from cache.
     """
-    if _GLOBAL_EDGES is None:
-        raise RuntimeError("set_global_edges() must be called first")
-    key = (subch, process, is_data)
+    edge_id = edge_cache_id(hist_edges)
+    key = (edge_id, subch, process, is_data)
     if key not in _FINE_CACHE:
         if args.plot_only:
             raise KeyError(
@@ -801,19 +846,19 @@ def cached_fine(subch, process, cfg, is_data=False):
                 f"Re-run without --plot-only to rebuild the cache.")
         era_i, ch_i = parse_subchannel(subch, args.era)
         _FINE_CACHE[key] = fill_fine_hist(
-            era_i, ch_i, process, cfg, _GLOBAL_EDGES,
+            era_i, ch_i, process, cfg, hist_edges,
             f"{process}_{subch}_{int(is_data)}_base",
             is_data=is_data)
     return _FINE_CACHE[key]
 
 
-def build_process_aggregates_cached(fitdiag_file, kept, cfgs, ordered_bkgs, fit_type):
+def build_process_aggregates_cached(fitdiag_file, kept, cfgs, ordered_bkgs, fit_type, hist_edges):
     """Pre/post backgrounds + signal + data aggregated for a subset of sub-channels.
 
-    All sub-channel hists share `_GLOBAL_EDGES`, so TH1::Add works natively.
+    All sub-channel hists share `hist_edges`, so TH1::Add works natively.
     """
-    edges_arr = array('d', _GLOBAL_EDGES)
-    n_uniform = len(_GLOBAL_EDGES) - 1
+    edges_arr = array('d', hist_edges)
+    n_uniform = len(hist_edges) - 1
     prefit = {bkg: ROOT.TH1D(f"{bkg}_pre_{id(kept)}", "", n_uniform, edges_arr)
               for bkg in ordered_bkgs}
     postfit = {bkg: ROOT.TH1D(f"{bkg}_post_{id(kept)}", "", n_uniform, edges_arr)
@@ -831,7 +876,7 @@ def build_process_aggregates_cached(fitdiag_file, kept, cfgs, ordered_bkgs, fit_
         # directly, but subsequent `bucket.Add(fh)` would otherwise mutate it.
         bucket = None
         for proc in ["others"] + list(merged_set):
-            fh = cached_fine(subch, proc, cfg)
+            fh = cached_fine(subch, proc, cfg, hist_edges)
             if bucket is None:
                 bucket = fh.Clone(f"others_{subch}_bucket")
                 bucket.SetDirectory(0)
@@ -854,7 +899,7 @@ def build_process_aggregates_cached(fitdiag_file, kept, cfgs, ordered_bkgs, fit_
             if bkg not in cfg["separate_processes"]:
                 continue
 
-            fh = cached_fine(subch, bkg, cfg)
+            fh = cached_fine(subch, bkg, cfg, hist_edges)
             if fh.Integral() <= 0:
                 continue
             prefit[bkg].Add(fh)
@@ -872,7 +917,7 @@ def build_process_aggregates_cached(fitdiag_file, kept, cfgs, ordered_bkgs, fit_
     for subch in kept:
         cfg = cfgs[subch]
         n_coarse = len(cfg["bin_edges"]) - 1
-        fh = cached_fine(subch, args.masspoint, cfg)
+        fh = cached_fine(subch, args.masspoint, cfg, hist_edges)
         if fh.Integral() <= 0:
             continue
         pre_signal.Add(fh)
@@ -896,7 +941,7 @@ def build_process_aggregates_cached(fitdiag_file, kept, cfgs, ordered_bkgs, fit_
     else:
         for subch in kept:
             cfg = cfgs[subch]
-            fh = cached_fine(subch, "data", cfg, is_data=True)
+            fh = cached_fine(subch, "data", cfg, hist_edges, is_data=True)
             data.Add(fh)
 
     return prefit_bkgs, postfit_bkgs, pre_signal, post_signal, data
@@ -918,9 +963,24 @@ def process_plot_target(fitdiag_file, all_cfgs, era_scope, channel_scope,
         logging.debug(f"  skip {era_scope}/{channel_scope}: no sub-channels")
         return
 
-    mass_lo = min(all_cfgs[sc]["mass_min"] for sc in kept)
-    mass_hi = max(all_cfgs[sc]["mass_max"] for sc in kept)
-    xrange = (math.floor(mass_lo), math.ceil(mass_hi))
+    if is_atomic_template_target(era_scope, channel_scope) and len(kept) == 1:
+        hist_edges = tuple(float(x) for x in all_cfgs[kept[0]]["bin_edges"])
+        xrange = (hist_edges[0], hist_edges[-1])
+        y_title = "Events / bin"
+        binning_label = "template bins"
+    else:
+        # Use the widest sub-channel's range and sigma for the display range:
+        # range and resolution are self-consistent, and the widest sub-channel
+        # fully covers its own range.
+        widest_sc = max(kept,
+                        key=lambda sc: (all_cfgs[sc]["mass_max"]
+                                        - all_cfgs[sc]["mass_min"]))
+        mass_lo = all_cfgs[widest_sc]["mass_min"]
+        mass_hi = all_cfgs[widest_sc]["mass_max"]
+        xrange = (mass_lo, mass_hi)
+        hist_edges = tuple(_GLOBAL_EDGES)
+        y_title = f"Events / {round(args.bin_width, 2):.2g} GeV"
+        binning_label = f"fine grid ({len(hist_edges) - 1} bins)"
 
     sub_cfgs = {sc: all_cfgs[sc] for sc in kept}
     bkg_union = []
@@ -933,25 +993,31 @@ def process_plot_target(fitdiag_file, all_cfgs, era_scope, channel_scope,
     ordered_bkgs = [b for b in BKG_ORDER if b in bkg_union]
 
     logging.info(f"  {era_scope}/{channel_scope}: {len(kept)} sub-channels, "
-                 f"mass=[{mass_lo:.2f}, {mass_hi:.2f}] GeV")
+                 f"mass=[{xrange[0]:.2f}, {xrange[1]:.2f}] GeV, {binning_label}")
 
-    target = PlotTarget(era_scope=era_scope, channel_scope=channel_scope, xrange=xrange)
+    target = PlotTarget(
+        era_scope=era_scope,
+        channel_scope=channel_scope,
+        xrange=xrange,
+        hist_edges=hist_edges,
+        y_title=y_title,
+    )
 
     prefit_drawn = False
     agg_pre_tot = None
     for ft in fit_types:
         pre_bkgs, post_bkgs, pre_signal, post_signal, agg_data = \
             build_process_aggregates_cached(
-                fitdiag_file, kept, sub_cfgs, ordered_bkgs, ft)
+                fitdiag_file, kept, sub_cfgs, ordered_bkgs, ft, target.hist_edges)
 
         if not prefit_drawn:
             make_prefit_stack(target, agg_data, pre_bkgs, pre_signal)
             # Pre-fit total is fit-type-independent; build once.
-            agg_pre_tot = sum_total(pre_bkgs, _GLOBAL_EDGES, "prefit_total_mass")
+            agg_pre_tot = sum_total(pre_bkgs, target.hist_edges, "prefit_total_mass")
             prefit_drawn = True
 
         make_postfit_stack(target, agg_data, post_bkgs, post_signal, ft)
-        agg_post_tot = sum_total(post_bkgs, _GLOBAL_EDGES, "postfit_total_mass")
+        agg_post_tot = sum_total(post_bkgs, target.hist_edges, "postfit_total_mass")
         make_prefit_vs_postfit(target, agg_pre_tot, agg_post_tot, ft)
 
 
@@ -961,7 +1027,7 @@ def main():
     logging.info(f"  Masspoint:      {args.masspoint}")
     logging.info(f"  Method:         {args.method}")
     logging.info(f"  Fit type:       {args.fit_type}")
-    logging.info(f"  Bin width:      {args.bin_width} GeV")
+    logging.info(f"  Bin width:      {args.bin_width} GeV (resolved after subchannel load)")
     logging.info(f"  Output dir:     {OUTPUT_DIR}")
 
     fit_era = args.era  # fit source (constant for this run)
@@ -983,6 +1049,17 @@ def main():
     # integer bin-width boundaries. All cached fine-mass hists share this.
     global_lo = min(cfg["mass_min"] for cfg in all_cfgs.values())
     global_hi = max(cfg["mass_max"] for cfg in all_cfgs.values())
+    if args.bin_width == "auto":
+        widest = max(all_cfgs.values(),
+                     key=lambda c: c["mass_max"] - c["mass_min"])
+        args.bin_width = (widest["mass_max"] - widest["mass_min"]) / 20
+        logging.info(f"  Auto bin width: widest range "
+                     f"[{widest['mass_min']:.3f}, {widest['mass_max']:.3f}] / 20 "
+                     f"-> {args.bin_width:.4f} GeV")
+    else:
+        args.bin_width = float(args.bin_width)
+    global CACHE_PATH
+    CACHE_PATH = f"{CACHE_DIR}/mass_hists_v2_bw{args.bin_width:g}.root"
     set_global_edges(build_uniform_edges(global_lo, global_hi, args.bin_width))
     logging.info(f"  Global grid:    [{global_lo:.2f}, {global_hi:.2f}] GeV "
                  f"-> [{_GLOBAL_EDGES[0]:g}, {_GLOBAL_EDGES[-1]:g}] "

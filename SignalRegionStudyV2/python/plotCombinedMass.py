@@ -223,6 +223,7 @@ def load_one_masspoint(masspoint, base_args, fit_types):
     mp_args.fit_type = "both"
     pm.entry_setup(mp_args, require_fitdiag=True, make_output_dir=False)
     pm._FINE_CACHE.clear()
+    pm.CACHE_PATH = f"{pm.CACHE_DIR}/mass_hists_v2_bw{base_args.bin_width:g}.root"
 
     if base_args.plot_only:
         if not pm.load_cache_from_file(pm.CACHE_PATH):
@@ -271,7 +272,7 @@ def load_one_masspoint(masspoint, base_args, fit_types):
 
     for ft in fit_types:
         pre, post, pre_sig, post_sig, data = pm.build_process_aggregates_cached(
-            f, kept, sub_cfgs, ordered_bkgs, ft)
+            f, kept, sub_cfgs, ordered_bkgs, ft, tuple(pm._GLOBAL_EDGES))
         mp_result["per_ft"][ft] = {
             "pre_bkgs": pre,
             "post_bkgs": post,

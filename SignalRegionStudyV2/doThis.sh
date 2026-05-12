@@ -27,9 +27,8 @@
 #./automize/makeBinnedTemplates.sh --mode all --method Baseline --fitdiag --start-from combine --no-runAsymptotic
 #./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --partial-unblind --fitdiag --start-from combine --no-runAsymptotic
 # After fitdiag, post-fit mass plots with re-filling from the unbinned tree
-./automize/plotPostfitMass.sh --method ParticleNet --partial-unblind --condor
-./automize/plotPostfitMass.sh --method ParticleNet --partial-unblind --plot-only
-
+#./automize/plotPostfitMass.sh --method ParticleNet --partial-unblind --condor
+#./automize/plotPostfitMass.sh --method ParticleNet --partial-unblind --plot-only
 
 # Step 5: Signal injection (bias test); re-run needed after new templates
 #./automize/signalInjection.sh --mode all --method Baseline
@@ -44,16 +43,75 @@
 #./automize/hybridnew.sh --mode all --method Baseline --auto-grid
 #./automize/hybridnew.sh --mode all --method ParticleNet --auto-grid
 
-# Step 7: Full unblinding (after OR approval)
-# Templates + Asymptotic
-#./automize/makeBinnedTemplates.sh --mode all --method Baseline --unblind
+# Step 7: Step 1 unblinding
+#./automize/preprocess.sh --mode all --unblind
+
+# Unblind data, but check GoF and impact first with --blind option
+#./automize/makeBinnedTemplates.sh --mode all --method Baseline    --unblind
 #./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --unblind
-# Impact plots
-#./automize/impact.sh --mode all --method Baseline --unblind
-#./automize/impact.sh --mode all --method ParticleNet --unblind
-# FitDiagnostics
-#./automize/makeBinnedTemplates.sh --mode all --method Baseline --unblind --fitdiag --start-from combine --no-runAsymptotic
+#./automize/gof.sh   --mode all --method Baseline    --unblind --ntoys 1000 --nbatches 10
+#./automize/gof.sh   --mode all --method ParticleNet --unblind --ntoys 1000 --nbatches 10
+#./automize/impact.sh --mode all --method Baseline    --unblind --blind-result
+#./automize/impact.sh --mode all --method ParticleNet --unblind --blind-result
+
+# Plot b-only GoF p-values vs mA for each mHc.
+python3 python/plotGoFPValues.py --mhc 70 160
+
+# Plot full-mA prefit and B-only postfit summaries for each mHc.
+./automize/plotPostfitSummary.sh \
+    --mhc 70 160 \
+    --methods Baseline ParticleNet \
+    --eras Run2 Run3 All \
+    --channels SR1E2Mu SR3Mu Combined \
+    --binning extended \
+    --unblind \
+    --bin-width 1 \
+    --fit-type b \
+    --condor
+
+
+# FitDiagnostics (prerequisite for post-fit mass plots)
+# Current unblinding pull plots default to b-only. For the later S+B review,
+#./automize/makeBinnedTemplates.sh --mode all --method Baseline    --unblind --fitdiag --start-from combine --no-runAsymptotic
 #./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --unblind --fitdiag --start-from combine --no-runAsymptotic
+# Post-fit mass plots (run after fitDiag DAGs above finish)
+#./automize/plotPostfitMass.sh --method Baseline    --unblind --condor
+#./automize/plotPostfitMass.sh --method ParticleNet --unblind --condor
 # HybridNew
 #./automize/hybridnew.sh --mode all --method Baseline --unblind --auto-grid
 #./automize/hybridnew.sh --mode all --method ParticleNet --unblind --auto-grid
+
+# Preserve-shape nuisance test: full isolated unblind comparison
+# Outputs go to extended_unblind_preserve_shape
+#./automize/makeBinnedTemplates.sh --mode all --method Baseline --binning extended --unblind --nuisance preserve_shape
+#./automize/gof.sh --mode all --method Baseline --binning extended --unblind --nuisance preserve_shape --ntoys 1000 --nbatches 10
+#./automize/impact.sh --mode all --method Baseline --binning extended --unblind --nuisance preserve_shape --blind-result
+#./automize/makeBinnedTemplates.sh --mode all --method Baseline --binning extended --unblind --nuisance preserve_shape --fitdiag --start-from combine --no-runAsymptotic
+# Post-fit mass plots: default wrapper now saves all era scopes
+# (individual eras, Run2, Run3, All), all channel scopes
+# (SR1E2Mu, SR3Mu, Combined), and prefit/B-only/S+B postfit.
+#./automize/plotPostfitMass.sh --method Baseline --binning extended --unblind --nuisance preserve_shape --condor
+#python3 scripts/collectGoFComparison.py --method Baseline --binning extended
+
+
+# Step 8: Full unblinding after approval to show S+B/observed results
+# Re-run observed impacts without --blind-result.
+#./automize/impact.sh --mode all --method Baseline    --unblind
+#./automize/impact.sh --mode all --method ParticleNet --unblind
+
+# Re-run FitDiagnostics pull plots with both b-only and S+B pulls visible.
+# This keeps the current b-only nuisance_pulls.{txt,root,pdf} outputs and
+# additionally writes nuisance_pulls_both.{txt,root,pdf}.
+#./automize/makeBinnedTemplates.sh --mode all --method Baseline    --unblind --fitdiag --start-from combine --no-runAsymptotic --pull-fit both
+#./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --unblind --fitdiag --start-from combine --no-runAsymptotic --pull-fit both
+
+# Re-render post-fit mass plots after the S+B FitDiagnostics pass.
+#./automize/plotPostfitMass.sh --method Baseline    --unblind --condor
+#./automize/plotPostfitMass.sh --method ParticleNet --unblind --condor
+
+# Final observed limits.
+#./automize/hybridnew.sh --mode all --method Baseline    --unblind --auto-grid
+#./automize/hybridnew.sh --mode all --method ParticleNet --unblind --auto-grid
+
+# Collect the full-unblind review artifacts by masspoint.
+#./automize/collectUnblindResults.sh --method all

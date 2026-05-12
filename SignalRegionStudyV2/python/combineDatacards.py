@@ -161,6 +161,9 @@ def main():
                         help="Use partial-unblind templates (score < 0.3)")
     parser.add_argument("--unblind", action="store_true",
                         help="Use full unblind templates")
+    parser.add_argument("--nuisance", default="fallback_lnn",
+                        choices=["fallback_lnn", "preserve_shape"],
+                        help="Low-stat nuisance handling mode used to choose the template suffix")
     parser.add_argument("--output-era", default="Run2",
                         help="Output era name for era combination")
     parser.add_argument("--verbose", action="store_true",
@@ -184,6 +187,8 @@ def main():
         binning_suffix = f"{args.binning}_unblind"
     elif args.partial_unblind:
         binning_suffix = f"{args.binning}_partial_unblind"
+    if args.nuisance == "preserve_shape":
+        binning_suffix = f"{binning_suffix}_preserve_shape"
 
     try:
         if args.mode == "channel":

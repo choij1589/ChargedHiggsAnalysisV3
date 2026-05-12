@@ -38,8 +38,10 @@ MODE="all"  # Options: all, run2, run3
 SINGLE_ERA=""  # Single era mode (overrides MODE)
 METHOD="Baseline"  # Options: Baseline, ParticleNet
 BINNING="extended"
+NUISANCE="fallback_lnn"
 PARTIAL_UNBLIND=false
 UNBLIND=false
+BLIND_RESULT=false
 EXPECT_SIGNAL=1  # Default: inject signal (use 0 for background-only)
 AUTO_EXPECT_SIGNAL=false
 PLOT_ONLY=false
@@ -64,12 +66,20 @@ while [[ $# -gt 0 ]]; do
             BINNING="$2"
             shift 2
             ;;
+        --nuisance)
+            NUISANCE="$2"
+            shift 2
+            ;;
         --partial-unblind)
             PARTIAL_UNBLIND=true
             shift
             ;;
         --unblind)
             UNBLIND=true
+            shift
+            ;;
+        --blind-result)
+            BLIND_RESULT=true
             shift
             ;;
         --expect-signal)
@@ -106,7 +116,10 @@ while [[ $# -gt 0 ]]; do
             echo "Template Options:"
             echo "  --method METHOD        - Baseline or ParticleNet (default: Baseline)"
             echo "  --binning BINNING      - extended or uniform (default: extended)"
+            echo "  --nuisance MODE        - fallback_lnn (default) or preserve_shape"
             echo "  --partial-unblind      - Use partial-unblind templates"
+            echo "  --unblind              - Use fully unblinded templates; auto-selects unblind mass-point subset"
+            echo "  --blind-result         - Hide observed r in impact plot (stage-1 unblinding; use with --unblind)"
             echo "  --expect-signal N      - Expected signal for Asimov (0 or 1) [default: 1]
   --auto-expect-signal   - Use median expected limit as expectSignal (output: impacts_med)"
             echo ""
@@ -138,11 +151,20 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Select mass points based on method
+# Select mass points based on method and blinding mode
+# --unblind auto-selects the curated unblind subset
 if [[ "$METHOD" == "ParticleNet" ]]; then
-    MASSPOINTs=("${MASSPOINTs_IMPACT_PN[@]}")
+    if [[ "$UNBLIND" == true ]]; then
+        MASSPOINTs=("${MASSPOINTs_UNBLIND_PN[@]}")
+    else
+        MASSPOINTs=("${MASSPOINTs_IMPACT_PN[@]}")
+    fi
 else
-    MASSPOINTs=("${MASSPOINTs_IMPACT_BASELINE[@]}")
+    if [[ "$UNBLIND" == true ]]; then
+        MASSPOINTs=("${MASSPOINTs_UNBLIND_BASELINE[@]}")
+    else
+        MASSPOINTs=("${MASSPOINTs_IMPACT_BASELINE[@]}")
+    fi
 fi
 
 # Validate mutual exclusion
@@ -150,6 +172,14 @@ if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
     echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
     exit 1
 fi
+case "$NUISANCE" in
+    fallback_lnn|preserve_shape) ;;
+    *)
+        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
+        echo "Valid values: fallback_lnn, preserve_shape"
+        exit 1
+        ;;
+esac
 
 # Build extra args for runImpacts.sh
 EXTRA_ARGS=""
@@ -158,6 +188,8 @@ if [[ "$UNBLIND" == true ]]; then
 elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     EXTRA_ARGS="$EXTRA_ARGS --partial-unblind"
 fi
+[[ "$NUISANCE" == "preserve_shape" ]] && EXTRA_ARGS="$EXTRA_ARGS --nuisance preserve_shape"
+[[ "$BLIND_RESULT" == true ]] && EXTRA_ARGS="$EXTRA_ARGS --blind-result"
 if [[ "$AUTO_EXPECT_SIGNAL" == true ]]; then
     EXTRA_ARGS="$EXTRA_ARGS --auto-expect-signal"
 else
@@ -180,9 +212,11 @@ else
 fi
 echo "Method: $METHOD"
 echo "Binning: $BINNING"
+echo "Nuisance mode: $NUISANCE"
 echo "Mass points: ${#MASSPOINTs[@]} total"
 echo "Unblind: $UNBLIND"
 echo "Partial unblind: $PARTIAL_UNBLIND"
+echo "Blind result: $BLIND_RESULT"
 echo "Expect signal: $([ "$AUTO_EXPECT_SIGNAL" == true ] && echo "auto (median expected)" || echo "$EXPECT_SIGNAL")"
 echo "Execution: HTCondor (condor-only)"
 echo "Plot only: $PLOT_ONLY"

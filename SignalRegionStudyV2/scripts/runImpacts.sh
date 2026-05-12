@@ -15,8 +15,10 @@ CHANNEL=""
 MASSPOINT=""
 METHOD="Baseline"
 BINNING="uniform"
+NUISANCE="fallback_lnn"
 PARTIAL_UNBLIND=false
 UNBLIND=false
+BLIND_RESULT=false
 EXPECT_SIGNAL=1  # Default: inject signal (use 0 for background-only)
 CONDOR=false
 PARALLEL=16
@@ -51,12 +53,20 @@ while [[ $# -gt 0 ]]; do
             BINNING="$2"
             shift 2
             ;;
+        --nuisance)
+            NUISANCE="$2"
+            shift 2
+            ;;
         --partial-unblind)
             PARTIAL_UNBLIND=true
             shift
             ;;
         --unblind)
             UNBLIND=true
+            shift
+            ;;
+        --blind-result)
+            BLIND_RESULT=true
             shift
             ;;
         --expect-signal)
@@ -111,7 +121,10 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
             echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
+            echo "  --nuisance   Low-stat nuisance mode: fallback_lnn (default) or preserve_shape"
             echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
+            echo "  --unblind          Use fully unblinded templates (real data_obs)"
+            echo "  --blind-result     Hide observed r in impact plot (use with --unblind for stage-1 unblinding)"
             echo "  --expect-signal N  Expected signal strength for Asimov (0 or 1) [default: 1]"
             echo "  --condor     Run full workflow in HTCondor via DAG (all steps)"
             echo "  --parallel   Number of parallel local jobs [default: 16]"
@@ -141,6 +154,19 @@ if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
     echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
     exit 1
 fi
+case "$NUISANCE" in
+    fallback_lnn|preserve_shape) ;;
+    *)
+        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
+        echo "Valid values: fallback_lnn, preserve_shape"
+        exit 1
+        ;;
+esac
+
+if [[ "$BLIND_RESULT" == true && "$UNBLIND" != true && "$PARTIAL_UNBLIND" != true ]]; then
+    echo "ERROR: --blind-result only meaningful with --unblind (or --partial-unblind)"
+    exit 1
+fi
 
 # Get WORKDIR
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -152,6 +178,9 @@ if [[ "$UNBLIND" == true ]]; then
     BINNING_SUFFIX="${BINNING}_unblind"
 elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     BINNING_SUFFIX="${BINNING}_partial_unblind"
+fi
+if [[ "$NUISANCE" == "preserve_shape" ]]; then
+    BINNING_SUFFIX="${BINNING_SUFFIX}_preserve_shape"
 fi
 TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV2/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
 
@@ -221,6 +250,10 @@ fi
 # Set parameter range
 if [[ -n "$R_RANGE_OVERRIDE" ]]; then
     R_RANGE="r=${R_RANGE_OVERRIDE}"
+elif [[ "$BLIND_RESULT" == true ]]; then
+    # Fixed range when blinding the result — avoid any dependence on unblinded fit output
+    R_RANGE="r=-5,5"
+    echo "  Using fixed r-range (--blind-result): ${R_RANGE}"
 elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     R_RANGE="r=-2,2"
     echo "  Using r-range for partial-unblind: ${R_RANGE}"
@@ -274,8 +307,12 @@ fi
 if [[ "$UNBLIND" == true || "$PARTIAL_UNBLIND" == true ]]; then
     # Use real data_obs
     ASIMOV_OPTIONS=""
-    # Hide r values in impact plot for partial-unblind only
-    BLIND_OPT=$([[ "$PARTIAL_UNBLIND" == true ]] && echo "--blind" || echo "")
+    # Hide r in the plot for --partial-unblind, or when --blind-result is explicitly set
+    if [[ "$PARTIAL_UNBLIND" == true || "$BLIND_RESULT" == true ]]; then
+        BLIND_OPT="--blind"
+    else
+        BLIND_OPT=""
+    fi
 else
     # Blinded: use Asimov dataset
     ASIMOV_OPTIONS="-t -1 --expectSignal ${EXPECT_SIGNAL}"
@@ -284,6 +321,7 @@ fi
 
 echo "Running Impacts for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING_SUFFIX})..."
 echo "  Condor: ${CONDOR}"
+echo "  Nuisance mode: ${NUISANCE}"
 echo "  Parallel jobs: ${PARALLEL}"
 echo "  Parameter range: ${R_RANGE}"
 echo "  Data mode: $(if [[ -n "$ASIMOV_OPTIONS" ]]; then echo "Asimov (expectSignal=${EXPECT_SIGNAL})"; else echo 'Observed (real data)'; fi)"

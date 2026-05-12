@@ -5,11 +5,8 @@ Preprocess signal and background samples for SignalRegionStudyV2.
 This script preprocesses ROOT files with systematic variations,
 loading era-specific systematics configuration from configs/systematics.{era}.json.
 
-Key addition in V2: Run3 signal scaling from Run2 (2018) samples.
-
 Processes:
-- Signal: from RunSyst_RunTheoryUnc (with theory uncertainties)
-  - For Run3: optionally scale from 2018 using --scale-from-run2 flag
+- Signal: from RunSyst_RunTheoryUnc (with theory uncertainties); requires real MC for the requested era
 - Backgrounds: from RunSyst (WZ, ZZ, ttW, ttZ, etc.)
 - Nonprompt: from MatrixAnalyzer (data-driven)
 - Data: from PromptAnalyzer (Central only)
@@ -20,14 +17,9 @@ Channels:
 - TTZ2E1Mu: TTZ control region with 2 electrons + 1 muon (no signal, for ParticleNet validation)
 
 Usage:
-    # Run2 processing (standard)
-    python preprocess.py --era 2018 --channel SR1E2Mu --masspoint MHc130_MA90
-
-    # Run3 processing with scaled signal from 2018
-    python preprocess.py --era 2022EE --channel SR1E2Mu --masspoint MHc130_MA90 --scale-from-run2
-
-    # TTZ control region (ParticleNet masspoints only)
-    python preprocess.py --era 2018 --channel TTZ2E1Mu --masspoint MHc130_MA90
+    python preprocess.py --era 2018   --channel SR1E2Mu  --masspoint MHc130_MA90
+    python preprocess.py --era 2022EE --channel SR3Mu    --masspoint MHc130_MA90
+    python preprocess.py --era 2018   --channel TTZ2E1Mu --masspoint MHc130_MA90
 """
 import os
 import argparse
@@ -85,8 +77,6 @@ def parse_args():
                         choices=list(CHANNEL_INPUT_MAP.keys()),
                         help="channel (SR1E2Mu, SR3Mu, or TTZ2E1Mu)")
     parser.add_argument("--masspoint", required=True, type=str, help="signal mass point (e.g., MHc130_MA90)")
-    parser.add_argument("--scale-from-run2", action="store_true",
-                        help="Scale Run3 signal from 2018 samples (for Run3 eras without signal MC)")
     parser.add_argument("--debug", action="store_true", help="debug mode")
     return parser.parse_args()
 
@@ -94,38 +84,6 @@ def parse_args():
 def is_run3_era(era):
     """Check if era is a Run3 era."""
     return era in ["2022", "2022EE", "2023", "2023BPix"]
-
-
-def load_scaling_config(workdir):
-    """Load scaling configuration for Run3 signal from Run2."""
-    config_path = f"{workdir}/SignalRegionStudyV2/configs/scaling.json"
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Scaling config not found: {config_path}")
-
-    with open(config_path) as f:
-        return json.load(f)
-
-
-def calculate_run3_scale_factor(scaling_config, target_era):
-    """
-    Calculate scale factor for Run3 signal from 2018.
-
-    scale_factor = (xsec_Run3 / xsec_Run2) * (lumi_target / lumi_source)
-    """
-    xsec_run2 = scaling_config["ttbar_xsec"]["Run2"]
-    xsec_run3 = scaling_config["ttbar_xsec"]["Run3"]
-    source_era = scaling_config["source_era_for_run3"]
-    lumi_source = scaling_config["luminosity"][source_era]
-    lumi_target = scaling_config["luminosity"][target_era]
-
-    scale_factor = (xsec_run3 / xsec_run2) * (lumi_target / lumi_source)
-
-    logging.info(f"Run3 signal scaling from {source_era} to {target_era}:")
-    logging.info(f"  xsec ratio: {xsec_run3}/{xsec_run2} = {xsec_run3/xsec_run2:.4f}")
-    logging.info(f"  lumi ratio: {lumi_target}/{lumi_source} = {lumi_target/lumi_source:.4f}")
-    logging.info(f"  total scale factor: {scale_factor:.4f}")
-
-    return scale_factor, source_era
 
 
 def load_config(workdir, era, channel):
@@ -391,55 +349,6 @@ class SamplePreprocessor(BasePreprocessor):
                     logging.warning(f"    Skipping {var}: {e}")
 
 
-class ScaledSignalPreprocessor(BasePreprocessor):
-    """Preprocessor for scaling Run2 signal samples to Run3."""
-
-    def __init__(self, era, channel, masspoint, scale_factor):
-        super().__init__(era, channel, masspoint)
-        self.scale_factor = scale_factor
-
-    def scale_all_trees(self):
-        """Scale all trees from input file to output, applying the scale factor to weights."""
-        keys = self.in_file.GetListOfKeys()
-        tree_names = [key.GetName() for key in keys if key.GetClassName() == "TTree"]
-
-        logging.info(f"  Found {len(tree_names)} trees to scale")
-
-        for tree_name in tree_names:
-            self._scale_tree(tree_name)
-
-    def _scale_tree(self, tree_name):
-        """Scale a single tree."""
-        in_tree = self.in_file.Get(tree_name)
-        if not in_tree:
-            raise RuntimeError(f"Tree '{tree_name}' not found in input file")
-
-        out_tree = ROOT.TTree(tree_name, "")
-
-        out_vars, score_vars = self._setup_output_branches(out_tree)
-        in_vars, in_scores = self._setup_input_branches(in_tree, include_mass=True)
-
-        for i in range(in_tree.GetEntries()):
-            in_tree.GetEntry(i)
-
-            # Copy kinematic variables
-            for name in ['mass', 'mass1', 'mass2', 'MT1', 'MT2']:
-                out_vars[name][0] = in_vars[name][0]
-
-            # Apply scale factor to weight
-            out_vars['weight'][0] = in_vars['weight'][0] * self.scale_factor
-
-            # Copy scores
-            for suffix in score_vars:
-                score_vars[suffix][0] = in_scores[suffix][0]
-
-            out_tree.Fill()
-
-        self.out_file.cd()
-        out_tree.Write()
-        logging.debug(f"  Scaled {in_tree.GetEntries()} entries for {tree_name}")
-
-
 # =============================================================================
 # Batch Processing Helpers
 # =============================================================================
@@ -482,55 +391,6 @@ def process_samples_batch(preprocessor, samples, input_base_path, output_path,
     if temp_files:
         hadd_files(output_path, temp_files, cleanup=True)
         logging.info(f"  Output: {output_path}")
-
-
-def process_signal_from_run2(workdir, era, channel, masspoint, scale_factor, source_era, basedir):
-    """
-    Process Run3 signal by scaling from Run2 (2018) preprocessed samples.
-
-    Args:
-        workdir: Working directory
-        era: Target Run3 era (e.g., 2022EE)
-        channel: Channel (SR1E2Mu or SR3Mu)
-        masspoint: Mass point (e.g., MHc130_MA90)
-        scale_factor: Scale factor to apply
-        source_era: Source era (2018)
-        basedir: Output base directory
-    """
-    logging.info("=" * 60)
-    logging.info(f"Processing Signal (scaled from {source_era})")
-    logging.info("=" * 60)
-
-    # Try V2 samples first, then V1
-    # Also check samples_source for HTCondor jobs where pnfs is symlinked
-    source_paths = [
-        f"{workdir}/SignalRegionStudyV2/samples/{source_era}/{channel}/{masspoint}/{masspoint}.root",
-        f"{workdir}/SignalRegionStudyV2/samples_source/{source_era}/{channel}/{masspoint}/{masspoint}.root",
-        f"{workdir}/SignalRegionStudyV1/samples/{source_era}/{channel}/{masspoint}/{masspoint}.root",
-    ]
-
-    source_path = None
-    for path in source_paths:
-        if os.path.exists(path):
-            source_path = path
-            break
-
-    if source_path is None:
-        raise FileNotFoundError(
-            f"Source signal file not found. Tried:\n" +
-            "\n".join(f"  - {p}" for p in source_paths) +
-            f"\n\nPlease run preprocessing for {source_era} first."
-        )
-
-    logging.info(f"  Source: {source_path}")
-
-    processor = ScaledSignalPreprocessor(era, channel, masspoint, scale_factor)
-    processor.set_input_file(source_path)
-    processor.set_output_file(f"{basedir}/{masspoint}.root")
-    processor.scale_all_trees()
-    processor.close_files()
-
-    logging.info(f"  Output: {basedir}/{masspoint}.root")
 
 
 # =============================================================================
@@ -618,13 +478,6 @@ def main():
 
     basedir = f"{workdir}/SignalRegionStudyV2/samples/{args.era}/{args.channel}/{args.masspoint}"
 
-    # Validate --scale-from-run2 usage
-    if args.scale_from_run2:
-        if not is_run3_era(args.era):
-            raise ValueError(f"--scale-from-run2 can only be used with Run3 eras. Got: {args.era}")
-        if args.channel not in CHANNELS_WITH_SIGNAL:
-            raise ValueError(f"--scale-from-run2 can only be used with signal channels. Got: {args.channel}")
-
     # Validate TTZ2E1Mu masspoint (only ParticleNet masspoints)
     if args.channel == "TTZ2E1Mu":
         mA = int(args.masspoint.split("_")[1].replace("MA", ""))
@@ -658,30 +511,22 @@ def main():
     if args.channel in CHANNELS_WITH_SIGNAL:
         input_channel = CHANNEL_INPUT_MAP[args.channel]
 
-        if args.scale_from_run2:
-            # Scale Run3 signal from Run2 (2018)
-            scaling_config = load_scaling_config(workdir)
-            scale_factor, source_era = calculate_run3_scale_factor(scaling_config, args.era)
-            process_signal_from_run2(workdir, args.era, args.channel, args.masspoint,
-                                      scale_factor, source_era, basedir)
-        else:
-            # Standard signal processing from SKNanoOutput
-            logging.info("=" * 60)
-            logging.info("Processing Signal")
-            logging.info("=" * 60)
+        logging.info("=" * 60)
+        logging.info("Processing Signal")
+        logging.info("=" * 60)
 
-            signal_input = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}_RunSyst_RunTheoryUnc/{args.era}/TTToHcToWAToMuMu-{args.masspoint}.root"
-            if not os.path.exists(signal_input):
-                raise FileNotFoundError(f"Signal file not found: {signal_input}")
+        signal_input = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}_RunSyst_RunTheoryUnc/{args.era}/TTToHcToWAToMuMu-{args.masspoint}.root"
+        if not os.path.exists(signal_input):
+            raise FileNotFoundError(f"Signal file not found: {signal_input}")
 
-            preprocessor.set_input_file(signal_input)
-            preprocessor.set_output_file(f"{basedir}/{args.masspoint}.root")
+        preprocessor.set_input_file(signal_input)
+        preprocessor.set_output_file(f"{basedir}/{args.masspoint}.root")
 
-            preprocessor.process_tree("Events_Central", "Central", is_signal=True)
-            preprocessor.process_systematics("signal", syst_categories, is_signal=True)
+        preprocessor.process_tree("Events_Central", "Central", is_signal=True)
+        preprocessor.process_systematics("signal", syst_categories, is_signal=True)
 
-            preprocessor.close_files()
-            logging.info(f"  Output: {basedir}/{args.masspoint}.root")
+        preprocessor.close_files()
+        logging.info(f"  Output: {basedir}/{args.masspoint}.root")
 
     # === 2. Process Backgrounds, Nonprompt, Data ===
     process_backgrounds(workdir, args.era, args.channel, args.masspoint, basedir,

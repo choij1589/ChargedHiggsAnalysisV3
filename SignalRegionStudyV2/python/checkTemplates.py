@@ -35,6 +35,9 @@ parser.add_argument("--unblind", action="store_true",
                     help="Check templates from unblind run")
 parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
                     help="Check templates from partial-unblind run")
+parser.add_argument("--nuisance", default="fallback_lnn",
+                    choices=["fallback_lnn", "preserve_shape"],
+                    help="Low-stat nuisance handling mode used to choose the template suffix")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
 
@@ -106,6 +109,8 @@ if args.unblind:
     binning_suffix = f"{args.binning}_unblind"
 elif args.partial_unblind:
     binning_suffix = f"{args.binning}_partial_unblind"
+if args.nuisance == "preserve_shape":
+    binning_suffix = f"{binning_suffix}_preserve_shape"
 
 # Build list of template directories to load
 template_dirs = []

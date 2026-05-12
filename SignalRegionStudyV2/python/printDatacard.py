@@ -27,6 +27,9 @@ parser.add_argument("--unblind", action="store_true",
                     help="Generate datacard from unblind run")
 parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
                     help="Generate datacard from partial-unblind run")
+parser.add_argument("--nuisance", default="fallback_lnn",
+                    choices=["fallback_lnn", "preserve_shape"],
+                    help="Low-stat nuisance handling: fallback_lnn keeps current shape?->lnN fallback; preserve_shape keeps shape variations")
 parser.add_argument("--output", type=str, default=None, help="Output datacard path (default: auto-determined)")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
@@ -50,6 +53,8 @@ if args.unblind:
     binning_suffix = f"{args.binning}_unblind"
 elif args.partial_unblind:
     binning_suffix = f"{args.binning}_partial_unblind"
+if args.nuisance == "preserve_shape":
+    binning_suffix = f"{binning_suffix}_preserve_shape"
 TEMPLATE_DIR = f"{WORKDIR}/SignalRegionStudyV2/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{binning_suffix}"
 
 # Setup ROOT
@@ -93,12 +98,13 @@ def load_process_list():
 class DatacardManager:
     """Manages datacard generation from ROOT templates."""
 
-    def __init__(self, era, channel, masspoint, method, binning):
+    def __init__(self, era, channel, masspoint, method, binning, nuisance_mode="fallback_lnn"):
         self.era = era
         self.channel = channel
         self.signal = masspoint
         self.method = method
         self.binning = binning
+        self.nuisance_mode = nuisance_mode
         self.backgrounds = []
         self.rtfile = None
 
@@ -114,6 +120,8 @@ class DatacardManager:
         self.process_rel_errors = {}
         # Cache for lnN fallback values: (process, syst_name) -> value string
         self._lnn_fallback_cache = {}
+        # Preserve-shape invalid pairs: (process, syst_name) -> audit metadata
+        self._preserve_shape_invalid = {}
 
         # Load process list
         process_config = load_process_list()
@@ -189,6 +197,13 @@ class DatacardManager:
         hist = self.rtfile.Get(hist_name)
         return hist is not None
 
+    def get_hist_integral(self, hist_name):
+        """Return histogram integral, or None when the histogram is missing."""
+        hist = self.rtfile.Get(hist_name)
+        if not hist:
+            return None
+        return hist.Integral()
+
     def compute_lnn_fallback_value(self, process, syst_name):
         """
         Compute per-systematic lnN fallback value for a low-stat process.
@@ -240,6 +255,121 @@ class DatacardManager:
 
         return f"{lnn_value:.3f}"
 
+    def find_invalid_shape_pair(self, process, syst_name):
+        """
+        Check whether a shape pair is invalid for Combine.
+
+        In preserve-shape mode we keep valid shapes, but a positive nominal
+        yield with a missing or non-positive Up/Down variation causes Combine
+        to reject the workspace. Those pairs need shape? -> lnN fallback.
+        """
+        base = self.signal if process == "signal" else process
+        nominal_name = base
+        up_name = f"{base}_{syst_name}Up"
+        down_name = f"{base}_{syst_name}Down"
+
+        nominal_int = self.get_hist_integral(nominal_name)
+        up_int = self.get_hist_integral(up_name)
+        down_int = self.get_hist_integral(down_name)
+
+        if nominal_int is None or nominal_int <= MIN_YIELD_THRESHOLD:
+            return None
+
+        reasons = []
+        if up_int is None:
+            reasons.append("up_missing")
+        elif up_int <= 0:
+            reasons.append("up_integral <= 0")
+
+        if down_int is None:
+            reasons.append("down_missing")
+        elif down_int <= 0:
+            reasons.append("down_integral <= 0")
+
+        if not reasons:
+            return None
+
+        fallback = self.compute_lnn_fallback_value(process, syst_name)
+        return {
+            "process": process,
+            "systematic": syst_name,
+            "nominal_integral": nominal_int,
+            "up_integral": up_int,
+            "down_integral": down_int,
+            "fallback": fallback,
+            "reason": ", ".join(reasons),
+        }
+
+    def precompute_preserve_shape_invalid_fallbacks(self, syst_config_all):
+        """Find invalid preserve-shape pairs and compute local lnN fallbacks."""
+        processes = ["signal"] + self.backgrounds
+
+        for syst_name, syst_config in syst_config_all.items():
+            if syst_config.get("type") != "shape":
+                continue
+
+            group = syst_config.get("group", [])
+            for proc in processes:
+                proc_check = "signal" if proc == "signal" else proc
+                if proc_check not in group:
+                    continue
+
+                invalid = self.find_invalid_shape_pair(proc, syst_name)
+                if not invalid:
+                    continue
+
+                key = (proc, syst_name)
+                self._preserve_shape_invalid[key] = invalid
+                self._lnn_fallback_cache[key] = invalid["fallback"]
+                logging.warning(
+                    "Preserve-shape fallback %s/%s: %s "
+                    "(nominal=%s, up=%s, down=%s, lnN=%s)",
+                    proc, syst_name, invalid["reason"],
+                    invalid["nominal_integral"], invalid["up_integral"],
+                    invalid["down_integral"], invalid["fallback"]
+                )
+
+        if self._preserve_shape_invalid:
+            logging.info(
+                "Found %d invalid preserve-shape pairs requiring lnN fallback",
+                len(self._preserve_shape_invalid)
+            )
+
+    def rewrite_shapes_root_removing(self, hists_to_remove, reason):
+        """
+        Rewrite shapes.root without selected histograms.
+
+        The original shapes.root is preserved as shapes_original.root, matching
+        the existing low-stat fallback rewrite pattern.
+        """
+        if not hists_to_remove:
+            return
+
+        shapes_path = f"{TEMPLATE_DIR}/shapes.root"
+        original_path = f"{TEMPLATE_DIR}/shapes_original.root"
+        all_hists = {}
+        for key in self.rtfile.GetListOfKeys():
+            name = key.GetName()
+            if name not in hists_to_remove:
+                hist = key.ReadObj()
+                hist.SetDirectory(0)
+                all_hists[name] = hist
+
+        self.rtfile.Close()
+
+        if os.path.exists(original_path):
+            os.remove(original_path)
+        os.rename(shapes_path, original_path)
+        logging.info(f"Preserved original as: {original_path}")
+
+        outfile = ROOT.TFile.Open(shapes_path, "RECREATE")
+        for name, hist in all_hists.items():
+            hist.Write(name)
+        outfile.Close()
+
+        logging.info(f"Removed {len(hists_to_remove)} {reason} histograms from shapes.root")
+        self.rtfile = ROOT.TFile.Open(shapes_path, "READ")
+
     def precompute_lnn_fallbacks(self, syst_config_all):
         """
         Pre-compute lnN fallback values for all (low-stat process, shape systematic) pairs.
@@ -254,7 +384,7 @@ class DatacardManager:
             if self.process_rel_errors.get(proc, float('inf')) > SHAPE_REL_ERR_THRESHOLD
         ]
 
-        if not lowstat_backgrounds:
+        if not lowstat_backgrounds and not self._preserve_shape_invalid:
             return
 
         logging.info(f"Low-stat backgrounds (rel_err > {SHAPE_REL_ERR_THRESHOLD*100:.0f}%):")
@@ -309,39 +439,17 @@ class DatacardManager:
                 hists_to_remove.add(f"{proc}_{syst_name}Up")
                 hists_to_remove.add(f"{proc}_{syst_name}Down")
 
-        if not hists_to_remove:
-            return
+        self.rewrite_shapes_root_removing(hists_to_remove, "low-stat shape")
 
-        # Read all histograms from current file
-        shapes_path = f"{TEMPLATE_DIR}/shapes.root"
-        original_path = f"{TEMPLATE_DIR}/shapes_original.root"
-        all_hists = {}
-        for key in self.rtfile.GetListOfKeys():
-            name = key.GetName()
-            if name not in hists_to_remove:
-                hist = key.ReadObj()
-                hist.SetDirectory(0)
-                all_hists[name] = hist
+    def rewrite_preserve_shape_invalid_hists(self):
+        """Remove invalid preserve-shape Up/Down pairs so shape? uses lnN fallback."""
+        hists_to_remove = set()
+        for proc, syst_name in self._preserve_shape_invalid:
+            base = self.signal if proc == "signal" else proc
+            hists_to_remove.add(f"{base}_{syst_name}Up")
+            hists_to_remove.add(f"{base}_{syst_name}Down")
 
-        # Close current file handle
-        self.rtfile.Close()
-
-        # Rename original shapes.root to shapes_original.root (handle re-run)
-        if os.path.exists(original_path):
-            os.remove(original_path)
-        os.rename(shapes_path, original_path)
-        logging.info(f"Preserved original as: {original_path}")
-
-        # Write filtered histograms to new shapes.root
-        outfile = ROOT.TFile.Open(shapes_path, "RECREATE")
-        for name, hist in all_hists.items():
-            hist.Write(name)
-        outfile.Close()
-
-        logging.info(f"Removed {len(hists_to_remove)} low-stat shape histograms from shapes.root")
-
-        # Reopen for further reads
-        self.rtfile = ROOT.TFile.Open(shapes_path, "READ")
+        self.rewrite_shapes_root_removing(hists_to_remove, "invalid preserve-shape")
 
     def part1_header(self):
         """Generate part 1 of datacard: header and shapes directive."""
@@ -431,7 +539,12 @@ class DatacardManager:
             rel_err = self.process_rel_errors.get(process, float('inf'))
 
             if is_background and rel_err > SHAPE_REL_ERR_THRESHOLD:
-                # Return pre-computed lnN fallback value for shape? mechanism
+                if self.nuisance_mode == "fallback_lnn":
+                    # Return pre-computed lnN fallback value for shape? mechanism
+                    return self._lnn_fallback_cache.get((process, syst_name), "-")
+                # Preserve low-stat shape variations for diagnostic GoF comparisons.
+
+            if self.nuisance_mode == "preserve_shape" and (process, syst_name) in self._preserve_shape_invalid:
                 return self._lnn_fallback_cache.get((process, syst_name), "-")
 
             # Normal shape systematic handling
@@ -441,11 +554,12 @@ class DatacardManager:
                 if len(variations) >= 2:
                     base = self.signal if process == "signal" else process
                     up_hist_name = f"{base}_{syst_name}Up"
+                    down_hist_name = f"{base}_{syst_name}Down"
 
-                    if self.check_histogram_exists(up_hist_name):
+                    if self.check_histogram_exists(up_hist_name) and self.check_histogram_exists(down_hist_name):
                         return "1"
                     else:
-                        logging.debug(f"Shape {up_hist_name} not found, skipping for {process}")
+                        logging.debug(f"Shape pair {up_hist_name}/{down_hist_name} not found, skipping for {process}")
                         return "-"
             return "1"
 
@@ -541,8 +655,10 @@ class DatacardManager:
 
         lowstat_info = {
             "threshold": SHAPE_REL_ERR_THRESHOLD,
+            "nuisance_mode": self.nuisance_mode,
             "processes": lowstat_backgrounds,
-            "fallbacks": fallbacks
+            "fallbacks": fallbacks,
+            "preserve_shape_invalid_fallbacks": list(self._preserve_shape_invalid.values())
         }
 
         lowstat_path = f"{TEMPLATE_DIR}/lowstat.json"
@@ -553,12 +669,18 @@ class DatacardManager:
 
     def generate_datacard(self, syst_config):
         """Generate complete datacard string."""
-        # Pre-compute lnN fallbacks while Up/Down histograms still exist
-        self.precompute_lnn_fallbacks(syst_config)
-        # Write lowstat.json with fallback metadata
+        if self.nuisance_mode == "fallback_lnn":
+            # Pre-compute lnN fallbacks while Up/Down histograms still exist
+            self.precompute_lnn_fallbacks(syst_config)
+        elif self.nuisance_mode == "preserve_shape":
+            self.precompute_preserve_shape_invalid_fallbacks(syst_config)
         self.write_lowstat_json()
-        # Remove low-stat shape histograms so shape? falls back to lnN
-        self.rewrite_shapes_root(syst_config)
+        if self.nuisance_mode == "fallback_lnn":
+            # Remove low-stat shape histograms so shape? falls back to lnN
+            self.rewrite_shapes_root(syst_config)
+        else:
+            self.rewrite_preserve_shape_invalid_hists()
+            logging.info("Preserving valid low-stat shape histograms; invalid pairs use lnN fallback")
 
         parts = [
             self.part1_header(),
@@ -593,7 +715,8 @@ def main():
 
     # Create datacard manager
     try:
-        manager = DatacardManager(args.era, args.channel, args.masspoint, args.method, args.binning)
+        manager = DatacardManager(args.era, args.channel, args.masspoint,
+                                  args.method, args.binning, args.nuisance)
     except Exception as e:
         logging.error(f"Failed to create DatacardManager: {e}")
         sys.exit(1)

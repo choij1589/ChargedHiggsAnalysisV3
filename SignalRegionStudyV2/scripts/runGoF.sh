@@ -27,6 +27,7 @@ CHANNEL="Combined"
 MASSPOINT=""
 METHOD="Baseline"
 BINNING="extended"
+NUISANCE="fallback_lnn"
 NTOYS=500
 NBATCHES=5
 PARTIAL_UNBLIND=false
@@ -57,6 +58,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --binning)
             BINNING="$2"
+            shift 2
+            ;;
+        --nuisance)
+            NUISANCE="$2"
             shift 2
             ;;
         --ntoys)
@@ -102,6 +107,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --channel CHANNEL    Analysis channel [default: Combined]"
             echo "  --method METHOD      Baseline or ParticleNet [default: Baseline]"
             echo "  --binning BINNING    extended or uniform [default: extended]"
+            echo "  --nuisance MODE      fallback_lnn (default) or preserve_shape"
             echo "  --ntoys N            Total toys for p-value [default: 500]"
             echo "  --nbatches N         HTCondor batches for toys [default: 5]"
             echo "  --partial-unblind    Use partial-unblind templates (real data, score < 0.3)"
@@ -128,6 +134,14 @@ if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
     echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
     exit 1
 fi
+case "$NUISANCE" in
+    fallback_lnn|preserve_shape) ;;
+    *)
+        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
+        echo "Valid values: fallback_lnn, preserve_shape"
+        exit 1
+        ;;
+esac
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -139,6 +153,9 @@ if [[ "$UNBLIND" == true ]]; then
     BINNING_SUFFIX="${BINNING}_unblind"
 elif [[ "$PARTIAL_UNBLIND" == true ]]; then
     BINNING_SUFFIX="${BINNING}_partial_unblind"
+fi
+if [[ "$NUISANCE" == "preserve_shape" ]]; then
+    BINNING_SUFFIX="${BINNING_SUFFIX}_preserve_shape"
 fi
 TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV2/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
 
@@ -180,6 +197,7 @@ echo "  Channel:   ${CHANNEL}"
 echo "  Masspoint: ${MASSPOINT}"
 echo "  Method:    ${METHOD}"
 echo "  Binning:   ${BINNING_SUFFIX}"
+echo "  Nuisance:  ${NUISANCE}"
 echo "  Toys:      ${NTOYS} (${NBATCHES} batches x ${TOYS_PER_BATCH})"
 echo "  Mode:      $([ "$PARTIAL_UNBLIND" == true ] && echo partial-unblind || ([ "$UNBLIND" == true ] && echo unblind || echo blinded/Asimov))"
 echo "  Condor:    ${CONDOR}"
