@@ -1,0 +1,200 @@
+#!/bin/bash
+set -euo pipefail
+ERA=${1:?Usage: drawValidationPlots.sh ERA CHANNEL}
+CHANNEL=${2:?Usage: drawValidationPlots.sh ERA CHANNEL}
+export PATH="${PWD}/python:${PATH}"
+
+MASS_POINTS=(
+    "MHc70_MA15"
+    "MHc130_MA90"
+)
+
+# Histkeys are split into common (exist in both SRs) and per-channel groups
+# so Combined only sums histograms that are physically present in both
+# channels. plotValidation.py silently skips keys missing from a ROOT file,
+# but for Combined we don't want to mislabel a single-channel-only key.
+HISTKEYS_COMMON=(
+    "muons/1/pt"
+    "muons/1/eta"
+    "muons/1/phi"
+    "muons/1/mass"
+    "muons/2/pt"
+    "muons/2/eta"
+    "muons/2/phi"
+    "muons/2/mass"
+    "jets/size"
+    "bjets/size"
+    "jets/1/pt"
+    "jets/1/eta"
+    "jets/1/phi"
+    "jets/2/pt"
+    "jets/2/eta"
+    "jets/2/phi"
+    "jets/3/pt"
+    "jets/3/eta"
+    "jets/4/pt"
+    "jets/4/eta"
+    "METv/pt"
+    "pair1/mass"
+    "pair1/pt"
+    "pair1/deltaR"
+    "pair2/mass"
+    "pair2/pt"
+    "pair2/deltaR"
+    "dimuon/mass"
+    "dimuon/pt"
+    "dimuon/eta"
+    "dimuon/deltaR"
+    "weights/genWeight"
+    "weights/pileupWeight"
+    "weights/totWeight"
+    "GenMatched/dimuon_mass_fromA"
+    "GenMatched/muons_fromA/1/pt"
+    "GenMatched/muons_fromA/1/eta"
+    "GenMatched/muons_fromA/1/phi"
+    "GenMatched/muons_fromA/1/mass"
+    "GenMatched/muons_fromA/2/pt"
+    "GenMatched/muons_fromA/2/eta"
+    "GenMatched/muons_fromA/2/phi"
+    "GenMatched/muons_fromA/2/mass"
+    "GenMatched/muon1_type"
+    "GenMatched/muon2_type"
+    "GenMatched/pair_selection_correct"
+    "GenMatched/bjet_withW/pt"
+    "GenMatched/bjet_withW/eta"
+    "GenMatched/bjet_withW/phi"
+    "GenMatched/bjet_withHplus/pt"
+    "GenMatched/bjet_withHplus/eta"
+    "GenMatched/bjet_withHplus/phi"
+    "GenLevel/A/pt"
+    "GenLevel/A/eta"
+    "GenLevel/A/phi"
+    "GenLevel/A/mass"
+    "GenLevel/A/deltaR"
+    "GenLevel/Hplus/pt"
+    "GenLevel/Hplus/eta"
+    "GenLevel/Hplus/phi"
+    "GenLevel/Hplus/mass"
+    "GenLevel/muons_fromA/1/pt"
+    "GenLevel/muons_fromA/1/eta"
+    "GenLevel/muons_fromA/1/phi"
+    "GenLevel/muons_fromA/1/mass"
+    "GenLevel/muons_fromA/2/pt"
+    "GenLevel/muons_fromA/2/eta"
+    "GenLevel/muons_fromA/2/phi"
+    "GenLevel/muons_fromA/2/mass"
+    "GenLevel/electron_fromW/pt"
+    "GenLevel/electron_fromW/eta"
+    "GenLevel/electron_fromOffshellW/pt"
+    "GenLevel/electron_fromOffshellW/eta"
+    "GenLevel/muon_fromW/pt"
+    "GenLevel/muon_fromW/eta"
+    "GenLevel/muon_fromOffshellW/pt"
+    "GenLevel/muon_fromOffshellW/eta"
+    "GenLevel/bquark_withHplus/pt"
+    "GenLevel/bquark_withHplus/eta"
+    "GenLevel/bquark_withW/pt"
+    "GenLevel/bquark_withW/eta"
+)
+
+HISTKEYS_SR1E2Mu_ONLY=(
+    "electrons/1/pt"
+    "electrons/1/eta"
+    "electrons/1/phi"
+    "electrons/1/mass"
+    "GenMatched/electron_type"
+    "GenMatched/electron_fromW/pt"
+    "GenMatched/electron_fromW/eta"
+    "GenMatched/electron_fromW/phi"
+    "GenMatched/electron_fromW/mass"
+    "GenMatched/electron_fromOffshellW/pt"
+    "GenMatched/electron_fromOffshellW/eta"
+    "GenMatched/electron_fromOffshellW/phi"
+    "GenMatched/electron_fromOffshellW/mass"
+)
+
+HISTKEYS_SR3Mu_ONLY=(
+    "muons/3/pt"
+    "muons/3/eta"
+    "muons/3/phi"
+    "muons/3/mass"
+    "GenMatched/muon3_type"
+    "GenMatched/muon_fromW/pt"
+    "GenMatched/muon_fromW/eta"
+    "GenMatched/muon_fromW/phi"
+    "GenMatched/muon_fromW/mass"
+    "GenMatched/muon_fromOffshellW/pt"
+    "GenMatched/muon_fromOffshellW/eta"
+    "GenMatched/muon_fromOffshellW/phi"
+    "GenMatched/muon_fromOffshellW/mass"
+)
+
+# InclusiveGen/* is filled before SR selection in SignalKinematics.cc, so it
+# appears (with identical event content) in both Run3Mu and Run1E2Mu output
+# files. plotValidation.py loads from Run3Mu only when --channel Inclusive to
+# avoid double-counting; absolute yields are normalized to the Run3Mu trigger
+# lumi.
+HISTKEYS_INCLUSIVE=(
+    "InclusiveGen/A/pt"
+    "InclusiveGen/A/eta"
+    "InclusiveGen/A/phi"
+    "InclusiveGen/A/mass"
+    "InclusiveGen/A/deltaR"
+    "InclusiveGen/Hplus/pt"
+    "InclusiveGen/Hplus/eta"
+    "InclusiveGen/Hplus/phi"
+    "InclusiveGen/Hplus/mass"
+    "InclusiveGen/muons_fromA/1/pt"
+    "InclusiveGen/muons_fromA/1/eta"
+    "InclusiveGen/muons_fromA/1/phi"
+    "InclusiveGen/muons_fromA/1/mass"
+    "InclusiveGen/muons_fromA/2/pt"
+    "InclusiveGen/muons_fromA/2/eta"
+    "InclusiveGen/muons_fromA/2/phi"
+    "InclusiveGen/muons_fromA/2/mass"
+    "InclusiveGen/electron_fromW/pt"
+    "InclusiveGen/electron_fromW/eta"
+    "InclusiveGen/electron_fromOffshellW/pt"
+    "InclusiveGen/electron_fromOffshellW/eta"
+    "InclusiveGen/muon_fromW/pt"
+    "InclusiveGen/muon_fromW/eta"
+    "InclusiveGen/muon_fromOffshellW/pt"
+    "InclusiveGen/muon_fromOffshellW/eta"
+    "InclusiveGen/bquark_withHplus/pt"
+    "InclusiveGen/bquark_withHplus/eta"
+    "InclusiveGen/bquark_withW/pt"
+    "InclusiveGen/bquark_withW/eta"
+    "InclusiveGen/genJets/size"
+    "InclusiveGen/genJets/HT"
+    "InclusiveGen/genJets/1/pt"
+    "InclusiveGen/genJets/1/eta"
+    "InclusiveGen/genJets/1/phi"
+    "InclusiveGen/genJets/2/pt"
+    "InclusiveGen/genJets/2/eta"
+    "InclusiveGen/genJets/2/phi"
+    "InclusiveGen/genJets/3/pt"
+    "InclusiveGen/genJets/3/eta"
+    "InclusiveGen/genJets/3/phi"
+    "InclusiveGen/genJets/4/pt"
+    "InclusiveGen/genJets/4/eta"
+    "InclusiveGen/genJets/4/phi"
+    "InclusiveGen/genBJets/size"
+    "InclusiveGen/genBJets/1/pt"
+    "InclusiveGen/genBJets/1/eta"
+    "InclusiveGen/genBJets/1/phi"
+    "InclusiveGen/genBJets/2/pt"
+    "InclusiveGen/genBJets/2/eta"
+    "InclusiveGen/genBJets/2/phi"
+)
+
+case "$CHANNEL" in
+    SR1E2Mu)   HISTKEYs=("${HISTKEYS_COMMON[@]}" "${HISTKEYS_SR1E2Mu_ONLY[@]}") ;;
+    SR3Mu)     HISTKEYs=("${HISTKEYS_COMMON[@]}" "${HISTKEYS_SR3Mu_ONLY[@]}")   ;;
+    Combined)  HISTKEYs=("${HISTKEYS_COMMON[@]}")                                ;;
+    Inclusive) HISTKEYs=("${HISTKEYS_INCLUSIVE[@]}")                             ;;
+    *)         echo "Unknown channel: $CHANNEL (expected SR1E2Mu, SR3Mu, Combined, or Inclusive)" >&2; exit 1 ;;
+esac
+
+parallel --halt never -j 12 plotValidation.py \
+    --era "$ERA" --channel "$CHANNEL" --mass-point {1} --histkey {2} \
+    ::: "${MASS_POINTS[@]}" ::: "${HISTKEYs[@]}"

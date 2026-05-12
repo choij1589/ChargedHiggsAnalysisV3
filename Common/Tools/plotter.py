@@ -261,10 +261,12 @@ class BaseCanvas():
 
         posX = config.get("channelPosX", 0.2)
         posY = config.get("channelPosY", 0.7)
-        font = config.get("channelFont", 61)
+        font = config.get("channelFont", 62)
         align = config.get("channelAlign", 0)
         size = config.get("channelSize", 0.05)
         CMS.drawText(config['channel'], posX=posX, posY=posY, font=font, align=align, size=size)
+        if "region" in config:
+            CMS.drawText(config['region'], posX=posX, posY=posY - size, font=42, align=align, size=size)
 
     def _normalize_histogram(self, hist):
         """
@@ -436,7 +438,7 @@ class ComparisonCanvas(BaseCanvas):
             ymax = hist_max * 100
         else:
             ymin = 0.
-            ymax = hist_max * 1.5
+            ymax = hist_max * 2
 
         # Update the canvas histogram's y-axis
         pad = self.canv.cd() if self.config.get("no_ratio", False) else self.canv.cd(1)

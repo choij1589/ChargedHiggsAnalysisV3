@@ -664,7 +664,7 @@
     "normalize": true
   },
   "GenLevel/A/deltaR": {
-    "xTitle": "#DeltaR(#mu^{+},#mu^{-} from A)",
+    "xTitle": "#DeltaR(#mu^{+}, #mu^{-}) from A",
     "yTitle": "Normalized",
     "xRange": [0.0, 5.0],
     "rebin": 1,
@@ -832,9 +832,9 @@
     "normalize": true
   },
   "GenLevel/bquark_withHplus/pt": {
-    "xTitle": "p_{T}(b quark with H^{+}) gen [GeV]",
+    "xTitle": "p_{T}(b quark with H^{+}) [GeV]",
     "yTitle": "Normalized",
-    "xRange": [0.0, 400.0],
+    "xRange": [0.0, 300.0],
     "rebin": 5,
     "logy": false,
     "normalize": true
@@ -848,9 +848,9 @@
     "normalize": true
   },
   "GenLevel/bquark_withW/pt": {
-    "xTitle": "p_{T}(b quark with W) gen [GeV]",
+    "xTitle": "p_{T}(b quark with W) [GeV]",
     "yTitle": "Normalized",
-    "xRange": [0.0, 400.0],
+    "xRange": [0.0, 300.0],
     "rebin": 5,
     "logy": false,
     "normalize": true
@@ -859,6 +859,406 @@
     "xTitle": "#eta(b quark with W) gen",
     "yTitle": "Normalized",
     "xRange": [-5.0, 5.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/A/pt": {
+    "xTitle": "p_{T}(A) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 300.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/A/eta": {
+    "xTitle": "#eta(A)",
+    "yTitle": "Normalized",
+    "xRange": [-5.0, 5.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/A/phi": {
+    "xTitle": "#phi(A)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/A/mass": {
+    "xTitle": "M(A) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 160.0],
+    "rebin": 2,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/A/deltaR": {
+    "xTitle": "#DeltaR(#mu^{+}, #mu^{-}) from A",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 5.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/Hplus/pt": {
+    "xTitle": "p_{T}(H^{+}) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 400.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/Hplus/eta": {
+    "xTitle": "#eta(H^{+})",
+    "yTitle": "Normalized",
+    "xRange": [-5.0, 5.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/Hplus/phi": {
+    "xTitle": "#phi(H^{+})",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/Hplus/mass": {
+    "xTitle": "M(H^{+}) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 200.0],
+    "rebin": 2,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muons_fromA/1/pt": {
+    "xTitle": "p_{T}(#mu_{1} from A) gen [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 200.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muons_fromA/1/eta": {
+    "xTitle": "#eta(#mu_{1} from A) gen",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muons_fromA/1/phi": {
+    "xTitle": "#phi(#mu_{1} from A) gen",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muons_fromA/1/mass": {
+    "xTitle": "M(#mu_{1} from A) gen [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 0.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muons_fromA/2/pt": {
+    "xTitle": "p_{T}(#mu_{2} from A) gen [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 200.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muons_fromA/2/eta": {
+    "xTitle": "#eta(#mu_{2} from A) gen",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muons_fromA/2/phi": {
+    "xTitle": "#phi(#mu_{2} from A) gen",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muons_fromA/2/mass": {
+    "xTitle": "M(#mu_{2} from A) gen [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 0.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/electron_fromW/pt": {
+    "xTitle": "p_{T}(e from W) gen [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 300.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/electron_fromW/eta": {
+    "xTitle": "#eta(e from W) gen",
+    "yTitle": "Normalized",
+    "xRange": [-5.0, 5.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/electron_fromOffshellW/pt": {
+    "xTitle": "p_{T}(e from off-shell W) gen [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 300.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/electron_fromOffshellW/eta": {
+    "xTitle": "#eta(e from off-shell W) gen",
+    "yTitle": "Normalized",
+    "xRange": [-5.0, 5.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muon_fromW/pt": {
+    "xTitle": "p_{T}(#mu from W) gen [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 300.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muon_fromW/eta": {
+    "xTitle": "#eta(#mu from W) gen",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muon_fromOffshellW/pt": {
+    "xTitle": "p_{T}(#mu from off-shell W) gen [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 300.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/muon_fromOffshellW/eta": {
+    "xTitle": "#eta(#mu from off-shell W) gen",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/bquark_withHplus/pt": {
+    "xTitle": "p_{T}(b quark with H^{+}) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 300.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/bquark_withHplus/eta": {
+    "xTitle": "#eta(b quark with H^{+}) gen",
+    "yTitle": "Normalized",
+    "xRange": [-5.0, 5.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/bquark_withW/pt": {
+    "xTitle": "p_{T}(b quark with W) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 300.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/bquark_withW/eta": {
+    "xTitle": "#eta(b quark with W) gen",
+    "yTitle": "Normalized",
+    "xRange": [-5.0, 5.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/size": {
+    "xTitle": "N_{gen jets}",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 10.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/HT": {
+    "xTitle": "H_{T} (gen jets) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 1000.0],
+    "rebin": 10,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/1/pt": {
+    "xTitle": "p_{T}(j_{1} gen) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 300.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/1/eta": {
+    "xTitle": "#eta(j_{1} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/1/phi": {
+    "xTitle": "#phi(j_{1} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/2/pt": {
+    "xTitle": "p_{T}(j_{2} gen) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 200.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/2/eta": {
+    "xTitle": "#eta(j_{2} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/2/phi": {
+    "xTitle": "#phi(j_{2} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/3/pt": {
+    "xTitle": "p_{T}(j_{3} gen) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 200.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/3/eta": {
+    "xTitle": "#eta(j_{3} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/3/phi": {
+    "xTitle": "#phi(j_{3} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/4/pt": {
+    "xTitle": "p_{T}(j_{4} gen) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 200.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/4/eta": {
+    "xTitle": "#eta(j_{4} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genJets/4/phi": {
+    "xTitle": "#phi(j_{4} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genBJets/size": {
+    "xTitle": "N_{gen b-jets}",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 6.0],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genBJets/1/pt": {
+    "xTitle": "p_{T}(b_{1} gen) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 300.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genBJets/1/eta": {
+    "xTitle": "#eta(b_{1} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genBJets/1/phi": {
+    "xTitle": "#phi(b_{1} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genBJets/2/pt": {
+    "xTitle": "p_{T}(b_{2} gen) [GeV]",
+    "yTitle": "Normalized",
+    "xRange": [0.0, 200.0],
+    "rebin": 5,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genBJets/2/eta": {
+    "xTitle": "#eta(b_{2} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-2.5, 2.5],
+    "rebin": 1,
+    "logy": false,
+    "normalize": true
+  },
+  "InclusiveGen/genBJets/2/phi": {
+    "xTitle": "#phi(b_{2} gen)",
+    "yTitle": "Normalized",
+    "xRange": [-3.2, 3.2],
     "rebin": 1,
     "logy": false,
     "normalize": true
