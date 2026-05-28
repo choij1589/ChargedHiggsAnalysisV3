@@ -35,8 +35,9 @@ parser.add_argument("--era", required=True, type=str,
 parser.add_argument("--channel", required=True, type=str,
                     help="Analysis channel (SR1E2Mu, SR3Mu, Combined)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
-parser.add_argument("--binning", default="extended", choices=["uniform", "extended"],
-                    help="Binning method: 'extended' (19 bins, default) or 'uniform' (15 bins)")
+parser.add_argument("--binning", default="extended",
+                    choices=["uniform", "extended", "extended_coarser_binning"],
+                    help="Binning method: 'extended', 'uniform', or 'extended_coarser_binning'")
 parser.add_argument("--unblind", action="store_true",
                     help="Show real data distribution")
 parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",

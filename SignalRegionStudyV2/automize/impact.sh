@@ -115,7 +115,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Template Options:"
             echo "  --method METHOD        - Baseline or ParticleNet (default: Baseline)"
-            echo "  --binning BINNING      - extended or uniform (default: extended)"
+            echo "  --binning BINNING      - extended, uniform, or extended_coarser_binning (default: extended)"
             echo "  --nuisance MODE        - fallback_lnn (default) or preserve_shape"
             echo "  --partial-unblind      - Use partial-unblind templates"
             echo "  --unblind              - Use fully unblinded templates; auto-selects unblind mass-point subset"

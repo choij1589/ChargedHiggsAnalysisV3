@@ -133,7 +133,13 @@ The Extended binning scheme is nominally `15 core + 2 sideband = 17 bins`
 channel, this is often too fine — bins with too few effective events trigger
 per-process autoMCStats NPs instead of Barlow-Beeston-lite.
 
-Loop: for `n_core in [15, 13, 11, 9, 7, 5]`:
+For the standard `extended` binning, loop:
+`n_core in [15, 13, 11, 9, 7, 5]`.
+
+For the isolated `extended_coarser_binning` test, loop:
+`n_core in [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]`.
+
+For each candidate:
 1. Build candidate edges with `calculate_adaptive_bins(x0, sigma_eff, n_core)`.
 2. Fill `Central` histograms for every separate process and the `others`
    merged template. **No hygiene is applied** — the test histograms are raw

@@ -187,6 +187,8 @@ def write_reports(output_dir: Path, entries: list[Entry], dry_run: bool) -> None
 def collect(args: argparse.Namespace) -> int:
     template_root = args.template_root.resolve()
     output_dir = (args.output_dir / args.masspoint / args.method).resolve()
+    if args.channel != "Combined":
+        output_dir = output_dir / args.channel
     suffix = binning_suffix(args.binning, args.nuisance)
     entries: list[Entry] = []
     era_bases: dict[str, Path] = {}
@@ -195,7 +197,7 @@ def collect(args: argparse.Namespace) -> int:
         base = (
             template_root
             / era
-            / "Combined"
+            / args.channel
             / args.masspoint
             / args.method
             / suffix
@@ -268,6 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--masspoint", required=True)
     parser.add_argument("--method", required=True, choices=("Baseline", "ParticleNet"))
+    parser.add_argument("--channel", default="Combined", choices=("Combined", "SR1E2Mu", "SR3Mu"))
     parser.add_argument("--binning", default="extended")
     parser.add_argument(
         "--nuisance",

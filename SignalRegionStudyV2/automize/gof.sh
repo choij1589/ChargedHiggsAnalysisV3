@@ -26,7 +26,9 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/load_masspoints.sh"
 # Default values
 MODE="all"
 SINGLE_ERA=""
+CHANNEL="Combined"
 METHOD="Baseline"
+MASSPOINT_OVERRIDE=""
 BINNING="extended"
 NUISANCE="fallback_lnn"
 NTOYS=500
@@ -47,8 +49,16 @@ while [[ $# -gt 0 ]]; do
             SINGLE_ERA="$2"
             shift 2
             ;;
+        --channel)
+            CHANNEL="$2"
+            shift 2
+            ;;
         --method)
             METHOD="$2"
+            shift 2
+            ;;
+        --masspoints)
+            MASSPOINT_OVERRIDE="$2"
             shift 2
             ;;
         --binning)
@@ -97,10 +107,12 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Single Era:"
             echo "  --era ERA     - Process single era only (e.g., --era All, --era Run2)"
+            echo "  --channel CH  - Combined, SR1E2Mu, or SR3Mu [default: Combined]"
             echo ""
             echo "Template Options:"
             echo "  --method METHOD     - Baseline or ParticleNet [default: Baseline]"
-            echo "  --binning BINNING   - extended or uniform [default: extended]"
+            echo "  --masspoints LIST   - Comma-separated mass points overriding config subset"
+            echo "  --binning BINNING   - extended, uniform, or extended_coarser_binning [default: extended]"
             echo "  --nuisance MODE     - fallback_lnn (default) or preserve_shape"
             echo "  --partial-unblind   - Use partial-unblind templates (real data, score < 0.3)"
             echo "  --unblind           - Use fully unblinded templates"
@@ -144,6 +156,14 @@ case "$NUISANCE" in
         exit 1
         ;;
 esac
+case "$CHANNEL" in
+    Combined|SR1E2Mu|SR3Mu) ;;
+    *)
+        echo "ERROR: Invalid --channel value '$CHANNEL'"
+        echo "Valid values: Combined, SR1E2Mu, SR3Mu"
+        exit 1
+        ;;
+esac
 
 # Select mass points based on method and blinding mode
 # --unblind auto-selects the curated unblind subset
@@ -159,6 +179,9 @@ else
     else
         MASSPOINTs=("${MASSPOINTs_GOF_BASELINE[@]}")
     fi
+fi
+if [[ -n "$MASSPOINT_OVERRIDE" ]]; then
+    IFS=',' read -ra MASSPOINTs <<< "$MASSPOINT_OVERRIDE"
 fi
 
 # Build extra args
@@ -177,8 +200,10 @@ else
     echo "Mode: $MODE"
 fi
 echo "Method:          $METHOD"
+echo "Channel:         $CHANNEL"
 echo "Binning:         $BINNING"
 echo "Nuisance mode:   $NUISANCE"
+[[ -n "$MASSPOINT_OVERRIDE" ]] && echo "Masspoint filter: $MASSPOINT_OVERRIDE"
 echo "Mass points:     ${#MASSPOINTs[@]} total"
 echo "Partial-unblind: $PARTIAL_UNBLIND"
 echo "Unblind:         $UNBLIND"
@@ -194,7 +219,7 @@ run_gof_single() {
 
     local cmd="bash ${SCRIPT_DIR}/scripts/runGoF.sh"
     cmd="$cmd --era ${era}"
-    cmd="$cmd --channel Combined"
+    cmd="$cmd --channel ${CHANNEL}"
     cmd="$cmd --masspoint ${masspoint}"
     cmd="$cmd --method ${METHOD}"
     cmd="$cmd --binning ${BINNING}"
@@ -252,5 +277,5 @@ echo "To monitor jobs:"
 echo "  condor_q -dag"
 echo ""
 echo "After completion, generate plots with:"
-echo "  $0 --mode $MODE --method $METHOD --binning $BINNING $([[ "$UNBLIND" == true ]] && echo --unblind) $([[ "$PARTIAL_UNBLIND" == true ]] && echo --partial-unblind) $([[ "$NUISANCE" == preserve_shape ]] && echo --nuisance preserve_shape) --plot-only"
+echo "  $0 --mode $MODE --channel $CHANNEL --method $METHOD $([[ -n "$MASSPOINT_OVERRIDE" ]] && echo --masspoints "$MASSPOINT_OVERRIDE") --binning $BINNING $([[ "$UNBLIND" == true ]] && echo --unblind) $([[ "$PARTIAL_UNBLIND" == true ]] && echo --partial-unblind) $([[ "$NUISANCE" == preserve_shape ]] && echo --nuisance preserve_shape) --plot-only"
 echo "============================================================"

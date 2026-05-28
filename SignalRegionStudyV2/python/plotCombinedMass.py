@@ -40,7 +40,8 @@ def parse_args():
                    help="Fit source (All/Run2/Run3/per-era). Each masspoint "
                         "uses its own fitDiagnostics file at this era level.")
     p.add_argument("--method", required=True, choices=["Baseline", "ParticleNet"])
-    p.add_argument("--binning", default="extended", choices=["uniform", "extended"])
+    p.add_argument("--binning", default="extended",
+                   choices=["uniform", "extended", "extended_coarser_binning"])
     src = p.add_mutually_exclusive_group(required=False)
     src.add_argument("--masspoint-set", dest="masspoint_set",
                      help="Key from configs/masspoints.json (e.g. partial_unblind, "

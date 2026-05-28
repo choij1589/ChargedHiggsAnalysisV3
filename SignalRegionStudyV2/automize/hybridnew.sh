@@ -130,7 +130,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Template Options:"
             echo "  --method METHOD        - Baseline or ParticleNet (default: Baseline)"
-            echo "  --binning BINNING      - extended or uniform (default: extended)"
+            echo "  --binning BINNING      - extended, uniform, or extended_coarser_binning (default: extended)"
             echo "  --partial-unblind      - Use partial-unblind templates"
             echo ""
             echo "HybridNew Options:"

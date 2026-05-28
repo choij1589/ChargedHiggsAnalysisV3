@@ -77,7 +77,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Template options:"
             echo "  --method METHOD     Baseline or ParticleNet [default: Baseline]"
-            echo "  --binning BINNING   extended or uniform [default: extended]"
+            echo "  --binning BINNING   extended, uniform, or extended_coarser_binning [default: extended]"
             echo "  --fit-type T        b (B-only) or s (S+B) [default: b]"
             echo ""
             echo "Other:"

@@ -12,6 +12,7 @@ CONFIG="${SCRIPT_DIR}/configs/masspoints.json"
 METHOD="all"
 BINNING="extended"
 NUISANCE="fallback_lnn"
+CHANNEL="Combined"
 ERAS="Run2,Run3,All"
 DRY_RUN=false
 STRICT=false
@@ -28,6 +29,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --nuisance)
             NUISANCE="$2"
+            shift 2
+            ;;
+        --channel)
+            CHANNEL="$2"
             shift 2
             ;;
         --eras)
@@ -54,6 +59,7 @@ Options:
   --method METHOD     Baseline, ParticleNet, or all [default: all]
   --binning BINNING   Template binning name [default: extended]
   --nuisance MODE     fallback_lnn or preserve_shape [default: fallback_lnn]
+  --channel CHANNEL   Combined, SR1E2Mu, or SR3Mu [default: Combined]
   --eras LIST         Comma-separated source eras [default: Run2,Run3,All]
   --config PATH       Masspoint JSON [default: configs/masspoints.json]
   --dry-run           Print collection summary without copying
@@ -82,6 +88,13 @@ case "$NUISANCE" in
     fallback_lnn|preserve_shape) ;;
     *)
         echo "ERROR: --nuisance must be fallback_lnn or preserve_shape" >&2
+        exit 1
+        ;;
+esac
+case "$CHANNEL" in
+    Combined|SR1E2Mu|SR3Mu) ;;
+    *)
+        echo "ERROR: --channel must be Combined, SR1E2Mu, or SR3Mu" >&2
         exit 1
         ;;
 esac
@@ -119,6 +132,7 @@ extra_args=(
 echo "============================================================"
 echo "SignalRegionStudyV2 Unblind Result Collection"
 echo "Method:        $METHOD"
+echo "Channel:       $CHANNEL"
 echo "Binning:       $BINNING"
 echo "Nuisance mode: $NUISANCE"
 echo "Eras:          $ERAS"
@@ -138,6 +152,7 @@ for method in "${methods[@]}"; do
         if ! python3 "${SCRIPT_DIR}/python/collectUnblindMasspoint.py" \
             --masspoint "$masspoint" \
             --method "$method" \
+            --channel "$CHANNEL" \
             "${extra_args[@]}"; then
             status=1
         fi
