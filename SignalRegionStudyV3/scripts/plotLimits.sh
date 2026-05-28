@@ -1,0 +1,94 @@
+#!/bin/bash
+set -euo pipefail
+
+# Eras to plot
+ERAs=("2016preVFP" "2016postVFP" "2017" "2018" "2022" "2022EE" "2023" "2023BPix" "Run2" "Run3" "All")
+# Methods
+METHODs=("Baseline" "ParticleNet")
+
+# Limit type
+LIMIT_TYPE="Asymptotic"
+
+# Use local python scripts (not the ones from Combine)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+COLLECT_LIMITS="${PROJECT_DIR}/python/collectLimits.py"
+PLOT_LIMITS="${PROJECT_DIR}/python/plotLimits.py"
+
+# Change to project directory (script uses relative paths)
+cd "$PROJECT_DIR"
+
+# Parse command line arguments
+UNBLIND=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --unblind)
+            UNBLIND=true
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [--unblind]"
+            echo ""
+            echo "Options:"
+            echo "  --unblind         Collect and plot unblinded limits (reads from extended_unblind dirs)"
+            echo ""
+            echo "Note: ParticleNet plots always overlay the baseline expected limit."
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+echo "============================================================"
+echo "SignalRegionStudyV3 Limit Collection and Plotting"
+echo "============================================================"
+
+COLLECT_FLAGS=""
+PLOT_FLAGS=""
+if [[ "$UNBLIND" == true ]]; then
+    COLLECT_FLAGS="--unblind"
+    PLOT_FLAGS="--unblind"
+else
+    PLOT_FLAGS="--blind"
+fi
+
+# Collect limits
+echo ""
+echo "Collecting Baseline limits..."
+for era in "${ERAs[@]}"; do
+    echo "  Collecting: era=$era, method=Baseline"
+    $COLLECT_LIMITS --era "$era" --method Baseline $COLLECT_FLAGS
+done
+
+echo ""
+echo "Collecting ParticleNet limits..."
+for era in "${ERAs[@]}"; do
+    echo "  Collecting: era=$era, method=ParticleNet"
+    $COLLECT_LIMITS --era "$era" --method ParticleNet $COLLECT_FLAGS
+done
+
+# Plot Baseline limits
+echo ""
+echo "Plotting Baseline limits..."
+for era in "${ERAs[@]}"; do
+    echo "  Plotting: era=$era, method=Baseline"
+    $PLOT_LIMITS --era "$era" --method Baseline --limit_type "$LIMIT_TYPE" $PLOT_FLAGS
+done
+
+# Plot ParticleNet limits (always with baseline overlay)
+echo ""
+echo "Plotting ParticleNet limits..."
+for era in "${ERAs[@]}"; do
+    echo "  Plotting: era=$era, method=ParticleNet (with baseline overlay)"
+    $PLOT_LIMITS --era "$era" --method ParticleNet --limit_type "$LIMIT_TYPE" --stack_baseline $PLOT_FLAGS
+done
+
+echo ""
+echo "============================================================"
+echo "All limit plots complete!"
+echo "Output saved to: results/plots/"
+echo "============================================================"

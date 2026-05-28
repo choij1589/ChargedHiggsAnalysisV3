@@ -47,7 +47,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --method METHOD         Baseline or ParticleNet [default: Baseline]"
-            echo "  --binning BINNING       extended or uniform [default: extended]"
+            echo "  --binning BINNING       extended, uniform, or extended_coarser_binning [default: extended]"
             echo "  --nuisance MODE         fallback_lnn (default) or preserve_shape"
             echo "  --pull-fit MODE         b or both [default: b]"
             echo "  --partial-unblind       Use partial-unblind templates"

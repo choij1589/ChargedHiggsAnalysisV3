@@ -120,7 +120,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
+            echo "  --binning    Binning scheme (uniform, extended, extended_coarser_binning) [default: uniform]"
             echo "  --nuisance   Low-stat nuisance mode: fallback_lnn (default) or preserve_shape"
             echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
             echo "  --unblind          Use fully unblinded templates (real data_obs)"

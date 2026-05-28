@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --channel        Analysis channel (SR1E2Mu, SR3Mu, Combined)"
             echo "  --masspoint      Signal mass point (e.g., MHc130_MA90)"
             echo "  --method         Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning        Binning scheme (uniform, extended) [default: uniform]"
+            echo "  --binning        Binning scheme (uniform, extended, extended_coarser_binning) [default: uniform]"
             echo "  --partial-unblind  Use partial-unblind templates"
             echo "  --unblind        Use full unblind templates"
             echo "  --dry-run        Print commands without executing"

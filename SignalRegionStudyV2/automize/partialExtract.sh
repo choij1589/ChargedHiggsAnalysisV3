@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --mode MODE      Processing mode: all (default)"
             echo "  --method METHOD  Baseline or ParticleNet (default: Baseline)"
-            echo "  --binning BINNG  extended or uniform (default: extended)"
+            echo "  --binning BINNG  extended, uniform, or extended_coarser_binning (default: extended)"
             echo "  --era ERA        Era to process (default: All)"
             echo "  --dry-run        Print DAG without submitting"
             exit 0

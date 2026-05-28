@@ -220,8 +220,8 @@ def main():
     logging.info(f"  valued_lnN:         {len(syst_categories['valued_lnN'])}")
 
     # =========================================================================
-    # Stage 0: pick initial bin count by adaptive n_eff scan (mirrors SR's loop
-    # over [15, 13, 11, 9, 7, 5] in makeBinnedTemplates.py:946+).
+    # Stage 0: pick initial bin count by adaptive n_eff scan (mirrors SR's
+    # standard extended loop over [15, 13, 11, 9, 7, 5]).
     # Largest n_init that yields n_eff >= AUTOMC_THRESHOLD in every bin wins;
     # if none pass, keep the smallest tried and rely on autoMCStats.
     # =========================================================================

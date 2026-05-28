@@ -72,7 +72,7 @@ Defaults (produce all applicable era/channel scopes):
 
 Template options:
   --method METHOD     Baseline or ParticleNet [default: Baseline]
-  --binning BINNING   extended or uniform     [default: extended]
+  --binning BINNING   extended, uniform, or extended_coarser_binning [default: extended]
   --nuisance MODE     fallback_lnn (default) or preserve_shape
   --fit-type T        b | s | both            [default: both]
   --bin-width W       Fine-grid bin width     [default: auto]

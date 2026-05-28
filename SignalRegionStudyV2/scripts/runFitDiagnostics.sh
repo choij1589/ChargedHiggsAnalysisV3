@@ -71,7 +71,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --channel    Analysis channel (SR1E2Mu, SR3Mu, Combined)"
             echo "  --masspoint  Signal mass point (e.g., MHc130_MA90)"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (uniform, extended) [default: uniform]"
+            echo "  --binning    Binning scheme (uniform, extended, extended_coarser_binning) [default: uniform]"
             echo "  --nuisance   Low-stat nuisance mode: fallback_lnn (default) or preserve_shape"
             echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
             echo "  --unblind    Use full unblind templates (real data, full score region)"

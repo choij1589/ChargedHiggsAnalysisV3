@@ -140,7 +140,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help)
-            echo "Usage: $0 [--mode <all|run2|run3>] [--method <Baseline|ParticleNet>] [--binning <extended|uniform>] [OPTIONS]"
+            echo "Usage: $0 [--mode <all|run2|run3>] [--method <Baseline|ParticleNet>] [--binning <extended|uniform|extended_coarser_binning>] [OPTIONS]"
             echo ""
             echo "Modes:"
             echo "  all    - Process Run2 and Run3"
@@ -156,8 +156,9 @@ while [[ $# -gt 0 ]]; do
             echo "  ParticleNet - MVA-based analysis (score plotting enabled by default)"
             echo ""
             echo "Template Options:"
-            echo "  --binning extended   - Use extended binning (default, 19 bins)"
-            echo "  --binning uniform    - Use uniform binning (15 bins)"
+            echo "  --binning extended                  - Use extended binning (default)"
+            echo "  --binning uniform                   - Use uniform binning"
+            echo "  --binning extended_coarser_binning  - Extended binning, adaptive scan down to 1 core bin"
             echo "  --nuisance MODE      - fallback_lnn (default) or preserve_shape"
             echo "  --pull-fit MODE      - b (default) or both for nuisance pull PDFs"
             echo "  --unblind            - Use real data for data_obs"

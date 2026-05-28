@@ -88,7 +88,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --channel    Analysis channel [default: Combined]"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (uniform, extended) [default: extended]"
+            echo "  --binning    Binning scheme (uniform, extended, extended_coarser_binning) [default: extended]"
             echo "  --ntoys      Total number of toys [default: 500]"
             echo "  --nbatches   Number of condor batches per r-value [default: 5]"
             echo "  --condor     Submit via HTCondor DAG"

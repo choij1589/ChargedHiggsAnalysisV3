@@ -55,19 +55,19 @@
 #./automize/impact.sh --mode all --method ParticleNet --unblind --blind-result
 
 # Plot b-only GoF p-values vs mA for each mHc.
-python3 python/plotGoFPValues.py --mhc 70 160
+#python3 python/plotGoFPValues.py --mhc 70 160
 
 # Plot full-mA prefit and B-only postfit summaries for each mHc.
-./automize/plotPostfitSummary.sh \
-    --mhc 70 160 \
-    --methods Baseline ParticleNet \
-    --eras Run2 Run3 All \
-    --channels SR1E2Mu SR3Mu Combined \
-    --binning extended \
-    --unblind \
-    --bin-width 1 \
-    --fit-type b \
-    --condor
+#./automize/plotPostfitSummary.sh \
+#    --mhc 70 160 \
+#    --methods Baseline ParticleNet \
+#    --eras Run2 Run3 All \
+#    --channels SR1E2Mu SR3Mu Combined \
+#    --binning extended \
+#    --unblind \
+#    --bin-width 1 \
+#    --fit-type b \
+#    --condor
 
 
 # FitDiagnostics (prerequisite for post-fit mass plots)
@@ -80,6 +80,31 @@ python3 python/plotGoFPValues.py --mhc 70 160
 # HybridNew
 #./automize/hybridnew.sh --mode all --method Baseline --unblind --auto-grid
 #./automize/hybridnew.sh --mode all --method ParticleNet --unblind --auto-grid
+
+# Extended-coarser-binning unblind test: full isolated comparison
+# Outputs go to extended_coarser_binning_unblind
+#./automize/makeBinnedTemplates.sh --mode all --method Baseline    --binning extended_coarser_binning --unblind
+#./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --binning extended_coarser_binning --unblind
+./automize/gof.sh --mode all --method Baseline    --binning extended_coarser_binning --unblind --ntoys 1000 --nbatches 10
+#./automize/gof.sh --mode all --method ParticleNet --binning extended_coarser_binning --unblind --ntoys 1000 --nbatches 10
+#./automize/impact.sh --mode all --method Baseline    --binning extended_coarser_binning --unblind --blind-result
+#./automize/impact.sh --mode all --method ParticleNet --binning extended_coarser_binning --unblind --blind-result
+#./automize/makeBinnedTemplates.sh --mode all --method Baseline    --binning extended_coarser_binning --unblind --fitdiag --start-from combine --no-runAsymptotic
+#./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --binning extended_coarser_binning --unblind --fitdiag --start-from combine --no-runAsymptotic
+#python3 python/plotGoFPValues.py --mhc 70 160 --channels Combined SR1E2Mu SR3Mu --eras All --methods Baseline ParticleNet --suffix extended_coarser_binning_unblind --output-dir results/plots/gof_pvalues/extended_coarser_binning
+#./automize/plotPostfitSummary.sh \
+#    --mhc 70 160 \
+#    --methods Baseline ParticleNet \
+#    --eras Run2 Run3 All \
+#    --channels SR1E2Mu SR3Mu Combined \
+#    --binning extended_coarser_binning \
+#    --unblind \
+#    --bin-width 1 \
+#    --fit-type b \
+#    --output-dir results/plots/postfit_summary/extended_coarser_binning \
+#    --condor
+#./automize/plotPostfitMass.sh --method Baseline    --binning extended_coarser_binning --unblind --condor
+#./automize/plotPostfitMass.sh --method ParticleNet --binning extended_coarser_binning --unblind --condor
 
 # Preserve-shape nuisance test: full isolated unblind comparison
 # Outputs go to extended_unblind_preserve_shape
