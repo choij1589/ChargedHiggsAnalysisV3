@@ -25,6 +25,7 @@ SOURCE_METHOD_PRIORITY = {
     "ParticleNet": 0,
     "Baseline": 1,
 }
+SIGNAL_REGION_MAS = (30, 60, 90, 120)
 
 
 def parse_args():
@@ -53,10 +54,15 @@ def parse_args():
     parser.add_argument("--output-dir", default="results/plots/postfit_summary")
     parser.add_argument("--signal-line", choices=["none", "median"], default="none",
                         help="Overlay a signal template line; 'median' uses the available mass point nearest the median mA")
+    parser.add_argument("--signal-mass", nargs="+", type=int, default=list(SIGNAL_REGION_MAS),
+                        dest="signal_mas",
+                        help="mA values used for signal lines in --signal-region-style")
     parser.add_argument("--wide-mhc", nargs="+", type=int, default=[160],
                         help="mHc values drawn with enlarged canvas width")
     parser.add_argument("--wide-factor", type=float, default=2.0,
                         help="Canvas width scale for --wide-mhc values")
+    parser.add_argument("--signal-region-style", action="store_true",
+                        help="Draw alternate 21:9 signal-region summary plots without method text or mass-ownership guide lines")
     parser.add_argument("--plot-only", action="store_true",
                         help="Require cached fine-mass hists from plotPostfitMass.py")
     parser.add_argument("--debug", action="store_true")
@@ -533,6 +539,40 @@ def signal_hist_for(results, fit_type, mode):
     return signal, label
 
 
+def signal_hists_for(args, results, fit_type):
+    if args.signal_region_style:
+        by_ma = {item["ma"]: item for item in results}
+        signals = []
+        for idx, ma in enumerate(args.signal_mas):
+            item = by_ma.get(ma)
+            if item is None:
+                logging.warning("Signal line skipped: mA=%s is not available", ma)
+                continue
+            per_fit = item["per_fit"][fit_type]
+            if not per_fit.get("signal_available", False):
+                logging.warning("Signal line skipped: mA=%s has no signal histogram", ma)
+                continue
+            hist = per_fit.get("pre_signal")
+            if hist is None or hist.Integral() <= 0:
+                logging.warning("Signal line skipped: mA=%s signal histogram is empty", ma)
+                continue
+            signals.append({
+                "hist": hist,
+                "label": f"m_{{A}}={ma} GeV (r=1)",
+                "color": ROOT.TColor.GetColorDark(pm.PALETTE[idx % len(pm.PALETTE)]),
+            })
+        return signals
+
+    signal, signal_label = signal_hist_for(results, fit_type, args.signal_line)
+    if signal is None:
+        return []
+    return [{
+        "hist": signal,
+        "label": signal_label or "Signal",
+        "color": ROOT.kBlack,
+    }]
+
+
 def ownership_boundaries(intervals, x_range):
     boundaries = set()
     x_min, x_max = x_range
@@ -570,7 +610,7 @@ def summary_header_text(era_scope):
     return pm._build_header_text(era_scope)
 
 
-def overdraw_summary_lumi_header(canvas, era_scope, channel_scope):
+def overdraw_summary_lumi_header(canvas, era_scope, channel_scope, draw_cms=False):
     if era_scope != "All" and channel_scope != "Combined":
         return
 
@@ -580,6 +620,7 @@ def overdraw_summary_lumi_header(canvas, era_scope, channel_scope):
     pad_x_lo = upper.GetXlowNDC()
     pad_x_hi = pad_x_lo + upper.GetWNDC()
     top_margin = upper.GetTopMargin()
+    left_margin = upper.GetLeftMargin()
     right_margin = upper.GetRightMargin()
 
     def sub_to_canvas(x_sub, y_sub):
@@ -609,29 +650,121 @@ def overdraw_summary_lumi_header(canvas, era_scope, channel_scope):
     latex.DrawLatex(text_x, text_y, summary_header_text(era_scope))
     canvas._summary_lumi_latex = latex
 
+    if draw_cms:
+        cms_x, cms_y = sub_to_canvas(left_margin, 1.0 - top_margin + 0.2 * top_margin)
+        cms = ROOT.TLatex()
+        cms.SetNDC()
+        cms.SetTextAlign(11)
+        cms.SetTextFont(61)
+        cms.SetTextSize(0.75 * top_margin * (pad_y_hi - pad_y_lo))
+        cms.DrawLatex(cms_x, cms_y, "CMS")
 
-def apply_summary_axis_offsets(canvas, is_wide):
+        prelim = ROOT.TLatex()
+        prelim.SetNDC()
+        prelim.SetTextAlign(11)
+        prelim.SetTextFont(52)
+        prelim.SetTextSize(0.55 * top_margin * (pad_y_hi - pad_y_lo))
+        prelim.DrawLatex(cms_x + 0.038, cms_y, "Preliminary")
+        canvas._summary_cms_latex = (cms, prelim)
+
+
+def apply_summary_axis_offsets(canvas, is_wide, signal_region_style=False):
     if not is_wide:
         return
 
     upper_frame = pm.CMS.GetCmsCanvasHist(canvas.cd(1))
-    upper_frame.GetYaxis().SetTitleOffset(0.54)
+    upper_frame.GetYaxis().SetTitleOffset(0.46 if signal_region_style else 0.54)
     upper_frame.GetYaxis().CenterTitle(False)
     canvas.cd(1).RedrawAxis()
 
     lower_frame = pm.CMS.GetCmsCanvasHist(canvas.cd(2))
-    lower_frame.GetYaxis().SetTitleOffset(0.26)
+    lower_frame.GetYaxis().SetTitleOffset(0.22 if signal_region_style else 0.26)
     lower_frame.GetYaxis().CenterTitle(False)
     canvas.cd(2).RedrawAxis()
 
 
-def draw_stack(data, backgrounds, signal, signal_label, label_top, out_base,
+def apply_summary_canvas_size(plotter, args, mhc):
+    if args.signal_region_style:
+        width, height = 2100, 900
+        is_wide = True
+    else:
+        is_wide = mhc in args.wide_mhc and args.wide_factor > 1.0
+        if not is_wide:
+            return False
+        width = int(plotter.canv.GetWindowWidth() * args.wide_factor)
+        height = plotter.canv.GetWindowHeight()
+
+    plotter.canv.SetCanvasSize(width, height)
+    plotter.canv.SetWindowSize(width, height)
+    plotter.canv.Modified()
+    plotter.canv.Update()
+    if args.signal_region_style:
+        plotter.leg.SetX1NDC(0.48)
+        plotter.leg.SetY1NDC(0.61)
+        plotter.leg.SetX2NDC(0.78)
+    else:
+        plotter.leg.SetX1NDC(0.66)
+        plotter.leg.SetY1NDC(0.62)
+        plotter.leg.SetX2NDC(0.99)
+    plotter.leg.SetY2NDC(0.89)
+    if hasattr(plotter.leg, "SetColumnSeparation"):
+        plotter.leg.SetColumnSeparation(0.02)
+    return is_wide
+
+
+def draw_signal_region_legend(canvas, signals):
+    if not signals:
+        return
+    canvas.cd(1)
+    legend = pm.CMS.cmsLeg(0.78, 0.61, 0.99, 0.89, textSize=0.028, columns=1)
+    for signal in signals:
+        legend.AddEntry(signal["hist"], signal["label"], "l")
+    legend.Draw()
+    canvas._summary_signal_legend = legend
+
+
+def draw_signals(plotter, signals, signal_region_style):
+    if not signals:
+        return
+
+    plotter.canv.cd(1)
+    drawn = []
+    for signal in signals:
+        hist = signal["hist"].Clone(f"{hist_safe_label(signal['label'])}_{id(signal)}")
+        hist.SetDirectory(0)
+        hist.SetLineColor(signal["color"])
+        hist.SetLineWidth(3 if signal_region_style else 2)
+        hist.SetLineStyle(1)
+        hist.SetStats(0)
+        hist.Draw("HIST SAME")
+        drawn.append({
+            "hist": hist,
+            "label": signal["label"],
+            "color": signal["color"],
+        })
+
+    if signal_region_style:
+        draw_signal_region_legend(plotter.canv, drawn)
+    else:
+        for obj in ROOT.gPad.GetListOfPrimitives():
+            if obj.InheritsFrom("TLegend"):
+                for signal in drawn:
+                    obj.AddEntry(signal["hist"], signal["label"], "l")
+                break
+
+    plotter.canv._summary_signal_lines = drawn
+
+
+def hist_safe_label(label):
+    return re.sub(r"[^A-Za-z0-9_]+", "_", label).strip("_") or "signal"
+
+
+def draw_stack(data, backgrounds, signals, label_top, out_base,
                args, era, channel, method, mhc, edges, intervals):
     if not backgrounds:
         logging.warning(f"No backgrounds; skipping {out_base}")
         return
 
-    is_wide = mhc in args.wide_mhc and args.wide_factor > 1.0
     x_range = [12.0, float(mhc)]
     colors = [pm.BKG_COLORS.get(bkg, ROOT.kGray) for bkg in backgrounds.keys()]
     stack_total = next(iter(backgrounds.values())).Clone("_summary_stack_total")
@@ -641,8 +774,13 @@ def draw_stack(data, backgrounds, signal, signal_label, label_top, out_base,
     y_max = max(
         stack_total.GetMaximum(),
         data.GetMaximum() if data.Integral() > 0 else 0.0,
-        signal.GetMaximum() if signal is not None and signal.Integral() > 0 else 0.0,
+        max((signal["hist"].GetMaximum() for signal in signals), default=0.0),
     ) * 2.0
+    if args.signal_region_style:
+        y_max *= 1.15
+    legend_box = [0.48, 0.61, 0.78, 0.89] if args.signal_region_style else [0.5, 0.62, 0.99, 0.89]
+    legend_columns = 2
+    legend_text_size = 0.028 if args.signal_region_style else 0.035
     config = pm.make_canvas_config(era, {
         "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
         "yTitle": f"Events / {args.bin_width:g} GeV",
@@ -652,53 +790,40 @@ def draw_stack(data, backgrounds, signal, signal_label, label_top, out_base,
         "rRange": [0, 5],
         "maxDigits": 3,
         "systSrc": "Stat+Syst",
-        "iPos": 11,
-        "legend": [0.5, 0.62, 0.99, 0.89],
-        "legendColumns": 2,
-        "legendTextSize": 0.035,
+        "iPos": 0 if args.signal_region_style else 11,
+        "legend": legend_box,
+        "legendColumns": legend_columns,
+        "legendTextSize": legend_text_size,
         "colors": colors,
     })
     plotter = pm.select_comparison_cls(era)(data, backgrounds, config)
-    if is_wide:
-        width = int(plotter.canv.GetWindowWidth() * args.wide_factor)
-        height = plotter.canv.GetWindowHeight()
-        plotter.canv.SetCanvasSize(width, height)
-        plotter.canv.SetWindowSize(width, height)
-        plotter.canv.Modified()
-        plotter.canv.Update()
-        plotter.leg.SetX1NDC(0.66)
-        plotter.leg.SetX2NDC(0.99)
-        plotter.leg.SetY1NDC(0.62)
-        plotter.leg.SetY2NDC(0.89)
-        if hasattr(plotter.leg, "SetColumnSeparation"):
-            plotter.leg.SetColumnSeparation(0.02)
+    is_wide = apply_summary_canvas_size(plotter, args, mhc)
     plotter.drawPadUp()
-    if signal is not None:
-        plotter.canv.cd(1)
-        signal.SetLineColor(ROOT.kBlack)
-        signal.SetLineWidth(2)
-        signal.SetLineStyle(1)
-        if signal.Integral() > 0:
-            signal.Draw("HIST SAME")
-        for obj in ROOT.gPad.GetListOfPrimitives():
-            if obj.InheritsFrom("TLegend"):
-                obj.AddEntry(signal, signal_label or "Signal", "l")
-                break
+    draw_signals(plotter, signals, args.signal_region_style)
     plotter.drawPadDown()
-    draw_ownership_guides(plotter.canv, intervals, x_range)
+    if not args.signal_region_style:
+        draw_ownership_guides(plotter.canv, intervals, x_range)
 
     plotter.canv.cd()
-    pm.CMS.drawText(pm.scope_label(channel), posX=0.2, posY=0.80,
-                    font=42, align=0, size=0.04)
+    scope_text = "Signal Region" if args.signal_region_style else pm.scope_label(channel)
+    pm.CMS.drawText(scope_text, posX=0.2, posY=0.80, font=42, align=0, size=0.04)
     mass_label = f"m_{{H^{{+}}}} = {mhc} GeV"
-    if is_wide:
+    if is_wide and not args.signal_region_style:
         mass_label += f", {method}"
-    pm.CMS.drawText(mass_label,
-                    posX=0.2, posY=0.76, font=42, align=0, size=0.035)
-    pm.CMS.drawText(label_top, posX=0.2, posY=0.72,
-                    font=62, align=0, size=0.032)
-    apply_summary_axis_offsets(plotter.canv, is_wide)
-    overdraw_summary_lumi_header(plotter.canv, era, channel)
+    if args.signal_region_style:
+        pm.CMS.drawText(pm.scope_label(channel), posX=0.2, posY=0.76,
+                        font=42, align=0, size=0.035)
+        pm.CMS.drawText(mass_label, posX=0.2, posY=0.72,
+                        font=42, align=0, size=0.035)
+        pm.CMS.drawText(label_top, posX=0.2, posY=0.68,
+                        font=62, align=0, size=0.032)
+    else:
+        pm.CMS.drawText(mass_label, posX=0.2, posY=0.76,
+                        font=42, align=0, size=0.035)
+        pm.CMS.drawText(label_top, posX=0.2, posY=0.72,
+                        font=62, align=0, size=0.032)
+    apply_summary_axis_offsets(plotter.canv, is_wide, signal_region_style=args.signal_region_style)
+    overdraw_summary_lumi_header(plotter.canv, era, channel, draw_cms=args.signal_region_style)
 
     for ext in ("png", "pdf"):
         output = f"{out_base}.{ext}"
@@ -725,6 +850,7 @@ def write_sidecar(path, args, era, channel, method, mhc, results, edges):
         "suffix": template_suffix(args, method),
         "fit_type": args.fit_type,
         "signal_line": args.signal_line,
+        "signal_mas": args.signal_mas if args.signal_region_style else [],
         "signal_line_masspoint": signal_result["masspoint"] if signal_result else None,
         "signal_line_available": signal_available,
         "masspoints": [
@@ -783,25 +909,26 @@ def process_target(args, era, channel, method, mhc, fit_types):
     output_dir = Path(args.output_dir) / f"mHc{mhc}" / method
     os.makedirs(output_dir, exist_ok=True)
     tag = blinding_tag(args)
+    style_tag = ".signal_region" if args.signal_region_style else ""
     prefix = output_dir / f"postfit_summary.mHc{mhc}.{era}.{channel}.{method}"
 
     prefit_done = False
     for fit_type in fit_types:
         pre_bkgs, post_bkgs, data = build_stitched_content(results, fit_type, edges)
         if not prefit_done:
-            signal, signal_label = signal_hist_for(results, fit_type, args.signal_line)
-            draw_stack(data, pre_bkgs, signal, signal_label, "Pre-fit",
-                       f"{prefix}.prefit.{tag}", args, era, channel, method, mhc,
+            signals = signal_hists_for(args, results, fit_type)
+            draw_stack(data, pre_bkgs, signals, "Pre-fit",
+                       f"{prefix}.prefit.{tag}{style_tag}", args, era, channel, method, mhc,
                        edges, intervals)
             prefit_done = True
 
         fit_label = "B-only" if fit_type == "b" else "S+B"
-        signal, signal_label = signal_hist_for(results, fit_type, args.signal_line)
-        draw_stack(data, post_bkgs, signal, signal_label, f"Post-fit {fit_label}",
-                   f"{prefix}.postfit_{fit_type}.{tag}", args, era, channel, method, mhc,
+        signals = signal_hists_for(args, results, fit_type)
+        draw_stack(data, post_bkgs, signals, f"Post-fit {fit_label}",
+                   f"{prefix}.postfit_{fit_type}.{tag}{style_tag}", args, era, channel, method, mhc,
                    edges, intervals)
 
-    write_sidecar(f"{prefix}.{tag}.json", args, era, channel, method, mhc, results, edges)
+    write_sidecar(f"{prefix}.{tag}{style_tag}.json", args, era, channel, method, mhc, results, edges)
 
 
 def main():
