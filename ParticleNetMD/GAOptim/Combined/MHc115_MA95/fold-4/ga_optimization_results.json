@@ -3,19 +3,19 @@
   "channel": "Combined",
   "best_chromosome": {
     "chromosome": [
-      192,
-      "RMSprop",
-      0.008,
-      2e-05,
-      "ReduceLROnPlateau"
+      256,
+      "Adam",
+      0.0006,
+      1e-05,
+      "ExponentialLR"
     ],
-    "fitness": -142043580546.9463,
+    "fitness": 0.6568891520390425,
     "decoded": {
-      "nNodes": 192,
-      "optimizer": "RMSprop",
-      "initLR": 0.008,
-      "weight_decay": 2e-05,
-      "scheduler": "ReduceLROnPlateau",
+      "nNodes": 256,
+      "optimizer": "Adam",
+      "initLR": 0.0006,
+      "weight_decay": 1e-05,
+      "scheduler": "ExponentialLR",
       "disco_lambda": 0.1
     }
   },

@@ -48,19 +48,27 @@ log_args = SimpleNamespace(
 )
 missing_logger = setup_missing_histogram_logging(log_args)
 
+channel_regions = {
+    "SR1E2Mu": "e#mu#mu",
+    "SR3Mu": "#mu#mu#mu",
+}
+
 if args.channel == "Combined":
     channel_flags = [("SR1E2Mu", "Run1E2Mu"), ("SR3Mu", "Run3Mu")]
     channel_text = "e#mu#mu + #mu#mu#mu"
+    channel_region = None
 elif args.channel == "Inclusive":
     # InclusiveGen is filled before SR selection; gen content is identical
     # between Run3Mu and Run1E2Mu runs (same events). Load from Run3Mu only
     # to avoid double-counting. Absolute yields use Run3Mu trigger lumi.
     channel_flags = [("Inclusive", "Run3Mu")]
     channel_text = ""
+    channel_region = None
 else:
     flag = "Run3Mu" if args.channel == "SR3Mu" else "Run1E2Mu"
     channel_flags = [(args.channel, flag)]
-    channel_text = args.channel
+    channel_text = "Signal Region"
+    channel_region = channel_regions[args.channel]
 
 sample = f"TTToHcToWAToMuMu-{args.mass_point}"
 is_gen_key = args.histkey.startswith(("GenLevel/", "InclusiveGen/"))
@@ -107,8 +115,13 @@ config = dict(histkeys[args.histkey])
 config["era"] = args.era
 config["CoM"] = get_CoM_energy(args.era)
 config["channel"] = channel_text
+if channel_region is not None:
+    config["region"] = channel_region
+    config["channelPosX"] = 0.18
+    config["channelPosY"] = 0.84
 config["channelFont"] = 62
 config["channelSize"] = 0.04
+config["extraText"] = "Simulation"
 config["overflow"] = True
 config["normalize"] = False  # keep absolute yields to validate xsec scaling
 config["yTitle"] = "Events"
@@ -116,7 +129,7 @@ config["rTitle"] = "private / central"
 config["rRange"] = [0.5, 1.5]
 config["legendTextSize"] = 0.06
 config["legend"] = (0.6, 0.60, 0.95, 0.85)
-config["iPos"] = 11
+config["iPos"] = 0
 
 hists = OrderedDict([
     ("central", h_central),

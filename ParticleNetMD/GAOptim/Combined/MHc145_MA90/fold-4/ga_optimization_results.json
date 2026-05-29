@@ -4,18 +4,18 @@
   "best_chromosome": {
     "chromosome": [
       256,
-      "RMSprop",
-      0.0053,
-      3e-05,
-      "CyclicLR"
+      "Adam",
+      0.0004,
+      6e-05,
+      "ReduceLROnPlateau"
     ],
-    "fitness": -36155469017.37084,
+    "fitness": 0.6540406366138507,
     "decoded": {
       "nNodes": 256,
-      "optimizer": "RMSprop",
-      "initLR": 0.0053,
-      "weight_decay": 3e-05,
-      "scheduler": "CyclicLR",
+      "optimizer": "Adam",
+      "initLR": 0.0004,
+      "weight_decay": 6e-05,
+      "scheduler": "ReduceLROnPlateau",
       "disco_lambda": 0.1
     }
   },

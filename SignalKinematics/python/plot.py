@@ -3,6 +3,7 @@ import os
 import argparse
 import logging
 import json
+import re
 import ROOT
 import cmsstyle as CMS
 from plotter import KinematicCanvas, get_era_list, get_CoM_energy, PALETTE_LONG
@@ -22,6 +23,13 @@ args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
 WORKDIR = os.environ['WORKDIR']
+
+
+def format_mass_point_label(mass_point):
+    match = re.match(r"MHc(\d+)_MA(\d+)", mass_point)
+    if not match:
+        return mass_point
+    return f"(m_{{H^{{+}}}}, m_{{A}}) = ({match.group(1)}, {match.group(2)}) GeV"
 
 # Setup missing histogram logging
 missing_logger = setup_missing_histogram_logging(args)
@@ -47,7 +55,11 @@ elif args.era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
 else:
     raise ValueError(f"Invalid era: {args.era}")
 
-# Determine run flag (for file path)
+# Determine run flag (for file path) and plot label
+channel_regions = {
+    "SR1E2Mu": "e#mu#mu",
+    "SR3Mu": "#mu#mu#mu",
+}
 if args.channel == "SR3Mu":
     FLAG = "Run3Mu"
 elif args.channel == "SR1E2Mu":
@@ -89,7 +101,7 @@ for mass_point in mass_points:
 
     h_total = sum_histograms(era_hists, mass_point)
     if h_total:
-        HISTs[mass_point] = h_total
+        HISTs[format_mass_point_label(mass_point)] = h_total
 
 if not HISTs:
     logging.warning(f"No histograms found for {args.histkey} in {args.era}/{args.channel}, skipping")
@@ -106,22 +118,29 @@ out_name = args.histkey.replace("/", "_")
 OUTPUTPATH = f"plots/{args.era}/{args.channel}/{subdir}/{out_name}.png"
 os.makedirs(os.path.dirname(OUTPUTPATH), exist_ok=True)
 
-# Scale legend height to number of entries with a compact text size
-n_cols = 1
-n_rows = len(HISTs)
-leg_text_size = 0.03
-config["legendTextSize"] = leg_text_size
-if args.no_legend:
-    config["legend"] = (2.0, 2.0, 3.0, 3.0)  # outside NDC [0,1] — effectively hidden
-else:
-    config["legend"] = (0.64, 0.82 - 0.04 * n_rows, 0.97, 0.82)
-config["channel"] = args.channel
-config["iPos"] = 11
+config["channel"] = "Signal Region"
+config["region"] = channel_regions[args.channel]
+config["channelPosX"] = 0.18
+config["channelPosY"] = 0.84
+config["channelSize"] = 0.045
+config["extraText"] = "Simulation"
+config["iPos"] = 0
 # With solid/dashed alternation, each color supports 2 styles
 max_hists = 2 * len(PALETTE_LONG)
 if len(HISTs) > max_hists:
     logging.warning(f"Too many mass points ({len(HISTs)}) for palette capacity ({max_hists}); truncating to first {max_hists}")
     HISTs = dict(list(HISTs.items())[:max_hists])
+
+# Scale legend for the default four-mass-point overlay used in talks and AN plots.
+n_cols = 1
+n_rows = len(HISTs)
+leg_text_size = 0.033
+leg_row_height = 0.052
+config["legendTextSize"] = leg_text_size
+if args.no_legend:
+    config["legend"] = (2.0, 2.0, 3.0, 3.0)  # outside NDC [0,1] — effectively hidden
+else:
+    config["legend"] = (0.45, 0.84 - leg_row_height * n_rows, 0.98, 0.84)
 
 # Draw
 plotter = KinematicCanvas(HISTs, config)

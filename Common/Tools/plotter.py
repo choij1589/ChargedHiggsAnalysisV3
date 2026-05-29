@@ -482,7 +482,7 @@ class ComparisonCanvas(BaseCanvas):
     def drawSignals(self, signals):
         self._cd_main()
         self.signals = {}
-        self.sigleg = CMS.cmsLeg(0.38, 0.6, 0.6, 0.84, textSize=0.04, columns=1)
+        self.sigleg = CMS.cmsLeg(0.18, 0.57, 0.70, 0.74, textSize=0.030, columns=1)
 
         # Process all signals
         for idx, (name, hist) in enumerate(signals.items()):
@@ -559,7 +559,7 @@ class KinematicCanvas(BaseCanvas):
 
         # Configure CMS style
         lumiInfo, run = self._configure_cms_style(config)
-        CMS.SetExtraText("Simulation Preliminary")
+        CMS.SetExtraText(config.get("extraText", "Simulation Preliminary"))
 
         # Create canvas
         self.canv = CMS.cmsCanvas("", xmin, xmax,
@@ -642,7 +642,7 @@ class KinematicCanvasWithRatio(BaseCanvas):
 
         # Configure CMS style
         lumiInfo, run = self._configure_cms_style(config)
-        CMS.SetExtraText("Simulation Preliminary")
+        CMS.SetExtraText(config.get("extraText", "Simulation Preliminary"))
 
         # Create canvas
         self.canv = CMS.cmsDiCanvas("", xmin, xmax,

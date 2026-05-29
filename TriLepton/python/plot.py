@@ -3,6 +3,7 @@ import os
 import argparse
 import logging
 import json
+import re
 import ROOT
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 from plotter import PALETTE_LONG as PALETTE
@@ -96,8 +97,8 @@ if args.noHEMVeto:
         raise ValueError(f"--noHEMVeto not supported for channel {args.channel}")
 
 CHANNEL_LABELS = {
-    "SR1E2Mu":    ("SR",        "e#mu#mu"),
-    "SR3Mu":      ("SR",        "#mu#mu#mu"),
+    "SR1E2Mu":    ("Signal Region", "e#mu#mu"),
+    "SR3Mu":      ("Signal Region", "#mu#mu#mu"),
     "ZFake1E2Mu": ("ZFake CR",  "e#mu#mu"),
     "ZFake3Mu":   ("ZFake CR",  "#mu#mu#mu"),
     "ZG1E2Mu":    ("Z+#gamma CR", "e#mu#mu"),
@@ -107,8 +108,8 @@ CHANNEL_LABELS = {
     "TTZ2E1Mu":   ("TTZ CR",    "ee#mu"),
 }
 config["channel"], config["region"] = CHANNEL_LABELS[args.channel]
-config["channelPosY"] = 0.72
-config["channelPosX"] = 0.22
+config["channelPosY"] = 0.80
+config["channelPosX"] = 0.18
 
 if "1E2Mu" in args.channel:
     FLAG = "Run1E2Mu"
@@ -128,6 +129,14 @@ class ChannelArgs:
         self.channel = channel_flag
 
 channel_args = ChannelArgs(channel_flag)
+
+
+def format_signal_label(signal_mass):
+    match = re.fullmatch(r"MHc(\d+)_MA(\d+)", signal_mass)
+    if not match:
+        return signal_mass
+    mhc, ma = match.groups()
+    return f"(m_{{H^{{+}}}}, m_{{A}}) = ({mhc}, {ma}) GeV"
 
 # Load configurations
 ERA_SAMPLES, ERA_SYSTEMATICS = load_era_configs(channel_args, era_list)
@@ -364,13 +373,13 @@ if args.channel in ["SR1E2Mu", "SR3Mu"]:
             f.Close()
 
         if signal_hist:
-            SIGNALs[signal_mass] = signal_hist
+            SIGNALs[format_signal_label(signal_mass)] = signal_hist
     # For ParticleNet score plots, keep only matching signal
     if "score" in args.histkey:
         # Extract mass point from histkey (e.g., "MHc160_MA155/score_diboson" -> "MHc160_MA155")
         mass_point = args.histkey.split("/")[0]
         # Keep only the matching signal
-        SIGNALs = {k: v for k, v in SIGNALs.items() if k == mass_point}
+        SIGNALs = {k: v for k, v in SIGNALs.items() if k == format_signal_label(mass_point)}
         if not SIGNALs:
             logging.warning(f"ParticleNet score plot for {mass_point}, but no matching signal histogram found")
 
