@@ -2,7 +2,7 @@
 #
 # collectUnblindResults.sh - Gather unblind diagnostic plots by mass point.
 #
-# Reads configs/masspoints.json baseline/particlenet and copies existing
+# Reads configs/masspoints.json baseline_done/particlenet_done and copies existing
 # artifacts into results/unblind/<masspoint>/<method>/.
 
 set -euo pipefail
@@ -78,6 +78,8 @@ Options:
   --gof-targets LIST  Comma-separated ERA:CHANNEL targets for GoF results
                      [default: All x {Combined,SR1E2Mu,SR3Mu}, Run2 x Combined, Run3 x Combined]
   --config PATH       Masspoint JSON [default: configs/masspoints.json]
+                     Uses baseline_done for Baseline and particlenet_done for
+                     ParticleNet.
   --dry-run           Print collection summary without copying
   --strict            Exit nonzero if any artifact is missing
 
@@ -166,7 +168,7 @@ import json
 import sys
 
 config, method = sys.argv[1], sys.argv[2]
-key = "baseline" if method == "Baseline" else "particlenet"
+key = "baseline_done" if method == "Baseline" else "particlenet_done"
 with open(config) as handle:
     data = json.load(handle)
 for masspoint in data.get(key, []):

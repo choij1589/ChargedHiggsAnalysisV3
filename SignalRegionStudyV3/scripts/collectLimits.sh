@@ -14,6 +14,7 @@ MODES=("BR" "xsec")
 
 # Per-MHc stitched ParticleNet plots: Baseline off-Z regions + ParticleNet on-Z region.
 PARTICLENET_MHCS=(100 115 130 145 160)
+PARTICLENET_MHCS_STR="${PARTICLENET_MHCS[*]}"
 
 # Parallel slot count (override with COLLECTLIMITS_JOBS=N).
 JOBS="${COLLECTLIMITS_JOBS:-4}"
@@ -92,13 +93,23 @@ vals = sorted({int(m.group(1)) for mp in data for m in [re.match(r"MHc(\d+)_MA\d
 print(" ".join(map(str, vals)))' "$json_path"
 }
 
+pnet_json_has_mhc() {
+    local json_path="$1" mhc="$2"
+    python3 -c 'import json, sys
+path, mhc = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    data = json.load(f)
+sys.exit(0 if any(mp.startswith(f"MHc{mhc}_") for mp in data) else 1)' "$json_path" "$mhc"
+}
+
 run_pipeline() {
     local mode="$1" era="$2" channel="$3"
 
     # Reconstruct flag arrays from exported strings (parallel runs in a child shell).
-    local collect_flags=() plot_flags=() mhcs=() channel_arg=()
+    local collect_flags=() plot_flags=() mhcs=() pnet_mhcs=() channel_arg=()
     [[ -n "$COLLECT_FLAGS_STR" ]] && read -r -a collect_flags <<< "$COLLECT_FLAGS_STR"
     [[ -n "$PLOT_FLAGS_STR" ]]    && read -r -a plot_flags    <<< "$PLOT_FLAGS_STR"
+    [[ -n "$PARTICLENET_MHCS_STR" ]] && read -r -a pnet_mhcs <<< "$PARTICLENET_MHCS_STR"
     [[ "$channel" != "Combined" ]] && channel_arg=(--channel "$channel")
 
     if has_outputs "$era" "$channel" "Baseline"; then
@@ -138,17 +149,8 @@ run_pipeline() {
             python3 python/plotLimits.py --era "$era" --method ParticleNet --limit_type Asymptotic \
                 --mode "$mode" "${channel_arg[@]}" --stack_baseline "${plot_flags[@]}"
 
-            for mhc in "${PARTICLENET_MHCS[@]}"; do
-                if python3 - "$pnet_json" "$mhc" <<'PY'
-import json
-import sys
-
-path, mhc = sys.argv[1], sys.argv[2]
-with open(path) as f:
-    data = json.load(f)
-sys.exit(0 if any(mp.startswith(f"MHc{mhc}_") for mp in data) else 1)
-PY
-                then
+            for mhc in "${pnet_mhcs[@]}"; do
+                if pnet_json_has_mhc "$pnet_json" "$mhc"; then
                     python3 python/plotLimits.py --era "$era" --method ParticleNet --limit_type Asymptotic \
                         --mode "$mode" "${channel_arg[@]}" --mhc "$mhc" --stack_baseline "${plot_flags[@]}"
                 else
@@ -163,8 +165,8 @@ PY
     fi
 }
 export -f run_pipeline
-export -f has_outputs json_path_for available_mhcs_from_json
-export COLLECT_FLAGS_STR PLOT_FLAGS_STR BINNING_SUFFIX UNBLIND PARTICLENET_MHCS
+export -f has_outputs json_path_for available_mhcs_from_json pnet_json_has_mhc
+export COLLECT_FLAGS_STR PLOT_FLAGS_STR BINNING_SUFFIX UNBLIND PARTICLENET_MHCS_STR
 
 build_tasks() {
     for mode in "${MODES[@]}"; do

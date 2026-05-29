@@ -8,6 +8,7 @@
   "suffix": "extended_unblind",
   "fit_type": "both",
   "signal_line": "median",
+  "signal_mas": [],
   "signal_line_masspoint": "MHc160_MA60",
   "signal_line_available": true,
   "masspoints": [
@@ -92,19 +93,19 @@
       "name": "MHc160_MA85",
       "source_method": "ParticleNet",
       "ma": 85,
-      "mass_min": 74.66957349955179,
-      "mass_max": 95.12419107439518
+      "mass_min": 74.66957349832163,
+      "mass_max": 95.12419107714345
     },
     {
       "name": "MHc160_MA90",
-      "source_method": "Baseline",
+      "source_method": "ParticleNet",
       "ma": 90,
       "mass_min": 78.96414317293338,
       "mass_max": 100.76180975243561
     },
     {
       "name": "MHc160_MA95",
-      "source_method": "Baseline",
+      "source_method": "ParticleNet",
       "ma": 95,
       "mass_min": 83.12968701330215,
       "mass_max": 106.5798297605358
@@ -224,16 +225,21 @@
     },
     {
       "start": 75.0,
-      "end": 95.0,
+      "end": 88.0,
       "masspoint": "MHc160_MA85"
     },
     {
-      "start": 95.0,
-      "end": 105.0,
+      "start": 88.0,
+      "end": 93.0,
+      "masspoint": "MHc160_MA90"
+    },
+    {
+      "start": 93.0,
+      "end": 107.0,
       "masspoint": "MHc160_MA95"
     },
     {
-      "start": 105.0,
+      "start": 107.0,
       "end": 118.0,
       "masspoint": "MHc160_MA115"
     },
@@ -276,8 +282,9 @@
     55.0,
     65.0,
     75.0,
-    95.0,
-    105.0,
+    88.0,
+    93.0,
+    107.0,
     118.0,
     123.0,
     130.0,

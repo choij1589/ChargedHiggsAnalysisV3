@@ -8,6 +8,7 @@
   "suffix": "extended_unblind",
   "fit_type": "both",
   "signal_line": "median",
+  "signal_mas": [],
   "signal_line_masspoint": "MHc100_MA60",
   "signal_line_available": true,
   "masspoints": [
@@ -52,6 +53,13 @@
       "ma": 85,
       "mass_min": 74.72999322762365,
       "mass_max": 95.01264783548035
+    },
+    {
+      "name": "MHc100_MA90",
+      "source_method": "Baseline",
+      "ma": 90,
+      "mass_min": 78.8407032351706,
+      "mass_max": 100.99786384698135
     },
     {
       "name": "MHc100_MA95",
@@ -118,11 +126,16 @@
     },
     {
       "start": 80.0,
-      "end": 90.0,
+      "end": 88.0,
       "masspoint": "MHc100_MA85"
     },
     {
-      "start": 90.0,
+      "start": 88.0,
+      "end": 93.0,
+      "masspoint": "MHc100_MA90"
+    },
+    {
+      "start": 93.0,
       "end": 107.0,
       "masspoint": "MHc100_MA95"
     }
@@ -137,6 +150,7 @@
     53.0,
     67.0,
     80.0,
-    90.0
+    88.0,
+    93.0
   ]
 }
