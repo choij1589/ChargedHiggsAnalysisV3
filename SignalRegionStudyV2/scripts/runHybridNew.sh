@@ -125,7 +125,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (uniform, extended) [default: extended]"
+            echo "  --binning    Binning scheme (uniform, extended, extended_coarser_binning) [default: extended]"
             echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
             echo "  --unblind    Use full unblind templates (real data, full score region)"
             echo "  --ntoys      Number of toys per job [default: 100]"

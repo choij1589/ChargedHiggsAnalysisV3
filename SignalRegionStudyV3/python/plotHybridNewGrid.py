@@ -1,0 +1,332 @@
+#!/usr/bin/env python3
+"""
+Plot HybridNew grid results: CLs vs r curve using ROOT.
+
+Usage:
+    python plotHybridNewGrid.py hybridnew_grid.root -o cls_vs_r.pdf
+    python plotHybridNewGrid.py hybridnew_grid.root --rvalues 0.0,0.2,0.4,0.6,0.8,1.0 --nseeds 10
+"""
+import os
+import argparse
+import ROOT
+import numpy as np
+from collections import defaultdict
+from array import array
+
+import cmsstyle as CMS
+CMS.setCMSStyle()
+
+ROOT.gROOT.SetBatch(True)
+
+
+def read_hybridnew_grid(filename, r_values=None, n_seeds=10):
+    """
+    Read HybridNew grid and extract CLs vs r.
+
+    If filename is a directory, reads individual toy files from it.
+    If filename is a ROOT file with 'r' branch, reads directly.
+    If r_values is provided, uses those to assign r to entries.
+    """
+    import glob
+
+    # Collect data
+    data = defaultdict(list)
+
+    # Check if input is a directory
+    if os.path.isdir(filename):
+        dirname = filename
+        toy_files = glob.glob(os.path.join(dirname, "higgsCombine.r*.seed*.HybridNew.*.root"))
+        if not toy_files:
+            raise FileNotFoundError(f"No toy files found in directory {dirname}")
+        print(f"Reading from directory: {dirname}")
+        print(f"Found {len(toy_files)} individual toy files, extracting r values...")
+
+        for toy_file in sorted(toy_files):
+            basename = os.path.basename(toy_file)
+            try:
+                parts = basename.split('.')
+                r_str = parts[1] + '.' + parts[2]
+                r = float(r_str[1:])
+
+                tf = ROOT.TFile.Open(toy_file)
+                if not tf or tf.IsZombie():
+                    continue
+                tt = tf.Get("limit")
+                if not tt:
+                    tf.Close()
+                    continue
+                for j in range(tt.GetEntries()):
+                    tt.GetEntry(j)
+                    data[r].append({
+                        'limit': tt.limit,
+                        'limitErr': tt.limitErr,
+                        'quantile': tt.quantileExpected,
+                    })
+                tf.Close()
+            except (IndexError, ValueError) as e:
+                print(f"  Could not parse {basename}: {e}")
+        return data
+
+    # Otherwise, try to open as ROOT file
+    f = ROOT.TFile.Open(filename)
+    if not f or f.IsZombie():
+        raise FileNotFoundError(f"Cannot open {filename}")
+
+    tree = f.Get("limit")
+    if not tree:
+        f.Close()
+        raise ValueError("No 'limit' tree found in file")
+
+    n_entries = tree.GetEntries()
+
+    # Check if 'r' branch exists (PyROOT null pointer handling)
+    branch_names = [b.GetName() for b in tree.GetListOfBranches()]
+    has_r_branch = "r" in branch_names
+
+    if has_r_branch:
+        # Direct read if r branch exists
+        for i in range(n_entries):
+            tree.GetEntry(i)
+            r = tree.r
+            data[r].append({
+                'limit': tree.limit,
+                'limitErr': tree.limitErr,
+                'quantile': tree.quantileExpected,
+            })
+    elif r_values is not None:
+        # Assign r values based on known structure
+        n_r = len(r_values)
+        expected_entries = n_r * n_seeds
+
+        if n_entries != expected_entries:
+            print(f"Warning: Expected {expected_entries} entries ({n_r} r-values × {n_seeds} seeds), got {n_entries}")
+
+        for i in range(n_entries):
+            tree.GetEntry(i)
+            r_idx = i // n_seeds
+            if r_idx < n_r:
+                r = r_values[r_idx]
+                data[r].append({
+                    'limit': tree.limit,
+                    'limitErr': tree.limitErr,
+                    'quantile': tree.quantileExpected,
+                })
+    else:
+        # Try to infer from file structure
+        print("No 'r' branch found. Attempting to infer from individual files...")
+
+        # Try reading individual files from the directory
+        dirname = os.path.dirname(os.path.abspath(filename))
+        toy_files = glob.glob(os.path.join(dirname, "higgsCombine.r*.seed*.HybridNew.*.root"))
+
+        if toy_files:
+            print(f"Found {len(toy_files)} individual toy files, extracting r values...")
+            for toy_file in toy_files:
+                basename = os.path.basename(toy_file)
+                try:
+                    parts = basename.split('.')
+                    r_str = parts[1] + '.' + parts[2]
+                    r = float(r_str[1:])
+
+                    tf = ROOT.TFile.Open(toy_file)
+                    tt = tf.Get("limit")
+                    for j in range(tt.GetEntries()):
+                        tt.GetEntry(j)
+                        data[r].append({
+                            'limit': tt.limit,
+                            'limitErr': tt.limitErr,
+                            'quantile': tt.quantileExpected,
+                        })
+                    tf.Close()
+                except (IndexError, ValueError) as e:
+                    print(f"  Could not parse {basename}: {e}")
+        else:
+            print("No individual toy files found. Please provide --rvalues and --nseeds.")
+            f.Close()
+            return None
+
+    f.Close()
+    return data
+
+
+def compute_cls_statistics(data, filter_zeros=True):
+    """Compute mean CLs for each r point.
+
+    Args:
+        data: Dictionary mapping r values to list of entries
+        filter_zeros: If True, filter out zero CLs values from failed jobs
+    """
+    r_values = []
+    cls_mean = []
+    total_filtered = 0
+
+    for r in sorted(data.keys()):
+        entries = data[r]
+        # Only use observed CLs (quantile == -1.0), exclude metadata entries
+        cls_vals = [e['limit'] for e in entries if e['quantile'] == -1.0]
+
+        if filter_zeros:
+            n_before = len(cls_vals)
+            cls_vals = [v for v in cls_vals if v > 0]
+            n_filtered = n_before - len(cls_vals)
+            if n_filtered > 0:
+                total_filtered += n_filtered
+
+        if len(cls_vals) == 0:
+            print(f"  WARNING: No valid CLs values for r={r:.4f}, skipping")
+            continue
+
+        r_values.append(r)
+        cls_mean.append(np.mean(cls_vals))
+
+    if total_filtered > 0:
+        print(f"\n  NOTE: Filtered out {total_filtered} zero CLs values from failed/incomplete jobs")
+
+    return np.array(r_values), np.array(cls_mean)
+
+
+def find_limit_crossing(r_values, cls_values, threshold=0.05):
+    """Find r value where CLs crosses threshold using linear interpolation."""
+    crossings = []
+
+    for i in range(len(r_values) - 1):
+        if (cls_values[i] > threshold and cls_values[i+1] <= threshold):
+            # Linear interpolation
+            r_cross = r_values[i] + (threshold - cls_values[i]) * (r_values[i+1] - r_values[i]) / (cls_values[i+1] - cls_values[i])
+            crossings.append(r_cross)
+
+    return crossings[0] if crossings else None
+
+
+def plot_cls_vs_r(r_values, cls_mean, output, title="", threshold=0.05):
+    """Plot CLs vs r with 95% CL line using CMS style."""
+    n = len(r_values)
+
+    # Create arrays for TGraph
+    r_arr = array('d', r_values)
+    cls_arr = array('d', cls_mean)
+
+    # CMS style setup
+    CMS.SetExtraText("Preliminary")
+    CMS.SetLumi(-1)  # No lumi label
+    CMS.ResetAdditionalInfo()
+
+    # Calculate axis ranges
+    xmin = min(r_values) - 0.05
+    xmax = max(r_values) * 1.05
+
+    # Create CMS canvas
+    canvas = CMS.cmsCanvas(
+        "cls_vs_r",
+        xmin, xmax,
+        0.0, 1.1,
+        "Signal strength r", "CL_{s}",
+        square=True, extraSpace=0.01, iPos=0
+    )
+    canvas.SetGrid()
+
+    # Create simple TGraph (no errors)
+    graph = ROOT.TGraph(n, r_arr, cls_arr)
+    graph.SetMarkerStyle(20)
+    graph.SetMarkerSize(1.0)
+    graph.SetMarkerColor(ROOT.kBlue)
+    graph.SetLineColor(ROOT.kBlue)
+    graph.SetLineWidth(2)
+    graph.Draw("LP SAME")
+
+    # 95% CL line
+    line_95 = ROOT.TLine(xmin, threshold, xmax, threshold)
+    line_95.SetLineColor(ROOT.kRed)
+    line_95.SetLineStyle(2)
+    line_95.SetLineWidth(2)
+    line_95.Draw()
+
+    # Find and mark crossing point
+    limit = find_limit_crossing(r_values, cls_mean, threshold)
+
+    if limit is not None:
+        # Vertical line at limit
+        line_limit = ROOT.TLine(limit, 0.0, limit, threshold)
+        line_limit.SetLineColor(ROOT.kGreen + 2)
+        line_limit.SetLineStyle(3)
+        line_limit.SetLineWidth(2)
+        line_limit.Draw()
+
+        # Star marker at crossing
+        marker = ROOT.TMarker(limit, threshold, 29)
+        marker.SetMarkerColor(ROOT.kGreen + 2)
+        marker.SetMarkerSize(2.0)
+        marker.Draw()
+
+        # Text with limit value
+        latex = ROOT.TLatex()
+        latex.SetNDC()
+        latex.SetTextSize(0.04)
+        latex.SetTextFont(42)
+        latex.DrawLatex(0.55, 0.65, f"r < {limit:.4f} @ 95% CL")
+
+    # Legend
+    legend = CMS.cmsLeg(0.55, 0.7, 0.9, 0.9)
+    legend.AddEntry(graph, "Observed CL_{s}", "lp")
+    legend.AddEntry(line_95, f"95% CL ({threshold})", "l")
+    legend.Draw()
+
+    # Save
+    canvas.SaveAs(output)
+    print(f"Saved: {output}")
+
+    return limit
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Plot HybridNew grid results")
+    parser.add_argument("input", help="Input hybridnew_grid.root file or directory with toy files")
+    parser.add_argument("-o", "--output", default="cls_vs_r.png", help="Output plot file")
+    parser.add_argument("--title", default="", help="Plot title")
+    parser.add_argument("--rvalues", default=None,
+                        help="Comma-separated r values if not stored in tree (e.g., 0.0,0.2,0.4)")
+    parser.add_argument("--nseeds", type=int, default=10,
+                        help="Number of seeds per r-value (default: 10)")
+    parser.add_argument("--threshold", type=float, default=0.05,
+                        help="CLs threshold for limit (default: 0.05 for 95% CL)")
+    args = parser.parse_args()
+
+    # Parse r values if provided
+    r_values = None
+    if args.rvalues:
+        r_values = [float(x) for x in args.rvalues.split(',')]
+        print(f"Using provided r values: {r_values}")
+
+    # Read grid
+    data = read_hybridnew_grid(args.input, r_values, args.nseeds)
+
+    if data is None or len(data) == 0:
+        print("ERROR: Could not read data from grid file.")
+        print("\nTry providing r values explicitly:")
+        print(f"  python {__file__} {args.input} --rvalues 0.0,0.2,0.4,0.6,0.8,1.0 --nseeds 10")
+        return 1
+
+    print(f"\nFound {len(data)} r-value points:")
+    for r in sorted(data.keys()):
+        # Filter to observed CLs only (quantile == -1.0) and exclude zeros
+        cls_vals = [e['limit'] for e in data[r] if e['quantile'] == -1.0 and e['limit'] > 0]
+        n_total = len([e for e in data[r] if e['quantile'] == -1.0])
+        n_valid = len(cls_vals)
+        mean_cls = np.mean(cls_vals) if cls_vals else 0.0
+        status = f" ({n_total - n_valid} zeros filtered)" if n_valid < n_total else ""
+        print(f"  r={r:.4f}: {n_valid}/{n_total} valid entries, mean CLs={mean_cls:.4f}{status}")
+
+    # Compute statistics and plot
+    r_arr, cls_mean = compute_cls_statistics(data)
+    limit = plot_cls_vs_r(r_arr, cls_mean, args.output, args.title, args.threshold)
+
+    if limit is not None:
+        print(f"\n95% CL Limit: r < {limit:.4f}")
+    else:
+        print("\nCould not find limit crossing. CLs may not cross threshold in scanned range.")
+
+    return 0
+
+
+if __name__ == "__main__":
+    exit(main())

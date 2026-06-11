@@ -106,7 +106,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --channel CHANNEL    Analysis channel [default: Combined]"
             echo "  --method METHOD      Baseline or ParticleNet [default: Baseline]"
-            echo "  --binning BINNING    extended or uniform [default: extended]"
+            echo "  --binning BINNING    extended, uniform, or extended_coarser_binning [default: extended]"
             echo "  --nuisance MODE      fallback_lnn (default) or preserve_shape"
             echo "  --ntoys N            Total toys for p-value [default: 500]"
             echo "  --nbatches N         HTCondor batches for toys [default: 5]"
@@ -228,7 +228,7 @@ if [[ "$PLOT_ONLY" == true ]]; then
     run_cmd "plotGof.py gof.json \
         --statistic saturated --mass 120.0 \
         -o gof_plot \
-        --title-right=\"${ERA} ${MASSPOINT} ${METHOD}\""
+        --title-right=\"${ERA} ${CHANNEL} ${MASSPOINT} ${METHOD}\""
     echo "Done. Results in ${OUTPUT_DIR}/"
     exit 0
 fi
@@ -295,7 +295,7 @@ if [[ "$CONDOR" == false ]]; then
         plotGof.py gof.json \
             --statistic saturated --mass 120.0 \
             -o gof_plot \
-            --title-right="${ERA} ${MASSPOINT} ${METHOD}"
+            --title-right="${ERA} ${CHANNEL} ${MASSPOINT} ${METHOD}"
     else
         run_cmd "combineTool.py -M CollectGoodnessOfFit --input [data+toy files] -o gof.json"
         run_cmd "plotGof.py gof.json --statistic saturated --mass 120.0 -o gof_plot"
@@ -314,7 +314,11 @@ fi
 echo ""
 echo "===== Preparing HTCondor DAG workflow ====="
 
-rm -rf "$OUTPUT_DIR" || true
+if [[ "$DRY_RUN" == false ]]; then
+    rm -rf "$OUTPUT_DIR" || true
+else
+    echo "[DRY-RUN] Would reset output directory: ${OUTPUT_DIR}"
+fi
 mkdir -p "${OUTPUT_DIR}/logs"
 CONDOR_DIR="$OUTPUT_DIR"
 
@@ -436,7 +440,7 @@ combineTool.py -M CollectGoodnessOfFit \\
 plotGof.py gof.json \\
     --statistic saturated --mass 120.0 \\
     -o gof_plot \\
-    --title-right="${ERA} ${MASSPOINT} ${METHOD}"
+    --title-right="${ERA} ${CHANNEL} ${MASSPOINT} ${METHOD}"
 
 echo "Done."
 ls -la gof.json gof_plot.*

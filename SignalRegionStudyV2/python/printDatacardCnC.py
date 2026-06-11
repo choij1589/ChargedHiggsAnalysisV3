@@ -23,8 +23,9 @@ parser.add_argument("--era", required=True, type=str, help="Data-taking period")
 parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
 parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet)")
-parser.add_argument("--binning", default="uniform", choices=["uniform", "extended"],
-                    help="Binning method: 'uniform' or 'extended'")
+parser.add_argument("--binning", default="uniform",
+                    choices=["uniform", "extended", "extended_coarser_binning"],
+                    help="Binning method: 'uniform', 'extended', or 'extended_coarser_binning'")
 parser.add_argument("--unblind", action="store_true", help="Use unblind templates")
 parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
                     help="Use partial-unblind templates")

@@ -43,8 +43,10 @@ def parse_args():
     parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu)")
     parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
     parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet, etc.)")
-    parser.add_argument("--binning", default="extended", choices=["uniform", "extended"],
-                        help="Binning method: 'extended' (19 bins, default) or 'uniform' (15 bins)")
+    parser.add_argument("--binning", default="extended",
+                        choices=["uniform", "extended", "extended_coarser_binning"],
+                        help=("Binning method: 'extended' (default), 'uniform', or "
+                              "'extended_coarser_binning' (adaptive scan down to 1 core bin)"))
     parser.add_argument("--unblind", action="store_true",
                         help="Use real data for data_obs instead of MC sum")
     parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
@@ -947,7 +949,12 @@ def main():
     n_core_final = 15
     others_process_list = ["others"]
 
-    for n_core in [15, 13, 11, 9, 7, 5]:
+    if args.binning == "extended_coarser_binning":
+        core_bin_candidates = list(range(15, 0, -1))
+    else:
+        core_bin_candidates = [15, 13, 11, 9, 7, 5]
+
+    for n_core in core_bin_candidates:
         candidate_edges = calculate_adaptive_bins(x0, sigma_eff, n_core)
         logging.info(f"Testing {n_core} core bins ({n_core + 2} total)...")
 
@@ -983,11 +990,13 @@ def main():
             if len(diagnostics) > 5:
                 logging.info(f"    ... and {len(diagnostics) - 5} more")
     else:
-        # 5 core bins still failed — keep 5 bins and apply floor
+        # The coarsest candidate still failed — keep it and apply floor.
         bin_edges = candidate_edges
-        n_core_final = 5
+        n_core_final = core_bin_candidates[-1]
         apply_floor = True
-        logging.warning(f"All bin counts failed. Keeping 5 core bins with floor applied.")
+        logging.warning(
+            f"All bin counts failed. Keeping {n_core_final} core bins with floor applied."
+        )
 
     logging.info(f"Final binning: {n_core_final} core + 2 sideband = {len(bin_edges)-1} total bins")
 

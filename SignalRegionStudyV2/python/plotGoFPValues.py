@@ -23,6 +23,7 @@ ROOT.gROOT.SetBatch(ROOT.kTRUE)
 
 VALID_ERAS = ("Run2", "Run3", "All")
 VALID_METHODS = ("Baseline", "ParticleNet")
+VALID_CHANNELS = ("Combined", "SR1E2Mu", "SR3Mu")
 MASSPOINT_RE = re.compile(r"^MHc(?P<mhc>\d+)_MA(?P<ma>\d+)$")
 
 ERA_COLORS = {
@@ -54,6 +55,24 @@ METHOD_STYLES = {
     },
 }
 
+CHANNEL_STYLES = {
+    "Combined": {
+        "color": ROOT.kBlack,
+        "marker": ROOT.kFullCircle,
+        "label": "e#mu#mu+#mu#mu#mu",
+    },
+    "SR1E2Mu": {
+        "color": PALETTE[0],
+        "marker": ROOT.kFullSquare,
+        "label": "e#mu#mu",
+    },
+    "SR3Mu": {
+        "color": PALETTE[1],
+        "marker": ROOT.kFullTriangleUp,
+        "label": "#mu#mu#mu",
+    },
+}
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -65,7 +84,10 @@ def parse_args():
                         help="Era combinations to overlay")
     parser.add_argument("--methods", nargs="+", choices=VALID_METHODS, default=list(VALID_METHODS),
                         help="Methods to overlay")
-    parser.add_argument("--channel", default="Combined", help="Channel directory to read")
+    parser.add_argument("--channel", choices=VALID_CHANNELS, default="Combined",
+                        help="Single channel directory to read")
+    parser.add_argument("--channels", nargs="+", choices=VALID_CHANNELS,
+                        help="Channels to overlay; overrides --channel when set")
     parser.add_argument("--fit-name", default="120.0",
                         help="Top-level GoF JSON key to read (default: 120.0)")
     parser.add_argument("--template-root", default="templates",
@@ -109,8 +131,12 @@ def read_gof(path, fit_name):
     return p_value, plot_value, n_toys
 
 
-def collect_points(args, mhc, era, method):
-    channel_dir = Path(args.template_root) / era / args.channel
+def selected_channels(args):
+    return args.channels if args.channels else [args.channel]
+
+
+def collect_points(args, mhc, era, channel, method):
+    channel_dir = Path(args.template_root) / era / channel
     points = []
 
     for masspoint_dir in sorted(channel_dir.glob(f"MHc{mhc}_MA*")):
@@ -147,22 +173,41 @@ def collect_points(args, mhc, era, method):
     return sorted(points, key=lambda point: point["ma"])
 
 
-def make_graph(points, era, method):
+def make_graph(points, era, channel, method, overlay_mode):
     graph = ROOT.TGraph(
         len(points),
         array("d", [point["ma"] for point in points]),
         array("d", [point["plot_p"] for point in points]),
     )
-    color = PARTICLENET_COLORS[era] if method == "ParticleNet" else ERA_COLORS[era]
-    line_style = ROOT.kSolid if method == "ParticleNet" or era == "All" else ROOT.kDashed
+    if overlay_mode == "channels":
+        color = CHANNEL_STYLES[channel]["color"]
+        marker = CHANNEL_STYLES[channel]["marker"]
+        line_style = ROOT.kSolid
+    else:
+        color = PARTICLENET_COLORS[era] if method == "ParticleNet" else ERA_COLORS[era]
+        marker = METHOD_STYLES[method]["marker"]
+        line_style = ROOT.kSolid if method == "ParticleNet" or era == "All" else ROOT.kDashed
 
     graph.SetLineColor(color)
     graph.SetMarkerColor(color)
     graph.SetLineWidth(2)
     graph.SetLineStyle(line_style)
-    graph.SetMarkerStyle(METHOD_STYLES[method]["marker"])
+    graph.SetMarkerStyle(marker)
     graph.SetMarkerSize(1.0)
     return graph
+
+
+def series_label(item, overlay_mode):
+    method_label = METHOD_STYLES[item["method"]]["label"]
+    channel_label = CHANNEL_STYLES[item["channel"]]["label"]
+    era_label = ERA_LABELS[item["era"]]
+    if overlay_mode == "channels":
+        return channel_label if len(item["all_methods"]) == 1 else f"{channel_label} {method_label}"
+    return (
+        f"{era_label} {method_label}"
+        if len(item["all_channels"]) == 1
+        else f"{era_label} {channel_label} {method_label}"
+    )
 
 
 def draw_plot(args, mhc, series):
@@ -202,8 +247,16 @@ def draw_plot(args, mhc, series):
     line_005.Draw("same")
 
     graphs = []
+    overlay_mode = "channels" if args.channels else "eras"
+
     for item in series:
-        graph = make_graph(item["points"], item["era"], item["method"])
+        graph = make_graph(
+            item["points"],
+            item["era"],
+            item["channel"],
+            item["method"],
+            overlay_mode,
+        )
         graphs.append((graph, item))
         CMS.cmsObjectDraw(graph, "LP same")
 
@@ -212,23 +265,27 @@ def draw_plot(args, mhc, series):
     text.SetTextFont(42)
     text.SetTextSize(0.046)
     text.DrawLatex(0.19, 0.76, f"m_{{H^{{+}}}} = {mhc} GeV")
+    if overlay_mode != "channels":
+        text.SetTextSize(0.036)
+        text.DrawLatex(0.19, 0.71, args.channel)
 
     n_entries = len(graphs) + 1
-    leg_y1 = max(0.60, 0.88 - 0.035 * n_entries)
-    legend = CMS.cmsLeg(0.58, leg_y1, 0.90, 0.88, textSize=0.030)
+    leg_y1 = max(0.56, 0.90 - 0.045 * n_entries)
+    legend = CMS.cmsLeg(0.57, leg_y1, 0.95, 0.90, textSize=0.032)
     for graph, item in graphs:
-        label = f"{ERA_LABELS[item['era']]} {METHOD_STYLES[item['method']]['label']}"
-        legend.AddEntry(graph, label, "lp")
+        legend.AddEntry(graph, series_label(item, overlay_mode), "lp")
     legend.AddEntry(line_005, "p = 0.05", "l")
 
     canvas.RedrawAxis()
 
     os.makedirs(args.output_dir, exist_ok=True)
+    channels = selected_channels(args)
+    channels_tag = "".join(channels)
     methods_tag = "".join(args.methods)
     eras_tag = "".join(args.eras)
     output_base = (
         Path(args.output_dir)
-        / f"pvalue.mHc{mhc}.{eras_tag}.{methods_tag}.unblind"
+        / f"pvalue.mHc{mhc}.{channels_tag}.{eras_tag}.{methods_tag}.unblind"
     )
 
     saved = []
@@ -243,20 +300,30 @@ def draw_plot(args, mhc, series):
 def main():
     args = parse_args()
     saved_paths = []
+    channels = selected_channels(args)
+    if args.channels and len(args.eras) != 1:
+        raise ValueError("--channels overlay expects exactly one era; use e.g. --eras All")
 
     for mhc in args.mhc:
         series = []
         for era in args.eras:
-            for method in args.methods:
-                points = collect_points(args, mhc, era, method)
-                if not points:
-                    print(f"Warning: no points for mHc={mhc}, era={era}, method={method}")
-                    continue
-                series.append({
-                    "era": era,
-                    "method": method,
-                    "points": points,
-                })
+            for channel in channels:
+                for method in args.methods:
+                    points = collect_points(args, mhc, era, channel, method)
+                    if not points:
+                        print(
+                            f"Warning: no points for mHc={mhc}, era={era}, "
+                            f"channel={channel}, method={method}"
+                        )
+                        continue
+                    series.append({
+                        "era": era,
+                        "channel": channel,
+                        "method": method,
+                        "all_channels": channels,
+                        "all_methods": args.methods,
+                        "points": points,
+                    })
 
         saved_paths.extend(draw_plot(args, mhc, series))
 

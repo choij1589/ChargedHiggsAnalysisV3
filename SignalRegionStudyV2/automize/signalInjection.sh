@@ -89,7 +89,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Template Options:"
             echo "  --method METHOD        - Baseline or ParticleNet (default: Baseline)"
-            echo "  --binning BINNING      - extended or uniform (default: extended)"
+            echo "  --binning BINNING      - extended, uniform, or extended_coarser_binning (default: extended)"
             echo "  --ntoys NTOYS          - Total toys per injection (default: 500)"
             echo "  --nbatches NBATCHES    - Condor batches per r-value (default: 5)"
             echo ""

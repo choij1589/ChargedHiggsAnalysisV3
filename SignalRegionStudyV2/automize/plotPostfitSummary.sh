@@ -82,7 +82,7 @@ Defaults:
   --methods Baseline ParticleNet
   --eras Run2 Run3 All
   --channels SR1E2Mu SR3Mu Combined
-  --binning extended
+  --binning extended (also accepts extended_coarser_binning)
   --fit-type b
   --bin-width 1
 

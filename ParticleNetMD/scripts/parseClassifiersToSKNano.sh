@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-MASSPOINTs=("MHc100_MA95" "MHc130_MA90" "MHc160_MA85")
+MASSPOINTs=("MHc100_MA85" "MHc100_MA90" "MHc100_MA95" 
+            "MHc130_MA85" "MHc130_MA90" "MHc130_MA95"
+            "MHc160_MA85" "MHc160_MA90" "MHc160_MA95")
 
 SRCDIR="$(cd "$(dirname "$0")/.." && pwd)/GAOptim/Combined"
 DSTDIR="$(cd "$(dirname "$0")/../.." && pwd)/SKNanoAnalyzer/data/Run3_v13_Run2_v9/All/Combined/Classifiers/ParticleNetMD"
