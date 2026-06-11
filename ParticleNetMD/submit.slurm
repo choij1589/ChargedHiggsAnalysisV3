@@ -7,15 +7,15 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=64
-#SBATCH --time=10:00:00
+#SBATCH --time=36:00:00
 #SBATCH --output=logs/slurm/slurm-%j.out
 #SBATCH --error=logs/slurm/slurm-%j.err
 #SBATCH --mail-type=START,END,FAIL
 #SBATCH --mail-user=choij@cern.ch
 
 # Parse command-line arguments
-CONFIG=${1:-"MHc130_MA90:Combined,MHc100_MA95:Combined,MHc160_MA85:Combined"}
-DEVICES=${2:-"cuda:0,cuda:1,cuda:2"}
+CONFIG=${1:-"MHc115_MA87:Combined"}
+DEVICES=${2:-"cuda:0"}
 
 # Additional flags (--pilot, --debug)
 shift 2
