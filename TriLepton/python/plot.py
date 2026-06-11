@@ -90,6 +90,9 @@ else:
 if args.channel not in ["SR1E2Mu", "SR3Mu", "ZFake1E2Mu", "ZFake3Mu", "ZG1E2Mu", "ZG3Mu", "WZ1E2Mu", "WZ3Mu", "TTZ2E1Mu"]:
     raise ValueError(f"Invalid channel: {args.channel}")
 
+if args.channel in ["SR1E2Mu", "SR3Mu"]:
+    config["chi2_test"] = False
+
 if args.noHEMVeto:
     if args.era != "2018":
         raise ValueError("--noHEMVeto only valid for era 2018")
