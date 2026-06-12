@@ -307,6 +307,8 @@ elif args.method == "ParticleNet":
         limits_baseline = json.load(f)
     with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.ParticleNet{_cnc_suffix}{_unblind_suffix}.json") as f:
         limits_pnet = json.load(f)
+    draw_cms_ref = has_cms_ref and args.mhc == 160
+    draw_atlas_ref = has_atlas_ref and args.mhc == 160
 
     if args.mhc is not None:
         limits_pnet = _filter_by_mhc(limits_pnet, args.mhc)
@@ -359,6 +361,10 @@ elif args.method == "ParticleNet":
     if graphs_above:
         CMS.cmsObjectDraw(graphs_above['exp'], "L same")
     CMS.cmsObjectDraw(graphs_pnet['exp'], "L same")
+    if draw_cms_ref:
+        CMS.cmsObjectDraw(g_cms_ref, "L same")
+    if draw_atlas_ref:
+        CMS.cmsObjectDraw(g_atlas_ref, "L same")
 
     # Draw observed points
     if not args.blind:
@@ -390,7 +396,12 @@ elif args.method == "ParticleNet":
     ch_label_pn.DrawLatex(0.20, 0.76, _channel_label_txt)
 
     # Legend
-    n_entries = (4 if not args.blind else 3) + (1 if args.stack_baseline else 0)
+    n_entries = (
+        (4 if not args.blind else 3)
+        + (1 if args.stack_baseline else 0)
+        + (1 if draw_cms_ref else 0)
+        + (1 if draw_atlas_ref else 0)
+    )
     leg = CMS.cmsLeg(0.65, 0.90 - 0.05*n_entries, 0.90, 0.90, textSize=0.035)
     if not args.blind:
         leg.AddEntry(graphs_pnet['obs'], "Observed", "lp")
@@ -399,6 +410,10 @@ elif args.method == "ParticleNet":
     leg.AddEntry(graphs_pnet['exp2sigma'], "Expected #pm2#sigma", "f")
     if args.stack_baseline:
         leg.AddEntry(graphs_baseline_at_pnet['exp'], "w/o ParticleNet", "l")
+    if draw_cms_ref:
+        leg.AddEntry(g_cms_ref, "CMS 2016", "l")
+    if draw_atlas_ref:
+        leg.AddEntry(g_atlas_ref, "ATLAS Run 2", "l")
 
     mhc_msg = f", MHc{args.mhc}" if args.mhc is not None else ""
     print(f"Created Brazilian plot with ParticleNet ({pnet_min}-{pnet_max} GeV{mhc_msg})")

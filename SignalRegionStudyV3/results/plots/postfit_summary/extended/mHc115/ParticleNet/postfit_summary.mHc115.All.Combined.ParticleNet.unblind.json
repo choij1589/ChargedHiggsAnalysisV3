@@ -13,6 +13,20 @@
   "signal_line_available": true,
   "masspoints": [
     {
+      "name": "MHc115_MA15",
+      "source_method": "Baseline",
+      "ma": 15,
+      "mass_min": 13.651233138476183,
+      "mass_max": 16.342938756048525
+    },
+    {
+      "name": "MHc115_MA27",
+      "source_method": "Baseline",
+      "ma": 27,
+      "mass_min": 24.415167513229058,
+      "mass_max": 29.54909439348154
+    },
+    {
       "name": "MHc115_MA42",
       "source_method": "Baseline",
       "ma": 42,
@@ -42,24 +56,38 @@
     },
     {
       "name": "MHc115_MA85",
-      "source_method": "Baseline",
+      "source_method": "ParticleNet",
       "ma": 85,
       "mass_min": 74.96991691902059,
       "mass_max": 94.87865210040846
     },
     {
+      "name": "MHc115_MA87",
+      "source_method": "ParticleNet",
+      "ma": 87,
+      "mass_min": 76.63011907255336,
+      "mass_max": 97.18909460902717
+    },
+    {
       "name": "MHc115_MA90",
-      "source_method": "Baseline",
+      "source_method": "ParticleNet",
       "ma": 90,
       "mass_min": 79.08096369435896,
       "mass_max": 100.71486811488481
     },
     {
       "name": "MHc115_MA95",
-      "source_method": "Baseline",
+      "source_method": "ParticleNet",
       "ma": 95,
-      "mass_min": 83.23543088582127,
-      "mass_max": 106.50143332637359
+      "mass_min": 83.23543088471799,
+      "mass_max": 106.50143332818824
+    },
+    {
+      "name": "MHc115_MA110",
+      "source_method": "Baseline",
+      "ma": 110,
+      "mass_min": 95.64638641381427,
+      "mass_max": 124.04214385900642
     }
   ],
   "x_range": [
@@ -67,13 +95,33 @@
     115.0
   ],
   "hist_range": [
-    37.0,
-    107.0
+    13.0,
+    125.0
   ],
-  "n_bins": 70,
+  "n_bins": 112,
   "ownership": [
     {
-      "start": 37.0,
+      "start": 13.0,
+      "end": 14.0,
+      "masspoint": null
+    },
+    {
+      "start": 14.0,
+      "end": 16.0,
+      "masspoint": "MHc115_MA15"
+    },
+    {
+      "start": 16.0,
+      "end": 24.0,
+      "masspoint": null
+    },
+    {
+      "start": 24.0,
+      "end": 30.0,
+      "masspoint": "MHc115_MA27"
+    },
+    {
+      "start": 30.0,
       "end": 38.0,
       "masspoint": null
     },
@@ -94,21 +142,21 @@
     },
     {
       "start": 63.0,
-      "end": 77.0,
+      "end": 75.0,
       "masspoint": "MHc115_MA70"
     },
     {
-      "start": 77.0,
-      "end": 84.0,
-      "masspoint": "MHc115_MA83"
-    },
-    {
-      "start": 84.0,
-      "end": 88.0,
+      "start": 75.0,
+      "end": 86.0,
       "masspoint": "MHc115_MA85"
     },
     {
-      "start": 88.0,
+      "start": 86.0,
+      "end": 89.0,
+      "masspoint": "MHc115_MA87"
+    },
+    {
+      "start": 89.0,
       "end": 93.0,
       "masspoint": "MHc115_MA90"
     },
@@ -116,16 +164,30 @@
       "start": 93.0,
       "end": 107.0,
       "masspoint": "MHc115_MA95"
+    },
+    {
+      "start": 107.0,
+      "end": 124.0,
+      "masspoint": "MHc115_MA110"
+    },
+    {
+      "start": 124.0,
+      "end": 125.0,
+      "masspoint": null
     }
   ],
   "ownership_boundaries": [
+    14.0,
+    16.0,
+    24.0,
+    30.0,
     38.0,
     46.0,
     51.0,
     63.0,
-    77.0,
-    84.0,
-    88.0,
+    75.0,
+    86.0,
+    89.0,
     93.0,
     107.0
   ]

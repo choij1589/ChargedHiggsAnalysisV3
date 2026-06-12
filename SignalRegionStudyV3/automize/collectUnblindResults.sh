@@ -15,6 +15,7 @@ NUISANCE="fallback_lnn"
 ERAS="Run2,Run3,All"
 POSTFIT_TARGETS="Run2:SR1E2Mu,Run2:SR3Mu,Run2:Combined,Run3:SR1E2Mu,Run3:SR3Mu,Run3:Combined,All:SR1E2Mu,All:SR3Mu,All:Combined"
 GOF_TARGETS="All:Combined,All:SR1E2Mu,All:SR3Mu,Run2:Combined,Run3:Combined"
+SCORE_TARGETS="Run2:SR1E2Mu,Run2:SR3Mu,Run2:Combined,Run3:SR1E2Mu,Run3:SR3Mu,Run3:Combined,All:SR1E2Mu,All:SR3Mu,All:Combined"
 CHANNEL_OVERRIDE=""
 DRY_RUN=false
 STRICT=false
@@ -49,6 +50,10 @@ while [[ $# -gt 0 ]]; do
             GOF_TARGETS="$2"
             shift 2
             ;;
+        --score-targets)
+            SCORE_TARGETS="$2"
+            shift 2
+            ;;
         --config)
             CONFIG="$2"
             shift 2
@@ -77,6 +82,10 @@ Options:
                      [default: {Run2,Run3,All} x {SR1E2Mu,SR3Mu,Combined}]
   --gof-targets LIST  Comma-separated ERA:CHANNEL targets for GoF results
                      [default: All x {Combined,SR1E2Mu,SR3Mu}, Run2 x Combined, Run3 x Combined]
+  --score-targets LIST
+                     Comma-separated ERA:CHANNEL targets for ParticleNet score
+                     distributions
+                     [default: {Run2,Run3,All} x {SR1E2Mu,SR3Mu,Combined}]
   --config PATH       Masspoint JSON [default: configs/masspoints.json]
                      Uses baseline_done for Baseline and particlenet_done for
                      ParticleNet.
@@ -144,15 +153,18 @@ if [[ -n "$CHANNEL_OVERRIDE" ]]; then
     IFS=',' read -ra legacy_eras <<< "$ERAS"
     POSTFIT_TARGETS=""
     GOF_TARGETS=""
+    SCORE_TARGETS=""
     for era in "${legacy_eras[@]}"; do
         [[ -z "$era" ]] && continue
         POSTFIT_TARGETS+="${POSTFIT_TARGETS:+,}${era}:${CHANNEL_OVERRIDE}"
         GOF_TARGETS+="${GOF_TARGETS:+,}${era}:${CHANNEL_OVERRIDE}"
+        SCORE_TARGETS+="${SCORE_TARGETS:+,}${era}:${CHANNEL_OVERRIDE}"
     done
 fi
 
 validate_targets "--postfit-targets" "$POSTFIT_TARGETS"
 validate_targets "--gof-targets" "$GOF_TARGETS"
+validate_targets "--score-targets" "$SCORE_TARGETS"
 
 methods=()
 if [[ "$METHOD" == "all" ]]; then
@@ -182,6 +194,7 @@ extra_args=(
     --eras "$ERAS"
     --postfit-targets "$POSTFIT_TARGETS"
     --gof-targets "$GOF_TARGETS"
+    --score-targets "$SCORE_TARGETS"
 )
 [[ "$DRY_RUN" == true ]] && extra_args+=(--dry-run)
 [[ "$STRICT"  == true ]] && extra_args+=(--strict)
@@ -194,6 +207,7 @@ echo "Nuisance mode: $NUISANCE"
 echo "Eras:          $ERAS"
 echo "Postfit grid:  $POSTFIT_TARGETS"
 echo "GoF grid:      $GOF_TARGETS"
+echo "Score grid:    $SCORE_TARGETS"
 echo "Config:        $CONFIG"
 echo "Dry run:       $DRY_RUN"
 echo "Strict:        $STRICT"

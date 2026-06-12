@@ -298,6 +298,21 @@ def load_background_weights(era, channel):
 BG_WEIGHTS = load_background_weights(reference_era, reference_channel)
 logging.info(f"Loaded background weights: {BG_WEIGHTS}")
 
+
+def load_threshold_for(era, channel):
+    """Load the optimized ParticleNet LR threshold for an SR category."""
+    threshold_path = f"{CONFIGDIR}/threshold.json"
+    if not os.path.exists(threshold_path):
+        return None
+    with open(threshold_path) as f:
+        threshold_data = json.load(f)
+    payload = category_payload(threshold_data, era, channel)
+    threshold = payload.get("threshold")
+    if threshold is None:
+        return None
+    return float(threshold)
+
+
 # Load systematics configuration. Combined mode loads per-era/channel configs
 # only when it needs to build missing score histograms from samples.
 if is_combined_era or is_combined_channel:
@@ -1213,7 +1228,10 @@ def build_canvas_config(era, region_label, x_title, plot_key, colors, com_energy
         "rTitle": "Data / Pred",
         "rRange": HISTKEYS_CONFIG[plot_key].get("rRange", [0, 5.]),
         "maxDigits": 3,
-        "colors": colors
+        "colors": colors,
+        "legend": (0.55, 0.59, 0.99, 0.89),
+        "legendColumns": 2,
+        "legendTextSize": 0.035,
     }
     # Add chi2 test when enabled (full unblind or control region)
     if enable_chi2:
@@ -1227,6 +1245,18 @@ def build_canvas_config(era, region_label, x_title, plot_key, colors, com_energy
     return config
 
 
+def threshold_for_plot(era, sample_channel, region_label, plot_key):
+    if plot_key != "LR_modified":
+        return None
+    if era not in ("Run2", "Run3"):
+        return None
+    if sample_channel == "TTZ2E1Mu" or region_label == "TTZ2E1Mu":
+        return None
+    if sample_channel not in ("SR1E2Mu", "SR3Mu"):
+        return None
+    return load_threshold_for(era, sample_channel)
+
+
 def draw_signal_overlay(plotter, signal_hist, scale=6.0):
     """Draw scaled signal overlay on upper pad and add to legend."""
     plotter.canv.cd(1)
@@ -1238,8 +1268,82 @@ def draw_signal_overlay(plotter, signal_hist, scale=6.0):
     primitives = current_pad.GetListOfPrimitives()
     for obj in primitives:
         if obj.InheritsFrom("TLegend"):
-            obj.AddEntry(signal_hist, f"signal (x{int(scale)})", "l")
+            obj.AddEntry(signal_hist, f"signal (r={int(scale)})", "l")
             break
+
+
+def draw_threshold_overlay(plotter, threshold):
+    if threshold is None or plotter.config.get("no_ratio", False):
+        return
+
+    color = ROOT.kRed + 1
+    lines = []
+
+    plotter.canv.cd(1)
+    hdf_up = CMS.GetCmsCanvasHist(plotter.canv.cd(1))
+    y_min = hdf_up.GetMinimum()
+    y_max = hdf_up.GetMaximum()
+    line_top = 0.5 * y_max
+    line_up = ROOT.TLine(threshold, y_min, threshold, line_top)
+    line_up.SetLineColor(color)
+    line_up.SetLineStyle(7)
+    line_up.SetLineWidth(3)
+    line_up.Draw("SAME")
+    lines.append(line_up)
+    CMS.addToLegend(plotter.leg, (line_up, "PN threshold", "L"))
+    plotter.canv.cd(1).RedrawAxis()
+
+    plotter.canv.cd(2)
+    rmin, rmax = plotter.config.get("rRange", [0.5, 1.5])
+    line_down = ROOT.TLine(threshold, rmin, threshold, rmax)
+    line_down.SetLineColor(color)
+    line_down.SetLineStyle(7)
+    line_down.SetLineWidth(3)
+    line_down.Draw("SAME")
+    lines.append(line_down)
+    plotter.canv.cd(2).RedrawAxis()
+
+    plotter._threshold_lines = lines
+
+
+def build_ratio_uncertainty_band(prediction):
+    """Return prediction uncertainty as a ratio-band centered at 1."""
+    ratio_band = prediction.Clone(f"{prediction.GetName()}_ratio_uncertainty")
+    ratio_band.SetDirectory(0)
+    for ibin in range(1, ratio_band.GetNbinsX() + 1):
+        nominal = prediction.GetBinContent(ibin)
+        if nominal > 0:
+            ratio_band.SetBinContent(ibin, 1.0)
+            ratio_band.SetBinError(ibin, prediction.GetBinError(ibin) / nominal)
+        else:
+            ratio_band.SetBinContent(ibin, 0.0)
+            ratio_band.SetBinError(ibin, 0.0)
+    return ratio_band
+
+
+class ScoreComparisonCanvas(ComparisonCanvas):
+    """Comparison canvas with split prediction band and data/pred fluctuations."""
+
+    def drawPadDown(self):
+        if self.config.get("no_ratio", False):
+            return
+        self.canv.cd(2)
+
+        xmin, xmax = self._get_axis_range(self.config, self.systematics)
+        ref_line = ROOT.TLine()
+        ref_line.SetLineStyle(ROOT.kDotted)
+        ref_line.SetLineColor(ROOT.kBlack)
+        ref_line.SetLineWidth(2)
+        ref_line.DrawLine(xmin, 1.0, xmax, 1.0)
+
+        ratio_band = getattr(self, "ratio_band", None)
+        if ratio_band is None:
+            ratio_band = build_ratio_uncertainty_band(self.systematics)
+            self.ratio_band = ratio_band
+
+        CMS.cmsObjectDraw(ratio_band, "FE2", FillStyle=3004, LineWidth=0, FillColor=12, MarkerSize=0)
+        CMS.cmsObjectDraw(self.ratio, "PE", MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
+        self.canv.cd(2).RedrawAxis()
 
 
 def draw_blind_plot(bkg_hists_with_errors, signal_hist, config, output_path, masspoint):
@@ -1294,8 +1398,10 @@ def draw_blind_plot(bkg_hists_with_errors, signal_hist, config, output_path, mas
     hdf = CMS.GetCmsCanvasHist(canv)
     hdf.GetYaxis().SetMaxDigits(config.get("maxDigits", 3))
 
-    leg = CMS.cmsLeg(0.7, 0.89 - 0.05 * 7, 0.99, 0.89,
-                     textSize=config.get("legendTextSize", 0.04), columns=1)
+    legend_box = config.get("legend", (0.55, 0.59, 0.99, 0.89))
+    leg = CMS.cmsLeg(*legend_box,
+                     textSize=config.get("legendTextSize", 0.035),
+                     columns=config.get("legendColumns", 2))
 
     # Stack + syst band
     palette = config.get("colors", PALETTE)
@@ -1315,7 +1421,7 @@ def draw_blind_plot(bkg_hists_with_errors, signal_hist, config, output_path, mas
         scale = 6.0
         signal_hist.Scale(scale)
         signal_hist.Draw("HIST SAME")
-        CMS.addToLegend(leg, (signal_hist, f"signal (x{int(scale)})", "l"))
+        CMS.addToLegend(leg, (signal_hist, f"signal (r={int(scale)})", "l"))
 
     # Channel text (match ComparisonCanvas behaviour)
     if "channel" in config:
@@ -1334,7 +1440,8 @@ def draw_blind_plot(bkg_hists_with_errors, signal_hist, config, output_path, mas
     logging.info(f"  Saved: {output_path}")
 
 
-def draw_plot(data_hist, bkg_hists_with_errors, signal_hist, config, output_path, masspoint):
+def draw_plot(data_hist, bkg_hists_with_errors, signal_hist, config, output_path, masspoint,
+              threshold=None):
     """
     Step 4: Create comparison plot using ComparisonCanvas.
 
@@ -1347,7 +1454,7 @@ def draw_plot(data_hist, bkg_hists_with_errors, signal_hist, config, output_path
         masspoint: Mass point label
     """
     # Create plot
-    plotter = ComparisonCanvas(data_hist, bkg_hists_with_errors, config)
+    plotter = ScoreComparisonCanvas(data_hist, bkg_hists_with_errors, config)
     plotter.drawPadUp()
 
     # Draw signal on upper pad (only for SR channels)
@@ -1356,6 +1463,8 @@ def draw_plot(data_hist, bkg_hists_with_errors, signal_hist, config, output_path
 
     # Draw lower pad
     plotter.drawPadDown()
+
+    draw_threshold_overlay(plotter, threshold)
 
     # Draw additional text
     plotter.canv.cd()
@@ -1436,15 +1545,16 @@ def process_combined_era(region_label, sample_channel, show_data, region_outdir,
             f"{WORKDIR}/SignalRegionStudyV3/templates/{era}/{input_channel}/"
             f"{args.masspoint}/ParticleNet/{binning_suffix}/scores/{scores_region}/histograms.root"
         )
+        sample_source_channel = "TTZ2E1Mu" if scores_region == "TTZ2E1Mu" else input_channel
 
         if not os.path.exists(hist_file):
             cache_key = (era, input_channel, scores_region)
             if cache_key not in generated_cache:
                 sample_dir = (
-                    f"{WORKDIR}/SignalRegionStudyV3/samples/{era}/{input_channel}/{args.masspoint}"
+                    f"{WORKDIR}/SignalRegionStudyV3/samples/{era}/{sample_source_channel}/{args.masspoint}"
                 )
                 if not os.path.exists(sample_dir):
-                    logging.warning("Missing samples for %s/%s: %s", era, input_channel, sample_dir)
+                    logging.warning("Missing samples for %s/%s: %s", era, sample_source_channel, sample_dir)
                     generated_cache[cache_key] = None
                 else:
                     mass_min, mass_max = mass_window_for(era, input_channel)
@@ -1452,11 +1562,11 @@ def process_combined_era(region_label, sample_channel, show_data, region_outdir,
                     single_systs = load_syst_categories_for(era, input_channel)
                     logging.info(
                         "Generating cached score histograms for %s/%s from samples "
-                        "(mass: [%.2f, %.2f])",
-                        era, input_channel, mass_min, mass_max
+                        "%s/%s (mass: [%.2f, %.2f])",
+                        era, input_channel, era, sample_source_channel, mass_min, mass_max
                     )
                     generated_hists, generated_systs = create_histograms(
-                        era, input_channel, args.masspoint, input_channel,
+                        era, input_channel, args.masspoint, sample_source_channel,
                         single_systs, mass_min, mass_max, ordered_bkgs, show_data,
                         bg_weights=bg_weights
                     )
@@ -1785,12 +1895,13 @@ if __name__ == "__main__":
                     get_CoM_energy_extended(args.era),
                     enable_chi2=enable_chi2
                 )
+                threshold = threshold_for_plot(args.era, sample_channel, region_label, plot_key)
 
                 # Step 4: Draw plot. Blinded (show_data=False) → stack-only.
                 output_path = f"{region_outdir}/{plot_key}.png"
                 if show_data:
                     draw_plot(data_hist, bkg_hists, signal_hist, config,
-                              output_path, args.masspoint)
+                              output_path, args.masspoint, threshold=threshold)
                 else:
                     draw_blind_plot(bkg_hists, signal_hist, config,
                                     output_path, args.masspoint)
@@ -1887,12 +1998,13 @@ if __name__ == "__main__":
                     get_CoM_energy_extended(args.era),
                     enable_chi2=enable_chi2
                 )
+                threshold = threshold_for_plot(args.era, sample_channel, region_label, plot_key)
 
                 # Step 4: Draw plot. Blinded (show_data=False) → stack-only.
                 output_path = f"{region_outdir}/{plot_key}.png"
                 if show_data:
                     draw_plot(data_hist, bkg_hists, signal_hist, config,
-                              output_path, args.masspoint)
+                              output_path, args.masspoint, threshold=threshold)
                 else:
                     draw_blind_plot(bkg_hists, signal_hist, config,
                                     output_path, args.masspoint)
@@ -1988,12 +2100,13 @@ if __name__ == "__main__":
                 get_CoM_energy_extended(args.era),
                 enable_chi2=enable_chi2
             )
+            threshold = threshold_for_plot(args.era, sample_channel, region_label, plot_key)
 
             # Step 4: Draw plot. Blinded (show_data=False) → stack-only.
             output_path = f"{region_outdir}/{plot_key}.png"
             if show_data:
                 draw_plot(data_hist, bkg_hists, signal_hist, config,
-                          output_path, args.masspoint)
+                          output_path, args.masspoint, threshold=threshold)
             else:
                 draw_blind_plot(bkg_hists, signal_hist, config,
                                 output_path, args.masspoint)

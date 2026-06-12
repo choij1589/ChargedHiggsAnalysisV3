@@ -20,7 +20,7 @@
 #./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --binning extended --unblind --fitdiag --pull-fit b
 
 # Step 2: Goodness-of-Fit tests.
-#./automize/gof.sh --mode all --method Baseline    --binning extended --unblind --ntoys 1000 --nbatches 10
+./automize/gof.sh --mode all --method Baseline    --binning extended --unblind --ntoys 1000 --nbatches 10
 #./automize/gof.sh --mode all --method ParticleNet --binning extended --unblind --ntoys 1000 --nbatches 10
 #./automize/gof.sh --mode all --method Baseline    --binning extended --unblind --plot-only
 #./automize/gof.sh --mode all --method ParticleNet --binning extended --unblind --plot-only
@@ -28,7 +28,7 @@
 #python3 python/plotGoFPValues.py --mhc 70 85 100 115 130 145 160 --eras All --channels {Combined,SR1E2Mu,SR3Mu} --methods Baseline ParticleNet
 
 # Step 3: Impacts. Use --blind-result for the first unblind review pass.
-#./automize/impact.sh --mode all --method Baseline    --binning extended --unblind
+./automize/impact.sh --mode all --method Baseline    --binning extended --unblind
 #./automize/impact.sh --mode all --method ParticleNet --binning extended --unblind
 #./automize/impact.sh --mode all --method Baseline    --binning extended --unblind --blind-result
 #./automize/impact.sh --mode all --method ParticleNet --binning extended --unblind --blind-result
@@ -43,12 +43,12 @@
 #    --bin-width 1 --signal-line median --fit-type both \
 #    --output-dir results/plots/postfit_summary/extended --condor
 
-python3 python/plotPostfitSummary.py --mhc 160 \
-    --methods Baseline ParticleNet --eras All --channels Combined \
-    --binning extended --nuisance fallback_lnn --fit-type b \
-    --bin-width 1 --output-dir results/plots/postfit_summary/extended \
-    --signal-line median --signal-mass 30 60 90 120 \
-    --unblind --signal-region-style
+#python3 python/plotPostfitSummary.py --mhc 160 \
+#    --methods Baseline ParticleNet --eras All --channels Combined \
+#    --binning extended --nuisance fallback_lnn --fit-type b \
+#    --bin-width 1 --output-dir results/plots/postfit_summary/extended \
+#    --signal-line median --signal-mass 30 60 90 120 \
+#    --unblind --signal-region-style
 
 # Signal injection and bias tests.
 #./automize/signalInjection.sh --mode all --method Baseline    --binning extended
@@ -56,7 +56,8 @@ python3 python/plotPostfitSummary.py --mhc 160 \
 #./automize/signalInjection.sh --mode all --method Baseline    --binning extended --plot-only
 #./automize/signalInjection.sh --mode all --method ParticleNet --binning extended --plot-only
 
-# TTZ control-region GoF validation.
+#
+#TTZ control-region GoF validation.
 #./automize/ttz_cr_gof.sh --ntoys 1000
 
 # Backfill limits from existing templates when templates already exist but
@@ -72,13 +73,10 @@ python3 python/plotPostfitSummary.py --mhc 160 \
 #./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --binning extended --unblind \
 #    --fitdiag --start-from fitdiag --pull-fit both
 
-# ParticleNet score plots for concrete suberas x SR channels. The
-# makeBinnedTemplates ParticleNet DAG above covers Combined Run2/Run3/All score
-# plots; this dedicated score DAG covers:
-#   Run2 suberas x {SR1E2Mu, SR3Mu}, then Run2 x {SR1E2Mu, SR3Mu}
-#   Run3 suberas x {SR1E2Mu, SR3Mu}, then Run3 x {SR1E2Mu, SR3Mu}
-#./automize/submitPlotScore.sh --mode run2 --all-masspoints --binning extended --unblind
-#./automize/submitPlotScore.sh --mode run3 --all-masspoints --binning extended --unblind
+# ParticleNet score plots, including TTZ2E1Mu validation score distributions,
+# are now part of the makeBinnedTemplates ParticleNet DAG above:
+#   {Run2, Run3, All} x {SR1E2Mu, SR3Mu, Combined}
+# The per-channel SR1E2Mu/SR3Mu score jobs also produce scores/TTZ2E1Mu.
 
 # HybridNew observed limits.
 #./automize/hybridnew.sh --mode all --method Baseline    --binning extended --unblind --auto-grid

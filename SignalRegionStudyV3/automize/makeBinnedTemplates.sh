@@ -410,6 +410,12 @@ EOF
             done_sfx=$(job_done_suffix asymptotic)
             echo "JOB asymptotic_${channel}_${target} jobs.sub${done_sfx}" >> "$dag_file"
             echo "VARS asymptotic_${channel}_${target} step=\"asymptotic\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+
+            if [[ "$method" == "ParticleNet" && "$DO_PLOT_SCORE" == "true" ]]; then
+                done_sfx=$(job_done_suffix plot_score)
+                echo "JOB plot_score_${channel}_${target} jobs.sub${done_sfx}" >> "$dag_file"
+                echo "VARS plot_score_${channel}_${target} step=\"plot_score\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+            fi
         done
     done
 
@@ -444,6 +450,13 @@ EOF
             fi
             echo "PARENT datacard_${channel}_${target} CHILD validate_${channel}_${target}" >> "$dag_file"
             echo "PARENT validate_${channel}_${target} CHILD asymptotic_${channel}_${target}" >> "$dag_file"
+            if [[ "$method" == "ParticleNet" && "$DO_PLOT_SCORE" == "true" ]]; then
+                if [[ "$target" == "All" ]]; then
+                    echo "PARENT merge_template_${channel}_All CHILD plot_score_${channel}_All" >> "$dag_file"
+                else
+                    echo "PARENT template_${channel}_${target} CHILD plot_score_${channel}_${target}" >> "$dag_file"
+                fi
+            fi
         done
     done
 }

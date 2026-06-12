@@ -28,6 +28,10 @@ DEFAULT_GOF_TARGETS = (
     ("Run2", "Combined"),
     ("Run3", "Combined"),
 )
+DEFAULT_SCORE_TARGETS = DEFAULT_POSTFIT_TARGETS
+SCORE_FILENAMES = (
+    "LR_modified.png",
+)
 
 
 @dataclass
@@ -282,6 +286,53 @@ def collect_gof_grid(
     return copied
 
 
+def collect_score_grid(
+    template_root: Path,
+    output_dir: Path,
+    targets: Iterable[tuple[str, str]],
+    masspoint: str,
+    method: str,
+    suffix: str,
+    entries: list[Entry],
+    dry_run: bool,
+) -> int:
+    if method != "ParticleNet":
+        return 0
+
+    copied = 0
+    for era, channel in targets:
+        source_dir = (
+            template_root
+            / era
+            / channel
+            / masspoint
+            / method
+            / suffix
+            / "scores"
+            / channel
+        )
+        era_tag = "ALL" if era == "All" else era
+        for filename in SCORE_FILENAMES:
+            source_name = Path(filename)
+            destination = (
+                output_dir
+                / "Scores"
+                / f"{source_name.stem}_{era_tag}_{channel}{source_name.suffix}"
+            )
+            copy_artifact(
+                source_dir / filename,
+                destination,
+                "score_plot",
+                era,
+                entries,
+                dry_run,
+                note=f"{era}/{channel}",
+            )
+            if entries[-1].status in {"copied", "dry_run"}:
+                copied += 1
+    return copied
+
+
 def write_reports(output_dir: Path, entries: list[Entry], dry_run: bool) -> None:
     if dry_run:
         return
@@ -324,6 +375,18 @@ def collect(args: argparse.Namespace) -> int:
             template_root,
             output_dir,
             args.gof_targets,
+            args.masspoint,
+            args.method,
+            suffix,
+            entries,
+            args.dry_run,
+        )
+
+    if not args.skip_scores:
+        collect_score_grid(
+            template_root,
+            output_dir,
+            args.score_targets,
             args.masspoint,
             args.method,
             suffix,
@@ -448,6 +511,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--score-targets",
+        type=parse_targets,
+        default=DEFAULT_SCORE_TARGETS,
+        help=(
+            "Comma-separated ERA:CHANNEL targets for ParticleNet score plots "
+            f"[default: {format_targets(DEFAULT_SCORE_TARGETS)}]"
+        ),
+    )
+    parser.add_argument(
         "--template-root",
         type=Path,
         default=repo_root() / "templates",
@@ -463,6 +535,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action="store_true", help="Print what would be collected")
     parser.add_argument("--skip-fitdiag", action="store_true", help="Do not collect prefit/postfit or fitdiag artifacts")
     parser.add_argument("--skip-gof", action="store_true", help="Do not collect GoF artifacts")
+    parser.add_argument("--skip-scores", action="store_true", help="Do not collect ParticleNet score plots")
     return parser
 
 
