@@ -50,6 +50,16 @@
 #    --signal-line median --signal-mass 30 60 90 120 \
 #    --unblind --signal-region-style
 
+# Paper LR_modified ParticleNet score plots for SR and TTZ CR.
+# Outputs:
+#   results/paper/SR/LR_modified_{masspoint}.pdf
+#   results/paper/TTZCR/LR_modified_{masspoint}.pdf
+#python3 python/plotPaperLRModified.py --region all --masspoint all --output-root results/paper
+
+# Paper b-only postfit SR mass summary plots.
+# Outputs: results/paper/Postfit/postfit_b_mHc160_{channel}_{region}.pdf
+#python3 python/plotPaperPostfitSummary.py
+
 # Signal injection and bias tests.
 #./automize/signalInjection.sh --mode all --method Baseline    --binning extended
 #./automize/signalInjection.sh --mode all --method ParticleNet --binning extended

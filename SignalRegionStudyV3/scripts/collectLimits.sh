@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "  --unblind     Read from templates/.../extended_unblind/ and emit"
             echo "                limits.{era}.Asymptotic.Baseline.unblind.json plus"
-            echo "                limit.{era}.Asymptotic.Baseline.*.unblind.png. Observed"
+            echo "                limit.{era}.Asymptotic.Baseline.*.unblind.{png,pdf}. Observed"
             echo "                limit is drawn (--blind is dropped)."
             echo "  --dry-run     Print discovered V3 tasks without collecting or plotting."
             echo "  -j, --jobs N  Number of parallel pipeline jobs (default: 4, env: COLLECTLIMITS_JOBS)."

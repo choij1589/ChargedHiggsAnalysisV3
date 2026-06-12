@@ -440,3 +440,4 @@ output_base = f"results/plots/{args.mode}/{args.era}/limit.{args.era}{_ch_suffix
 os.makedirs(os.path.dirname(output_base), exist_ok=True)
 
 canv.SaveAs(f"{output_base}.png")
+canv.SaveAs(f"{output_base}.pdf")
