@@ -513,7 +513,10 @@ class ComparisonCanvas(BaseCanvas):
     def drawSignals(self, signals):
         self._cd_main()
         self.signals = {}
-        self.sigleg = CMS.cmsLeg(0.18, 0.57, 0.70, 0.74, textSize=0.030, columns=1)
+        sig_legend = self.config.get("signalLegend", (0.30, 0.73, 0.69, 0.88))
+        sig_text_size = self.config.get("signalLegendTextSize", 0.026)
+        sig_columns = self.config.get("signalLegendColumns", 1)
+        self.sigleg = CMS.cmsLeg(*sig_legend, textSize=sig_text_size, columns=sig_columns)
 
         # Process all signals
         for idx, (name, hist) in enumerate(signals.items()):
@@ -529,11 +532,29 @@ class ComparisonCanvas(BaseCanvas):
         # Now draw all signals
         n_signals = len(self.signals)
         use_extended = n_signals > len(PALETTE_LONG)
+        signal_colors = self.config.get("signalColors")
+        signal_line_width = self.config.get("signalLineWidth", 2)
+        signal_fill = self.config.get("signalFill", False)
+        signal_fill_alpha = self.config.get("signalFillAlpha", 0.20)
+        signal_fill_style = self.config.get("signalFillStyle", 1001)
         for idx, (name, hist) in enumerate(self.signals.items()):
-            color = ROOT.TColor.GetColorDark(PALETTE_LONG[idx % len(PALETTE_LONG)] if use_extended else self.palette[idx])
+            if signal_colors:
+                color = signal_colors[idx % len(signal_colors)]
+            else:
+                color = ROOT.TColor.GetColorDark(PALETTE_LONG[idx % len(PALETTE_LONG)] if use_extended else self.palette[idx])
             line_style = ROOT.kSolid
             hist.SetStats(0)
-            CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=2, LineStyle=line_style, MarkerSize=0)
+            if signal_fill:
+                hist.SetFillColorAlpha(color, signal_fill_alpha)
+                CMS.cmsObjectDraw(
+                    hist, "hist",
+                    LineColor=color,
+                    LineWidth=0,
+                    LineStyle=line_style,
+                    FillStyle=signal_fill_style,
+                    MarkerSize=0,
+                )
+            CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=signal_line_width, LineStyle=line_style, MarkerSize=0)
             CMS.addToLegend(self.sigleg, (hist, name, "L"))
         self.sigleg.Draw()
         self._cd_main().RedrawAxis()

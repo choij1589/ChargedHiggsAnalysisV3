@@ -27,7 +27,8 @@ BKG_COLORS = {
 BKG_ORDER = ["others", "conv", "diboson", "ttX", "nonprompt"]
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--era", required=True, type=str, help="era")
+parser.add_argument("--era", required=True, type=str,
+                    help="era (single era, Run2, Run3, or All for Run2+Run3)")
 parser.add_argument("--channel", required=True, type=str, help="channel")
 parser.add_argument("--histkey", required=True, type=str, help="histkey")
 parser.add_argument("--exclude", default=None, type=str,
@@ -37,8 +38,20 @@ parser.add_argument("--signals", default=["MHc70_MA15", "MHc100_MA60", "MHc130_M
                     nargs="+", help="Signal mass points to overlay")
 parser.add_argument("--signal-scale", default=2.0, type=float,
                     help="Scale factor for signal histograms")
+parser.add_argument("--signal-colors", default=None, nargs="+",
+                    help="signal line colors as ROOT color codes or hex strings")
+parser.add_argument("--signal-line-width", default=2, type=int,
+                    help="signal line width")
+parser.add_argument("--signal-fill", default=False, action="store_true",
+                    help="fill signal histograms under the line")
+parser.add_argument("--signal-fill-alpha", default=0.20, type=float,
+                    help="signal fill alpha when --signal-fill is used")
 parser.add_argument("--noHEMVeto", default=False, action="store_true",
                     help="use NoHEMVeto samples (2018 only, SR1E2Mu/ZFake1E2Mu/TTZ2E1Mu)")
+parser.add_argument("--output-root", default=None, type=str,
+                    help="base output directory (default: $WORKDIR/TriLepton/plots)")
+parser.add_argument("--output-format", default="png", choices=["png", "pdf"],
+                    help="output file format")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 args = parser.parse_args()
 
@@ -63,13 +76,52 @@ with open(f"{WORKDIR}/Common/Data/ConvSF.json") as f:
 with open(f"{WORKDIR}/Common/Data/FakeNorm.json") as f:
     FAKENORM = json.load(f)
 
+
+RUN2_ERAS = ["2016preVFP", "2016postVFP", "2017", "2018"]
+RUN3_ERAS = ["2022", "2022EE", "2023", "2023BPix"]
+
+
+def get_plot_era_list(era):
+    if era == "All":
+        return RUN2_ERAS + RUN3_ERAS
+    return get_era_list(era)
+
+
+def get_run_period(era):
+    if era in RUN2_ERAS or era == "Run2":
+        return "Run2"
+    if era in RUN3_ERAS or era == "Run3":
+        return "Run3"
+    raise ValueError(f"Invalid era: {era}")
+
+
+def get_plot_com_energy(era):
+    if era == "All":
+        return "13/13.6"
+    return get_CoM_energy(era)
+
+
 config["era"] = args.era
-config["CoM"] = get_CoM_energy(args.era)
+config["CoM"] = get_plot_com_energy(args.era)
 config["rTitle"] = "Data / Pred"
 config["maxDigits"] = 3
 config["blind"] = args.blind  # Pass blind flag to ComparisonCanvas
 config["overflow"] = True  # Accumulate overflow into last visible bin
 config["iPos"] = 0
+config["legend"] = (0.72, 0.55, 0.99, 0.89)
+config["legendTextSize"] = 0.038
+config["signalLegend"] = (0.32, 0.63, 0.73, 0.87)
+config["signalLegendTextSize"] = 0.034
+config["signalLineWidth"] = args.signal_line_width
+config["signalFill"] = args.signal_fill
+config["signalFillAlpha"] = args.signal_fill_alpha
+if args.signal_colors:
+    config["signalColors"] = [
+        ROOT.TColor.GetColor(color) if color.startswith("#") else int(color)
+        for color in args.signal_colors
+    ]
+if args.era == "All":
+    config["run_label"] = "Run 2+3, 200 fb^{#minus1}"
 if not args.blind:
     config["chi2_test"] = True
     config["normalize_chi2"] = False
@@ -77,13 +129,11 @@ else:
     config["no_ratio"] = True  # Ratio pad is meaningless when data is blinded
 #### Configurations
 # Get era list for merging
-era_list = get_era_list(args.era)
+era_list = get_plot_era_list(args.era)
 
-if args.era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
-    RUN = "Run2"
-elif args.era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
-    RUN = "Run3"
-else:
+if args.era != "All":
+    get_run_period(args.era)
+elif not era_list:
     raise ValueError(f"Invalid era: {args.era}")
 
 ## Check channel
@@ -100,10 +150,10 @@ if args.noHEMVeto:
         raise ValueError(f"--noHEMVeto not supported for channel {args.channel}")
 
 CHANNEL_LABELS = {
-    "SR1E2Mu":    ("Signal Region", "e#mu#mu"),
-    "SR3Mu":      ("Signal Region", "#mu#mu#mu"),
-    "ZFake1E2Mu": ("ZFake CR",  "e#mu#mu"),
-    "ZFake3Mu":   ("ZFake CR",  "#mu#mu#mu"),
+    "SR1E2Mu":    ("SR", "e#mu#mu"),
+    "SR3Mu":      ("SR", "#mu#mu#mu"),
+    "ZFake1E2Mu": ("Z+nonprompt CR",  "e#mu#mu"),
+    "ZFake3Mu":   ("Z+nonprompt CR",  "#mu#mu#mu"),
     "ZG1E2Mu":    ("Z+#gamma CR", "e#mu#mu"),
     "ZG3Mu":      ("Z+#gamma CR", "#mu#mu#mu"),
     "WZ1E2Mu":    ("WZ CR",     "e#mu#mu"),
@@ -111,9 +161,8 @@ CHANNEL_LABELS = {
     "TTZ2E1Mu":   ("TTZ CR",    "ee#mu"),
 }
 config["channel"], config["region"] = CHANNEL_LABELS[args.channel]
-config["channelPosY"] = 0.80
-config["channelPosX"] = 0.18
-
+config["channelPosY"] = 0.75
+config["channelPosX"] = 0.22
 if "1E2Mu" in args.channel:
     FLAG = "Run1E2Mu"
     channel_flag = "1E2Mu"
@@ -145,12 +194,14 @@ def format_signal_label(signal_mass):
 ERA_SAMPLES, ERA_SYSTEMATICS = load_era_configs(channel_args, era_list)
 DATAPERIODs, MC_CATEGORIES, MCList = get_sample_lists(ERA_SAMPLES, ["nonprompt", "conv", "ttX", "diboson", "others"])
 
+OUTPUTROOT = args.output_root or f"{WORKDIR}/TriLepton/plots"
+output_name = f"{args.histkey.replace('/', '_')}.{args.output_format}"
 if args.exclude:
-    OUTPUTPATH = f"{WORKDIR}/TriLepton/plots/{args.era}/{args.channel}/No{args.exclude}/{args.histkey.replace('/', '_')}.png"
+    OUTPUTPATH = f"{OUTPUTROOT}/{args.era}/{args.channel}/No{args.exclude}/{output_name}"
 elif args.noHEMVeto:
-    OUTPUTPATH = f"{WORKDIR}/TriLepton/plots/{args.era}/{args.channel}/NoHEMVeto/{args.histkey.replace('/', '_')}.png"
+    OUTPUTPATH = f"{OUTPUTROOT}/{args.era}/{args.channel}/NoHEMVeto/{output_name}"
 else:
-    OUTPUTPATH = f"{WORKDIR}/TriLepton/plots/{args.era}/{args.channel}/Central/{args.histkey.replace('/', '_')}.png"
+    OUTPUTPATH = f"{OUTPUTROOT}/{args.era}/{args.channel}/Central/{output_name}"
 
 os.makedirs(os.path.dirname(OUTPUTPATH), exist_ok=True)
 
@@ -289,7 +340,7 @@ for era in era_list:
         if h:
             clip_negative_bins(h)
             # Apply K-factor before systematics
-            h = apply_kfactor(h, sample, RUN)
+            h = apply_kfactor(h, sample, get_run_period(era))
             h = calculate_systematics(h, ERA_SYSTEMATICS[era], file_path, args, era, missing_logger)
             # Apply conversion scale factor
             h = apply_conv_scale_factor(h, sample, era, ERA_SAMPLES)

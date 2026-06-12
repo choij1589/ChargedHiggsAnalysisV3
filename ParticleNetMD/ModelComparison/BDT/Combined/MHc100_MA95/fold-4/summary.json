@@ -1,0 +1,409 @@
+{
+  "signal": "MHc100_MA95",
+  "backend": "sklearn.HistGradientBoostingClassifier",
+  "channel": "Combined",
+  "pilot_mode": false,
+  "folds": {
+    "train": [
+      0,
+      1,
+      2
+    ],
+    "valid": [
+      3
+    ],
+    "test": [
+      4
+    ]
+  },
+  "caps": {
+    "train": 50000,
+    "valid": 50000,
+    "test": null,
+    "pilot_events_per_class": null
+  },
+  "n_events": {
+    "train": 600000,
+    "valid": 200000,
+    "test": 546366
+  },
+  "grid_search": {
+    "best": {
+      "params": {
+        "learning_rate": 0.08,
+        "max_leaf_nodes": 63,
+        "l2_regularization": 0.01
+      },
+      "n_iter": 205,
+      "valid_avg_auc": 0.927820144491624,
+      "valid_auc_by_background": {
+        "nonprompt": 0.9129996726860069,
+        "diboson": 0.9487620204538525,
+        "ttX": 0.9216987403350126
+      }
+    },
+    "grid": [
+      {
+        "params": {
+          "learning_rate": 0.03,
+          "max_leaf_nodes": 31,
+          "l2_regularization": 0.0
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.9221289690678006,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9031333345847865,
+          "diboson": 0.9450940204746237,
+          "ttX": 0.9181595521439919
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.03,
+          "max_leaf_nodes": 31,
+          "l2_regularization": 0.01
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.9220623341658928,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9029007250591905,
+          "diboson": 0.9450763051066953,
+          "ttX": 0.9182099723317928
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.03,
+          "max_leaf_nodes": 63,
+          "l2_regularization": 0.0
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.926184148582981,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9103889803788556,
+          "diboson": 0.9473916544490687,
+          "ttX": 0.9207718109210183
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.03,
+          "max_leaf_nodes": 63,
+          "l2_regularization": 0.01
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.9264407046006894,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9105538794291865,
+          "diboson": 0.9477808929177111,
+          "ttX": 0.9209873414551707
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.05,
+          "max_leaf_nodes": 31,
+          "l2_regularization": 0.0
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.9245278520366229,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9073196728254644,
+          "diboson": 0.9465510610142962,
+          "ttX": 0.919712822270108
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.05,
+          "max_leaf_nodes": 31,
+          "l2_regularization": 0.01
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.9246675488574612,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9074131308283775,
+          "diboson": 0.9467508824960631,
+          "ttX": 0.9198386332479427
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.05,
+          "max_leaf_nodes": 63,
+          "l2_regularization": 0.0
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.927505256308021,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9130228807412561,
+          "diboson": 0.9483843397784327,
+          "ttX": 0.9211085484043741
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.05,
+          "max_leaf_nodes": 63,
+          "l2_regularization": 0.01
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.9277363446306137,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9129572044198908,
+          "diboson": 0.9483922715703469,
+          "ttX": 0.9218595579016035
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.08,
+          "max_leaf_nodes": 31,
+          "l2_regularization": 0.0
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.925804921108316,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9098807868241664,
+          "diboson": 0.9469529254589589,
+          "ttX": 0.9205810510418225
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.08,
+          "max_leaf_nodes": 31,
+          "l2_regularization": 0.01
+        },
+        "n_iter": 300,
+        "valid_avg_auc": 0.9257216887865871,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9092733343375368,
+          "diboson": 0.9473428152739254,
+          "ttX": 0.9205489167482992
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.08,
+          "max_leaf_nodes": 63,
+          "l2_regularization": 0.0
+        },
+        "n_iter": 194,
+        "valid_avg_auc": 0.9272669045039524,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9131283118625808,
+          "diboson": 0.9473953201952408,
+          "ttX": 0.9212770814540359
+        }
+      },
+      {
+        "params": {
+          "learning_rate": 0.08,
+          "max_leaf_nodes": 63,
+          "l2_regularization": 0.01
+        },
+        "n_iter": 205,
+        "valid_avg_auc": 0.927820144491624,
+        "valid_auc_by_background": {
+          "nonprompt": 0.9129996726860069,
+          "diboson": 0.9487620204538525,
+          "ttX": 0.9216987403350126
+        }
+      }
+    ]
+  },
+  "bdt_auc": {
+    "train": {
+      "nonprompt": 0.9316651584214721,
+      "diboson": 0.96687847771269,
+      "ttX": 0.9429975346240287
+    },
+    "valid": {
+      "nonprompt": 0.9129996726860069,
+      "diboson": 0.9487620204538525,
+      "ttX": 0.9216987403350126
+    },
+    "test": {
+      "nonprompt": 0.9147565259275676,
+      "diboson": 0.9484524294275446,
+      "ttX": 0.9234669729014146
+    },
+    "test_average": 0.9288919760855089
+  },
+  "roc_comparison": {
+    "nonprompt": {
+      "BDT": {
+        "train": 0.9316651584214721,
+        "test": 0.9147565259275676
+      }
+    },
+    "diboson": {
+      "BDT": {
+        "train": 0.96687847771269,
+        "test": 0.9484524294275446
+      }
+    },
+    "ttX": {
+      "BDT": {
+        "train": 0.9429975346240287,
+        "test": 0.9234669729014146
+      }
+    }
+  },
+  "mass_correlation": {
+    "train": {
+      "BDT": {
+        "mass1": {
+          "disco": 0.18270759284496307,
+          "pearson_absw": 0.1004745674683939,
+          "spearman_absw": 0.0024198186839678713,
+          "n_valid": 600000
+        },
+        "mass2": {
+          "disco": 0.10736463963985443,
+          "pearson_absw": -0.04409718498742073,
+          "spearman_absw": 0.001979968760343008,
+          "n_valid": 231397
+        }
+      }
+    },
+    "test": {
+      "BDT": {
+        "mass1": {
+          "disco": 0.19741813838481903,
+          "pearson_absw": 0.09836819828668067,
+          "spearman_absw": -0.002250176584370622,
+          "n_valid": 546366
+        },
+        "mass2": {
+          "disco": 0.10072052478790283,
+          "pearson_absw": -0.042395494803313824,
+          "spearman_absw": 0.005894316718589869,
+          "n_valid": 217100
+        }
+      }
+    }
+  },
+  "top_features": [
+    {
+      "feature": "jet1_btagged",
+      "mean_auc_drop": 0.05996124254214508
+    },
+    {
+      "feature": "jet2_btagged",
+      "mean_auc_drop": 0.05320422121616486
+    },
+    {
+      "feature": "jet1_pt",
+      "mean_auc_drop": 0.029449724849861414
+    },
+    {
+      "feature": "lep3_pt",
+      "mean_auc_drop": 0.027453809730649037
+    },
+    {
+      "feature": "lep1_pt",
+      "mean_auc_drop": 0.01624168390919023
+    },
+    {
+      "feature": "jet3_btagged",
+      "mean_auc_drop": 0.010874063728938732
+    },
+    {
+      "feature": "lep2_pt",
+      "mean_auc_drop": 0.008574411074486421
+    },
+    {
+      "feature": "ptmiss_proxy",
+      "mean_auc_drop": 0.008537041611983653
+    },
+    {
+      "feature": "dR_lep1_lep2",
+      "mean_auc_drop": 0.008460655231126046
+    },
+    {
+      "feature": "dR_lep1_jet1",
+      "mean_auc_drop": 0.007853046494330607
+    },
+    {
+      "feature": "dR_lep1_lep3",
+      "mean_auc_drop": 0.0074595727024101555
+    },
+    {
+      "feature": "jet2_pt",
+      "mean_auc_drop": 0.00722218243544559
+    },
+    {
+      "feature": "dR_lep1_jet2",
+      "mean_auc_drop": 0.0070680723903483456
+    },
+    {
+      "feature": "lep1_isMuon",
+      "mean_auc_drop": 0.0048119383374105595
+    },
+    {
+      "feature": "dR_lep2_jet1",
+      "mean_auc_drop": 0.004616283592322135
+    },
+    {
+      "feature": "lep2_isMuon",
+      "mean_auc_drop": 0.004561592663478553
+    },
+    {
+      "feature": "dR_lep2_lep3",
+      "mean_auc_drop": 0.0043349890869698315
+    },
+    {
+      "feature": "lep2_charge",
+      "mean_auc_drop": 0.003949332801858829
+    },
+    {
+      "feature": "lep3_isMuon",
+      "mean_auc_drop": 0.0038958761431552302
+    },
+    {
+      "feature": "jet3_pt",
+      "mean_auc_drop": 0.0029783364964934833
+    },
+    {
+      "feature": "lep1_charge",
+      "mean_auc_drop": 0.002275485429533153
+    },
+    {
+      "feature": "dR_lep2_jet2",
+      "mean_auc_drop": 0.002230716133473254
+    },
+    {
+      "feature": "dR_lep1_jet3",
+      "mean_auc_drop": 0.00220835869374314
+    },
+    {
+      "feature": "dR_lep3_jet1",
+      "mean_auc_drop": 0.001718313562956264
+    },
+    {
+      "feature": "jet4_btagged",
+      "mean_auc_drop": 0.0017072761350508392
+    }
+  ],
+  "feature_policy": {
+    "source": "external table cache",
+    "table_cache_source": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/ModelComparison/dataset/MHc100_MA95/fold-4/tables",
+    "input_features": 82,
+    "object_sorting": "leptons and jets sorted by descending pT",
+    "os_dimuon_sorting": "opposite-sign muon candidates sorted by pair pT, not mass",
+    "excluded": [
+      "mass1",
+      "mass2",
+      "dimuon mass",
+      "all invariant masses",
+      "abs_eta duplicates",
+      "simple reducer variables",
+      "explicit channel flags",
+      "explicit object counts",
+      "HT",
+      "ST"
+    ]
+  }
+}
