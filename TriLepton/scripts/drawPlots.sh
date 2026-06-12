@@ -92,10 +92,10 @@ if [[ $CHANNEL == "SR1E2Mu" ]]; then
         "pair/pt" "pair/eta" "pair/phi" "pair/mass"
         "dR_ele_mu1" "dR_ele_mu2" "dR_min_ele_mu" "dR_mu1_mu2"
     )
-    parallel draw_plot_blind ::: ${histkeys[@]}
+    parallel draw_plot ::: ${histkeys[@]}
     #parallel draw_plot ::: ${histkeys[@]}
     if [[ "$ERA" == "2018" ]]; then
-        parallel draw_plot_blind_noHEMVeto ::: ${histkeys[@]}
+        parallel draw_plot_noHEMVeto ::: ${histkeys[@]}
     fi
 elif [[ $CHANNEL == "TTZ2E1Mu" ]]; then
     histkeys=(
@@ -135,7 +135,7 @@ elif [[ $CHANNEL == "SR3Mu" ]]; then
         "pair_highM/pt" "pair_highM/eta" "pair_highM/phi" "pair_highM/mass"
         "dR_pair_ss1_os" "dR_pair_ss2_os" "dR_pair_ss1_ss2"
     )
-    parallel draw_plot_blind ::: ${histkeys[@]}
+    parallel draw_plot ::: ${histkeys[@]}
     #parallel draw_plot ::: ${histkeys[@]}
 elif [[ $CHANNEL == "ZFake1E2Mu" ]]; then
     histkeys=(

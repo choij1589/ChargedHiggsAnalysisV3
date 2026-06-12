@@ -308,6 +308,37 @@ class BaseCanvas():
 
         return ymin, ymax
 
+
+def build_ratio_uncertainty_band(denominator, name=None):
+    """Return denominator uncertainty as a ratio band centered at 1."""
+    ratio_band = denominator.Clone(name or f"{denominator.GetName()}_ratio_uncertainty")
+    ratio_band.SetDirectory(0)
+    for ibin in range(1, ratio_band.GetNbinsX() + 1):
+        denom = denominator.GetBinContent(ibin)
+        if denom > 0:
+            ratio_band.SetBinContent(ibin, 1.0)
+            ratio_band.SetBinError(ibin, denominator.GetBinError(ibin) / denom)
+        else:
+            ratio_band.SetBinContent(ibin, 0.0)
+            ratio_band.SetBinError(ibin, 0.0)
+    return ratio_band
+
+
+def build_ratio_histogram(numerator, denominator, name=None):
+    """Return numerator/denominator with numerator-only bin errors."""
+    ratio = numerator.Clone(name or f"{numerator.GetName()}_ratio")
+    ratio.SetDirectory(0)
+    for ibin in range(1, ratio.GetNbinsX() + 1):
+        denom = denominator.GetBinContent(ibin)
+        if denom > 0:
+            ratio.SetBinContent(ibin, numerator.GetBinContent(ibin) / denom)
+            ratio.SetBinError(ibin, numerator.GetBinError(ibin) / denom)
+        else:
+            ratio.SetBinContent(ibin, 0.0)
+            ratio.SetBinError(ibin, 0.0)
+    return ratio
+
+
 class ComparisonCanvas(BaseCanvas):
     def __init__(self, incl, hists, config):
         super().__init__()
@@ -355,8 +386,8 @@ class ComparisonCanvas(BaseCanvas):
         # Create ratio histogram (only when ratio pad is needed)
         no_ratio = config.get("no_ratio", False)
         if not no_ratio:
-            self.ratio = self.incl.Clone("ratio")
-            self.ratio.Divide(self.systematics)
+            self.ratio_band = build_ratio_uncertainty_band(self.systematics, "ratio_uncertainty")
+            self.ratio = build_ratio_histogram(self.incl, self.systematics, "ratio")
 
         # Get axis ranges
         xmin, xmax = self._get_axis_range(config, self.systematics)
@@ -482,7 +513,10 @@ class ComparisonCanvas(BaseCanvas):
     def drawSignals(self, signals):
         self._cd_main()
         self.signals = {}
-        self.sigleg = CMS.cmsLeg(0.18, 0.57, 0.70, 0.74, textSize=0.030, columns=1)
+        sig_legend = self.config.get("signalLegend", (0.30, 0.73, 0.69, 0.88))
+        sig_text_size = self.config.get("signalLegendTextSize", 0.026)
+        sig_columns = self.config.get("signalLegendColumns", 1)
+        self.sigleg = CMS.cmsLeg(*sig_legend, textSize=sig_text_size, columns=sig_columns)
 
         # Process all signals
         for idx, (name, hist) in enumerate(signals.items()):
@@ -498,11 +532,29 @@ class ComparisonCanvas(BaseCanvas):
         # Now draw all signals
         n_signals = len(self.signals)
         use_extended = n_signals > len(PALETTE_LONG)
+        signal_colors = self.config.get("signalColors")
+        signal_line_width = self.config.get("signalLineWidth", 2)
+        signal_fill = self.config.get("signalFill", False)
+        signal_fill_alpha = self.config.get("signalFillAlpha", 0.20)
+        signal_fill_style = self.config.get("signalFillStyle", 1001)
         for idx, (name, hist) in enumerate(self.signals.items()):
-            color = ROOT.TColor.GetColorDark(PALETTE_LONG[idx % len(PALETTE_LONG)] if use_extended else self.palette[idx])
+            if signal_colors:
+                color = signal_colors[idx % len(signal_colors)]
+            else:
+                color = ROOT.TColor.GetColorDark(PALETTE_LONG[idx % len(PALETTE_LONG)] if use_extended else self.palette[idx])
             line_style = ROOT.kSolid
             hist.SetStats(0)
-            CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=2, LineStyle=line_style, MarkerSize=0)
+            if signal_fill:
+                hist.SetFillColorAlpha(color, signal_fill_alpha)
+                CMS.cmsObjectDraw(
+                    hist, "hist",
+                    LineColor=color,
+                    LineWidth=0,
+                    LineStyle=line_style,
+                    FillStyle=signal_fill_style,
+                    MarkerSize=0,
+                )
+            CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=signal_line_width, LineStyle=line_style, MarkerSize=0)
             CMS.addToLegend(self.sigleg, (hist, name, "L"))
         self.sigleg.Draw()
         self._cd_main().RedrawAxis()
@@ -519,7 +571,7 @@ class ComparisonCanvas(BaseCanvas):
         ref_line.SetLineColor(ROOT.kBlack)
         ref_line.SetLineWidth(2)
         ref_line.DrawLine(xmin, 1.0, xmax, 1.0)
-        CMS.cmsObjectDraw(self.ratio, "FE2", FillStyle=3004, LineWidth=0, FillColor=12, MarkerSize=0)
+        CMS.cmsObjectDraw(self.ratio_band, "FE2", FillStyle=3004, LineWidth=0, FillColor=12, MarkerSize=0)
         CMS.cmsObjectDraw(self.ratio, "PE", MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
 
         self.canv.cd(2).RedrawAxis()
@@ -670,11 +722,14 @@ class KinematicCanvasWithRatio(BaseCanvas):
         self.leg = self._create_legend(config)
 
         # Create ratio histograms
+        self.ratio_band = build_ratio_uncertainty_band(self.reference_hist, "ratio_uncertainty")
         self.ratio_hists = {}
-        for name, hist in self.hists.items():
-            ratio = hist.Clone(f"{name}_ratio")
-            ratio.Divide(self.reference_hist)
-            self.ratio_hists[name] = ratio
+        self.ratio_colors = {}
+        for idx, (name, hist) in enumerate(self.hists.items()):
+            if name == first_key:
+                continue
+            self.ratio_hists[name] = build_ratio_histogram(hist, self.reference_hist, f"{name}_ratio")
+            self.ratio_colors[name] = self.palette[idx]
     
     def drawPadUp(self):
         self.canv.cd(1)
@@ -704,11 +759,13 @@ class KinematicCanvasWithRatio(BaseCanvas):
         ref_line.SetLineColor(ROOT.kBlack)
         ref_line.SetLineWidth(2)
         ref_line.DrawLine(xmin, 1.0, xmax, 1.0)
+        CMS.cmsObjectDraw(self.ratio_band, "FE2", FillStyle=3004, LineWidth=0, FillColor=12, MarkerSize=0)
 
         # Draw ratio histograms
-        for idx, (name, ratio) in enumerate(self.ratio_hists.items()):
-            CMS.cmsObjectDraw(ratio, "hist", LineColor=self.palette[idx], LineWidth=2, LineStyle=ROOT.kSolid)
-            CMS.cmsObjectDraw(ratio, "LE", LineColor=self.palette[idx], LineWidth=2, LineStyle=ROOT.kSolid, FillColor=ROOT.kWhite, MarkerSize=0)
+        for name, ratio in self.ratio_hists.items():
+            color = self.ratio_colors[name]
+            CMS.cmsObjectDraw(ratio, "hist", LineColor=color, LineWidth=2, LineStyle=ROOT.kSolid)
+            CMS.cmsObjectDraw(ratio, "LE", LineColor=color, LineWidth=2, LineStyle=ROOT.kSolid, FillColor=ROOT.kWhite, MarkerSize=0)
 
         self.canv.cd(2).RedrawAxis()
 
