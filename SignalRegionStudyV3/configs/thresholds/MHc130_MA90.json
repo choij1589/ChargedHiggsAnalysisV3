@@ -1,389 +1,308 @@
 {
   "masspoint": "MHc130_MA90",
-  "binning": "extended",
-  "generated_at": "2026-05-05T07:46:38Z",
-  "source_template_dir": "templates/{era}/{channel}/MHc130_MA90/ParticleNet/extended",
-  "2016preVFP": {
-    "SR1E2Mu": {
-      "mass_window": [
-        78.73496290659702,
-        101.04883720269012
-      ],
-      "weights": {
-        "nonprompt": 0.310388662903328,
-        "diboson": 0.24768740073326254,
-        "ttX": 0.44192393636340954
+  "generated_at": "2026-06-17T13:42:16Z",
+  "source_template_pattern": "templates/{era}/{channel}/{masspoint}/ParticleNet/{binning}",
+  "templates": {
+    "All": {
+      "Combined": {
+        "extended_unblind": {
+          "construction": "run_period_components",
+          "categories": {
+            "SR1E2Mu_Run2": {
+              "category": "SR1E2Mu_Run2",
+              "threshold": 0.64,
+              "sensitivity": {
+                "initial": 1.4320475426223798,
+                "max": 2.1166923419377506,
+                "improvement": 0.4780880375393419
+              },
+              "weights": {
+                "nonprompt": 0.33475520011275783,
+                "diboson": 0.22371930055376685,
+                "ttX": 0.44152549933347535
+              }
+            },
+            "SR1E2Mu_Run3": {
+              "category": "SR1E2Mu_Run3",
+              "threshold": 0.65,
+              "sensitivity": {
+                "initial": 0.7196544694954217,
+                "max": 0.9898796663139635,
+                "improvement": 0.3754929737433681
+              },
+              "weights": {
+                "nonprompt": 0.35337176238630286,
+                "diboson": 0.1634097354160545,
+                "ttX": 0.48321850219764256
+              }
+            },
+            "SR3Mu_Run2": {
+              "category": "SR3Mu_Run2",
+              "threshold": 0.64,
+              "sensitivity": {
+                "initial": 1.7627846382147947,
+                "max": 2.2516449366130113,
+                "improvement": 0.2773227584359339
+              },
+              "weights": {
+                "nonprompt": 0.5003666912086462,
+                "diboson": 0.15765966984847904,
+                "ttX": 0.3419736389428747
+              }
+            },
+            "SR3Mu_Run3": {
+              "category": "SR3Mu_Run3",
+              "threshold": 0.61,
+              "sensitivity": {
+                "initial": 0.8337686881028449,
+                "max": 0.9440375102621629,
+                "improvement": 0.1322534939639235
+              },
+              "weights": {
+                "nonprompt": 0.5637933349042404,
+                "diboson": 0.12738666195224402,
+                "ttX": 0.3088200031435156
+              }
+            }
+          },
+          "source_dir": "templates/All/Combined/MHc130_MA90/ParticleNet/extended_unblind"
+        }
       },
-      "yields": {
-        "nonprompt": 22.557369792368263,
-        "diboson": 18.00058107467302,
-        "ttX": 32.11664227489272
+      "SR1E2Mu": {
+        "extended_unblind": {
+          "construction": "run_period_components",
+          "categories": {
+            "SR1E2Mu_Run2": {
+              "category": "SR1E2Mu_Run2",
+              "threshold": 0.64,
+              "sensitivity": {
+                "initial": 1.4320475426223798,
+                "max": 2.1166923419377506,
+                "improvement": 0.4780880375393419
+              },
+              "weights": {
+                "nonprompt": 0.33475520011275783,
+                "diboson": 0.22371930055376685,
+                "ttX": 0.44152549933347535
+              }
+            },
+            "SR1E2Mu_Run3": {
+              "category": "SR1E2Mu_Run3",
+              "threshold": 0.65,
+              "sensitivity": {
+                "initial": 0.7196544694954217,
+                "max": 0.9898796663139635,
+                "improvement": 0.3754929737433681
+              },
+              "weights": {
+                "nonprompt": 0.35337176238630286,
+                "diboson": 0.1634097354160545,
+                "ttX": 0.48321850219764256
+              }
+            }
+          },
+          "source_dir": "templates/All/SR1E2Mu/MHc130_MA90/ParticleNet/extended_unblind"
+        }
       },
-      "total_yield": 72.674593141934,
-      "threshold": 0.75,
-      "sensitivity": {
-        "initial": 0.5290850901635492,
-        "max": 0.7932535127070789,
-        "improvement": 0.49929288776947156
+      "SR3Mu": {
+        "extended_unblind": {
+          "construction": "run_period_components",
+          "categories": {
+            "SR3Mu_Run2": {
+              "category": "SR3Mu_Run2",
+              "threshold": 0.64,
+              "sensitivity": {
+                "initial": 1.7627846382147947,
+                "max": 2.2516449366130113,
+                "improvement": 0.2773227584359339
+              },
+              "weights": {
+                "nonprompt": 0.5003666912086462,
+                "diboson": 0.15765966984847904,
+                "ttX": 0.3419736389428747
+              }
+            },
+            "SR3Mu_Run3": {
+              "category": "SR3Mu_Run3",
+              "threshold": 0.61,
+              "sensitivity": {
+                "initial": 0.8337686881028449,
+                "max": 0.9440375102621629,
+                "improvement": 0.1322534939639235
+              },
+              "weights": {
+                "nonprompt": 0.5637933349042404,
+                "diboson": 0.12738666195224402,
+                "ttX": 0.3088200031435156
+              }
+            }
+          },
+          "source_dir": "templates/All/SR3Mu/MHc130_MA90/ParticleNet/extended_unblind"
+        }
       }
     },
-    "SR3Mu": {
-      "mass_window": [
-        78.6978826999611,
-        101.03727186676457
-      ],
-      "weights": {
-        "nonprompt": 0.4634605531856715,
-        "diboson": 0.1866093105731248,
-        "ttX": 0.34993013624120384
+    "Run2": {
+      "Combined": {
+        "extended_unblind": {
+          "construction": "run_period_components",
+          "categories": {
+            "SR1E2Mu_Run2": {
+              "category": "SR1E2Mu_Run2",
+              "threshold": 0.64,
+              "sensitivity": {
+                "initial": 1.4320475426223798,
+                "max": 2.1166923419377506,
+                "improvement": 0.4780880375393419
+              },
+              "weights": {
+                "nonprompt": 0.33475520011275783,
+                "diboson": 0.22371930055376685,
+                "ttX": 0.44152549933347535
+              }
+            },
+            "SR3Mu_Run2": {
+              "category": "SR3Mu_Run2",
+              "threshold": 0.64,
+              "sensitivity": {
+                "initial": 1.7627846382147947,
+                "max": 2.2516449366130113,
+                "improvement": 0.2773227584359339
+              },
+              "weights": {
+                "nonprompt": 0.5003666912086462,
+                "diboson": 0.15765966984847904,
+                "ttX": 0.3419736389428747
+              }
+            }
+          },
+          "source_dir": "templates/Run2/Combined/MHc130_MA90/ParticleNet/extended_unblind"
+        }
       },
-      "yields": {
-        "nonprompt": 34.707714700954966,
-        "diboson": 13.974830581361662,
-        "ttX": 26.205629045327548
+      "SR1E2Mu": {
+        "extended_unblind": {
+          "construction": "run_period_components",
+          "categories": {
+            "SR1E2Mu_Run2": {
+              "category": "SR1E2Mu_Run2",
+              "threshold": 0.64,
+              "sensitivity": {
+                "initial": 1.4320475426223798,
+                "max": 2.1166923419377506,
+                "improvement": 0.4780880375393419
+              },
+              "weights": {
+                "nonprompt": 0.33475520011275783,
+                "diboson": 0.22371930055376685,
+                "ttX": 0.44152549933347535
+              }
+            }
+          },
+          "source_dir": "templates/Run2/SR1E2Mu/MHc130_MA90/ParticleNet/extended_unblind"
+        }
       },
-      "total_yield": 74.88817432764417,
-      "threshold": 0.53,
-      "sensitivity": {
-        "initial": 0.6731225802235488,
-        "max": 0.9110933147352982,
-        "improvement": 0.35353253850542
-      }
-    }
-  },
-  "2016postVFP": {
-    "SR1E2Mu": {
-      "mass_window": [
-        79.01731604921571,
-        100.91530180607626
-      ],
-      "weights": {
-        "nonprompt": 0.3816389952421937,
-        "diboson": 0.19145368361026463,
-        "ttX": 0.42690732114754176
-      },
-      "yields": {
-        "nonprompt": 25.037927226163443,
-        "diboson": 12.560570217340175,
-        "ttX": 28.007815166857416
-      },
-      "total_yield": 65.60631261036103,
-      "threshold": 0.88,
-      "sensitivity": {
-        "initial": 0.47819835929994453,
-        "max": 0.6718201217839445,
-        "improvement": 0.40489842492862427
-      }
-    },
-    "SR3Mu": {
-      "mass_window": [
-        78.70205140666667,
-        101.02831517526909
-      ],
-      "weights": {
-        "nonprompt": 0.5379639603602687,
-        "diboson": 0.13331874718128386,
-        "ttX": 0.32871729245844733
-      },
-      "yields": {
-        "nonprompt": 36.14096297509968,
-        "diboson": 8.956488279509863,
-        "ttX": 22.083560185072145
-      },
-      "total_yield": 67.1810114396817,
-      "threshold": 0.7000000000000001,
-      "sensitivity": {
-        "initial": 0.5969437994287052,
-        "max": 0.8073065578445439,
-        "improvement": 0.35239960381054747
-      }
-    }
-  },
-  "2017": {
-    "SR1E2Mu": {
-      "mass_window": [
-        79.27536065101143,
-        100.53288014758547
-      ],
-      "weights": {
-        "nonprompt": 0.3300266887652607,
-        "diboson": 0.22532520702869277,
-        "ttX": 0.44464810420604656
-      },
-      "yields": {
-        "nonprompt": 52.241403753869236,
-        "diboson": 35.66773693470207,
-        "ttX": 70.38534134050839
-      },
-      "total_yield": 158.2944820290797,
-      "threshold": 0.67,
-      "sensitivity": {
-        "initial": 0.8078459399744115,
-        "max": 1.221833645536069,
-        "improvement": 0.5124587313947144
+      "SR3Mu": {
+        "extended_unblind": {
+          "construction": "run_period_components",
+          "categories": {
+            "SR3Mu_Run2": {
+              "category": "SR3Mu_Run2",
+              "threshold": 0.64,
+              "sensitivity": {
+                "initial": 1.7627846382147947,
+                "max": 2.2516449366130113,
+                "improvement": 0.2773227584359339
+              },
+              "weights": {
+                "nonprompt": 0.5003666912086462,
+                "diboson": 0.15765966984847904,
+                "ttX": 0.3419736389428747
+              }
+            }
+          },
+          "source_dir": "templates/Run2/SR3Mu/MHc130_MA90/ParticleNet/extended_unblind"
+        }
       }
     },
-    "SR3Mu": {
-      "mass_window": [
-        79.21084484473587,
-        100.54138200135972
-      ],
-      "weights": {
-        "nonprompt": 0.5207100765780708,
-        "diboson": 0.15319044192017145,
-        "ttX": 0.32609948150175777
+    "Run3": {
+      "Combined": {
+        "extended_unblind": {
+          "construction": "run_period_components",
+          "categories": {
+            "SR1E2Mu_Run3": {
+              "category": "SR1E2Mu_Run3",
+              "threshold": 0.65,
+              "sensitivity": {
+                "initial": 0.7196544694954217,
+                "max": 0.9898796663139635,
+                "improvement": 0.3754929737433681
+              },
+              "weights": {
+                "nonprompt": 0.35337176238630286,
+                "diboson": 0.1634097354160545,
+                "ttX": 0.48321850219764256
+              }
+            },
+            "SR3Mu_Run3": {
+              "category": "SR3Mu_Run3",
+              "threshold": 0.61,
+              "sensitivity": {
+                "initial": 0.8337686881028449,
+                "max": 0.9440375102621629,
+                "improvement": 0.1322534939639235
+              },
+              "weights": {
+                "nonprompt": 0.5637933349042404,
+                "diboson": 0.12738666195224402,
+                "ttX": 0.3088200031435156
+              }
+            }
+          },
+          "source_dir": "templates/Run3/Combined/MHc130_MA90/ParticleNet/extended_unblind"
+        }
       },
-      "yields": {
-        "nonprompt": 83.54848516965286,
-        "diboson": 24.579569208665134,
-        "ttX": 52.323008367970765
+      "SR1E2Mu": {
+        "extended_unblind": {
+          "construction": "run_period_components",
+          "categories": {
+            "SR1E2Mu_Run3": {
+              "category": "SR1E2Mu_Run3",
+              "threshold": 0.65,
+              "sensitivity": {
+                "initial": 0.7196544694954217,
+                "max": 0.9898796663139635,
+                "improvement": 0.3754929737433681
+              },
+              "weights": {
+                "nonprompt": 0.35337176238630286,
+                "diboson": 0.1634097354160545,
+                "ttX": 0.48321850219764256
+              }
+            }
+          },
+          "source_dir": "templates/Run3/SR1E2Mu/MHc130_MA90/ParticleNet/extended_unblind"
+        }
       },
-      "total_yield": 160.45106274628876,
-      "threshold": 0.68,
-      "sensitivity": {
-        "initial": 0.9569891263708231,
-        "max": 1.2645506724799622,
-        "improvement": 0.32138457756098093
-      }
-    }
-  },
-  "2018": {
-    "SR1E2Mu": {
-      "mass_window": [
-        79.16874058512037,
-        100.58539826888925
-      ],
-      "weights": {
-        "nonprompt": 0.33158448675020696,
-        "diboson": 0.22471438536793548,
-        "ttX": 0.44370112788185756
-      },
-      "yields": {
-        "nonprompt": 77.06076093169395,
-        "diboson": 52.22397977199761,
-        "ttX": 103.11684625518883
-      },
-      "total_yield": 232.4015869588804,
-      "threshold": 0.65,
-      "sensitivity": {
-        "initial": 0.9420502491873589,
-        "max": 1.3976971404375593,
-        "improvement": 0.48367578230912334
-      }
-    },
-    "SR3Mu": {
-      "mass_window": [
-        78.91891226672122,
-        100.72787016041438
-      ],
-      "weights": {
-        "nonprompt": 0.48624343426813554,
-        "diboson": 0.15899028057103778,
-        "ttX": 0.3547662851608266
-      },
-      "yields": {
-        "nonprompt": 105.92824931337964,
-        "diboson": 34.63607093036018,
-        "ttX": 77.28592070155229
-      },
-      "total_yield": 217.85024094529211,
-      "threshold": 0.88,
-      "sensitivity": {
-        "initial": 1.177655040886742,
-        "max": 2.1066181294294744,
-        "improvement": 0.7888244488328673
-      }
-    }
-  },
-  "2022": {
-    "SR1E2Mu": {
-      "mass_window": [
-        79.57599568749761,
-        100.28503300275973
-      ],
-      "weights": {
-        "nonprompt": 0.3196098278638283,
-        "diboson": 0.14427140409788386,
-        "ttX": 0.5361187680382877
-      },
-      "yields": {
-        "nonprompt": 6.431435078382492,
-        "diboson": 2.9031402924128837,
-        "ttX": 10.788194699725246
-      },
-      "total_yield": 20.122770070520623,
-      "threshold": 0.65,
-      "sensitivity": {
-        "initial": 0.2872521204239595,
-        "max": 0.3663798053753874,
-        "improvement": 0.27546423272574017
-      }
-    },
-    "SR3Mu": {
-      "mass_window": [
-        79.52843636373836,
-        100.20037541845193
-      ],
-      "weights": {
-        "nonprompt": 0.5639209068090895,
-        "diboson": 0.1268862102191111,
-        "ttX": 0.30919288297179953
-      },
-      "yields": {
-        "nonprompt": 13.726388707756996,
-        "diboson": 3.088534973773052,
-        "ttX": 7.526058434963724
-      },
-      "total_yield": 24.34098211649377,
-      "threshold": 0.74,
-      "sensitivity": {
-        "initial": 0.3197503749412396,
-        "max": 0.38321134748651225,
-        "improvement": 0.19847036162798837
-      }
-    }
-  },
-  "2022EE": {
-    "SR1E2Mu": {
-      "mass_window": [
-        79.30736277999513,
-        100.29807134311402
-      ],
-      "weights": {
-        "nonprompt": 0.35680203095031615,
-        "diboson": 0.16499957410659874,
-        "ttX": 0.4781983949430852
-      },
-      "yields": {
-        "nonprompt": 23.123916654847562,
-        "diboson": 10.693426799068932,
-        "ttX": 30.991471095873766
-      },
-      "total_yield": 64.80881454979026,
-      "threshold": 0.65,
-      "sensitivity": {
-        "initial": 0.4453476315002125,
-        "max": 0.6403812974234976,
-        "improvement": 0.43793578797374155
-      }
-    },
-    "SR3Mu": {
-      "mass_window": [
-        78.79522422722383,
-        100.96042187893391
-      ],
-      "weights": {
-        "nonprompt": 0.5388097793300509,
-        "diboson": 0.12152921512218615,
-        "ttX": 0.339661005547763
-      },
-      "yields": {
-        "nonprompt": 35.935390955302864,
-        "diboson": 8.105272074565876,
-        "ttX": 22.65335837409402
-      },
-      "total_yield": 66.69402140396275,
-      "threshold": 0.62,
-      "sensitivity": {
-        "initial": 0.5264654540253998,
-        "max": 0.6781151412213088,
-        "improvement": 0.28805249430210944
-      }
-    }
-  },
-  "2023": {
-    "SR1E2Mu": {
-      "mass_window": [
-        79.21913780817394,
-        100.51514338168386
-      ],
-      "weights": {
-        "nonprompt": 0.33414193222932653,
-        "diboson": 0.19058335057289827,
-        "ttX": 0.4752747171977751
-      },
-      "yields": {
-        "nonprompt": 15.873601885512471,
-        "diboson": 9.053770093497192,
-        "ttX": 22.578194830899672
-      },
-      "total_yield": 47.50556680990934,
-      "threshold": 0.51,
-      "sensitivity": {
-        "initial": 0.40475240744355023,
-        "max": 0.5752936368684931,
-        "improvement": 0.4213470415212486
-      }
-    },
-    "SR3Mu": {
-      "mass_window": [
-        78.89657836490589,
-        100.8104373154544
-      ],
-      "weights": {
-        "nonprompt": 0.573574952534239,
-        "diboson": 0.1485941144421185,
-        "ttX": 0.27783093302364253
-      },
-      "yields": {
-        "nonprompt": 35.33147431118414,
-        "diboson": 9.153205024048658,
-        "ttX": 17.114025690288805
-      },
-      "total_yield": 61.5987050255216,
-      "threshold": 0.6,
-      "sensitivity": {
-        "initial": 0.4534175966495858,
-        "max": 0.49701989545284336,
-        "improvement": 0.09616366705978252
-      }
-    }
-  },
-  "2023BPix": {
-    "SR1E2Mu": {
-      "mass_window": [
-        79.14008432684298,
-        100.7915917289022
-      ],
-      "weights": {
-        "nonprompt": 0.3740856194732344,
-        "diboson": 0.1941501098186499,
-        "ttX": 0.43176427070811574
-      },
-      "yields": {
-        "nonprompt": 10.755216957069933,
-        "diboson": 5.581948208217445,
-        "ttX": 12.413517558669788
-      },
-      "total_yield": 28.750682723957166,
-      "threshold": 0.61,
-      "sensitivity": {
-        "initial": 0.26259216365987553,
-        "max": 0.39016339537778577,
-        "improvement": 0.48581507513357414
-      }
-    },
-    "SR3Mu": {
-      "mass_window": [
-        79.26680571999908,
-        100.43699997835525
-      ],
-      "weights": {
-        "nonprompt": 0.5933723154146259,
-        "diboson": 0.11751688078434354,
-        "ttX": 0.28911080380103055
-      },
-      "yields": {
-        "nonprompt": 19.336833311244845,
-        "diboson": 3.8296433385106856,
-        "ttX": 9.421550814473239
-      },
-      "total_yield": 32.58802746422877,
-      "threshold": 0.67,
-      "sensitivity": {
-        "initial": 0.3280114987013143,
-        "max": 0.3915664129033578,
-        "improvement": 0.19375818973930636
+      "SR3Mu": {
+        "extended_unblind": {
+          "construction": "run_period_components",
+          "categories": {
+            "SR3Mu_Run3": {
+              "category": "SR3Mu_Run3",
+              "threshold": 0.61,
+              "sensitivity": {
+                "initial": 0.8337686881028449,
+                "max": 0.9440375102621629,
+                "improvement": 0.1322534939639235
+              },
+              "weights": {
+                "nonprompt": 0.5637933349042404,
+                "diboson": 0.12738666195224402,
+                "ttX": 0.3088200031435156
+              }
+            }
+          },
+          "source_dir": "templates/Run3/SR3Mu/MHc130_MA90/ParticleNet/extended_unblind"
+        }
       }
     }
   }
