@@ -57,9 +57,6 @@ def get_CoM_energy_extended(era):
         raise ValueError(f"Unknown era: {era}")
 
 
-# On-Z mass points not covered by ParticleNet — excluded from all plots
-_ON_Z_EXCL = {"MHc115_MA87", "MHc145_MA92", "MHc160_MA98"}
-
 _nsigma_tag = f"{args.nsigma:g}sigma"
 _cnc_suffix = f".CnC_{_nsigma_tag}" if args.cnc else ""
 _unblind_suffix = ".unblind" if args.unblind else ""
@@ -73,8 +70,7 @@ with open(f"results/json/limits.{args.era}.{args.limit_type}.ParticleNet{_cnc_su
     limits_pnet = json.load(f)
 
 # Merge: start from Baseline, replace near-mZ entries with ParticleNet values.
-# Also remove on-Z exclusions (mass points with no ParticleNet coverage).
-limits_merged = {mp: v for mp, v in limits_baseline.items() if mp not in _ON_Z_EXCL}
+limits_merged = dict(limits_baseline)
 limits_merged.update(limits_pnet)
 
 # Track which mass points use ParticleNet (for marker distinction)

@@ -190,9 +190,6 @@ _cnc_suffix = f".CnC_{_nsigma_tag}" if args.cnc else ""
 _unblind_suffix = ".unblind" if args.unblind else ""
 _ch_suffix = "" if args.channel == "Combined" else f".{args.channel}"
 
-# On-Z mass points not covered by ParticleNet (pending future training) — excluded from all plots
-_ON_Z_EXCL = {"MHc115_MA87", "MHc145_MA92", "MHc160_MA98"}
-
 def _filter_by_mhc(limits_dict, mhc_value):
     """Return only mass points whose MHc matches mhc_value."""
     prefix = f"MHc{mhc_value}_"
@@ -204,7 +201,6 @@ _json_dir = f"results/json/{args.mode}/{args.era}"
 if args.method == "Baseline":
     with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.Baseline{_cnc_suffix}{_unblind_suffix}.json") as f:
         limits = json.load(f)
-    limits = {mp: v for mp, v in limits.items() if mp not in _ON_Z_EXCL}
 
     if args.compare_mhc:
         mhc_values = [int(v) for v in args.mhc_list.split(",") if v.strip()]
