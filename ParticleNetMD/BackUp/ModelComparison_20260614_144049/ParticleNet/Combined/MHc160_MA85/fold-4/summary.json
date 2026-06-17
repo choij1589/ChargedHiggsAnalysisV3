@@ -1,0 +1,49 @@
+{
+  "signal": "MHc160_MA85",
+  "backend": "nominal ParticleNet reference",
+  "channel": "Combined",
+  "train": {
+    "auc": {
+      "nonprompt": 0.8906879462745212,
+      "diboson": 0.9415003485146445,
+      "ttX": 0.9167775648264124
+    },
+    "average_auc": 0.9163219532051926,
+    "mass_correlation": {
+      "mass1": {
+        "disco": 0.1359163522720337,
+        "pearson_absw": -0.01576316990415422,
+        "spearman_absw": -0.0025568609751886306,
+        "n_valid": 600000
+      },
+      "mass2": {
+        "disco": 0.16639314591884613,
+        "pearson_absw": -0.10136746112774665,
+        "spearman_absw": -0.001185438363040692,
+        "n_valid": 233201
+      }
+    }
+  },
+  "test": {
+    "auc": {
+      "nonprompt": 0.8913082967247639,
+      "diboson": 0.9429156928341432,
+      "ttX": 0.9189746101936136
+    },
+    "average_auc": 0.9177328665841736,
+    "mass_correlation": {
+      "mass1": {
+        "disco": 0.1501777023077011,
+        "pearson_absw": -0.01854889639829861,
+        "spearman_absw": 0.000439772444305413,
+        "n_valid": 545473
+      },
+      "mass2": {
+        "disco": 0.11950436234474182,
+        "pearson_absw": -0.09822080180195061,
+        "spearman_absw": -0.0029695819091015534,
+        "n_valid": 217906
+      }
+    }
+  }
+}

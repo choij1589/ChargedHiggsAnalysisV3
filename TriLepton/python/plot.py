@@ -330,7 +330,7 @@ for era in era_list:
     # Load MC for this era
     all_era_samples = ERA_SAMPLES[era]["conv"] + ERA_SAMPLES[era]["ttX"] + ERA_SAMPLES[era]["diboson"] + ERA_SAMPLES[era]["others"]
     for sample in all_era_samples:
-        use_no_wzsf = args.exclude == "WZSF" and ("WZTo3LNu" in sample or "ZZTo4L" in sample)
+        use_no_wzsf = args.exclude == "WZSF" and "WZTo3LNu" in sample
         file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample,
                                            run_syst=True, no_wzsf=use_no_wzsf,
                                            no_hem_veto=args.noHEMVeto)

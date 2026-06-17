@@ -1,8 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-MASSPOINTs=("MHc100_MA85" "MHc100_MA90" "MHc100_MA95" 
+MASSPOINTs=("MHc100_MA85" "MHc100_MA90" "MHc100_MA95"
+            "MHc115_MA85" "MHc115_MA87" "MHc115_MA90" "MHc115_MA95"
             "MHc130_MA85" "MHc130_MA90" "MHc130_MA95"
+            "MHc145_MA85" "MHc145_MA90" "MHc145_MA92" "MHc145_MA95"
             "MHc160_MA85" "MHc160_MA90" "MHc160_MA95")
 
 SRCDIR="$(cd "$(dirname "$0")/.." && pwd)/GAOptim/Combined"

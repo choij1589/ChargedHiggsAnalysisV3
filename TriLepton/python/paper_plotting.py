@@ -38,6 +38,9 @@ BKG_ORDER = ["others", "conv", "diboson", "ttX", "nonprompt"]
 CHANNEL_LABELS = {
     "SR1E2Mu": ("SR", "e#mu#mu"),
     "SR3Mu": ("SR", "#mu#mu#mu"),
+    "ZFake1E2Mu": ("Z+nonprompt CR", "e#mu#mu"),
+    "ZFake3Mu": ("Z+nonprompt CR", "#mu#mu#mu"),
+    "TTZ2E1Mu": ("TTZ CR", "ee#mu"),
 }
 
 
@@ -162,6 +165,12 @@ def build_config(histkey, channel, options):
     config["signalColors"] = [ROOT.TColor.GetColor(color) for color in options.signal_colors]
     config["run_label"] = "Run 2+3, 200 fb^{#minus1}"
     config["chi2_test"] = False
+    if histkey == "ZCand/mass":
+        config["xRange"] = [81, 101]
+        config["yTitle"] = "Events / 1 GeV"
+        if channel == "TTZ2E1Mu":
+            config["xTitle"] = "m(e^{+}e^{-}) [GeV]"
+        config["overflow"] = False
     if options.blind:
         config["no_ratio"] = True
 
@@ -357,8 +366,10 @@ def load_signals(channel, histkey, flag, era_list, options):
     return signals
 
 
-def apply_adaptive_binning(config, bkgs, options):
+def apply_adaptive_binning(config, bkgs, options, histkey):
     if not options.adaptive_binning:
+        return None
+    if histkey == "ZCand/mass":
         return None
 
     total_bkg = None
@@ -386,7 +397,7 @@ def apply_adaptive_binning(config, bkgs, options):
 def render_paper_plot(channel, histkey, options):
     config = build_config(histkey, channel, options)
     data, bkgs, signals = load_plot_objects(channel, histkey, config, options)
-    adaptive_edges = apply_adaptive_binning(config, bkgs, options)
+    adaptive_edges = apply_adaptive_binning(config, bkgs, options, histkey)
 
     output_path = build_output_path(channel, histkey, options)
     output_path.parent.mkdir(parents=True, exist_ok=True)

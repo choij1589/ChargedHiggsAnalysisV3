@@ -1,0 +1,53 @@
+{
+  "signal": "MHc160_MA85",
+  "backend": "ParticleNet_MD",
+  "channel": "Combined",
+  "source_model": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/GAOptim/Combined/MHc160_MA85/fold-4/best_model/model.pt",
+  "source_metadata": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/GAOptim/Combined/MHc160_MA85/fold-4/best_model/model_info.json",
+  "train": {
+    "auc": {
+      "nonprompt": 0.8906878896950496,
+      "diboson": 0.9415003638958805,
+      "ttX": 0.916777499703395
+    },
+    "average_auc": 0.9163219177647751,
+    "mass_correlation": {
+      "mass1": {
+        "disco": 0.1359163522720337,
+        "pearson_absw": -0.015763169799522747,
+        "spearman_absw": -0.0020686990964100364,
+        "n_valid": 600000
+      },
+      "mass2": {
+        "disco": 0.16639314591884613,
+        "pearson_absw": -0.10136746029987728,
+        "spearman_absw": -0.0015784912213883354,
+        "n_valid": 233201
+      }
+    }
+  },
+  "test": {
+    "auc": {
+      "nonprompt": 0.8913083030104204,
+      "diboson": 0.9429156090661895,
+      "ttX": 0.9189748421131729
+    },
+    "average_auc": 0.917732918063261,
+    "mass_correlation": {
+      "mass1": {
+        "disco": 0.1501777172088623,
+        "pearson_absw": -0.01854889643587794,
+        "spearman_absw": 0.001367620408264597,
+        "n_valid": 545473
+      },
+      "mass2": {
+        "disco": 0.11950436234474182,
+        "pearson_absw": -0.09822080208583572,
+        "spearman_absw": -0.0027242651827012305,
+        "n_valid": 217906
+      }
+    }
+  },
+  "loss_type": "disco",
+  "disco_lambda": 0.1
+}

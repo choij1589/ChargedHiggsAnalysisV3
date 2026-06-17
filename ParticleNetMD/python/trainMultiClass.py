@@ -73,6 +73,8 @@ class Config:
         # Model configuration
         self.args.model = model_config['default_model']
         self.args.nNodes = model_config['nNodes']
+        self.args.conv_channels = model_config.get('conv_channels')
+        self.args.edge_dropout_p = model_config.get('edge_dropout_p', self.args.dropout_p)
 
         # Optimization configuration
         self.args.optimizer = optim_config['optimizer']
@@ -133,12 +135,19 @@ class Config:
         if loss_label == 'disco':
             lam_str = str(self.args.disco_lambda).replace('.', 'p')
             loss_label = f"discoL{lam_str}"
+        edge_label = ""
+        if abs(float(self.args.edge_dropout_p) - float(self.args.dropout_p)) > 1e-12:
+            edge_str = str(format(float(self.args.edge_dropout_p), ".3f")).rstrip("0").rstrip(".").replace(".", "p")
+            edge_label = f"-edgeDrop{edge_str}"
+        width_label = f"nNodes{self.args.nNodes}"
+        if self.args.conv_channels:
+            width_label = "conv" + "x".join(str(int(width)) for width in self.args.conv_channels)
 
         model_name = (
-            f"{self.args.model}-nNodes{self.args.nNodes}-{self.args.optimizer}-"
+            f"{self.args.model}-{width_label}-{self.args.optimizer}-"
             f"initLR{str(format(self.args.initLR, '.4f')).replace('.','p')}-"
             f"decay{str(format(self.args.weight_decay, '.5f')).replace('.', 'p')}-"
-            f"{self.args.scheduler}-{loss_label}-{bg_identifier}"
+            f"{self.args.scheduler}-{loss_label}{edge_label}-{bg_identifier}"
         )
 
         return model_name
@@ -187,7 +196,11 @@ class Config:
             logging.info(f"Background mode: INDIVIDUAL ({len(self.backgrounds_list)} samples)")
             logging.info(f"  Samples: {self.backgrounds_list}")
 
-        logging.info(f"Model: {self.args.model} ({self.args.nNodes} nodes, {self.args.dropout_p:.2f} dropout)")
+        logging.info(
+            f"Model: {self.args.model} ({self.args.nNodes} nodes, "
+            f"conv_channels={self.args.conv_channels or [self.args.nNodes] * 3}, "
+            f"{self.args.dropout_p:.2f} activation dropout, {self.args.edge_dropout_p:.2f} edge dropout)"
+        )
         logging.info(f"Optimization: {self.args.optimizer} (LR: {self.args.initLR}, decay: {self.args.weight_decay})")
         logging.info(f"Schedule: {self.args.scheduler}, Loss: {self.args.loss_type}")
         if self.args.loss_type == 'disco':

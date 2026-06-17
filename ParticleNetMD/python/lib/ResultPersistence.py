@@ -98,12 +98,21 @@ class ResultPersistence:
         tree.Branch("channel_id", channel_id_arr, "channel_id/I")
         tree.Branch("run_id", run_id_arr, "run_id/I")
 
+        param_mA_arr = None
+        param_mA_norm_arr = None
+        if getattr(self.config.args, "parametric", False):
+            param_mA_arr = array("f", [0.])
+            param_mA_norm_arr = array("f", [0.])
+            tree.Branch("param_mA", param_mA_arr, "param_mA/F")
+            tree.Branch("param_mA_norm", param_mA_norm_arr, "param_mA_norm/F")
+
         # Save predictions for all data splits
         self._save_split_predictions(model, data_pipeline.train_loader, device, tree,
                                    score_arrays, true_label, event_weight,
                                    train_mask, valid_mask, test_mask,
                                    mass1_arr, mass2_arr,
                                    channel_id_arr, run_id_arr,
+                                   param_mA_arr, param_mA_norm_arr,
                                    is_train=True)
 
         self._save_split_predictions(model, data_pipeline.valid_loader, device, tree,
@@ -111,6 +120,7 @@ class ResultPersistence:
                                    train_mask, valid_mask, test_mask,
                                    mass1_arr, mass2_arr,
                                    channel_id_arr, run_id_arr,
+                                   param_mA_arr, param_mA_norm_arr,
                                    is_valid=True)
 
         self._save_split_predictions(model, data_pipeline.test_loader, device, tree,
@@ -118,6 +128,7 @@ class ResultPersistence:
                                    train_mask, valid_mask, test_mask,
                                    mass1_arr, mass2_arr,
                                    channel_id_arr, run_id_arr,
+                                   param_mA_arr, param_mA_norm_arr,
                                    is_test=True)
 
         # Write and close file
@@ -197,6 +208,7 @@ class ResultPersistence:
                                train_mask: array, valid_mask: array, test_mask: array,
                                mass1_arr: array, mass2_arr: array,
                                channel_id_arr: array, run_id_arr: array,
+                               param_mA_arr: array = None, param_mA_norm_arr: array = None,
                                is_train: bool = False, is_valid: bool = False,
                                is_test: bool = False) -> None:
         """Save predictions for a specific data split."""
@@ -227,6 +239,9 @@ class ResultPersistence:
                 # Extract mass values from batch (for decorrelation analysis)
                 batch_mass1 = batch.mass1.cpu().squeeze()
                 batch_mass2 = batch.mass2.cpu().squeeze()
+                if param_mA_arr is not None:
+                    batch_param_mA = batch.param_mA.cpu().squeeze()
+                    batch_param_mA_norm = batch.param_mA_norm.cpu().squeeze()
 
                 # Extract era info from batch (list of strings)
                 batch_eras = batch.era if hasattr(batch, 'era') else [None] * len(batch.y)
@@ -257,6 +272,10 @@ class ResultPersistence:
                     channel_id_arr[0] = self._infer_channel_id(x_cpu, batch_cpu, i)
                     era_str = batch_eras[i] if batch_eras[i] is not None else ""
                     run_id_arr[0] = self._infer_run_id(era_str)
+
+                    if param_mA_arr is not None:
+                        param_mA_arr[0] = float(batch_param_mA[i].numpy()) if batch_param_mA.dim() > 0 else float(batch_param_mA.numpy())
+                        param_mA_norm_arr[0] = float(batch_param_mA_norm[i].numpy()) if batch_param_mA_norm.dim() > 0 else float(batch_param_mA_norm.numpy())
 
                     tree.Fill()
 
@@ -338,14 +357,27 @@ class ResultPersistence:
             'num_classes': self.config.num_classes,
             'input_features': {
                 'node_features': 9,
-                'graph_features': 8
+                'graph_features': getattr(self.config.args, 'num_graph_features', 8)
             },
             'architecture': {
                 'hidden_nodes': self.config.args.nNodes,
-                'dropout_p': self.config.args.dropout_p
+                'conv_channels': getattr(self.config.args, 'conv_channels', None),
+                'dropout_p': self.config.args.dropout_p,
+                'edge_dropout_p': getattr(self.config.args, 'edge_dropout_p', self.config.args.dropout_p)
             },
             'training_mode': 'grouped' if self.config.use_groups else 'individual'
         }
+
+        if getattr(self.config.args, "parametric", False):
+            model_info['parametric'] = {
+                'enabled': True,
+                'mhc': self.config.args.mhc,
+                'ma_values': self.config.args.ma_values,
+                'ma_center': self.config.args.ma_center,
+                'ma_scale': self.config.args.ma_scale,
+                'signal_mass_balance': getattr(self.config.args, 'signal_mass_balance', 'event_count'),
+                'background_hypotheses': getattr(self.config.args, 'background_hypotheses', 'duplicate_all')
+            }
 
         info_path = os.path.join(output_path, f"{model_name}_model_info.json")
         os.makedirs(os.path.dirname(info_path), exist_ok=True)
@@ -429,6 +461,7 @@ class ResultPersistence:
             'signal': signal_name,
             'channel': self.config.args.channel,
             'num_hidden': self.config.args.nNodes,
+            'conv_channels': getattr(self.config.args, 'conv_channels', None),
             'optimizer': self.config.args.optimizer,
             'initial_lr': self.config.args.initLR,
             'weight_decay': self.config.args.weight_decay,
@@ -437,8 +470,9 @@ class ResultPersistence:
             'num_classes': self.config.num_classes,
             'model_type': self.config.args.model,
             'num_node_features': 9,
-            'num_graph_features': 8,
+            'num_graph_features': getattr(self.config.args, 'num_graph_features', 8),
             'dropout_p': self.config.args.dropout_p,
+            'edge_dropout_p': getattr(self.config.args, 'edge_dropout_p', self.config.args.dropout_p),
             'batch_size': getattr(self.config.args, 'batch_size', 1024),
             'loss_type': self.config.args.loss_type,
             'train_folds': getattr(self.config.args, 'train_folds', [0, 1, 2]),
@@ -449,6 +483,13 @@ class ResultPersistence:
         # Add DisCo-specific parameters if applicable
         if self.config.args.loss_type == 'disco':
             hyperparameters['disco_lambda'] = getattr(self.config.args, 'disco_lambda', 0.1)
+
+        if getattr(self.config.args, "parametric", False):
+            hyperparameters['parametric'] = True
+            hyperparameters['mhc'] = self.config.args.mhc
+            hyperparameters['ma_values'] = self.config.args.ma_values
+            hyperparameters['ma_center'] = self.config.args.ma_center
+            hyperparameters['ma_scale'] = self.config.args.ma_scale
 
         # Build training_summary
         training_summary = {

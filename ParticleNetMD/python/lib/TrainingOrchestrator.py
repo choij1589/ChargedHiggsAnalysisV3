@@ -111,7 +111,7 @@ class TrainingOrchestrator:
     def _create_model(self) -> None:
         """Create and configure the model."""
         num_node_features = 9
-        num_graph_features = 8
+        num_graph_features = getattr(self.config.args, "num_graph_features", 8)
 
         self.model = create_multiclass_model(
             model_type=self.config.args.model,
@@ -119,7 +119,9 @@ class TrainingOrchestrator:
             num_graph_features=num_graph_features,
             num_classes=self.config.num_classes,
             num_hidden=self.config.args.nNodes,
-            dropout_p=self.config.args.dropout_p
+            dropout_p=self.config.args.dropout_p,
+            edge_dropout_p=getattr(self.config.args, "edge_dropout_p", self.config.args.dropout_p),
+            conv_channels=getattr(self.config.args, "conv_channels", None),
         ).to(self.device)
 
         param_count = sum(p.numel() for p in self.model.parameters())

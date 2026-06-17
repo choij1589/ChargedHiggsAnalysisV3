@@ -1,0 +1,22 @@
+{
+  "model_name": "ParticleNet-conv512x256x256-Adam-initLR0p0003-decay0p00003-ReduceLROnPlateau-weighted_ce-edgeDrop0-3grp-nonprompt-diboson-ttX",
+  "model_type": "ParticleNet",
+  "num_parameters": 1736751,
+  "trainable_parameters": 1736751,
+  "num_classes": 4,
+  "input_features": {
+    "node_features": 9,
+    "graph_features": 8
+  },
+  "architecture": {
+    "hidden_nodes": 256,
+    "conv_channels": [
+      512,
+      256,
+      256
+    ],
+    "dropout_p": 0.4,
+    "edge_dropout_p": 0.0
+  },
+  "training_mode": "grouped"
+}

@@ -86,9 +86,9 @@ def plot_fakerate(h, output_path):
 
     canvas.cd()
     eta_label = "|#eta_{SC}|" if args.measure == "electron" else "|#eta|"
-    CMS.cmsObjectDraw(projections["eta1"], "", LineColor=PALETTE[0], LineWidth=2, LineStyle=ROOT.kSolid)
-    CMS.cmsObjectDraw(projections["eta2"], "", LineColor=PALETTE[1], LineWidth=2, LineStyle=ROOT.kSolid)
-    CMS.cmsObjectDraw(projections["eta3"], "", LineColor=PALETTE[2], LineWidth=2, LineStyle=ROOT.kSolid)
+    CMS.cmsObjectDraw(projections["eta1"], "", LineColor=PALETTE[0], LineWidth=3, LineStyle=ROOT.kSolid)
+    CMS.cmsObjectDraw(projections["eta2"], "", LineColor=PALETTE[1], LineWidth=3, LineStyle=ROOT.kSolid)
+    CMS.cmsObjectDraw(projections["eta3"], "", LineColor=PALETTE[2], LineWidth=3, LineStyle=ROOT.kSolid)
     CMS.addToLegend(legend, (projections["eta1"], f"{abseta_bins[0]} < {eta_label} < {abseta_bins[1]}", "lep"))
     CMS.addToLegend(legend, (projections["eta2"], f"{abseta_bins[1]} < {eta_label} < {abseta_bins[2]}", "lep"))
     CMS.addToLegend(legend, (projections["eta3"], f"{abseta_bins[2]} < {eta_label} < {abseta_bins[3]}", "lep"))
@@ -159,3 +159,4 @@ else:
     output_path = f"{WORKDIR}/MeasFakeRateV4/plots/{args.era}/{args.measure}/{subdir}fakerate.png"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plot_fakerate(h, output_path)
+    plot_fakerate(h, output_path.replace('png', 'pdf'))

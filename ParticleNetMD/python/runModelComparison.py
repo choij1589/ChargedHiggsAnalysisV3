@@ -9,6 +9,7 @@ graph-model reference because its standard input has no explicit pair-pT column.
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import json
 import os
@@ -29,13 +30,37 @@ from SglConfig import load_sgl_config
 SIGNALS = ["MHc130_MA90", "MHc160_MA85", "MHc100_MA95"]
 MASKED_COLUMNS = ["os_dimu1_pt", "os_dimu2_pt"]
 COMPARISON_ROOT = bdt.PARTICLENETMD_DIR / "ModelComparison"
-MODEL_SCORE_KEYS = {"BDT": "bdt_scores", "DNN": "dnn_scores", "ParticleNet": "pn_scores"}
-MODEL_LR_KEYS = {"BDT": "bdt_lr", "DNN": "dnn_lr", "ParticleNet": "pn_lr"}
-MODEL_ROOT_COLORS = {"BDT": "#5790fc", "DNN": "#e42536", "ParticleNet": "#f89c20"}
-MODELS = ["BDT", "DNN", "ParticleNet"]
+MODEL_SCORE_KEYS = {
+    "BDT": "bdt_scores",
+    "DNN": "dnn_scores",
+    "DNN_MD": "dnn_scores",
+    "ParticleNet": "pn_scores",
+    "ParticleNet_MD": "pn_scores",
+}
+MODEL_LR_KEYS = {
+    "BDT": "bdt_lr",
+    "DNN": "dnn_lr",
+    "DNN_MD": "dnn_lr",
+    "ParticleNet": "pn_lr",
+    "ParticleNet_MD": "pn_lr",
+}
+MODEL_ROOT_COLORS = {
+    "BDT": "#5790fc",
+    "DNN": "#e42536",
+    "DNN_MD": "#964a8b",
+    "ParticleNet": "#f89c20",
+    "ParticleNet_MD": "#7a21dd",
+}
+MODELS = ["BDT", "DNN", "DNN_MD", "ParticleNet", "ParticleNet_MD"]
 SPLITS = ["train", "test"]
 PLOT_LINE_WIDTH = 2
-MODEL_DISPLAY = {"BDT": "BDT", "DNN": "DNN", "ParticleNet": "PN"}
+MODEL_DISPLAY = {
+    "BDT": "BDT",
+    "DNN": "DNN",
+    "DNN_MD": "DNN_MD",
+    "ParticleNet": "PN",
+    "ParticleNet_MD": "PN_MD",
+}
 TRAIN_LINE_STYLE = 7
 
 
@@ -127,12 +152,13 @@ def ensure_masked_tables(args, signal: str) -> Path:
     for split in ["train", "valid", "test"]:
         suffix = bdt.cache_suffix(caps[split], pilot_events_per_class)
         target = table_dir / f"{split}_{suffix}.npz"
-        source = maybe_build_source_table(
-            args, config, signal, split, folds[split], caps[split], pilot_events_per_class, source_dir
-        )
         if target.exists() and not args.rebuild_dataset:
             arrays = load_table(target)
+            source = target
         else:
+            source = maybe_build_source_table(
+                args, config, signal, split, folds[split], caps[split], pilot_events_per_class, source_dir
+            )
             arrays = load_table(source)
             arrays = dict(arrays)
             arrays["X"] = arrays["X"][:, keep_indices].astype(np.float32)
@@ -156,7 +182,14 @@ def run_command(cmd: Sequence[str]) -> None:
     subprocess.run(list(cmd), check=True)
 
 
+def load_json(path: Path) -> Dict[str, object]:
+    with open(path) as handle:
+        return json.load(handle)
+
+
 def run_tabular_training(args, signal: str, table_dir: Path, model: str) -> None:
+    if model not in {"BDT", "DNN", "DNN_MD"}:
+        raise ValueError(f"Unsupported tabular model: {model}")
     script = "python/trainBDT.py" if model == "BDT" else "python/trainDNN.py"
     output_base = f"ModelComparison/{model}"
     cmd = [
@@ -178,41 +211,152 @@ def run_tabular_training(args, signal: str, table_dir: Path, model: str) -> None
         cmd.extend(["--max-events-per-class", str(args.max_events_per_class)])
     if args.cap_test:
         cmd.append("--cap-test")
-    if model == "DNN":
+    if model in {"DNN", "DNN_MD"}:
+        cmd.extend(["--loss-type", "disco" if model == "DNN_MD" else "weighted_ce"])
         if args.max_epochs is not None:
             cmd.extend(["--max-epochs", str(args.max_epochs)])
         if args.hidden_layers:
             cmd.extend(["--hidden-layers", args.hidden_layers])
-        if args.disco_lambda is not None:
+        if model == "DNN_MD" and args.disco_lambda is not None:
             cmd.extend(["--disco-lambda", str(args.disco_lambda)])
     run_command(cmd)
 
 
-def save_particlenet_reference(args, signal: str, table_dir: Path) -> None:
+def write_particlenet_weighted_ce_config(args, signal: str) -> Path:
+    base_config = copy.deepcopy(load_sgl_config(args.config).config)
+    ga_path = bdt.PARTICLENETMD_DIR / "GAOptim" / "Combined" / signal / "fold-4" / "ga_optimization_results.json"
+    if not ga_path.exists():
+        raise RuntimeError(f"GA best config is missing: {ga_path}")
+    decoded = load_json(ga_path)["best_chromosome"]["decoded"]
+
+    ga_config_path = bdt.PARTICLENETMD_DIR / "configs" / "GAConfig.json"
+    ga_config = load_json(ga_config_path) if ga_config_path.exists() else {}
+    ga_training = ga_config.get("training_parameters", {})
+
+    train_params = base_config["training_parameters"]
+    for key in ["max_epochs", "batch_size", "dropout_p", "early_stopping_patience", "train_folds", "valid_folds"]:
+        if key in ga_training:
+            train_params[key] = ga_training[key]
+    train_params["loss_type"] = "weighted_ce"
+    train_params["test_folds"] = train_params.get("test_folds", [4])
+
+    base_config["model_config"]["nNodes"] = int(decoded["nNodes"])
+    base_config["optimization_config"]["optimizer"] = decoded["optimizer"]
+    base_config["optimization_config"]["initLR"] = float(decoded["initLR"])
+    base_config["optimization_config"]["weight_decay"] = float(decoded["weight_decay"])
+    base_config["optimization_config"]["scheduler"] = decoded["scheduler"]
+    base_config["disco_parameters"]["disco_lambda"] = 0.0
+    base_config["system_config"]["device"] = args.device
+    base_config["output_config"]["results_dir"] = "ModelComparison/ParticleNet"
+    base_config["description"] = f"ModelComparison no-decorrelation ParticleNet config for {signal}"
+
+    out_dir = COMPARISON_ROOT / "configs" / "ParticleNet"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{signal}_weighted_ce_best_config.json"
+    with open(out_path, "w") as handle:
+        json.dump(base_config, handle, indent=2)
+    return out_path
+
+
+def run_particlenet_training(args, signal: str) -> None:
+    config_path = write_particlenet_weighted_ce_config(args, signal)
+    cmd = [
+        sys.executable,
+        "python/trainMultiClass.py",
+        "--signal", signal,
+        "--channel", "Combined",
+        "--config", str(config_path),
+    ]
+    if args.pilot:
+        cmd.append("--pilot")
+    run_command(cmd)
+
+
+def find_particlenet_weighted_ce_artifacts(signal: str) -> Tuple[Path, Path, Path]:
+    out_dir = COMPARISON_ROOT / "ParticleNet" / "Combined" / signal / "fold-4"
+    model_paths = sorted((out_dir / "models").glob("*-weighted_ce-*.pt"))
+    if not model_paths:
+        raise RuntimeError(f"No weighted-CE ParticleNet checkpoint found under {out_dir / 'models'}")
+    model_path = model_paths[-1]
+    model_name = model_path.stem
+    json_path = out_dir / f"{model_name}.json"
+    if not json_path.exists():
+        raise RuntimeError(f"Missing ParticleNet weighted-CE metadata: {json_path}")
+    return out_dir, model_path, json_path
+
+
+def evaluate_particle_net_artifacts(config, signal: str, fold_list: Sequence[int],
+                                    max_events_per_fold: Optional[int], workers: int,
+                                    device: str, model_path: Path, info_path: Path,
+                                    batch_size: int = 512,
+                                    pilot_events_per_class: Optional[int] = None,
+                                    split_name: str = "split") -> np.ndarray:
+    print(f"  Loading ParticleNet artifact and matching {split_name} split...", flush=True)
+    data_list = bdt.load_split_data(
+        config,
+        signal,
+        fold_list,
+        max_events_per_fold,
+        workers,
+        pilot_events_per_class=pilot_events_per_class,
+    )
+    model, hp = bdt.load_particle_net_model(model_path, info_path, device)
+    loader = bdt.DataLoader(
+        bdt.GraphDataset(data_list),
+        batch_size=hp.get("batch_size", batch_size),
+        shuffle=False,
+    )
+
+    scores: List[np.ndarray] = []
+    with bdt.torch.no_grad():
+        for batch in loader:
+            batch = batch.to(device)
+            logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
+            scores.append(bdt.F.softmax(logits, dim=1).cpu().numpy())
+
+    del model
+    if device.startswith("cuda"):
+        bdt.torch.cuda.empty_cache()
+    return np.concatenate(scores, axis=0)
+
+
+def save_particlenet_reference(args, signal: str, table_dir: Path, model: str) -> None:
     config = load_sgl_config(args.config)
     folds, caps, pilot_events_per_class = split_settings(args, config)
-    out_dir = COMPARISON_ROOT / "ParticleNet" / "Combined" / signal / "fold-4"
+    out_dir = COMPARISON_ROOT / model / "Combined" / signal / "fold-4"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     thresholds = bdt.load_thresholds(signal)
-    summary = {"signal": signal, "backend": "nominal ParticleNet reference", "channel": "Combined"}
+    summary = {"signal": signal, "backend": model, "channel": "Combined"}
+    if model == "ParticleNet":
+        _train_dir, model_path, info_path = find_particlenet_weighted_ce_artifacts(signal)
+        summary["source_model"] = str(model_path)
+        summary["source_metadata"] = str(info_path)
+    elif model == "ParticleNet_MD":
+        model_path = bdt.PARTICLENETMD_DIR / "GAOptim" / "Combined" / signal / "fold-4" / "best_model" / "model.pt"
+        info_path = bdt.PARTICLENETMD_DIR / "GAOptim" / "Combined" / signal / "fold-4" / "best_model" / "model_info.json"
+        summary["source_model"] = str(model_path)
+        summary["source_metadata"] = str(info_path)
+    else:
+        raise ValueError(f"Unsupported ParticleNet export model: {model}")
+
     for split in ["train", "test"]:
         table_path = table_dir / f"{split}_{bdt.cache_suffix(caps[split], pilot_events_per_class)}.npz"
         table = load_table(table_path)
-        scores = bdt.evaluate_particle_net(
+        scores = evaluate_particle_net_artifacts(
             config,
             signal,
             folds[split],
             caps[split],
             args.workers,
             args.device,
+            model_path,
+            info_path,
             pilot_events_per_class=pilot_events_per_class,
             split_name=split,
         )
-        if scores is None:
-            raise RuntimeError(f"ParticleNet reference is missing for {signal}")
         if len(scores) != len(table["y"]):
-            raise RuntimeError(f"ParticleNet/{split} length mismatch: {len(scores)} != {len(table['y'])}")
+            raise RuntimeError(f"{model}/{split} length mismatch: {len(scores)} != {len(table['y'])}")
         lr = bdt.compute_lr_modified(scores, table["era"], table["channel_id"], thresholds)
         np.savez_compressed(
             out_dir / f"predictions_{split}.npz",
@@ -231,6 +375,8 @@ def save_particlenet_reference(args, signal: str, table_dir: Path) -> None:
             "average_auc": avg_auc,
             "mass_correlation": bdt.mass_correlation_metrics(scores, table),
         }
+    summary["loss_type"] = "weighted_ce" if model == "ParticleNet" else "disco"
+    summary["disco_lambda"] = 0.0 if model == "ParticleNet" else 0.1
 
     with open(out_dir / "summary.json", "w") as handle:
         json.dump(summary, handle, indent=2)
@@ -301,7 +447,7 @@ def plot_three_model_roc(signal: str, preds: Dict[str, Dict[str, Dict[str, np.nd
             extraSpace=0.0,
         )
         canvas.SetGrid()
-        legend = CMS.cmsLeg(0.18, 0.64, 0.82, 0.88, textSize=0.030, columns=1)
+        legend = CMS.cmsLeg(0.18, 0.58, 0.92, 0.88, textSize=0.023, columns=2)
         keepalive = []
 
         diag = ROOT.TGraph(2)
@@ -744,7 +890,7 @@ def make_comparison_plots(signal: str) -> None:
         }
         metrics.update(peak_metrics(pred, model))
         rows.append(metrics)
-        if model in {"BDT", "DNN"}:
+        if model == "BDT":
             shift = plot_nominal_shift(signal, model, pred, out_dir)
             if shift is not None:
                 shift_summary[model] = shift
@@ -767,7 +913,10 @@ def process_signal(args, signal: str) -> None:
         if not args.pn_only:
             run_tabular_training(args, signal, table_dir, "BDT")
             run_tabular_training(args, signal, table_dir, "DNN")
-        save_particlenet_reference(args, signal, table_dir)
+            run_tabular_training(args, signal, table_dir, "DNN_MD")
+            run_particlenet_training(args, signal)
+        save_particlenet_reference(args, signal, table_dir, "ParticleNet")
+        save_particlenet_reference(args, signal, table_dir, "ParticleNet_MD")
     make_comparison_plots(signal)
     print(f"=== Done: {COMPARISON_ROOT / 'plots' / signal} ===", flush=True)
 

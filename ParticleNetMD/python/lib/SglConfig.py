@@ -139,6 +139,19 @@ class SglConfigLoader:
         nNodes = model_config.get('nNodes')
         self._validate_positive_int(nNodes, 'nNodes')
 
+        if 'conv_channels' in model_config:
+            conv_channels = model_config.get('conv_channels')
+            self._validate_type(conv_channels, list, 'conv_channels')
+            if len(conv_channels) != 3:
+                raise ValueError(f"conv_channels must contain exactly 3 widths, got {conv_channels}")
+            for idx, width in enumerate(conv_channels):
+                self._validate_positive_int(width, f'conv_channels[{idx}]')
+
+        if 'edge_dropout_p' in model_config:
+            edge_dropout = model_config.get('edge_dropout_p')
+            self._validate_type(edge_dropout, (int, float), 'edge_dropout_p')
+            self._validate_range(edge_dropout, 0, 1, 'edge_dropout_p')
+
     def _validate_optimization_config(self) -> None:
         """Validate optimization configuration."""
         optim_config = self.config['optimization_config']

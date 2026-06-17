@@ -97,6 +97,29 @@ class TabularDNN(nn.Module):
         return self.net(x)
 
 
+class MassAgnosticLossAdapter(nn.Module):
+    """Adapt CE-only losses to the DNN training loop's mass-aware call site."""
+
+    def __init__(self, base_loss: nn.Module):
+        super().__init__()
+        self.base_loss = base_loss
+        self.last_ce_loss = 0.0
+
+    def forward(self, logits, target, weight, mass1=None, mass2=None):
+        loss = self.base_loss(logits, target, weight)
+        self.last_ce_loss = float(loss.detach().cpu())
+        return loss
+
+    def get_decomposed_losses(self):
+        return {
+            "ce_loss": self.last_ce_loss,
+            "disco_term": 0.0,
+            "disco1": 0.0,
+            "disco2": 0.0,
+            "disco_weighted": 0.0,
+        }
+
+
 def set_random_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -266,11 +289,17 @@ def train_dnn(train: Dict[str, np.ndarray], valid: Dict[str, np.ndarray],
     optim_config = config.get_optimization_config()
     train_params = config.get_training_parameters()
     disco_params = config.config.get("disco_parameters", {})
-    loss_fn = create_loss_function(
-        "disco",
-        num_classes=len(CLASS_NAMES),
-        disco_lambda=float(args.disco_lambda if args.disco_lambda is not None else disco_params.get("disco_lambda", 0.05)),
-    )
+    loss_type = args.loss_type or train_params.get("loss_type", "disco")
+    if loss_type == "disco":
+        loss_fn = create_loss_function(
+            "disco",
+            num_classes=len(CLASS_NAMES),
+            disco_lambda=float(args.disco_lambda if args.disco_lambda is not None else disco_params.get("disco_lambda", 0.05)),
+        )
+    else:
+        loss_fn = MassAgnosticLossAdapter(
+            create_loss_function(loss_type, num_classes=len(CLASS_NAMES))
+        )
     optimizer = create_optimizer(
         optim_config["optimizer"],
         model.parameters(),
@@ -601,12 +630,13 @@ def plot_lr_distributions_root(train: Dict[str, np.ndarray], test: Dict[str, np.
 
 
 def process_signal(args, signal: str) -> None:
-    print(f"\n=== DNN training: {signal} ===", flush=True)
     if args.device.startswith("cuda") and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but torch.cuda.is_available() is false")
     set_random_seed(args.random_state)
     config = load_sgl_config(args.config)
     train_params = config.get_training_parameters()
+    loss_type = args.loss_type or train_params.get("loss_type", "disco")
+    print(f"\n=== DNN training: {signal} ({loss_type}) ===", flush=True)
 
     if args.pilot:
         train_folds = [train_params["train_folds"][0]]
@@ -788,8 +818,11 @@ def process_signal(args, signal: str) -> None:
             "scheduler": config.get_optimization_config()["scheduler"],
             "initLR": float(config.get_optimization_config()["initLR"]),
             "weight_decay": float(config.get_optimization_config()["weight_decay"]),
-            "loss_type": "disco",
-            "disco_lambda": float(args.disco_lambda if args.disco_lambda is not None else config.config.get("disco_parameters", {}).get("disco_lambda", 0.05)),
+            "loss_type": loss_type,
+            "disco_lambda": (
+                float(args.disco_lambda if args.disco_lambda is not None else config.config.get("disco_parameters", {}).get("disco_lambda", 0.05))
+                if loss_type == "disco" else 0.0
+            ),
             "early_stopping_patience": int(args.early_stopping_patience if args.early_stopping_patience is not None else config.get_training_parameters()["early_stopping_patience"]),
         },
         "preprocessing": {
@@ -858,6 +891,8 @@ def parse_args():
     parser.add_argument("--early-stopping-min-delta", type=float, default=0.0)
     parser.add_argument("--hidden-layers", default=None,
                         help="Comma-separated DNN widths. Default is a wide config derived from SglConfig nNodes.")
+    parser.add_argument("--loss-type", choices=["weighted_ce", "disco"], default=None,
+                        help="Training loss. Defaults to training_parameters.loss_type from config.")
     parser.add_argument("--disco-lambda", type=float, default=None)
     parser.add_argument("--random-state", type=int, default=42)
     return parser.parse_args()

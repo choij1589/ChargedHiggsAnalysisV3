@@ -16,7 +16,7 @@ logging.basicConfig(level = logging.DEBUG if args.debug else logging.INFO)
 WORKDIR = os.getenv("WORKDIR")
 
 if "MHc" in args.process:
-    SAMPLENAME = f"TTToHcToWAToMuMu_{args.process}"
+    SAMPLENAME = f"TTToHcToWAToMuMu-{args.process}"
 else:
     SAMPLENAME = f"{args.process}"
 

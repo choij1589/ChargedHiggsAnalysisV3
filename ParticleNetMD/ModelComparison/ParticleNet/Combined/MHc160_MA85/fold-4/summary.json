@@ -1,49 +1,53 @@
 {
   "signal": "MHc160_MA85",
-  "backend": "nominal ParticleNet reference",
+  "backend": "ParticleNet",
   "channel": "Combined",
+  "source_model": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/ModelComparison/ParticleNet/Combined/MHc160_MA85/fold-4/models/ParticleNet-nNodes256-Adam-initLR0p0004-decay0p00001-ReduceLROnPlateau-weighted_ce-3grp-nonprompt-diboson-ttX.pt",
+  "source_metadata": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/ModelComparison/ParticleNet/Combined/MHc160_MA85/fold-4/ParticleNet-nNodes256-Adam-initLR0p0004-decay0p00001-ReduceLROnPlateau-weighted_ce-3grp-nonprompt-diboson-ttX.json",
   "train": {
     "auc": {
-      "nonprompt": 0.8906879462745212,
-      "diboson": 0.9415003485146445,
-      "ttX": 0.9167775648264124
+      "nonprompt": 0.8931198220087344,
+      "diboson": 0.9447222514033407,
+      "ttX": 0.9173991463601678
     },
-    "average_auc": 0.9163219532051926,
+    "average_auc": 0.9184137399240809,
     "mass_correlation": {
       "mass1": {
-        "disco": 0.1359163522720337,
-        "pearson_absw": -0.01576316990415422,
-        "spearman_absw": -0.0025568609751886306,
+        "disco": 0.13634036481380463,
+        "pearson_absw": -0.04867973847797579,
+        "spearman_absw": -0.00029006563139936486,
         "n_valid": 600000
       },
       "mass2": {
-        "disco": 0.16639314591884613,
-        "pearson_absw": -0.10136746112774665,
-        "spearman_absw": -0.001185438363040692,
+        "disco": 0.24165977537631989,
+        "pearson_absw": -0.16660472641249616,
+        "spearman_absw": -0.0019258913587082871,
         "n_valid": 233201
       }
     }
   },
   "test": {
     "auc": {
-      "nonprompt": 0.8913082967247639,
-      "diboson": 0.9429156928341432,
-      "ttX": 0.9189746101936136
+      "nonprompt": 0.8937055635692439,
+      "diboson": 0.9466980307777946,
+      "ttX": 0.9194348422982048
     },
-    "average_auc": 0.9177328665841736,
+    "average_auc": 0.9199461455484145,
     "mass_correlation": {
       "mass1": {
-        "disco": 0.1501777023077011,
-        "pearson_absw": -0.01854889639829861,
-        "spearman_absw": 0.000439772444305413,
+        "disco": 0.16923238337039948,
+        "pearson_absw": -0.05053112418103088,
+        "spearman_absw": -0.0009662943084042469,
         "n_valid": 545473
       },
       "mass2": {
-        "disco": 0.11950436234474182,
-        "pearson_absw": -0.09822080180195061,
-        "spearman_absw": -0.0029695819091015534,
+        "disco": 0.14598944783210754,
+        "pearson_absw": -0.16320678259897348,
+        "spearman_absw": 0.0030860912411595307,
         "n_valid": 217906
       }
     }
-  }
+  },
+  "loss_type": "weighted_ce",
+  "disco_lambda": 0.0
 }

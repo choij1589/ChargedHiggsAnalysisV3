@@ -25,6 +25,9 @@ PAPER_PLOTS = {
     "sr1-pair": ("SR1E2Mu", "pair/mass"),
     "sr3-low": ("SR3Mu", "pair_lowM/mass"),
     "sr3-high": ("SR3Mu", "pair_highM/mass"),
+    "zfake1-zcand": ("ZFake1E2Mu", "ZCand/mass"),
+    "zfake3-zcand": ("ZFake3Mu", "ZCand/mass"),
+    "ttz-zcand": ("TTZ2E1Mu", "ZCand/mass"),
 }
 
 DEFAULT_SIGNALS = ["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"]
@@ -41,7 +44,7 @@ def main():
     os.chdir(TRILEPTON_DIR)
 
     parser = argparse.ArgumentParser(
-        description="Produce isolated Run2+Run3 paper PDF plots for the SR mass distributions."
+        description="Produce isolated Run 2+3 paper PDF plots for selected mass distributions."
     )
     parser.add_argument("--plot", choices=["all", *PAPER_PLOTS.keys()], default="all",
                         help="which paper mass plot to produce")

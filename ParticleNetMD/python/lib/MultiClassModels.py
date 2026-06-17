@@ -17,6 +17,18 @@ from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import dropout_edge
 
 
+def normalize_conv_channels(num_hidden=128, conv_channels=None):
+    """Return the three EdgeConv output widths."""
+    if conv_channels is None:
+        return [int(num_hidden), int(num_hidden), int(num_hidden)]
+    channels = [int(width) for width in conv_channels]
+    if len(channels) != 3:
+        raise ValueError(f"conv_channels must contain exactly 3 widths, got {channels}")
+    if any(width <= 0 for width in channels):
+        raise ValueError(f"conv_channels widths must be positive, got {channels}")
+    return channels
+
+
 class EdgeConv(MessagePassing):
     """
     EdgeConv layer for graph neural networks.
@@ -47,16 +59,16 @@ class DynamicEdgeConv(EdgeConv):
     Builds k-NN graph dynamically and includes skip connections for better
     gradient flow. This is the core building block of the ParticleNet architecture.
     """
-    def __init__(self, in_channels, out_channels, dropout_p, k=4):
+    def __init__(self, in_channels, out_channels, dropout_p, edge_dropout_p=None, k=4):
         super().__init__(in_channels, out_channels, dropout_p=dropout_p)
         self.shortcut = Sequential(Linear(in_channels, out_channels), BatchNorm1d(out_channels), Dropout(dropout_p))
-        self.dropout_p = dropout_p
+        self.edge_dropout_p = dropout_p if edge_dropout_p is None else edge_dropout_p
         self.k = k
 
     def forward(self, x, edge_index=None, batch=None):
         if edge_index is None:
             edge_index = knn_graph(x, self.k, batch, loop=False, flow=self.flow)
-        edge_index, _ = dropout_edge(edge_index, p=self.dropout_p, training=self.training)
+        edge_index, _ = dropout_edge(edge_index, p=self.edge_dropout_p, training=self.training)
         out = super().forward(x, edge_index, batch=batch)
         out += self.shortcut(x)
         return out
@@ -71,24 +83,30 @@ class MultiClassParticleNet(torch.nn.Module):
     - Global mean pooling followed by dense layers
     - Extended to 4-class output (signal + 3 backgrounds)
     """
-    def __init__(self, num_node_features, num_graph_features, num_classes=4, num_hidden=128, dropout_p=0.25):
+    def __init__(self, num_node_features, num_graph_features, num_classes=4, num_hidden=128,
+                 dropout_p=0.25, edge_dropout_p=None, conv_channels=None):
         super(MultiClassParticleNet, self).__init__()
 
         # Input normalization
         self.gn0 = GraphNorm(num_node_features)
 
         # Three DynamicEdgeConv layers
-        self.conv1 = DynamicEdgeConv(num_node_features, num_hidden, dropout_p, k=4)
-        self.conv2 = DynamicEdgeConv(num_hidden, num_hidden, dropout_p, k=4)
-        self.conv3 = DynamicEdgeConv(num_hidden, num_hidden, dropout_p, k=4)
+        self.conv_channels = normalize_conv_channels(num_hidden, conv_channels)
+        c1, c2, c3 = self.conv_channels
+        self.edge_dropout_p = dropout_p if edge_dropout_p is None else edge_dropout_p
+        self.conv1 = DynamicEdgeConv(num_node_features, c1, dropout_p, self.edge_dropout_p, k=4)
+        self.conv2 = DynamicEdgeConv(c1, c2, dropout_p, self.edge_dropout_p, k=4)
+        self.conv3 = DynamicEdgeConv(c2, c3, dropout_p, self.edge_dropout_p, k=4)
 
         # Dense layers after global pooling
-        self.bn0 = BatchNorm1d(num_hidden*3 + num_graph_features)
-        self.dense1 = Linear(num_hidden*3 + num_graph_features, num_hidden)
-        self.bn1 = BatchNorm1d(num_hidden)
-        self.dense2 = Linear(num_hidden, num_hidden)
-        self.bn2 = BatchNorm1d(num_hidden)
-        self.output = Linear(num_hidden, num_classes)
+        pooled_features = sum(self.conv_channels) + num_graph_features
+        head_hidden = c3
+        self.bn0 = BatchNorm1d(pooled_features)
+        self.dense1 = Linear(pooled_features, head_hidden)
+        self.bn1 = BatchNorm1d(head_hidden)
+        self.dense2 = Linear(head_hidden, head_hidden)
+        self.bn2 = BatchNorm1d(head_hidden)
+        self.output = Linear(head_hidden, num_classes)
 
         self.dropout_p = dropout_p
         self.num_classes = num_classes
@@ -148,7 +166,8 @@ class MultiClassParticleNet(torch.nn.Module):
 
 
 def create_multiclass_model(model_type='ParticleNet', num_node_features=9, num_graph_features=8,
-                           num_classes=4, num_hidden=128, dropout_p=0.25):
+                           num_classes=4, num_hidden=128, dropout_p=0.25, edge_dropout_p=None,
+                           conv_channels=None):
     """
     Factory function to create multi-class models.
 
@@ -157,15 +176,20 @@ def create_multiclass_model(model_type='ParticleNet', num_node_features=9, num_g
         num_node_features: Number of node features (default: 9)
         num_graph_features: Number of global graph features (default: 8)
         num_classes: Number of output classes (default: 4)
-        num_hidden: Hidden layer size (default: 128)
-        dropout_p: Dropout probability (default: 0.25)
+        num_hidden: Hidden layer size for backward-compatible uniform EdgeConv
+            widths (default: 128)
+    dropout_p: Activation dropout probability (default: 0.25)
+    edge_dropout_p: Edge dropout probability. Defaults to dropout_p for backwards
+        compatibility with existing configs.
+    conv_channels: Optional three-element list of EdgeConv output widths.
 
     Returns:
         Initialized model
     """
     if model_type == 'ParticleNet':
         return MultiClassParticleNet(
-            num_node_features, num_graph_features, num_classes, num_hidden, dropout_p
+            num_node_features, num_graph_features, num_classes, num_hidden, dropout_p,
+            edge_dropout_p, conv_channels
         )
     else:
         raise ValueError(f"Unknown model type: {model_type}. Available: ParticleNet")

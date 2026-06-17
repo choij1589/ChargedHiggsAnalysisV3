@@ -598,9 +598,13 @@ def load_particle_net_model(model_path: Path, info_path: Path, device: str):
     state = checkpoint["model_state_dict"] if isinstance(checkpoint, dict) else checkpoint
 
     num_hidden = hp["num_hidden"]
+    conv_channels = hp.get("conv_channels")
+    if conv_channels is None and all(f"conv{i}.mlp.0.weight" in state for i in [1, 2, 3]):
+        conv_channels = [int(state[f"conv{i}.mlp.0.weight"].shape[0]) for i in [1, 2, 3]]
     num_graph_features = hp.get("num_graph_features", 8)
     if "dense1.weight" in state:
-        inferred = state["dense1.weight"].shape[1] - 3 * num_hidden
+        pooled_channels = sum(conv_channels) if conv_channels else 3 * num_hidden
+        inferred = state["dense1.weight"].shape[1] - pooled_channels
         if inferred != num_graph_features:
             num_graph_features = inferred
 
@@ -611,6 +615,8 @@ def load_particle_net_model(model_path: Path, info_path: Path, device: str):
         num_classes=hp.get("num_classes", 4),
         num_hidden=num_hidden,
         dropout_p=hp.get("dropout_p", 0.4),
+        edge_dropout_p=hp.get("edge_dropout_p", hp.get("dropout_p", 0.4)),
+        conv_channels=conv_channels,
     ).to(device)
     model.load_state_dict(state)
     model.eval()
