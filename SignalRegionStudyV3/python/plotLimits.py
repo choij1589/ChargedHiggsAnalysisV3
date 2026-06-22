@@ -162,8 +162,8 @@ else:
     CMS.SetEnergy(get_CoM_energy(args.era))
 
 if args.mode == "xsec":
-    y_label_full = "95% CL limit on #sigma(pp #rightarrow t#bar{t}) #times #it{B}_{sig} [fb]"
-    y_label_median = "95% CL median expected #sigma(pp #rightarrow t#bar{t}) #times #it{B}_{sig} [fb]"
+    y_label_full = "95% CL limit on #sigma_{sig} [fb]"
+    y_label_median = "95% CL median expected #sigma_{sig} [fb]"
 else:
     y_label_full = "95% CL limit on #it{B}_{sig}"
     y_label_median = "95% CL median expected #it{B}_{sig}"

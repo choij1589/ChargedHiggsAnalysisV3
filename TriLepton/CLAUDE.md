@@ -30,12 +30,12 @@ cd TriLepton && bash doSampleBreakdown.sh  # Event yield extraction
 bash scripts/drawPlots.sh 2018 SR1E2Mu
 bash scripts/drawPlots.sh Run2 ZFake3Mu
 
-# Single histogram plot (SR regions are blinded by default in drawPlots.sh)
-python python/plot.py --era 2018 --channel SR1E2Mu --histkey pair/mass --blind
+# Single histogram plot
+python python/plot.py --era 2018 --channel SR1E2Mu --histkey pair/mass
 python python/plot.py --era Run2 --channel WZ1E2Mu --histkey jets/size --exclude WZSF
 
 # Event yield extraction
-python python/sampleBreakdown.py --era 2018 --channel SR1E2Mu --blind
+python python/sampleBreakdown.py --era 2018 --channel SR1E2Mu
 python python/sampleBreakdown.py --era Run2 --channel ZFake1E2Mu --onZ
 
 # Scale factor measurements
@@ -113,7 +113,7 @@ Full data-MC comparison with signal overlay.
 - **Features:**
   - Fixed background stacking order: others → conv → diboson → ttX → nonprompt
   - ConvSF and WZNjSF reweighting from JSON files
-  - Blinding for SR1E2Mu and SR3Mu (`--blind`)
+  - Optional blinding with `--blind`
   - Signal overlay with configurable mass points and scale factor (default 10×)
   - K-factor application from `Common/Data/KFactors.json`
 - **Arguments:** `--era`, `--channel`, `--histkey`, `--exclude` (WZSF or ConvSF), `--blind`, `--signals`, `--signal-scale`, `--debug`
@@ -163,7 +163,7 @@ Histogram structure: `{Channel}/[Systematic]/[Subpath]`
 
 ## Common Issues
 
-**Signal regions are blinded by default** in `drawPlots.sh`. Use `--blind` flag explicitly when calling `plot.py` directly.
+**Signal regions are unblinded by default.** Use `--blind` explicitly when a blinded plot or yield table is needed.
 
 **WZNjSF max_nj difference:** Run2 supports up to 5 jets; Run3 supports up to 3. The WZ sample name also differs (amcatnlo vs powheg).
 

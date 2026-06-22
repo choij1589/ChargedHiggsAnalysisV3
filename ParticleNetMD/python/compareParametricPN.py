@@ -16,25 +16,37 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import ROOT
 import torch
 import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
+
+try:
+    import cmsstyle as CMS
+    CMS.setCMSStyle()
+    HAS_CMS_STYLE = True
+except ImportError:
+    HAS_CMS_STYLE = False
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 
 from DynamicDatasetLoader import DynamicDatasetLoader
 from MultiClassModels import create_multiclass_model
 from Preprocess import GraphDataset
-from ROCCurveCalculator import ROCCurveCalculator
+from ROCCurveCalculator import PALETTE, ROCCurveCalculator
 from SglConfig import load_sgl_config
 from WeightedLoss import distance_correlation
 
 
 CLASS_NAMES = ["signal", "nonprompt", "diboson", "ttX"]
 CLASS_DISPLAY = ["Signal", "Nonprompt", "Diboson", "ttX"]
-MODEL_DISPLAY = {"parametric": "ParametricPN", "baseline": "Plain PN MD"}
+MODEL_DISPLAY = {"parametric": "ParametricPN", "baseline": "ParticleNetMD"}
 COLORS = {"parametric": "#1f77b4", "baseline": "#d62728"}
 DEFAULT_DCOR_MAX_EVENTS = 3000
+MODEL_LINE_STYLES = {"baseline": ROOT.kSolid, "parametric": ROOT.kDashed}
+PLOT_LINE_WIDTH = 2
+MASS_RANGE = (60.0, 120.0)
+MASS_BINS = 30
 
 
 def parse_ma_values(value: str) -> List[int]:
@@ -187,6 +199,54 @@ def weighted_hist(ax, values, weights, bins, label, color, linestyle="-"):
     ax.step(centers, hist, where="mid", label=label, color=color, linestyle=linestyle, linewidth=1.8)
 
 
+def setup_mass_sculpting_style():
+    if not HAS_CMS_STYLE:
+        raise RuntimeError("cmsstyle is required for GA-style mass sculpting plots")
+    CMS.setCMSStyle()
+    CMS.SetExtraText("Simulation Preliminary")
+    CMS.SetLumi(None, run="Run 2+3,")
+    CMS.SetEnergy(0, unit="13/13.6 TeV")
+
+
+def root_color(hex_color: str) -> int:
+    return ROOT.TColor.GetColor(hex_color)
+
+
+def make_root_hist(name: str, values: np.ndarray, weights: np.ndarray) -> ROOT.TH1D:
+    hist = ROOT.TH1D(name, "", MASS_BINS, MASS_RANGE[0], MASS_RANGE[1])
+    hist.SetDirectory(0)
+    hist.Sumw2()
+    finite = np.isfinite(values) & np.isfinite(weights)
+    for value, weight in zip(values[finite], weights[finite]):
+        hist.Fill(float(value), abs(float(weight)))
+    return hist
+
+
+def normalize_root_hist(hist: ROOT.TH1D) -> None:
+    integral = hist.Integral(0, hist.GetNbinsX() + 1)
+    if integral > 0:
+        hist.Scale(1.0 / integral)
+
+
+def make_ratio_hist(numerator: ROOT.TH1D, denominator: ROOT.TH1D, name: str) -> ROOT.TH1D:
+    ratio = numerator.Clone(name)
+    ratio.SetDirectory(0)
+    for ibin in range(1, ratio.GetNbinsX() + 1):
+        denom = denominator.GetBinContent(ibin)
+        if denom > 0:
+            ratio.SetBinContent(ibin, numerator.GetBinContent(ibin) / denom)
+            ratio.SetBinError(ibin, numerator.GetBinError(ibin) / denom)
+        else:
+            ratio.SetBinContent(ibin, 0.0)
+            ratio.SetBinError(ibin, 0.0)
+    return ratio
+
+
+def unit_lr_score(scores: np.ndarray) -> np.ndarray:
+    denom = np.sum(scores, axis=1)
+    return np.divide(scores[:, 0], denom, out=np.zeros(scores.shape[0], dtype=np.float64), where=denom > 0)
+
+
 def compute_dcor(
     values: np.ndarray,
     mass: np.ndarray,
@@ -233,6 +293,87 @@ def make_roc_plots(ma_value: int, predictions: Dict[str, Dict], out_dir: Path, s
         fig.tight_layout()
         fig.savefig(out_dir / f"roc_MA{ma_value}_{CLASS_NAMES[bg_idx]}.png", dpi=160)
         plt.close(fig)
+
+
+def make_test_roc_overlay(ma_value: int, predictions: Dict[str, Dict], out_dir: Path):
+    roc = ROCCurveCalculator()
+    output_file = out_dir / "roc_curves_test_overlay.png"
+
+    ROOT.gROOT.SetBatch(True)
+    if HAS_CMS_STYLE:
+        CMS.SetExtraText("Simulation Preliminary")
+        CMS.SetLumi(None, run="Run 2+3, 138+62 fb^{#minus1}")
+        CMS.SetEnergy(0, unit="13/13.6 TeV")
+        canvas = CMS.cmsCanvas(
+            "",
+            0, 1,
+            0, 1,
+            "Signal Efficiency",
+            "Background Efficiency",
+            square=True,
+            iPos=11,
+            extraSpace=0.,
+        )
+        legend = CMS.cmsLeg(0.19, 0.47, 0.82, 0.75, textSize=0.025, columns=1)
+    else:
+        canvas = ROOT.TCanvas("roc_overlay", "roc_overlay", 596, 572)
+        frame = canvas.DrawFrame(0, 0, 1, 1)
+        frame.GetXaxis().SetTitle("Signal Efficiency")
+        frame.GetYaxis().SetTitle("Background Efficiency")
+        legend = ROOT.TLegend(0.19, 0.47, 0.82, 0.75)
+        legend.SetBorderSize(0)
+        legend.SetFillStyle(0)
+        legend.SetTextSize(0.025)
+
+    canvas.SetGrid()
+    graphs = []
+
+    diag_graph = ROOT.TGraph(2)
+    diag_graph.SetPoint(0, 0, 0)
+    diag_graph.SetPoint(1, 1, 1)
+    if HAS_CMS_STYLE:
+        CMS.cmsObjectDraw(diag_graph, "L", LineColor=ROOT.kGray + 2, LineWidth=1, LineStyle=2)
+    else:
+        diag_graph.SetLineColor(ROOT.kGray + 2)
+        diag_graph.SetLineWidth(1)
+        diag_graph.SetLineStyle(2)
+        diag_graph.Draw("L")
+    graphs.append(diag_graph)
+
+    for bg_idx in [1, 2, 3]:
+        bg_color = PALETTE[bg_idx]
+        bg_name = CLASS_DISPLAY[bg_idx]
+        for model_key in ["baseline", "parametric"]:
+            pred = predictions[model_key]
+            mask = (pred["y"] == 0) | (pred["y"] == bg_idx)
+            y_binary = (pred["y"][mask] == 0).astype(int)
+            lr = lr_score(pred["scores"][mask], bg_idx)
+            fpr, tpr, auc = roc.calculate_roc_curve(y_binary, lr, pred["weight"][mask])
+
+            graph = ROOT.TGraph(len(fpr))
+            for idx in range(len(fpr)):
+                graph.SetPoint(idx, tpr[idx], fpr[idx])
+
+            line_style = MODEL_LINE_STYLES[model_key]
+            if HAS_CMS_STYLE:
+                CMS.cmsObjectDraw(graph, "L", LineColor=bg_color, LineWidth=2, LineStyle=line_style)
+            else:
+                graph.SetLineColor(bg_color)
+                graph.SetLineWidth(2)
+                graph.SetLineStyle(line_style)
+                graph.Draw("L")
+            graphs.append(graph)
+            legend_label = f"{MODEL_DISPLAY[model_key]} vs {bg_name}: AUC = {auc:.4f}"
+            if HAS_CMS_STYLE:
+                CMS.addToLegend(legend, (graph, legend_label, "L"))
+            else:
+                legend.AddEntry(graph, legend_label, "L")
+
+    legend.Draw()
+    canvas.RedrawAxis()
+    canvas.Update()
+    canvas.SaveAs(str(output_file))
+    canvas.Close()
 
 
 def make_score_plots(ma_value: int, predictions: Dict[str, Dict], out_dir: Path):
@@ -304,6 +445,164 @@ def make_mass_sculpting(ma_value: int, predictions: Dict[str, Dict], out_dir: Pa
             plt.close(fig)
 
 
+def make_test_mass_sculpting_overlays(ma_value: int, predictions: Dict[str, Dict], out_dir: Path, dcor_max_events: int):
+    setup_mass_sculpting_style()
+    region_defs = [
+        ("nocut", "No cut", None, ROOT.kBlack),
+        ("low", "LR < 0.3", lambda lr: lr < 0.3, root_color("#5790fc")),
+        ("mid", "0.3 < LR < 0.7", lambda lr: (lr > 0.3) & (lr < 0.7), root_color("#f89c20")),
+        ("high", "LR > 0.7", lambda lr: lr > 0.7, root_color("#e42536")),
+    ]
+    selections = [("background", "background", None)] + [
+        (CLASS_NAMES[idx], CLASS_DISPLAY[idx], idx) for idx in range(len(CLASS_NAMES))
+    ]
+
+    def selection_mask(labels: np.ndarray, class_idx):
+        if class_idx is None:
+            return labels != 0
+        return labels == class_idx
+
+    for mass_name in ["mass1", "mass2"]:
+        for selection_name, selection_display, class_idx in selections:
+            hists = []
+            refs: Dict[str, ROOT.TH1D] = {}
+            dcors: Dict[str, float] = {}
+
+            for model_key in ["baseline", "parametric"]:
+                pred = predictions[model_key]
+                mass = pred[mass_name]
+                lr = unit_lr_score(pred["scores"])
+                base = selection_mask(pred["y"], class_idx) & (mass > 0)
+                if base.sum() == 0:
+                    continue
+
+                seed = ma_value * 1000 + (99 if class_idx is None else class_idx * 100) + (0 if mass_name == "mass1" else 10) + (0 if model_key == "baseline" else 1)
+                dcors[model_key] = compute_dcor(lr[base], mass[base], pred["weight"][base], dcor_max_events, seed)
+
+                for region_key, region_label, selector, color in region_defs:
+                    mask = base if selector is None else base & selector(lr)
+                    if mask.sum() == 0:
+                        continue
+                    hist = make_root_hist(
+                        f"h_msculpt_MA{ma_value}_{selection_name}_{mass_name}_{model_key}_{region_key}",
+                        mass[mask],
+                        pred["weight"][mask],
+                    )
+                    normalize_root_hist(hist)
+                    hist.SetLineColor(color)
+                    hist.SetLineWidth(PLOT_LINE_WIDTH)
+                    hist.SetLineStyle(MODEL_LINE_STYLES[model_key])
+                    hist.SetMarkerSize(0)
+                    hists.append((model_key, region_key, region_label, hist))
+                    if selector is None:
+                        refs[model_key] = hist
+
+            if not hists or not refs:
+                print(f"  Warning: no mass sculpting entries for MA{ma_value}, {selection_name}, {mass_name}", flush=True)
+                continue
+
+            ymax = max(hist.GetMaximum() for _model_key, _region_key, _region_label, hist in hists)
+            canvas = CMS.cmsDiCanvas(
+                "",
+                MASS_RANGE[0],
+                MASS_RANGE[1],
+                0.0,
+                max(0.01, ymax * 2.0),
+                0.0,
+                2.0,
+                f"{mass_name} [GeV]",
+                "Normalized",
+                "Region / No cut",
+                square=True,
+                iPos=0,
+                extraSpace=0.0,
+            )
+            keepalive = []
+
+            canvas.cd(1)
+            canvas.cd(1).SetGrid(0, 0)
+            legend = CMS.cmsLeg(0.38, 0.56, 0.95, 0.88, textSize=0.023, columns=2)
+            hist_by_key = {}
+            for model_key, region_key, region_label, hist in hists:
+                CMS.cmsObjectDraw(
+                    hist,
+                    "hist",
+                    LineColor=hist.GetLineColor(),
+                    LineWidth=hist.GetLineWidth(),
+                    LineStyle=hist.GetLineStyle(),
+                )
+                CMS.cmsObjectDraw(
+                    hist,
+                    "E0 SAME",
+                    LineColor=hist.GetLineColor(),
+                    LineWidth=hist.GetLineWidth(),
+                    LineStyle=hist.GetLineStyle(),
+                    MarkerColor=hist.GetLineColor(),
+                    MarkerSize=0,
+                )
+                keepalive.append(hist)
+                hist_by_key[(model_key, region_key)] = hist
+
+            for region_key, region_label, _selector, _color in region_defs:
+                for model_key in ["baseline", "parametric"]:
+                    hist = hist_by_key.get((model_key, region_key))
+                    if hist is not None:
+                        CMS.addToLegend(legend, (hist, f"{MODEL_DISPLAY[model_key]} {region_label}", "L"))
+            legend.Draw()
+
+            CMS.drawText(f"MA{ma_value} {selection_display}", posX=0.20, posY=0.77, font=62, align=0, size=0.040)
+            y_text = 0.70
+            for model_key in ["baseline", "parametric"]:
+                if model_key in dcors:
+                    CMS.drawText(
+                        f"{MODEL_DISPLAY[model_key]} dCor = {dcors[model_key]:.4f}",
+                        posX=0.20,
+                        posY=y_text,
+                        font=42,
+                        align=0,
+                        size=0.027,
+                    )
+                    y_text -= 0.050
+            canvas.cd(1).RedrawAxis()
+
+            canvas.cd(2)
+            canvas.cd(2).SetGrid()
+            ref_line = ROOT.TLine(MASS_RANGE[0], 1.0, MASS_RANGE[1], 1.0)
+            ref_line.SetLineStyle(ROOT.kDotted)
+            ref_line.SetLineColor(ROOT.kBlack)
+            ref_line.SetLineWidth(PLOT_LINE_WIDTH)
+            ref_line.Draw()
+            keepalive.append(ref_line)
+
+            for model_key, region_key, _region_label, hist in hists:
+                if region_key == "nocut" or model_key not in refs:
+                    continue
+                ratio = make_ratio_hist(hist, refs[model_key], f"{hist.GetName()}_ratio")
+                CMS.cmsObjectDraw(
+                    ratio,
+                    "hist",
+                    LineColor=hist.GetLineColor(),
+                    LineWidth=hist.GetLineWidth(),
+                    LineStyle=hist.GetLineStyle(),
+                )
+                CMS.cmsObjectDraw(
+                    ratio,
+                    "E0 SAME",
+                    LineColor=hist.GetLineColor(),
+                    LineWidth=hist.GetLineWidth(),
+                    LineStyle=hist.GetLineStyle(),
+                    MarkerColor=hist.GetLineColor(),
+                    MarkerSize=0,
+                )
+                keepalive.append(ratio)
+            canvas.cd(2).RedrawAxis()
+
+            canvas._keepalive = keepalive
+            output_path = out_dir / f"mass_sculpting_test_overlay_MA{ma_value}_{selection_name}_{mass_name}.png"
+            canvas.SaveAs(str(output_path))
+            canvas.Close()
+
+
 def write_summary(out_dir: Path, auc_rows: List[Dict], dcor_rows: List[Dict]):
     summary = {"auc": auc_rows, "dcor": dcor_rows}
     with open(out_dir / "summary.json", "w") as handle:
@@ -335,6 +634,10 @@ def parse_arguments():
     parser.add_argument("--max-events-per-class", type=int, default=None)
     parser.add_argument("--dcor-max-events", type=int, default=DEFAULT_DCOR_MAX_EVENTS,
                         help="Maximum events used for each exact dCor calculation; plots still use the full selected sample.")
+    parser.add_argument("--roc-overlay-only", action="store_true",
+                        help="Only draw the test-only ParticleNetMD-vs-ParametricPN ROC overlay canvases.")
+    parser.add_argument("--mass-sculpting-overlay-only", action="store_true",
+                        help="Only draw the test-only ParticleNetMD-vs-ParametricPN mass-sculpting overlay canvases.")
     parser.add_argument("--pilot", action="store_true")
     return parser.parse_args()
 
@@ -343,6 +646,9 @@ def main():
     global args_global
     args = parse_arguments()
     args_global = args
+    make_full_plot_set = not args.roc_overlay_only and not args.mass_sculpting_overlay_only
+    make_roc_overlay = args.roc_overlay_only or make_full_plot_set
+    make_mass_sculpting_overlay = args.mass_sculpting_overlay_only or make_full_plot_set
 
     workdir = Path(os.environ["WORKDIR"]) / "ParticleNetMD"
     config_data = load_sgl_config(args.config).config
@@ -380,16 +686,22 @@ def main():
         ma_dir = out_dir / f"MA{ma_value}"
         ma_dir.mkdir(parents=True, exist_ok=True)
         print(f"  Making plots for MA{ma_value}", flush=True)
-        make_roc_plots(ma_value, predictions, ma_dir, auc_rows)
-        make_score_plots(ma_value, predictions, ma_dir)
-        make_mass_sculpting(ma_value, predictions, ma_dir, dcor_rows, args.dcor_max_events)
+        if make_roc_overlay:
+            make_test_roc_overlay(ma_value, predictions, ma_dir)
+        if make_mass_sculpting_overlay:
+            make_test_mass_sculpting_overlays(ma_value, predictions, ma_dir, args.dcor_max_events)
+        if make_full_plot_set:
+            make_roc_plots(ma_value, predictions, ma_dir, auc_rows)
+            make_score_plots(ma_value, predictions, ma_dir)
+            make_mass_sculpting(ma_value, predictions, ma_dir, dcor_rows, args.dcor_max_events)
         print(f"  Finished MA{ma_value}", flush=True)
 
         del baseline_model
         if device.type == "cuda":
             torch.cuda.empty_cache()
 
-    write_summary(out_dir, auc_rows, dcor_rows)
+    if make_full_plot_set:
+        write_summary(out_dir, auc_rows, dcor_rows)
     print(f"Comparison written to {out_dir}")
 
 

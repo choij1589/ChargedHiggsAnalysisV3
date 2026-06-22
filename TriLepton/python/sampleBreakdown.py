@@ -58,6 +58,16 @@ def load_kfactors():
         return json.load(f)
 
 
+def load_fake_norm():
+    """Load per-era nonprompt normalization uncertainties."""
+    fake_norm_path = f"{WORKDIR}/Common/Data/FakeNorm.json"
+    if not os.path.exists(fake_norm_path):
+        raise FileNotFoundError(f"FakeNorm configuration not found: {fake_norm_path}")
+
+    with open(fake_norm_path, 'r') as f:
+        return json.load(f)
+
+
 def get_run_period(era):
     """Determine run period (Run2/Run3) from era."""
     if era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
@@ -95,7 +105,144 @@ def get_kfactor_info(kfactors, sample, run_period):
     return kfactor, xsec_rel_unc
 
 
-def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name=None):
+def get_histogram_events(hist):
+    """Return histogram yield including underflow and overflow."""
+    if hist is None:
+        return 0.0
+    return hist.Integral(0, hist.GetNbinsX() + 1)
+
+
+def combine_rate_uncertainties(yield_uncertainties):
+    """Convert per-era yield/fraction pairs into one relative rate uncertainty."""
+    total_yield = sum(yield_value for yield_value, _ in yield_uncertainties)
+    if total_yield == 0.0:
+        return 0.0
+    abs_unc_sq = sum((yield_value * rel_unc)**2 for yield_value, rel_unc in yield_uncertainties)
+    return sqrt(abs_unc_sq) / abs(total_yield)
+
+
+def add_systematic_error(systematics, name, error):
+    """Add a systematic source, combining duplicate names in quadrature."""
+    if name in systematics:
+        systematics[name] = sqrt(systematics[name]**2 + error**2)
+    else:
+        systematics[name] = error
+
+
+def make_null_efficiency(status, weighting, reason=None):
+    """Build a null efficiency payload with a machine-readable status."""
+    efficiency = {
+        "value": None,
+        "stat_error": None,
+        "initial": None,
+        "initial_stat_error": None,
+        "final": None,
+        "final_stat_error": None,
+        "weighting": weighting,
+        "status": status
+    }
+    if reason:
+        efficiency["reason"] = reason
+    return efficiency
+
+
+def calculate_cutflow_efficiency(initial, initial_error, final, final_error, weighting):
+    """Calculate Final/Initial cutflow efficiency with stat-only uncertainty."""
+    if initial == 0.0:
+        efficiency = make_null_efficiency("zero_denominator", weighting)
+        efficiency.update({
+            "initial": initial,
+            "initial_stat_error": initial_error,
+            "final": final,
+            "final_stat_error": final_error
+        })
+        return efficiency
+
+    value = final / initial
+    stat_error = sqrt((final_error / initial)**2 + ((final * initial_error) / (initial**2))**2)
+    return {
+        "value": value,
+        "stat_error": stat_error,
+        "initial": initial,
+        "initial_stat_error": initial_error,
+        "final": final,
+        "final_stat_error": final_error,
+        "weighting": weighting,
+        "status": "ok"
+    }
+
+
+def load_cutflow_counts(file_path, flag, channel, era, weighting):
+    """
+    Load Initial and Final cutflow entries from one ROOT file.
+
+    CutStage.Initial is filled at x=0, ROOT bin 1. CutStage.Final is filled at
+    x=8, ROOT bin 9.
+    """
+    initial_hist = load_histogram(file_path, f"{flag}/Central/cutflow", era)
+    final_hist = load_histogram(file_path, f"{channel}/Central/cutflow", era)
+
+    missing = []
+    if initial_hist is None:
+        missing.append(f"{flag}/Central/cutflow")
+    if final_hist is None:
+        missing.append(f"{channel}/Central/cutflow")
+    if missing:
+        return {
+            "initial": 0.0,
+            "initial_stat_error": 0.0,
+            "final": 0.0,
+            "final_stat_error": 0.0,
+            "weighting": weighting,
+            "status": "missing_cutflow",
+            "reason": ", ".join(missing)
+        }
+
+    if initial_hist.GetNbinsX() < 1 or final_hist.GetNbinsX() < 9:
+        return {
+            "initial": 0.0,
+            "initial_stat_error": 0.0,
+            "final": 0.0,
+            "final_stat_error": 0.0,
+            "weighting": weighting,
+            "status": "missing_cutflow_bin",
+            "reason": f"initial_nbins={initial_hist.GetNbinsX()}, final_nbins={final_hist.GetNbinsX()}"
+        }
+
+    return {
+        "initial": float(initial_hist.GetBinContent(1)),
+        "initial_stat_error": float(initial_hist.GetBinError(1)),
+        "final": float(final_hist.GetBinContent(9)),
+        "final_stat_error": float(final_hist.GetBinError(9)),
+        "weighting": weighting,
+        "status": "ok"
+    }
+
+
+def combine_cutflow_counts(counts, weighting, missing_status="missing_member_cutflow"):
+    """Sum cutflow counts and errors before calculating an aggregate efficiency."""
+    valid_counts = [count for count in counts if count and count.get("status") == "ok"]
+    if len(valid_counts) != len(counts):
+        missing_reasons = [
+            count.get("reason", count.get("status", "missing"))
+            for count in counts
+            if not count or count.get("status") != "ok"
+        ]
+        return make_null_efficiency(
+            missing_status,
+            weighting,
+            "; ".join(missing_reasons) if missing_reasons else None
+        )
+
+    initial = sum(count["initial"] for count in valid_counts)
+    initial_error = sqrt(sum(count["initial_stat_error"]**2 for count in valid_counts))
+    final = sum(count["final"] for count in valid_counts)
+    final_error = sqrt(sum(count["final_stat_error"]**2 for count in valid_counts))
+    return calculate_cutflow_efficiency(initial, initial_error, final, final_error, weighting)
+
+
+def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name=None,
+                             rate_uncs=None):
     """
     Extract statistical and systematic errors separately.
 
@@ -104,6 +251,7 @@ def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name
         hSysts: List of (name, h_up, h_down) systematic variation tuples (optional)
         rate_unc: Flat rate uncertainty to add (e.g., 0.30 for nonprompt)
         rate_unc_name: Name for the rate uncertainty (e.g., "nonprompt_rate")
+        rate_uncs: Optional list of (name, relative uncertainty) rate uncertainties
 
     Returns:
         dict with events, stat_error, systematics (dict), syst_error, total_error
@@ -143,14 +291,21 @@ def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name
 
         # Take square root and store in systematics dict
         for name, error_squared in syst_errors.items():
-            systematics[name] = sqrt(error_squared)
+            add_systematic_error(systematics, name, sqrt(error_squared))
             syst_error_squared += error_squared
 
     # Add flat rate uncertainty (applied to total events)
-    if rate_unc > 0.0:
-        rate_error = abs(events * rate_unc)
-        if rate_unc_name:
-            systematics[rate_unc_name] = rate_error
+    if rate_uncs is None:
+        rate_uncs = []
+        if rate_unc > 0.0:
+            rate_uncs.append((rate_unc_name, rate_unc))
+
+    for name, rel_unc in rate_uncs:
+        if rel_unc <= 0.0:
+            continue
+        rate_error = abs(events * rel_unc)
+        if name:
+            add_systematic_error(systematics, name, rate_error)
         syst_error_squared += rate_error**2
 
     syst_error = sqrt(syst_error_squared)
@@ -282,18 +437,24 @@ def load_conv_sf_data():
         return json.load(f)
 
 
-def get_conv_scale_factor(era_list, sample, channel):
+def get_fake_norm_uncertainty(fake_norm, flag, era):
+    """Return the nonprompt rate uncertainty for one flag/era."""
+    try:
+        return fake_norm[flag][era]
+    except KeyError:
+        print(f"[WARNING] No FakeNorm entry for flag={flag}, era={era}; using 30% fallback")
+        return 0.30
+
+
+def get_conv_scale_factor(conv_sf_data, era, channel):
     """
-    Get conversion scale factor for ZG channels, applied to conversion samples only.
+    Get conversion scale factor for one era and final-state channel.
+
     Returns (scale, relative_uncertainty).
 
     Reads Common/Data/ConvSF.json (structure: {channel_flag: {era: {central, total, ...}}}).
-    For multi-era (Run2/Run3), returns a simple average of per-era SFs; the 'total'
-    field is already a relative fraction (e.g. 0.10 = 10%).
+    The 'total' field is already a relative fraction (e.g. 0.10 = 10%).
     """
-    if not channel.startswith("ZG"):
-        return 1.0, 0.0
-
     if "1E2Mu" in channel:
         channel_flag = "1E2Mu"
     elif "3Mu" in channel:
@@ -301,25 +462,11 @@ def get_conv_scale_factor(era_list, sample, channel):
     else:
         raise ValueError(f"Cannot extract channel flag from: {channel}")
 
-    conv_sf_data = load_conv_sf_data()
-    channel_data = conv_sf_data.get(channel_flag, {})
+    era_data = conv_sf_data.get(channel_flag, {}).get(era)
+    if era_data is None:
+        raise KeyError(f"No ConvSF entry for channel_flag={channel_flag}, era={era} in ConvSF.json")
 
-    scales = []
-    uncertainties = []
-
-    for era in era_list:
-        era_data = channel_data.get(era)
-        if era_data is None:
-            raise KeyError(f"No ConvSF entry for channel_flag={channel_flag}, era={era} in ConvSF.json")
-        scales.append(era_data["central"])
-        uncertainties.append(era_data["total"])  # already a relative fraction
-
-    if not scales:
-        raise RuntimeError(f"No conversion SFs loaded for {channel}")
-
-    avg_scale = sum(scales) / len(scales)
-    avg_unc = sqrt(sum(u**2 for u in uncertainties)) / len(uncertainties)
-    return avg_scale, avg_unc
+    return era_data["central"], era_data["total"]
 
 
 def main():
@@ -389,7 +536,7 @@ def main():
 
     # Load configurations using HistoUtils functions
     ERA_SAMPLES, ERA_SYSTEMATICS = load_era_configs(channel_args, era_list)
-    DATAPERIODs, MC_CATEGORIES, MCList = get_sample_lists(ERA_SAMPLES, ["nonprompt", "conv", "ttX", "diboson", "others"])
+    DATAPERIODs, MC_CATEGORIES, _ = get_sample_lists(ERA_SAMPLES, ["nonprompt", "conv", "ttX", "diboson", "others"])
     SYSTEMATICS = merge_systematics(ERA_SYSTEMATICS)
 
     # Validate that systematics are consistent across eras (unless systematics are excluded)
@@ -398,6 +545,8 @@ def main():
 
     # Unpack MC categories
     nonprompt = MC_CATEGORIES["nonprompt"]
+    prompt_mc_categories = ["conv", "ttX", "diboson", "others"]
+    prompt_mc_list = sum([MC_CATEGORIES[category] for category in prompt_mc_categories], [])
 
     # Determine WZ sample name based on era (Run2 vs Run3)
     run_period = get_run_period(args.era)
@@ -408,6 +557,8 @@ def main():
 
     # Load K-factors
     KFACTORS = load_kfactors()
+    FAKENORM = load_fake_norm()
+    CONV_SF_DATA = load_conv_sf_data() if args.exclude != "ConvSF" else {}
 
     # Initialize output structure
     output = {
@@ -463,8 +614,11 @@ def main():
     # ===== 2. Load and process NONPROMPT histograms =====
     print("[INFO] Loading nonprompt histograms...")
     nonprompt_hists = {}
+    cutflow_efficiencies = {}
     for sample in nonprompt:
         era_hists = []
+        nonprompt_rate_components = []
+        sample_cutflows = []
         for era in era_list:
             if era not in ERA_SAMPLES:
                 continue
@@ -473,24 +627,34 @@ def main():
             h = load_histogram(file_path, hist_path, era)
             if h:
                 era_hists.append(h)
+                nonprompt_rate_components.append(
+                    (get_histogram_events(h), get_fake_norm_uncertainty(FAKENORM, FLAG, era))
+                )
+                sample_cutflows.append(load_cutflow_counts(
+                    file_path, FLAG, args.channel, era, "matrix_unweighted_cutflow"))
 
         if era_hists:
             h_total = sum_histograms(era_hists, f"{sample}_total")
-            # Nonprompt has 30% flat systematic uncertainty
+            nonprompt_rate_unc = combine_rate_uncertainties(nonprompt_rate_components)
             # Use "nonprompt_" prefix to avoid overwriting data samples
             nonprompt_sample_name = f"nonprompt_{sample}"
             output["samples"][nonprompt_sample_name] = extract_stat_syst_errors(
-                h_total, rate_unc=0.30, rate_unc_name="nonprompt_rate")
+                h_total, rate_uncs=[("nonprompt_rate", nonprompt_rate_unc)])
+            output["samples"][nonprompt_sample_name]["efficiency"] = combine_cutflow_counts(
+                sample_cutflows, "matrix_unweighted_cutflow", missing_status="missing_cutflow")
+            cutflow_efficiencies[nonprompt_sample_name] = output["samples"][nonprompt_sample_name]["efficiency"]
             nonprompt_hists[nonprompt_sample_name] = h_total
             print(f"[INFO]   {nonprompt_sample_name}: {output['samples'][nonprompt_sample_name]['events']:.2f} events")
 
     # ===== 3. Load and process MC histograms =====
     print("[INFO] Loading MC histograms...")
     mc_hists = {}
-    for sample in MCList:
+    for sample in prompt_mc_list:
         era_hists = []
         # Dictionary to track systematic variations per source: {syst_name: {'up': [h_up_era1, ...], 'down': [h_down_era1, ...]}}
         syst_variations = {}
+        conv_rate_components = []
+        sample_cutflows = []
 
         for era in era_list:
             if era not in ERA_SAMPLES:
@@ -500,7 +664,9 @@ def main():
             hist_path = f"{args.channel}/Central/{HISTKEY}"
             h = load_histogram(file_path, hist_path, era)
             if h:
-                era_hists.append(h)
+                hSysts = None
+                sample_cutflows.append(load_cutflow_counts(
+                    file_path, FLAG, args.channel, era, "mc_xsec_lumi_cutflow"))
 
                 # Load systematic variations (unless excluded)
                 if not args.exclude or args.exclude != "Syst":
@@ -509,13 +675,26 @@ def main():
                     if era_systs:
                         hSysts = load_systematic_variations(era, sample, args.channel,
                                                            HISTKEY, era_systs, FLAG, False)
-                        if hSysts:
-                            # Store up/down variations for each systematic source
-                            for syst_name, h_up, h_down in hSysts:
-                                if syst_name not in syst_variations:
-                                    syst_variations[syst_name] = {'up': [], 'down': []}
-                                syst_variations[syst_name]['up'].append(h_up)
-                                syst_variations[syst_name]['down'].append(h_down)
+
+                # Apply conversion scale factor per era before summing
+                if not (args.exclude == "ConvSF") and sample in MC_CATEGORIES["conv"]:
+                    scale, rel_unc = get_conv_scale_factor(CONV_SF_DATA, era, args.channel)
+                    h.Scale(scale)
+                    if hSysts:
+                        for _, h_up, h_down in hSysts:
+                            h_up.Scale(scale)
+                            h_down.Scale(scale)
+                    conv_rate_components.append((get_histogram_events(h), rel_unc))
+
+                era_hists.append(h)
+
+                if hSysts:
+                    # Store up/down variations for each systematic source
+                    for syst_name, h_up, h_down in hSysts:
+                        if syst_name not in syst_variations:
+                            syst_variations[syst_name] = {'up': [], 'down': []}
+                        syst_variations[syst_name]['up'].append(h_up)
+                        syst_variations[syst_name]['down'].append(h_down)
 
         if era_hists:
             h_total = sum_histograms(era_hists, f"{sample}_total")
@@ -539,39 +718,28 @@ def main():
                     for _, h_up, h_down in combined_systs:
                         h_up.Scale(kfactor)
                         h_down.Scale(kfactor)
+                conv_rate_components = [
+                    (yield_value * kfactor, rel_unc)
+                    for yield_value, rel_unc in conv_rate_components
+                ]
 
-            # Determine rate uncertainty (start with xsec uncertainty from K-factors)
-            rate_unc = xsec_rel_unc
-            rate_unc_name = "xsec" if xsec_rel_unc > 0 else None
+            rate_uncs = []
+            if xsec_rel_unc > 0.0:
+                rate_uncs.append(("xsec", xsec_rel_unc))
 
             # Add WZ rate uncertainty if applicable
             if sample in WZ_SAMPLES and not (args.exclude == "WZSF"):
-                wz_unc = 0.20  # 20% WZ uncertainty
-                if rate_unc > 0.0:
-                    rate_unc = sqrt(rate_unc**2 + wz_unc**2)
-                else:
-                    rate_unc = wz_unc
-                    rate_unc_name = "WZ_rate"
+                rate_uncs.append(("WZ_rate", 0.20))
 
-            # Apply conversion scale factor if needed (only for conversion samples in ZG channels)
-            if args.channel.startswith("ZG") and not (args.exclude == "ConvSF") and sample in MC_CATEGORIES["conv"]:
-                scale, rel_unc = get_conv_scale_factor(era_list, sample, args.channel)
-                if scale != 1.0:
-                    h_total.Scale(scale)
-                    # Also scale systematic variations
-                    if combined_systs:
-                        for _, h_up, h_down in combined_systs:
-                            h_up.Scale(scale)
-                            h_down.Scale(scale)
-                    # Combine conversion uncertainty with other rate uncertainties
-                    if rate_unc > 0.0:
-                        rate_unc = sqrt(rate_unc**2 + rel_unc**2)
-                    else:
-                        rate_unc = rel_unc
-                        rate_unc_name = "conv_rate"
+            if conv_rate_components:
+                conv_rate_unc = combine_rate_uncertainties(conv_rate_components)
+                rate_uncs.append(("conv_rate", conv_rate_unc))
 
             output["samples"][sample] = extract_stat_syst_errors(
-                h_total, combined_systs, rate_unc, rate_unc_name)
+                h_total, combined_systs, rate_uncs=rate_uncs)
+            output["samples"][sample]["efficiency"] = combine_cutflow_counts(
+                sample_cutflows, "mc_xsec_lumi_cutflow", missing_status="missing_cutflow")
+            cutflow_efficiencies[sample] = output["samples"][sample]["efficiency"]
             mc_hists[sample] = h_total
             print(f"[INFO]   {sample}: {output['samples'][sample]['events']:.2f} events")
 
@@ -588,11 +756,31 @@ def main():
         if cat_sample_names:
             output["categories"][category] = sum_sample_errors(
                 [output["samples"][s] for s in cat_sample_names])
+            category_weighting = "matrix_unweighted_cutflow" if category == "nonprompt" else "mc_xsec_lumi_cutflow"
+            output["categories"][category]["efficiency"] = combine_cutflow_counts(
+                [cutflow_efficiencies[s] for s in cat_sample_names], category_weighting)
             print(f"[INFO]   {category}: {output['categories'][category]['events']:.2f} events")
 
     # Calculate total background
     if output["categories"]:
         output["total_background"] = sum_sample_errors(list(output["categories"].values()))
+        has_nonprompt = "nonprompt" in output["categories"]
+        prompt_categories = [
+            category for category in ["conv", "ttX", "diboson", "others"]
+            if category in output["categories"]
+        ]
+        if has_nonprompt and prompt_categories:
+            output["total_background"]["efficiency"] = make_null_efficiency(
+                "mixed_weighting_not_defined",
+                "mixed",
+                "prompt MC cutflows are xsec/lumi weighted, nonprompt cutflows are unweighted"
+            )
+        elif has_nonprompt:
+            output["total_background"]["efficiency"] = output["categories"]["nonprompt"]["efficiency"]
+        else:
+            output["total_background"]["efficiency"] = combine_cutflow_counts(
+                [output["categories"][category]["efficiency"] for category in prompt_categories],
+                "mc_xsec_lumi_cutflow")
         print(f"[INFO] Total background: {output['total_background']['events']:.2f} events")
     else:
         output["total_background"] = None
@@ -605,6 +793,7 @@ def main():
 
         for signal_mass in SIGNALS:
             era_signal_hists = []
+            signal_cutflows = []
             for era in era_list:
                 if era not in ERA_SAMPLES:
                     continue
@@ -615,10 +804,14 @@ def main():
                 h = load_histogram(file_path, hist_path, era)
                 if h:
                     era_signal_hists.append(h)
+                    signal_cutflows.append(load_cutflow_counts(
+                        file_path, FLAG, args.channel, era, "mc_xsec_lumi_cutflow"))
 
             if era_signal_hists:
                 h_signal = sum_histograms(era_signal_hists, signal_mass)
                 output["signals"][signal_mass] = extract_stat_syst_errors(h_signal)
+                output["signals"][signal_mass]["efficiency"] = combine_cutflow_counts(
+                    signal_cutflows, "mc_xsec_lumi_cutflow", missing_status="missing_cutflow")
                 print(f"[INFO]   {signal_mass}: {output['signals'][signal_mass]['events']:.2f} events")
 
     # ===== 6. Save to JSON =====

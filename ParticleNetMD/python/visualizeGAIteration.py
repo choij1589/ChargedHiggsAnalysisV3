@@ -46,6 +46,7 @@ from DynamicDatasetLoader import DynamicDatasetLoader
 from MultiClassModels import create_multiclass_model
 from Preprocess import GraphDataset
 from ROCCurveCalculator import ROCCurveCalculator
+from WeightedLoss import distance_correlation
 
 # Try to import CMS style
 try:
@@ -66,15 +67,17 @@ PALETTE = [
 CLASS_NAMES = ['signal', 'nonprompt', 'diboson', 'ttX']
 CLASS_DISPLAY_NAMES = ['Signal', 'Nonprompt', 'Diboson', 'TTX']
 SCORE_NAMES = ['signal_score', 'nonprompt_score', 'diboson_score', 'ttX_score']
+TRAIN_LINE_STYLE = 7
+PLOT_LINE_WIDTH = 2
 
 
 def setup_cms_style():
     """Setup CMS style for ROOT plots."""
     if HAS_CMS_STYLE:
         CMS.setCMSStyle()
-        CMS.SetEnergy(13)
-        CMS.SetLumi(-1, run="Run2")
         CMS.SetExtraText("Simulation Preliminary")
+        CMS.SetLumi(None, run="Run 2+3,")
+        CMS.SetEnergy(0, unit="13/13.6 TeV")
     else:
         ROOT.gStyle.SetOptStat(0)
         ROOT.gStyle.SetPadLeftMargin(0.12)
@@ -995,75 +998,287 @@ def plot_mass_profile_vs_score(mass1: np.ndarray, y_scores: np.ndarray, weights:
     canvas.Close()
 
 
-def plot_mass_sculpting(mass1: np.ndarray, y_scores: np.ndarray, weights: np.ndarray,
-                        output_path: str, model_idx: int):
-    """Compare mass distribution at high vs low signal score."""
+def setup_mass_sculpting_style():
+    """Setup ROOT/cmsstyle state used by ModelComparison-style mass plots."""
     setup_cms_style()
+    if not HAS_CMS_STYLE:
+        raise RuntimeError("cmsstyle is required for ModelComparison-style mass sculpting plots")
+    ROOT.gStyle.SetLineStyleString(TRAIN_LINE_STYLE, "24 12")
 
-    signal_scores = y_scores[:, 0]
-    valid_mask = mass1 > 0
 
-    high_score_mask = (signal_scores > 0.7) & valid_mask
-    mid_score_mask = (signal_scores > 0.3) & (signal_scores <= 0.7) & valid_mask
-    low_score_mask = (signal_scores <= 0.3) & valid_mask
+def _palette_root_color(palette_idx: int) -> int:
+    colors = ["#5790fc", "#f89c20", "#e42536", "#964a8b", "#9c9ca1", "#7a21dd"]
+    return ROOT.TColor.GetColor(colors[palette_idx % len(colors)])
 
-    h_high = ROOT.TH1F(f"h_mass_high_{model_idx}", "High score (>0.7);m_{#mu#mu} [GeV];Normalized Events", 40, 0, 200)
-    h_mid = ROOT.TH1F(f"h_mass_mid_{model_idx}", "Mid score (0.3-0.7);m_{#mu#mu} [GeV];Normalized Events", 40, 0, 200)
-    h_low = ROOT.TH1F(f"h_mass_low_{model_idx}", "Low score (<0.3);m_{#mu#mu} [GeV];Normalized Events", 40, 0, 200)
 
-    for h in [h_high, h_mid, h_low]:
-        h.SetDirectory(0)
+def _make_root_hist(name: str, values: np.ndarray, weights: np.ndarray,
+                    nbins: int = 30, xmin: float = 60.0, xmax: float = 120.0) -> ROOT.TH1D:
+    hist = ROOT.TH1D(name, "", nbins, xmin, xmax)
+    hist.SetDirectory(0)
+    hist.Sumw2()
+    finite = np.isfinite(values) & np.isfinite(weights)
+    for value, weight in zip(values[finite], weights[finite]):
+        hist.Fill(float(value), abs(float(weight)))
+    return hist
 
-    for m, w in zip(mass1[high_score_mask], weights[high_score_mask]):
-        h_high.Fill(m, abs(w))
-    for m, w in zip(mass1[mid_score_mask], weights[mid_score_mask]):
-        h_mid.Fill(m, abs(w))
-    for m, w in zip(mass1[low_score_mask], weights[low_score_mask]):
-        h_low.Fill(m, abs(w))
 
-    for h in [h_high, h_mid, h_low]:
-        if h.Integral() > 0:
-            h.Scale(1.0 / h.Integral())
+def _normalize_root_hist(hist: ROOT.TH1D) -> None:
+    integral = hist.Integral(0, hist.GetNbinsX() + 1)
+    if integral > 0:
+        hist.Scale(1.0 / integral)
 
-    canvas = ROOT.TCanvas(f"c_sculpt_{model_idx}", "", 800, 600)
-    canvas.SetLeftMargin(0.12)
-    canvas.SetBottomMargin(0.12)
 
-    h_high.SetLineColor(ROOT.kRed)
-    h_mid.SetLineColor(ROOT.kGreen+2)
-    h_low.SetLineColor(ROOT.kBlue)
-    for h in [h_high, h_mid, h_low]:
-        h.SetLineWidth(2)
+def _make_ratio_hist(numerator: ROOT.TH1D, denominator: ROOT.TH1D, name: str) -> ROOT.TH1D:
+    ratio = numerator.Clone(name)
+    ratio.SetDirectory(0)
+    for ibin in range(1, ratio.GetNbinsX() + 1):
+        denom = denominator.GetBinContent(ibin)
+        if denom > 0:
+            ratio.SetBinContent(ibin, numerator.GetBinContent(ibin) / denom)
+            ratio.SetBinError(ibin, numerator.GetBinError(ibin) / denom)
+        else:
+            ratio.SetBinContent(ibin, 0.0)
+            ratio.SetBinError(ibin, 0.0)
+    return ratio
 
-    max_y = max(h_high.GetMaximum(), h_mid.GetMaximum(), h_low.GetMaximum()) * 1.3
-    h_high.SetMaximum(max_y)
-    h_high.SetMinimum(0)
 
-    h_high.Draw("HIST")
-    h_mid.Draw("HIST SAME")
-    h_low.Draw("HIST SAME")
+def _unit_lr(scores: np.ndarray) -> np.ndarray:
+    denom = np.sum(scores, axis=1)
+    return np.divide(scores[:, 0], denom, out=np.zeros(scores.shape[0], dtype=np.float64), where=denom > 0)
 
-    legend = ROOT.TLegend(0.55, 0.70, 0.88, 0.88)
-    legend.SetBorderSize(0)
-    legend.SetFillStyle(0)
-    legend.AddEntry(h_high, f"Score > 0.7 (N={np.sum(high_score_mask)})", "L")
-    legend.AddEntry(h_mid, f"0.3 < Score #leq 0.7 (N={np.sum(mid_score_mask)})", "L")
-    legend.AddEntry(h_low, f"Score #leq 0.3 (N={np.sum(low_score_mask)})", "L")
+
+def _compute_disco_np(score: np.ndarray, mass: np.ndarray, weights: np.ndarray, max_events: int = 5000) -> float:
+    valid = (mass > 0) & np.isfinite(score) & np.isfinite(mass) & np.isfinite(weights)
+    if valid.sum() < 2:
+        return 0.0
+    score = score[valid]
+    mass = mass[valid]
+    weights = np.abs(weights[valid])
+    if score.size > max_events:
+        rng = np.random.default_rng(42)
+        idx = rng.choice(score.size, max_events, replace=False)
+        score = score[idx]
+        mass = mass[idx]
+        weights = weights[idx]
+    with torch.no_grad():
+        return float(distance_correlation(
+            torch.tensor(score, dtype=torch.float32),
+            torch.tensor(mass, dtype=torch.float32),
+            torch.tensor(weights, dtype=torch.float32),
+        ).item())
+
+
+def _mass_sculpting_output_name(model_idx: int, mass_name: str, class_label: str,
+                                class_idx: int | None) -> str:
+    if class_idx is None:
+        return f"model{model_idx}_mass_sculpting_{mass_name}.png"
+    return f"model{model_idx}_mass_sculpting_{class_label}_{mass_name}.png"
+
+
+def plot_mass_sculpting_one_class(y_true_by_split: Dict[str, np.ndarray],
+                                  y_scores_by_split: Dict[str, np.ndarray],
+                                  weights_by_split: Dict[str, np.ndarray],
+                                  mass_by_split: Dict[str, np.ndarray],
+                                  output_path: str, model_idx: int,
+                                  mass_name: str, class_label: str,
+                                  class_idx: int | None):
+    """Draw ModelComparison-style mass sculpting for one class selection and mass."""
+    setup_mass_sculpting_style()
+
+    region_defs = [
+        ("low", "LR < 0.3", lambda lr: lr < 0.3, _palette_root_color(0)),
+        ("mid", "0.3 < LR < 0.7", lambda lr: (lr > 0.3) & (lr < 0.7), _palette_root_color(1)),
+        ("high", "LR > 0.7", lambda lr: lr > 0.7, _palette_root_color(2)),
+    ]
+
+    def class_selector(labels: np.ndarray) -> np.ndarray:
+        if class_idx is None:
+            return labels != 0
+        return labels == class_idx
+
+    hists = []
+    refs: Dict[str, ROOT.TH1D] = {}
+    dcors: Dict[str, float] = {}
+
+    for split in ["train", "test"]:
+        y_true = y_true_by_split[split]
+        scores = y_scores_by_split[split]
+        weights = weights_by_split[split]
+        mass = mass_by_split[split]
+        lr = _unit_lr(scores)
+        base = class_selector(y_true) & (mass > 0)
+        if base.sum() == 0:
+            continue
+
+        dcors[split] = _compute_disco_np(lr[base], mass[base], weights[base])
+
+        ref_hist = _make_root_hist(
+            f"h_mass_model{model_idx}_{class_label}_{split}_{mass_name}_nocut",
+            mass[base],
+            weights[base],
+        )
+        _normalize_root_hist(ref_hist)
+        ref_hist.SetLineColor(ROOT.kBlack)
+        ref_hist.SetLineWidth(PLOT_LINE_WIDTH)
+        ref_hist.SetLineStyle(ROOT.kSolid if split == "test" else TRAIN_LINE_STYLE)
+        ref_hist.SetMarkerSize(0)
+        refs[split] = ref_hist
+        hists.append((split, "No cut", ref_hist))
+
+        for suffix, label, selector, color in region_defs:
+            mask = base & selector(lr)
+            if mask.sum() == 0:
+                continue
+            hist = _make_root_hist(
+                f"h_mass_model{model_idx}_{class_label}_{split}_{mass_name}_{suffix}",
+                mass[mask],
+                weights[mask],
+            )
+            _normalize_root_hist(hist)
+            hist.SetLineColor(color)
+            hist.SetLineWidth(PLOT_LINE_WIDTH)
+            hist.SetLineStyle(ROOT.kSolid if split == "test" else TRAIN_LINE_STYLE)
+            hist.SetMarkerSize(0)
+            hists.append((split, label, hist))
+
+    if not hists or not refs:
+        print(f"  Warning: no mass sculpting entries for model {model_idx}, {class_label}, {mass_name}")
+        return
+
+    ymax = max(hist.GetMaximum() for _split, _label, hist in hists)
+    canvas = CMS.cmsDiCanvas(
+        "",
+        60.0,
+        120.0,
+        0.0,
+        max(0.01, ymax * 2.0),
+        0.0,
+        2.0,
+        f"{mass_name} [GeV]",
+        "Normalized",
+        "Region / No cut",
+        square=True,
+        iPos=0,
+        extraSpace=0.0,
+    )
+    keepalive = []
+
+    canvas.cd(1)
+    canvas.cd(1).SetGrid(0, 0)
+    legend = CMS.cmsLeg(0.42, 0.62, 0.94, 0.88, textSize=0.030, columns=2)
+    for _split, _label, hist in hists:
+        CMS.cmsObjectDraw(
+            hist,
+            "hist",
+            LineColor=hist.GetLineColor(),
+            LineWidth=hist.GetLineWidth(),
+            LineStyle=hist.GetLineStyle(),
+        )
+        CMS.cmsObjectDraw(
+            hist,
+            "E0 SAME",
+            LineColor=hist.GetLineColor(),
+            LineWidth=hist.GetLineWidth(),
+            LineStyle=hist.GetLineStyle(),
+            MarkerColor=hist.GetLineColor(),
+            MarkerSize=0,
+        )
+        keepalive.append(hist)
+
+    hist_by_legend_key = {(split, label): hist for split, label, hist in hists}
+    legend_label_order = ["No cut"] + [label for _suffix, label, _selector, _color in region_defs]
+    for label in legend_label_order:
+        for split in ["train", "test"]:
+            hist = hist_by_legend_key.get((split, label))
+            if hist is not None:
+                CMS.addToLegend(legend, (hist, f"{label} {split}", "L"))
     legend.Draw()
 
-    latex = ROOT.TLatex()
-    latex.SetNDC()
-    latex.SetTextSize(0.035)
-    latex.DrawLatex(0.15, 0.85, f"Model {model_idx} - Mass Sculpting Test")
+    CMS.drawText(class_label, posX=0.20, posY=0.76, font=62, align=0, size=0.045)
+    y_text = 0.69
+    for split in ["train", "test"]:
+        if split in dcors:
+            CMS.drawText(
+                f"dCor {split} = {dcors[split]:.4f}",
+                posX=0.20,
+                posY=y_text,
+                font=42,
+                align=0,
+                size=0.030,
+            )
+            y_text -= 0.055
+    canvas.cd(1).RedrawAxis()
 
-    try:
-        if HAS_CMS_STYLE:
-            CMS.CMS_lumi(canvas, "", 0)
-    except:
-        pass
+    canvas.cd(2)
+    canvas.cd(2).SetGrid()
+    ref_line = ROOT.TLine(60.0, 1.0, 120.0, 1.0)
+    ref_line.SetLineStyle(ROOT.kDotted)
+    ref_line.SetLineColor(ROOT.kBlack)
+    ref_line.SetLineWidth(PLOT_LINE_WIDTH)
+    ref_line.Draw()
+    keepalive.append(ref_line)
 
+    for split, label, hist in hists:
+        if label == "No cut" or split not in refs:
+            continue
+        ratio = _make_ratio_hist(hist, refs[split], f"{hist.GetName()}_ratio")
+        CMS.cmsObjectDraw(
+            ratio,
+            "hist",
+            LineColor=hist.GetLineColor(),
+            LineWidth=hist.GetLineWidth(),
+            LineStyle=hist.GetLineStyle(),
+        )
+        CMS.cmsObjectDraw(
+            ratio,
+            "E0 SAME",
+            LineColor=hist.GetLineColor(),
+            LineWidth=hist.GetLineWidth(),
+            LineStyle=hist.GetLineStyle(),
+            MarkerColor=hist.GetLineColor(),
+            MarkerSize=0,
+        )
+        keepalive.append(ratio)
+    canvas.cd(2).RedrawAxis()
+
+    canvas._keepalive = keepalive
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     canvas.SaveAs(output_path)
     canvas.Close()
+
+
+def plot_mass_sculpting(y_true_train: np.ndarray, y_scores_train: np.ndarray, weights_train: np.ndarray,
+                        mass1_train: np.ndarray, mass2_train: np.ndarray,
+                        y_true_test: np.ndarray, y_scores_test: np.ndarray, weights_test: np.ndarray,
+                        mass1_test: np.ndarray, mass2_test: np.ndarray,
+                        output_dir: str, model_idx: int):
+    """Create ModelComparison-style mass sculpting plots for all classes and masses."""
+    y_true_by_split = {"train": y_true_train, "test": y_true_test}
+    y_scores_by_split = {"train": y_scores_train, "test": y_scores_test}
+    weights_by_split = {"train": weights_train, "test": weights_test}
+    mass_arrays = {
+        "mass1": {"train": mass1_train, "test": mass1_test},
+        "mass2": {"train": mass2_train, "test": mass2_test},
+    }
+    class_selections = [("background", None)] + [(name, idx) for idx, name in enumerate(CLASS_NAMES)]
+
+    for mass_name, mass_by_split in mass_arrays.items():
+        if not np.any(mass_by_split["train"] > 0) and not np.any(mass_by_split["test"] > 0):
+            continue
+        for class_label, class_idx in class_selections:
+            output_name = _mass_sculpting_output_name(model_idx, mass_name, class_label, class_idx)
+            output_path = os.path.join(output_dir, output_name)
+            plot_mass_sculpting_one_class(
+                y_true_by_split,
+                y_scores_by_split,
+                weights_by_split,
+                mass_by_split,
+                output_path,
+                model_idx,
+                mass_name,
+                class_label,
+                class_idx,
+            )
 
 
 # =============================================================================
@@ -1242,7 +1457,9 @@ def evaluate_single_model(model_idx: int, model_path: str, config_path: str,
     np.savez(predictions_path,
              y_true_train=y_true_train, y_scores_train=y_scores_train, weights_train=weights_train,
              y_true_test=y_true_test, y_scores_test=y_scores_test, weights_test=weights_test,
+             mass1_train=mass1_train, mass2_train=mass2_train,
              mass1_test=mass1_test, mass2_test=mass2_test,
+             channel_ids_train=channel_ids_train, run_ids_train=run_ids_train,
              channel_ids_test=channel_ids_test, run_ids_test=run_ids_test)
 
     # KS tests (CPU, fast)
@@ -1294,8 +1511,43 @@ def evaluate_single_model(model_idx: int, model_path: str, config_path: str,
     }
 
 
+def _plot_mass_sculpting_from_predictions(model_idx: int, predictions_path: str, output_dir: str) -> bool:
+    """Load cached predictions and write ModelComparison-style mass sculpting plots."""
+    if not os.path.exists(predictions_path):
+        print(f"  Warning: predictions not found for model {model_idx}: {predictions_path}")
+        return False
+
+    predictions = np.load(predictions_path)
+    required = [
+        'y_true_train', 'y_scores_train', 'weights_train', 'mass1_train', 'mass2_train',
+        'y_true_test', 'y_scores_test', 'weights_test', 'mass1_test', 'mass2_test',
+    ]
+    missing = [key for key in required if key not in predictions.files]
+    if missing:
+        print(f"  Warning: cached predictions for model {model_idx} lack {missing}; rerun with --force-eval")
+        return False
+
+    plot_mass_sculpting(
+        predictions['y_true_train'],
+        predictions['y_scores_train'],
+        predictions['weights_train'],
+        predictions['mass1_train'],
+        predictions['mass2_train'],
+        predictions['y_true_test'],
+        predictions['y_scores_test'],
+        predictions['weights_test'],
+        predictions['mass1_test'],
+        predictions['mass2_test'],
+        output_dir,
+        model_idx,
+    )
+    return True
+
+
 def generate_model_plots(model_idx: int, config_path: str,
-                         overfitting_dir: str, plots_dir: str):
+                         overfitting_dir: str, plots_dir: str,
+                         mass_sculpting_only: bool = False,
+                         mass_sculpting_output_dir: str | None = None):
     """Step 3: Generate all plots for one model from saved files. CPU-only, fork-safe."""
     # Re-initialize ROOT in forked process
     ROOT.gROOT.SetBatch(True)
@@ -1304,6 +1556,13 @@ def generate_model_plots(model_idx: int, config_path: str,
     # Load model config
     config_data = load_model_config(config_path)
     hyperparams = config_data['hyperparameters']
+
+    pred_path = os.path.join(overfitting_dir, f"model{model_idx}_predictions.npz")
+    mass_output_dir = mass_sculpting_output_dir or plots_dir
+
+    if mass_sculpting_only:
+        _plot_mass_sculpting_from_predictions(model_idx, pred_path, mass_output_dir)
+        return model_idx
 
     # Load KS results
     ks_json = os.path.join(overfitting_dir, f"model{model_idx}", "kolmogorov.json")
@@ -1315,7 +1574,6 @@ def generate_model_plots(model_idx: int, config_path: str,
     histograms = load_histograms_from_file(model_idx, output_dirs)
 
     # Load predictions
-    pred_path = os.path.join(overfitting_dir, f"model{model_idx}_predictions.npz")
     has_predictions = os.path.exists(pred_path)
 
     # KS heatmap + score distributions (always available)
@@ -1365,28 +1623,7 @@ def generate_model_plots(model_idx: int, config_path: str,
                 mass1_test, y_scores_test, weights_test,
                 os.path.join(plots_dir, f"model{model_idx}_mass_profile_vs_score.png"),
                 model_idx)
-            plot_mass_sculpting(
-                mass1_test, y_scores_test, weights_test,
-                os.path.join(plots_dir, f"model{model_idx}_mass_sculpting.png"),
-                model_idx)
-
-            # Per-channel/run mass sculpting plots
-            channel_ids_test = predictions.get('channel_ids_test', None)
-            run_ids_test = predictions.get('run_ids_test', None)
-            if channel_ids_test is not None and run_ids_test is not None:
-                CHANNEL_NAMES = {0: "SR1E2Mu", 1: "SR3Mu"}
-                RUN_NAMES = {0: "Run2", 1: "Run3"}
-                for run_val, run_name in RUN_NAMES.items():
-                    for ch_val, ch_name in CHANNEL_NAMES.items():
-                        mask = (run_ids_test == run_val) & (channel_ids_test == ch_val)
-                        if np.sum(mask) < 10:
-                            continue
-                        sub_dir = os.path.join(plots_dir, run_name, ch_name)
-                        os.makedirs(sub_dir, exist_ok=True)
-                        plot_mass_sculpting(
-                            mass1_test[mask], y_scores_test[mask], weights_test[mask],
-                            os.path.join(sub_dir, f"model{model_idx}_mass_sculpting.png"),
-                            model_idx)
+            _plot_mass_sculpting_from_predictions(model_idx, pred_path, plots_dir)
 
     return model_idx
 
@@ -1585,7 +1822,9 @@ def process_signal(signal: str, channel: str, iteration: int, device: str,
                    input_dir: str, pilot: bool, skip_eval: bool,
                    p_threshold: float, model_indices_str: str,
                    config, overfitting_config: Dict, fold: int,
-                   n_workers: int = 4, force_eval: bool = False):
+                   n_workers: int = 4, force_eval: bool = False,
+                   mass_sculpting_only: bool = False,
+                   mass_sculpting_output_dir: str | None = None):
     """Process all models for a single signal using 3-phase pipeline.
 
     Phase 1: Load datasets (once, shared across all models)
@@ -1637,6 +1876,10 @@ def process_signal(signal: str, channel: str, iteration: int, device: str,
 
     print(f"\nProcessing {len(model_indices)} models: {model_indices}")
     print(f"Plot workers: {n_workers}")
+    if mass_sculpting_only:
+        print("Mode: mass sculpting only")
+        if mass_sculpting_output_dir:
+            print(f"Mass sculpting output override: {mass_sculpting_output_dir}")
 
     all_results = []
 
@@ -1696,7 +1939,9 @@ def process_signal(signal: str, channel: str, iteration: int, device: str,
                     # Step 3: Submit plotting to CPU pool (concurrent with next eval)
                     future = plot_pool.submit(
                         generate_model_plots, model_idx, config_path,
-                        overfitting_dir, plots_dir
+                        overfitting_dir, plots_dir,
+                        mass_sculpting_only,
+                        mass_sculpting_output_dir,
                     )
                     plot_futures.append((model_idx, future))
 
@@ -1728,7 +1973,9 @@ def process_signal(signal: str, channel: str, iteration: int, device: str,
                 config_path = os.path.join(json_dir, f"model{idx}.json")
                 future = plot_pool.submit(
                     generate_model_plots, idx, config_path,
-                    overfitting_dir, plots_dir
+                    overfitting_dir, plots_dir,
+                    mass_sculpting_only,
+                    mass_sculpting_output_dir,
                 )
                 futures[future] = idx
 
@@ -1739,6 +1986,10 @@ def process_signal(signal: str, channel: str, iteration: int, device: str,
                     print(f"  [Plot] Model {model_idx}: done")
                 except Exception as e:
                     print(f"  [Plot] Model {model_idx}: ERROR - {e}")
+
+    if mass_sculpting_only:
+        print(f"\nMass sculpting plots saved to: {mass_sculpting_output_dir or plots_dir}")
+        return len(all_results), sum(1 for r in all_results if r['is_overfitted']), sum(1 for r in all_results if not r['is_overfitted'])
 
     # ============================================================
     # Summary (after all models processed)
@@ -1805,6 +2056,10 @@ def main():
                        help="Input directory path (default: GAOptim)")
     parser.add_argument("--workers", type=int, default=4,
                        help="Number of parallel CPU workers for plot generation (default: 4)")
+    parser.add_argument("--mass-sculpting-only", action="store_true",
+                       help="Only generate mass sculpting plots from evaluated predictions")
+    parser.add_argument("--mass-sculpting-output-dir", type=str, default=None,
+                       help="Optional output directory for mass sculpting plots")
 
     args = parser.parse_args()
 
@@ -1830,6 +2085,9 @@ def main():
     print(f"p-value threshold: {args.p_threshold}")
     print(f"Input directory: {args.input}")
     print(f"Plot workers: {args.workers}")
+    print(f"Mass sculpting only: {args.mass_sculpting_only}")
+    if args.mass_sculpting_output_dir:
+        print(f"Mass sculpting output dir: {args.mass_sculpting_output_dir}")
     print(f"Bin merge threshold: {overfitting_config.get('bin_merge_threshold', 1e-6)}")
     print(f"Bin merge max iterations: {overfitting_config.get('bin_merge_max_iterations', 100)}")
     print("="*80)
@@ -1854,7 +2112,9 @@ def main():
                 skip_eval=args.skip_eval, p_threshold=args.p_threshold,
                 model_indices_str=args.model_indices, config=config,
                 overfitting_config=overfitting_config, fold=fold,
-                n_workers=args.workers, force_eval=args.force_eval
+                n_workers=args.workers, force_eval=args.force_eval,
+                mass_sculpting_only=args.mass_sculpting_only,
+                mass_sculpting_output_dir=args.mass_sculpting_output_dir
             )
             total_models += n_models
             total_overfitted += n_ovf

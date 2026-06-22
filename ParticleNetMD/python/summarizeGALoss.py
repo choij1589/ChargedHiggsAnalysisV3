@@ -508,6 +508,11 @@ def copy_best_model(base_path: Path, last_iteration_dir: Path, best_model_idx: i
                 shutil.copy2(plot_src, plot_dst)
                 copied_plots.append(plot_dst.name)
 
+        for plot_src in sorted(plots_dir.glob(f"model{best_model_idx}_mass_sculpting_*.png")):
+            plot_dst = best_model_dir / plot_src.name.replace(f"model{best_model_idx}_", "", 1)
+            shutil.copy2(plot_src, plot_dst)
+            copied_plots.append(plot_dst.name)
+
     print()
     print("="*70)
     print("Best Model Identification")

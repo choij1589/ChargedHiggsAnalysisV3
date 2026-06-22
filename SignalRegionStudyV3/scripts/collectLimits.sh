@@ -21,10 +21,15 @@ JOBS="${COLLECTLIMITS_JOBS:-4}"
 
 UNBLIND=false
 DRY_RUN=false
+PLOT_ONLY=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --unblind)
             UNBLIND=true
+            shift
+            ;;
+        --plot-only)
+            PLOT_ONLY=true
             shift
             ;;
         --dry-run)
@@ -36,12 +41,13 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -h|--help)
-            echo "Usage: $0 [--unblind] [--dry-run] [-j N | --jobs N]"
+            echo "Usage: $0 [--unblind] [--plot-only] [--dry-run] [-j N | --jobs N]"
             echo ""
             echo "  --unblind     Read from templates/.../extended_unblind/ and emit"
             echo "                limits.{era}.Asymptotic.Baseline.unblind.json plus"
             echo "                limit.{era}.Asymptotic.Baseline.*.unblind.{png,pdf}. Observed"
             echo "                limit is drawn (--blind is dropped)."
+            echo "  --plot-only   Skip collectLimits.py and plot directly from existing JSON files."
             echo "  --dry-run     Print discovered V3 tasks without collecting or plotting."
             echo "  -j, --jobs N  Number of parallel pipeline jobs (default: 4, env: COLLECTLIMITS_JOBS)."
             exit 0
@@ -73,6 +79,20 @@ fi
 has_outputs() {
     local era="$1" channel="$2" method="$3"
     compgen -G "templates/${era}/${channel}/*/${method}/${BINNING_SUFFIX}/combine_output/asymptotic/higgsCombine*.AsymptoticLimits.mH120.root" >/dev/null
+}
+
+has_json() {
+    local mode="$1" era="$2" channel="$3" method="$4"
+    [[ -s "$(json_path_for "$mode" "$era" "$channel" "$method")" ]]
+}
+
+has_limit_source() {
+    local mode="$1" era="$2" channel="$3" method="$4"
+    if [[ "$PLOT_ONLY" == true ]]; then
+        has_json "$mode" "$era" "$channel" "$method"
+    else
+        has_outputs "$era" "$channel" "$method"
+    fi
 }
 
 json_path_for() {
@@ -112,12 +132,18 @@ run_pipeline() {
     [[ -n "$PARTICLENET_MHCS_STR" ]] && read -r -a pnet_mhcs <<< "$PARTICLENET_MHCS_STR"
     [[ "$channel" != "Combined" ]] && channel_arg=(--channel "$channel")
 
-    if has_outputs "$era" "$channel" "Baseline"; then
-        python3 python/collectLimits.py --era "$era" --method Baseline --limit_type Asymptotic \
-            --mode "$mode" "${channel_arg[@]}" --available-only "${collect_flags[@]}"
+    if has_limit_source "$mode" "$era" "$channel" "Baseline"; then
+        if [[ "$PLOT_ONLY" != true ]]; then
+            python3 python/collectLimits.py --era "$era" --method Baseline --limit_type Asymptotic \
+                --mode "$mode" "${channel_arg[@]}" --available-only "${collect_flags[@]}"
+        fi
 
         local baseline_json
         baseline_json="$(json_path_for "$mode" "$era" "$channel" "Baseline")"
+        if [[ ! -s "$baseline_json" ]]; then
+            echo "Skipping ${mode}/${era}/${channel}/Baseline plot: missing JSON at ${baseline_json}"
+            return
+        fi
         read -r -a mhcs <<< "$(available_mhcs_from_json "$baseline_json")"
 
         # Per-MHc Brazilian band plots for only the MHc values present in the JSON.
@@ -134,12 +160,18 @@ run_pipeline() {
                 --mode "$mode" "${channel_arg[@]}" --compare-mhc --mhc-list "$mhc_csv" "${plot_flags[@]}"
         fi
     else
-        echo "Skipping ${mode}/${era}/${channel}/Baseline: no ${BINNING_SUFFIX} AsymptoticLimits ROOT files"
+        if [[ "$PLOT_ONLY" == true ]]; then
+            echo "Skipping ${mode}/${era}/${channel}/Baseline: no existing JSON"
+        else
+            echo "Skipping ${mode}/${era}/${channel}/Baseline: no ${BINNING_SUFFIX} AsymptoticLimits ROOT files"
+        fi
     fi
 
-    if has_outputs "$era" "$channel" "ParticleNet"; then
-        python3 python/collectLimits.py --era "$era" --method ParticleNet --limit_type Asymptotic \
-            --mode "$mode" "${channel_arg[@]}" --available-only "${collect_flags[@]}"
+    if has_limit_source "$mode" "$era" "$channel" "ParticleNet"; then
+        if [[ "$PLOT_ONLY" != true ]]; then
+            python3 python/collectLimits.py --era "$era" --method ParticleNet --limit_type Asymptotic \
+                --mode "$mode" "${channel_arg[@]}" --available-only "${collect_flags[@]}"
+        fi
 
         local baseline_json pnet_json
         baseline_json="$(json_path_for "$mode" "$era" "$channel" "Baseline")"
@@ -161,23 +193,27 @@ run_pipeline() {
             echo "Skipping ${mode}/${era}/${channel}/ParticleNet plot: missing Baseline or ParticleNet JSON"
         fi
     else
-        echo "Skipping ${mode}/${era}/${channel}/ParticleNet: no ${BINNING_SUFFIX} AsymptoticLimits ROOT files"
+        if [[ "$PLOT_ONLY" == true ]]; then
+            echo "Skipping ${mode}/${era}/${channel}/ParticleNet: no existing JSON"
+        else
+            echo "Skipping ${mode}/${era}/${channel}/ParticleNet: no ${BINNING_SUFFIX} AsymptoticLimits ROOT files"
+        fi
     fi
 }
 export -f run_pipeline
-export -f has_outputs json_path_for available_mhcs_from_json pnet_json_has_mhc
-export COLLECT_FLAGS_STR PLOT_FLAGS_STR BINNING_SUFFIX UNBLIND PARTICLENET_MHCS_STR
+export -f has_outputs has_json has_limit_source json_path_for available_mhcs_from_json pnet_json_has_mhc
+export COLLECT_FLAGS_STR PLOT_FLAGS_STR BINNING_SUFFIX UNBLIND PLOT_ONLY PARTICLENET_MHCS_STR
 
 build_tasks() {
     for mode in "${MODES[@]}"; do
         for era in "${ERAs[@]}"; do
-            if has_outputs "$era" "Combined" "Baseline" || has_outputs "$era" "Combined" "ParticleNet"; then
+            if has_limit_source "$mode" "$era" "Combined" "Baseline" || has_limit_source "$mode" "$era" "Combined" "ParticleNet"; then
                 echo "$mode $era Combined"
             fi
         done
         for era in "${PER_CHANNEL_ERAs[@]}"; do
             for ch in "${CHANNELs[@]}"; do
-                if has_outputs "$era" "$ch" "Baseline" || has_outputs "$era" "$ch" "ParticleNet"; then
+                if has_limit_source "$mode" "$era" "$ch" "Baseline" || has_limit_source "$mode" "$era" "$ch" "ParticleNet"; then
                     echo "$mode $era $ch"
                 fi
             done
@@ -188,11 +224,19 @@ build_tasks() {
 mapfile -t TASKS < <(build_tasks)
 
 if (( ${#TASKS[@]} == 0 )); then
-    echo "No ${BINNING_SUFFIX} AsymptoticLimits ROOT files found under templates/."
+    if [[ "$PLOT_ONLY" == true ]]; then
+        echo "No existing limit JSON files found under results/json/."
+    else
+        echo "No ${BINNING_SUFFIX} AsymptoticLimits ROOT files found under templates/."
+    fi
     exit 1
 fi
 
-printf 'Discovered %d V3 limit task(s):\n' "${#TASKS[@]}"
+if [[ "$PLOT_ONLY" == true ]]; then
+    printf 'Discovered %d V3 limit plot task(s) from existing JSON:\n' "${#TASKS[@]}"
+else
+    printf 'Discovered %d V3 limit task(s):\n' "${#TASKS[@]}"
+fi
 printf '  %s\n' "${TASKS[@]}"
 
 if $DRY_RUN; then

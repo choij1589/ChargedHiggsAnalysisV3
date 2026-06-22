@@ -8,12 +8,11 @@ export PATH=$PWD/python:$PATH
 for ERA in "${ERAs[@]}"; do
   for REGION in "${SRs[@]}"; do
     echo "Processing ERA: $ERA, REGION: $REGION"
-    sampleBreakdown.py --era $ERA --channel $REGION --blind
-    sampleBreakdown.py --era $ERA --channel $REGION --blind --onZ
+    sampleBreakdown.py --era $ERA --channel $REGION
+    sampleBreakdown.py --era $ERA --channel $REGION --onZ
   done
   for REGION in "${CRs[@]}"; do
     echo "Processing ERA: $ERA, REGION: $REGION"
     sampleBreakdown.py --era $ERA --channel $REGION
   done
 done
-
