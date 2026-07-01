@@ -223,11 +223,11 @@ Systematic sources include:
 
 For merged `others`, only apply a systematic when `"others"` is explicitly in
 its `group`. Per-process normalization nuisances should remain attached to the
-matching process groups, while `CMS_B2G25013_Norm_others_{13TeV,13p6TeV}` covers
-the merged bucket.
+matching process groups, while `CMS_B2G25013_Norm_others` covers the merged
+bucket and is correlated across Run2/Run3.
 
-Combine correlates nuisances by name, so keep per-era process columns and
-nuisance names stable within the Run2 and Run3 energy epochs.
+Combine correlates nuisances by name, so keep per-era process columns stable
+and only decorrelate nuisance names when the statistical model requires it.
 
 ## Run3 Signal Samples
 

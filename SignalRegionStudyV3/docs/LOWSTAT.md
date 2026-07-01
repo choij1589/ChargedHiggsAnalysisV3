@@ -92,9 +92,8 @@ the merged template anyway (the syst tree only exists in `WZ.root`).
 Those per-process norms are then also filtered out in the datacard by
 `printDatacard.py:generate_systematic_lines` (same `group` semantics: no
 relevant process → line dropped). The merged bucket's normalization uncertainty
-is covered by a single flat lnN per era,
-`CMS_B2G25013_Norm_others_{13TeV,13p6TeV}` (50%, `group=["others"]`), which
-is conservative and consistent across Run2/Run3.
+is covered by a single flat lnN, `CMS_B2G25013_Norm_others` (50%,
+`group=["others"]`), which is conservative and correlated across Run2/Run3.
 
 ---
 
@@ -375,9 +374,11 @@ Check:
 - `process_list.json` — `separate_processes` has the same 8 entries across all
   eras; `dropped_missing` is `[]` unless a sample file is physically absent for
   this era; `merged_to_others` is always `[]`.
-- Datacard — `CMS_B2G25013_Norm_{WZ,ZZ,ttW,ttZ,ttH,tZq,conversion}_*` lines
-  present for every era (NP names identical within Run2, identical within Run3);
-  `CMS_B2G25013_Norm_others_*` (50% lnN) present whenever `others` has a column.
+- Datacard — WZ normalization remains split as
+  `CMS_B2G25013_Norm_WZ_{13TeV,13p6TeV}`, SR1E2Mu conversion remains
+  era-specific, and the other prompt/theory normalization names are shared
+  across Run2/Run3; `CMS_B2G25013_Norm_others` (50% lnN) is present whenever
+  `others` has a column.
 - `shapes_original.root` exists alongside `shapes.root` iff S3 ran (at least
   one low-stat process with rel_err > 30%).
 - `lowstat.json` lists the S1-flagged processes and their per-systematic lnN

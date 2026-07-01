@@ -186,12 +186,12 @@ dry_run = dry_run == "true"
 
 group_specs = OrderedDict([
     ("signal_theory", [
-        r"^QCDScale_mu[RF]_BSMsignal_",
-        r"^pdf(_alphas)?_",
-        r"^ps_(isr|fsr)_",
+        r"^QCDScale_mu[RF]_BSMsignal(?:_|$)",
+        r"^pdf(_alphas)?(?:_|$)",
+        r"^ps_(isr|fsr)(?:_|$)",
     ]),
     ("prompt_norm", [
-        r"^CMS_B2G25013_Norm_(WZ|ZZ|ttW|ttZ|ttH|tZq|conversion|others)_",
+        r"^CMS_B2G25013_Norm_(WZ|ZZ|ttW|ttZ|ttH|tZq|conversion|others)(?:_|$)",
     ]),
     ("nonprompt_norm", [
         r"^CMS_B2G25013_Norm_nonprompt_",
