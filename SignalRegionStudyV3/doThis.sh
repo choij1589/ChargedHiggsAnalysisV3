@@ -8,7 +8,7 @@
 
 # Step 0: Preprocess the integrated baseline + ParticleNet mass-point set.
 # Preprocessing has no blinding mode.
-#./automize/preprocess.sh --mode all
+./automize/preprocess.sh --mode all
 
 # Step 1: Templates, datacards, validation, asymptotic limits, and
 # All+Combined FitDiagnostics/postfit/pull plots. With --mode all, the template
@@ -24,8 +24,8 @@
 #./automize/gof.sh --mode all --method ParticleNet --binning extended --unblind --ntoys 1000 --nbatches 10
 #./automize/gof.sh --mode all --method Baseline    --binning extended --unblind --plot-only
 #./automize/gof.sh --mode all --method ParticleNet --binning extended --unblind --plot-only
-python3 python/plotGoFPValues.py --mhc 70 85 100 115 130 145 160 --eras {Run2,Run3,All} --channel Combined --methods Baseline ParticleNet
-python3 python/plotGoFPValues.py --mhc 70 85 100 115 130 145 160 --eras All --channels {Combined,SR1E2Mu,SR3Mu} --methods Baseline ParticleNet
+#python3 python/plotGoFPValues.py --mhc 70 85 100 115 130 145 160 --eras {Run2,Run3,All} --channel Combined --methods Baseline ParticleNet
+#python3 python/plotGoFPValues.py --mhc 70 85 100 115 130 145 160 --eras All --channels {Combined,SR1E2Mu,SR3Mu} --methods Baseline ParticleNet
 
 # Step 3: Impacts. Use --blind-result for the first unblind review pass.
 #./automize/impact.sh --mode all --method Baseline    --binning extended --unblind
@@ -42,18 +42,18 @@ python3 python/plotGoFPValues.py --mhc 70 85 100 115 130 145 160 --eras All --ch
 # Step 4: Prefit/postfit mass plots and full-mA summary plots.
 #./automize/plotPostfitMass.sh --method Baseline    --binning extended --unblind --condor
 #./automize/plotPostfitMass.sh --method ParticleNet --binning extended --unblind --condor
-./automize/plotPostfitSummary.sh --mhc 70 85 100 115 130 145 160 \
-    --methods Baseline ParticleNet --eras Run2 Run3 All \
-    --channels SR1E2Mu SR3Mu Combined --binning extended --unblind \
-    --bin-width 1 --signal-line median --fit-type both \
-    --output-dir results/plots/postfit_summary/extended --condor
+#./automize/plotPostfitSummary.sh --mhc 70 85 100 115 130 145 160 \
+#    --methods Baseline ParticleNet --eras Run2 Run3 All \
+#    --channels SR1E2Mu SR3Mu Combined --binning extended --unblind \
+#    --bin-width 1 --signal-line median --fit-type both \
+#    --output-dir results/plots/postfit_summary/extended --condor
 
-python3 python/plotPostfitSummary.py --mhc 160 \
-    --methods Baseline ParticleNet --eras All --channels Combined \
-    --binning extended --nuisance fallback_lnn --fit-type b \
-    --bin-width 1 --output-dir results/plots/postfit_summary/extended \
-    --signal-line median --signal-mass 30 60 90 120 \
-    --unblind --signal-region-style
+#python3 python/plotPostfitSummary.py --mhc 160 \
+#    --methods Baseline ParticleNet --eras All --channels Combined \
+#    --binning extended --nuisance fallback_lnn --fit-type b \
+#    --bin-width 1 --output-dir results/plots/postfit_summary/extended \
+#    --signal-line median --signal-mass 30 60 90 120 \
+#    --unblind --signal-region-style
 
 # Paper LR_modified ParticleNet score plots for SR and TTZ CR.
 # Outputs:
@@ -98,4 +98,4 @@ python3 python/plotPostfitSummary.py --mhc 160 \
 #./automize/hybridnew.sh --mode all --method ParticleNet --binning extended --unblind --auto-grid
 
 # Collect review artifacts by mass point.
-./automize/collectUnblindResults.sh --method all --binning extended
+#./automize/collectUnblindResults.sh --method all --binning extended

@@ -249,7 +249,7 @@ class BasePreprocessor:
 
     def _setup_output_branches(self, out_tree):
         """Setup output branches and return (out_vars, score_vars) arrays."""
-        out_vars = {name: array('d', [0.0]) for name in ['mass', 'mass1', 'mass2', 'MT1', 'MT2', 'weight']}
+        out_vars = {name: array('d', [0.0]) for name in ['mass', 'mass1', 'mass2', 'weight']}
         score_vars = {}
         if self.is_trained_sample:
             for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']:
@@ -264,7 +264,7 @@ class BasePreprocessor:
 
     def _setup_input_branches(self, in_tree, include_mass=False):
         """Setup input branch addresses and return (in_vars, in_scores) arrays."""
-        var_names = ['mass', 'mass1', 'mass2', 'MT1', 'MT2', 'weight'] if include_mass else ['mass1', 'mass2', 'MT1', 'MT2', 'weight']
+        var_names = ['mass', 'mass1', 'mass2', 'weight'] if include_mass else ['mass1', 'mass2', 'weight']
         in_vars = {name: array('d', [0.0]) for name in var_names}
         in_scores = {}
         if self.is_trained_sample:
@@ -313,7 +313,7 @@ class SamplePreprocessor(BasePreprocessor):
             in_tree.GetEntry(i)
 
             # Copy kinematic variables
-            for name in ['mass1', 'mass2', 'MT1', 'MT2']:
+            for name in ['mass1', 'mass2']:
                 out_vars[name][0] = in_vars[name][0]
 
             # Calculate weight
