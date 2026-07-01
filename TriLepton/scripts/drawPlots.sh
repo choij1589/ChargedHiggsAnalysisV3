@@ -111,7 +111,7 @@ elif [[ $CHANNEL == "TTZ2E1Mu" ]]; then
         "bjets/2/pt" "bjets/2/eta" "bjets/2/phi" "bjets/2/mass" "bjets/2/px" "bjets/2/py" "bjets/2/pz" "bjets/2/energy"
         "bjets/3/pt" "bjets/3/eta" "bjets/3/phi" "bjets/3/mass" "bjets/3/px" "bjets/3/py" "bjets/3/pz" "bjets/3/energy"
         "METv/pt" "METv/phi" "METv/px" "METv/py"
-        "pair/pt" "pair/eta" "pair/phi" "pair/mass"
+        "ZCand/pt" "ZCand/eta" "ZCand/phi" "ZCand/mass"
     )
     parallel draw_plot ::: ${histkeys[@]}
     if [[ "$ERA" == "2018" ]]; then
@@ -219,7 +219,9 @@ elif [[ $CHANNEL == "WZ1E2Mu" ]]; then
         "ZCand/pt" "ZCand/eta" "ZCand/phi" "ZCand/mass"
     )
     parallel draw_plot ::: ${histkeys[@]}
-    parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
+    if [[ "$ERA" == "202"* ]]; then
+        parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
+    fi
 elif [[ $CHANNEL == "WZ3Mu" ]]; then
     histkeys=(
         "muons/1/pt" "muons/1/eta" "muons/1/phi"
@@ -235,6 +237,8 @@ elif [[ $CHANNEL == "WZ3Mu" ]]; then
         "nZCand/pt" "nZCand/eta" "nZCand/phi" "nZCand/mass"
     )
     parallel draw_plot ::: ${histkeys[@]}
-    parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
+    if [[ "$ERA" == "202"* ]]; then
+        parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
+    fi
 fi
 

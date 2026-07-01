@@ -30,37 +30,72 @@ from SglConfig import load_sgl_config
 SIGNALS = ["MHc130_MA90", "MHc160_MA85", "MHc100_MA95"]
 MASKED_COLUMNS = ["os_dimu1_pt", "os_dimu2_pt"]
 COMPARISON_ROOT = bdt.PARTICLENETMD_DIR / "ModelComparison"
-MODEL_SCORE_KEYS = {
-    "BDT": "bdt_scores",
-    "DNN": "dnn_scores",
-    "DNN_MD": "dnn_scores",
-    "ParticleNet": "pn_scores",
-    "ParticleNet_MD": "pn_scores",
-}
-MODEL_LR_KEYS = {
-    "BDT": "bdt_lr",
-    "DNN": "dnn_lr",
-    "DNN_MD": "dnn_lr",
-    "ParticleNet": "pn_lr",
-    "ParticleNet_MD": "pn_lr",
-}
-MODEL_ROOT_COLORS = {
-    "BDT": "#5790fc",
-    "DNN": "#e42536",
-    "DNN_MD": "#964a8b",
-    "ParticleNet": "#f89c20",
-    "ParticleNet_MD": "#7a21dd",
-}
 MODELS = ["BDT", "DNN", "DNN_MD", "ParticleNet", "ParticleNet_MD"]
+DECORRELATION_MODELS = ["BDT", "DNN", "DNN_MD", "ParticleNet_best", "ParticleNet_best_MD"]
 SPLITS = ["train", "test"]
 PLOT_LINE_WIDTH = 2
-MODEL_DISPLAY = {
-    "BDT": "BDT",
-    "DNN": "DNN",
-    "DNN_MD": "DNN_MD",
-    "ParticleNet": "PN",
-    "ParticleNet_MD": "PN_MD",
+MODEL_REGISTRY = {
+    "BDT": {
+        "source_dir": "BDT",
+        "score_key": "bdt_scores",
+        "lr_key": "bdt_lr",
+        "color": "#5790fc",
+        "display": "BDT",
+        "tag": "BDT",
+    },
+    "DNN": {
+        "source_dir": "DNN",
+        "score_key": "dnn_scores",
+        "lr_key": "dnn_lr",
+        "color": "#e42536",
+        "display": "DNN",
+        "tag": "DNN",
+    },
+    "DNN_MD": {
+        "source_dir": "DNN_MD",
+        "score_key": "dnn_scores",
+        "lr_key": "dnn_lr",
+        "color": "#964a8b",
+        "display": "DNN MD",
+        "tag": "DNN_MD",
+    },
+    "ParticleNet": {
+        "source_dir": "ParticleNet",
+        "score_key": "pn_scores",
+        "lr_key": "pn_lr",
+        "color": "#f89c20",
+        "display": "ParticleNet",
+        "tag": "ParticleNet",
+    },
+    "ParticleNet_MD": {
+        "source_dir": "ParticleNet_MD",
+        "score_key": "pn_scores",
+        "lr_key": "pn_lr",
+        "color": "#7a21dd",
+        "display": "ParticleNet MD",
+        "tag": "ParticleNet_MD",
+    },
+    "ParticleNet_best": {
+        "source_dir": "ParticleNet_512_256_256_lr5e-4_CyclicLR",
+        "score_key": "pn_scores",
+        "lr_key": "pn_lr",
+        "color": "#f89c20",
+        "display": "ParticleNet",
+        "tag": "ParticleNet",
+    },
+    "ParticleNet_best_MD": {
+        "source_dir": "ParticleNet_512_256_256_lr5e-4_CyclicLR_MD",
+        "score_key": "pn_scores",
+        "lr_key": "pn_lr",
+        "color": "#7a21dd",
+        "display": "ParticleNet MD",
+        "tag": "ParticleNet_MD",
+    },
 }
+MODEL_SCORE_KEYS = {key: cfg["score_key"] for key, cfg in MODEL_REGISTRY.items()}
+MODEL_LR_KEYS = {key: cfg["lr_key"] for key, cfg in MODEL_REGISTRY.items()}
+MODEL_ROOT_COLORS = {key: cfg["color"] for key, cfg in MODEL_REGISTRY.items()}
+MODEL_DISPLAY = {key: cfg["display"] for key, cfg in MODEL_REGISTRY.items()}
 TRAIN_LINE_STYLE = 7
 
 
@@ -72,6 +107,13 @@ def load_table(path: Path) -> Dict[str, np.ndarray]:
 def save_table(path: Path, arrays: Dict[str, np.ndarray]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path, **arrays)
+
+
+def save_root_canvas_with_pdf(canvas, output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.SaveAs(str(output_path))
+    canvas.SaveAs(str(output_path.with_suffix(".pdf")))
+    canvas.Close()
 
 
 def split_settings(args, config) -> Tuple[Dict[str, Sequence[int]], Dict[str, Optional[int]], Optional[int]]:
@@ -382,9 +424,33 @@ def save_particlenet_reference(args, signal: str, table_dir: Path, model: str) -
         json.dump(summary, handle, indent=2)
 
 
+def model_source_dir(model: str) -> str:
+    return str(MODEL_REGISTRY[model]["source_dir"])
+
+
+def model_output_tag(model: str) -> str:
+    return str(MODEL_REGISTRY[model]["tag"])
+
+
+def prediction_path(signal: str, model: str, split: str) -> Path:
+    return COMPARISON_ROOT / model_source_dir(model) / "Combined" / signal / "fold-4" / f"predictions_{split}.npz"
+
+
 def load_prediction(signal: str, model: str, split: str) -> Dict[str, np.ndarray]:
-    path = COMPARISON_ROOT / model / "Combined" / signal / "fold-4" / f"predictions_{split}.npz"
+    path = prediction_path(signal, model, split)
     return load_table(path)
+
+
+def load_available_predictions(signal: str, models: Sequence[str]) -> Dict[str, Dict[str, Dict[str, np.ndarray]]]:
+    preds: Dict[str, Dict[str, Dict[str, np.ndarray]]] = {}
+    for model in models:
+        split_paths = {split: prediction_path(signal, model, split) for split in SPLITS}
+        missing = [str(path) for path in split_paths.values() if not path.exists()]
+        if missing:
+            print(f"  Warning: skipping {MODEL_DISPLAY[model]} for {signal}; missing {', '.join(missing)}", flush=True)
+            continue
+        preds[model] = {split: load_table(path) for split, path in split_paths.items()}
+    return preds
 
 
 def model_scores(pred: Dict[str, np.ndarray], model: str) -> np.ndarray:
@@ -423,78 +489,143 @@ def make_plot_roc_graph(tpr: np.ndarray, fpr: np.ndarray, max_points: int = 150)
     return bdt.make_roc_graph(tpr, fpr)
 
 
-def plot_three_model_roc(signal: str, preds: Dict[str, Dict[str, Dict[str, np.ndarray]]], out_dir: Path) -> Dict[str, object]:
+def background_root_color(bg_class: int) -> int:
+    return bdt.palette_root_color(bg_class - 1)
+
+
+def roc_background_label(bg_class: int) -> str:
+    return {1: "NP", 2: "VV", 3: "ttX"}[bg_class]
+
+
+def calculate_binary_roc(roc: object, pred: Dict[str, np.ndarray], model: str,
+                         bg_class: int) -> Tuple[object, float]:
+    scores = model_scores(pred, model)
+    mask = (pred["y"] == 0) | (pred["y"] == bg_class)
+    y_bin = (pred["y"][mask] == 0).astype(int)
+    lr = bdt.binary_lr(scores[mask], bg_class)
+    fpr, tpr, auc = roc.calculate_roc_curve(y_bin, lr, pred["weight"][mask])
+    return make_plot_roc_graph(tpr, fpr), float(auc)
+
+
+def draw_roc_frame(signal: str, subtitle: str):
+    ROOT = bdt.ROOT
+    CMS = bdt.CMS
+    canvas = CMS.cmsCanvas(
+        "",
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        "signal efficiency",
+        "Background Efficiency",
+        square=True,
+        iPos=0,
+        extraSpace=0.0,
+    )
+    canvas.SetGrid()
+    keepalive = []
+
+    diag = ROOT.TGraph(2)
+    diag.SetPoint(0, 0.0, 0.0)
+    diag.SetPoint(1, 1.0, 1.0)
+    CMS.cmsObjectDraw(diag, "L", LineColor=ROOT.kGray + 2, LineWidth=PLOT_LINE_WIDTH, LineStyle=ROOT.kDashed)
+    keepalive.append(diag)
+    CMS.drawText(signal, posX=0.20, posY=0.82, font=62, align=0, size=0.044)
+    CMS.drawText(subtitle, posX=0.20, posY=0.75, font=42, align=0, size=0.040)
+    return canvas, keepalive
+
+
+def plot_model_train_test_rocs(signal: str, preds: Dict[str, Dict[str, Dict[str, np.ndarray]]],
+                               out_dir: Path) -> Dict[str, object]:
     require_root_cmsstyle()
     out_dir.mkdir(parents=True, exist_ok=True)
     summary: Dict[str, object] = {}
     roc = bdt.ROCCurveCalculator()
-
     ROOT = bdt.ROOT
     CMS = bdt.CMS
 
-    for bg_class in [1, 2, 3]:
-        bg_name = bdt.CLASS_NAMES[bg_class]
-        canvas = CMS.cmsCanvas(
-            "",
-            0.0,
-            1.0,
-            0.0,
-            1.0,
-            "signal efficiency",
-            "Background Efficiency",
-            square=True,
-            iPos=0,
-            extraSpace=0.0,
-        )
-        canvas.SetGrid()
-        legend = CMS.cmsLeg(0.18, 0.58, 0.92, 0.88, textSize=0.023, columns=2)
-        keepalive = []
+    for model, split_preds in preds.items():
+        canvas, keepalive = draw_roc_frame(signal, MODEL_DISPLAY[model])
+        legend = CMS.cmsLeg(0.20, 0.53, 0.78, 0.72, textSize=0.030, columns=2)
+        for method, value in [("SetMargin", 0.14), ("SetColumnSeparation", 0.04), ("SetEntrySeparation", 0.01)]:
+            if hasattr(legend, method):
+                getattr(legend, method)(value)
 
-        diag = ROOT.TGraph(2)
-        diag.SetPoint(0, 0.0, 0.0)
-        diag.SetPoint(1, 1.0, 1.0)
-        CMS.cmsObjectDraw(diag, "L", LineColor=ROOT.kGray + 2, LineWidth=PLOT_LINE_WIDTH, LineStyle=ROOT.kDashed)
-        keepalive.append(diag)
-
-        for model, split_preds in preds.items():
-            color = model_root_color(model)
+        for bg_class in [1, 2, 3]:
+            bg_name = bdt.CLASS_NAMES[bg_class]
+            bg_label = roc_background_label(bg_class)
+            color = background_root_color(bg_class)
             graph_by_split = {}
             auc_by_split = {}
-            for split in ["test", "train"]:
-                pred = split_preds[split]
-                scores = model_scores(pred, model)
-                mask = (pred["y"] == 0) | (pred["y"] == bg_class)
-                y_bin = (pred["y"][mask] == 0).astype(int)
-                lr = bdt.binary_lr(scores[mask], bg_class)
-                fpr, tpr, auc = roc.calculate_roc_curve(y_bin, lr, pred["weight"][mask])
-                graph = make_plot_roc_graph(tpr, fpr)
+            for split in ["train", "test"]:
+                graph, auc = calculate_binary_roc(roc, split_preds[split], model, bg_class)
                 CMS.cmsObjectDraw(
                     graph,
                     "C",
                     LineColor=color,
                     LineWidth=PLOT_LINE_WIDTH,
-                    LineStyle=bdt.ROOT.kSolid if split == "test" else TRAIN_LINE_STYLE,
+                    LineStyle=ROOT.kSolid if split == "test" else TRAIN_LINE_STYLE,
                 )
                 keepalive.append(graph)
-                auc_by_split[split] = float(auc)
                 graph_by_split[split] = graph
+                auc_by_split[split] = auc
             for split in ["train", "test"]:
-                graph = graph_by_split.get(split)
-                if graph is None:
-                    continue
                 CMS.addToLegend(
                     legend,
-                    (graph, f"{MODEL_DISPLAY[model]} {split}: AUC = {auc_by_split[split]:.4f}", "L"),
+                    (graph_by_split[split], f"{bg_label} {split} {auc_by_split[split]:.4f}", "L"),
                 )
             summary.setdefault(model, {})[bg_name] = auc_by_split
 
         legend.Draw()
-        CMS.drawText(signal, posX=0.20, posY=0.48, font=62, align=0, size=0.034)
-        CMS.drawText(f"signal vs {bg_name}", posX=0.20, posY=0.42, font=42, align=0, size=0.032)
         canvas.RedrawAxis()
         canvas._keepalive = keepalive
-        bdt.save_root_canvas(canvas, out_dir / f"roc_three_models_{bg_name}.png")
+        save_root_canvas_with_pdf(canvas, out_dir / f"roc_{model_output_tag(model)}_train_test.png")
+
     return summary
+
+
+def plot_model_comparison_test_rocs(signal: str, preds: Dict[str, Dict[str, Dict[str, np.ndarray]]],
+                                    out_dir: Path) -> Dict[str, object]:
+    require_root_cmsstyle()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    summary: Dict[str, object] = {}
+    roc = bdt.ROCCurveCalculator()
+    CMS = bdt.CMS
+
+    for bg_class in [1, 2, 3]:
+        bg_name = bdt.CLASS_NAMES[bg_class]
+        canvas, keepalive = draw_roc_frame(signal, f"signal vs {bg_name}")
+        legend = CMS.cmsLeg(0.20, 0.53, 0.72, 0.72, textSize=0.030, columns=1)
+        if hasattr(legend, "SetMargin"):
+            legend.SetMargin(0.14)
+
+        for model, split_preds in preds.items():
+            graph, auc = calculate_binary_roc(roc, split_preds["test"], model, bg_class)
+            CMS.cmsObjectDraw(
+                graph,
+                "C",
+                LineColor=model_root_color(model),
+                LineWidth=PLOT_LINE_WIDTH,
+                LineStyle=bdt.ROOT.kSolid,
+            )
+            keepalive.append(graph)
+            CMS.addToLegend(legend, (graph, f"{MODEL_DISPLAY[model]} {auc:.4f}", "L"))
+            summary.setdefault(bg_name, {})[model] = {"test": auc}
+
+        legend.Draw()
+        canvas.RedrawAxis()
+        canvas._keepalive = keepalive
+        save_root_canvas_with_pdf(canvas, out_dir / f"roc_model_comparison_{bg_name}.png")
+
+    return summary
+
+
+def plot_roc_suite(signal: str, preds: Dict[str, Dict[str, Dict[str, np.ndarray]]],
+                   out_dir: Path) -> Dict[str, object]:
+    return {
+        "per_model": plot_model_train_test_rocs(signal, preds, out_dir),
+        "model_comparison": plot_model_comparison_test_rocs(signal, preds, out_dir),
+    }
 
 
 def plot_lr_distributions(signal: str, preds: Dict[str, Dict[str, Dict[str, np.ndarray]]], out_dir: Path) -> None:
@@ -580,7 +711,7 @@ def plot_mass_sculpting(signal: str, preds: Dict[str, Dict[str, Dict[str, np.nda
 
     class_selections = [("background", None)] + [(bdt.CLASS_NAMES[idx], idx) for idx in range(len(bdt.CLASS_NAMES))]
 
-    for model in MODELS:
+    for model in preds:
         for class_label, class_idx in class_selections:
             plot_mass_sculpting_one_class(signal, preds, out_dir, mass_name, model, class_label, class_idx, region_defs)
 
@@ -598,8 +729,8 @@ def plot_mass_sculpting_one_class(signal: str, preds: Dict[str, Dict[str, Dict[s
 
     def output_suffix() -> str:
         if class_idx is None:
-            return f"mass_sculpting_{MODEL_DISPLAY[model]}_{mass_name}"
-        return f"mass_sculpting_{MODEL_DISPLAY[model]}_{class_label}_{mass_name}"
+            return f"mass_sculpting_{model_output_tag(model)}_{mass_name}"
+        return f"mass_sculpting_{model_output_tag(model)}_{class_label}_{mass_name}"
 
     hists = []
     refs: Dict[str, object] = {}
@@ -665,9 +796,9 @@ def plot_mass_sculpting_one_class(signal: str, preds: Dict[str, Dict[str, Dict[s
         60.0,
         120.0,
         0.0,
-        max(0.01, ymax * 1.55),
-        0.4,
-        1.8,
+        max(0.01, ymax * 2.0),
+        0.0,
+        2.0,
         f"{mass_name} [GeV]",
         "Normalized",
         "Region / No cut",
@@ -675,9 +806,18 @@ def plot_mass_sculpting_one_class(signal: str, preds: Dict[str, Dict[str, Dict[s
         iPos=0,
         extraSpace=0.0,
     )
+    canvas.cd(2)
+    ratio_frame = canvas.cd(2).GetPrimitive("hframe")
+    if ratio_frame:
+        ratio_frame.GetYaxis().CenterTitle()
+        ratio_frame.GetYaxis().SetTitleSize(0.115)
+        ratio_frame.GetYaxis().SetTitleOffset(0.58)
     canvas.cd(1)
     canvas.cd(1).SetGrid(0, 0)
-    legend = CMS.cmsLeg(0.42, 0.52, 0.94, 0.88, textSize=0.023, columns=2)
+    legend = CMS.cmsLeg(0.45, 0.55, 0.94, 0.88, textSize=0.034, columns=2)
+    for method, value in [("SetMargin", 0.14), ("SetColumnSeparation", 0.03), ("SetEntrySeparation", 0.01)]:
+        if hasattr(legend, method):
+            getattr(legend, method)(value)
     keepalive = []
 
     canvas.cd(1)
@@ -708,9 +848,9 @@ def plot_mass_sculpting_one_class(signal: str, preds: Dict[str, Dict[str, Dict[s
                 continue
             CMS.addToLegend(legend, (hist, f"{label} {split}", "L"))
     legend.Draw()
-    CMS.drawText(signal, posX=0.20, posY=0.76, font=62, align=0, size=0.034)
-    CMS.drawText(f"{MODEL_DISPLAY[model]} {class_label}", posX=0.20, posY=0.69, font=42, align=0, size=0.034)
-    y_text = 0.62
+    CMS.drawText(signal, posX=0.20, posY=0.77, font=62, align=0, size=0.046)
+    CMS.drawText(f"{MODEL_DISPLAY[model]} {class_label}", posX=0.20, posY=0.69, font=42, align=0, size=0.042)
+    y_text = 0.61
     for split in SPLITS:
         if split in dcors:
             CMS.drawText(
@@ -719,9 +859,9 @@ def plot_mass_sculpting_one_class(signal: str, preds: Dict[str, Dict[str, Dict[s
                 posY=y_text,
                 font=42,
                 align=0,
-                size=0.030,
+                size=0.038,
             )
-            y_text -= 0.055
+            y_text -= 0.065
     canvas.cd(1).RedrawAxis()
 
     canvas.cd(2)
@@ -756,7 +896,123 @@ def plot_mass_sculpting_one_class(signal: str, preds: Dict[str, Dict[str, Dict[s
         keepalive.append(ratio)
     canvas.cd(2).RedrawAxis()
     canvas._keepalive = keepalive
-    bdt.save_root_canvas(canvas, out_dir / f"{output_suffix()}.png")
+    save_root_canvas_with_pdf(canvas, out_dir / f"{output_suffix()}.png")
+
+
+def plot_score_vs_mass_diagnostics(signal: str, preds: Dict[str, Dict[str, Dict[str, np.ndarray]]],
+                                   out_dir: Path) -> None:
+    require_root_cmsstyle()
+    ROOT = bdt.ROOT
+    CMS = bdt.CMS
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    for model, split_preds in preds.items():
+        pred = split_preds["test"]
+        signal_score = model_scores(pred, model)[:, 0]
+        weights = np.abs(pred["weight"])
+
+        for mass_name in ["mass1", "mass2"]:
+            mass = pred[mass_name]
+            valid_mass = mass > 0
+            if valid_mass.sum() < 10:
+                continue
+
+            profile = ROOT.TProfile(
+                f"h_profile_{signal}_{model}_{mass_name}",
+                "",
+                20,
+                0.0,
+                1.0,
+                60.0,
+                120.0,
+            )
+            profile.SetDirectory(0)
+            finite = valid_mass & np.isfinite(signal_score) & np.isfinite(mass) & np.isfinite(weights)
+            for score, mass_value, weight in zip(signal_score[finite], mass[finite], weights[finite]):
+                profile.Fill(float(score), float(mass_value), float(weight))
+
+            mean_mass = float(np.average(mass[finite], weights=weights[finite])) if finite.any() else 0.0
+            canvas = CMS.cmsCanvas(
+                "",
+                0.0,
+                1.0,
+                60.0,
+                120.0,
+                "p_{sig}",
+                f"<{mass_name}> [GeV]",
+                square=True,
+                iPos=0,
+                extraSpace=0.0,
+            )
+            canvas.SetGrid()
+            CMS.cmsObjectDraw(
+                profile,
+                "E",
+                LineColor=model_root_color(model),
+                MarkerColor=model_root_color(model),
+                LineWidth=PLOT_LINE_WIDTH,
+                MarkerStyle=20,
+                MarkerSize=1.0,
+            )
+            mean_line = ROOT.TLine(0.0, mean_mass, 1.0, mean_mass)
+            mean_line.SetLineStyle(ROOT.kDashed)
+            mean_line.SetLineColor(ROOT.kGray + 2)
+            mean_line.SetLineWidth(PLOT_LINE_WIDTH)
+            mean_line.Draw()
+            CMS.drawText(signal, posX=0.20, posY=0.76, font=62, align=0, size=0.034)
+            CMS.drawText(f"{MODEL_DISPLAY[model]} {mass_name}", posX=0.20, posY=0.69, font=42, align=0, size=0.034)
+            canvas.RedrawAxis()
+            canvas._keepalive = [profile, mean_line]
+            bdt.save_root_canvas(canvas, out_dir / f"mass_profile_{model_output_tag(model)}_{mass_name}.png")
+
+            for class_idx, class_name in enumerate(bdt.CLASS_NAMES):
+                class_mask = (pred["y"] == class_idx) & valid_mass
+                if class_mask.sum() < 10:
+                    continue
+                hist = ROOT.TH2D(
+                    f"h_score_mass_{signal}_{model}_{class_name}_{mass_name}",
+                    "",
+                    50,
+                    0.0,
+                    1.0,
+                    50,
+                    60.0,
+                    120.0,
+                )
+                hist.SetDirectory(0)
+                finite_class = class_mask & np.isfinite(signal_score) & np.isfinite(mass) & np.isfinite(weights)
+                for score, mass_value, weight in zip(signal_score[finite_class], mass[finite_class], weights[finite_class]):
+                    hist.Fill(float(score), float(mass_value), float(weight))
+
+                canvas2 = CMS.cmsCanvas(
+                    "",
+                    0.0,
+                    1.0,
+                    60.0,
+                    120.0,
+                    "p_{sig}",
+                    f"{mass_name} [GeV]",
+                    square=True,
+                    iPos=0,
+                    extraSpace=0.0,
+                )
+                canvas2.SetRightMargin(0.15)
+                CMS.cmsObjectDraw(hist, "COLZ")
+                CMS.drawText(signal, posX=0.20, posY=0.76, font=62, align=0, size=0.034)
+                CMS.drawText(
+                    f"{MODEL_DISPLAY[model]} {class_name}",
+                    posX=0.20,
+                    posY=0.69,
+                    font=42,
+                    align=0,
+                    size=0.034,
+                )
+                canvas2.RedrawAxis()
+                canvas2._keepalive = [hist]
+                bdt.save_root_canvas(
+                    canvas2,
+                    out_dir / f"score_vs_mass_{model_output_tag(model)}_{class_name}_{mass_name}.png",
+                )
 
 def peak_metrics(pred: Dict[str, np.ndarray], model: str, mass_name: str = "mass2") -> Dict[str, float]:
     mass = pred[mass_name]
@@ -867,7 +1123,7 @@ def make_comparison_plots(signal: str) -> None:
         for model in MODELS
     }
 
-    roc_summary = plot_three_model_roc(signal, preds, out_dir)
+    roc_summary = plot_roc_suite(signal, preds, out_dir)
     plot_lr_distributions(signal, preds, out_dir)
     plot_mass_sculpting(signal, preds, out_dir, "mass1")
     plot_mass_sculpting(signal, preds, out_dir, "mass2")
@@ -903,8 +1159,58 @@ def make_comparison_plots(signal: str) -> None:
         json.dump({"roc": roc_summary, "metrics": rows, "nominal_to_masked_shift": shift_summary}, handle, indent=2)
 
 
+def make_decorrelation_plots(signal: str) -> None:
+    out_dir = COMPARISON_ROOT / "plots" / signal / "decorrelation"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    preds = load_available_predictions(signal, DECORRELATION_MODELS)
+    if not preds:
+        print(f"  Warning: no cached predictions available for decorrelation plots in {signal}", flush=True)
+        return
+
+    roc_summary = plot_roc_suite(signal, preds, out_dir)
+    plot_mass_sculpting(signal, preds, out_dir, "mass1")
+    plot_mass_sculpting(signal, preds, out_dir, "mass2")
+    plot_score_vs_mass_diagnostics(signal, preds, out_dir)
+
+    rows: List[Dict[str, object]] = []
+    for model, split_preds in preds.items():
+        for split, pred in split_preds.items():
+            scores = model_scores(pred, model)
+            mass_corr = bdt.mass_correlation_metrics(scores, pred)
+            rows.append({
+                "signal": signal,
+                "model": model,
+                "display": MODEL_DISPLAY[model],
+                "split": split,
+                "dcor_psig_mass1": mass_corr["mass1"]["disco"],
+                "dcor_psig_mass2": mass_corr["mass2"]["disco"],
+                "dcor_lr_background_mass1": bdt.compute_disco(
+                    model_lr(pred, model)[(pred["y"] != 0) & (pred["mass1"] > 0)],
+                    pred["mass1"][(pred["y"] != 0) & (pred["mass1"] > 0)],
+                    np.abs(pred["weight"][(pred["y"] != 0) & (pred["mass1"] > 0)]),
+                ) if np.any((pred["y"] != 0) & (pred["mass1"] > 0)) else 0.0,
+                "dcor_lr_background_mass2": bdt.compute_disco(
+                    model_lr(pred, model)[(pred["y"] != 0) & (pred["mass2"] > 0)],
+                    pred["mass2"][(pred["y"] != 0) & (pred["mass2"] > 0)],
+                    np.abs(pred["weight"][(pred["y"] != 0) & (pred["mass2"] > 0)]),
+                ) if np.any((pred["y"] != 0) & (pred["mass2"] > 0)) else 0.0,
+            })
+
+    if rows:
+        with open(out_dir / "decorrelation_summary.csv", "w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
+        with open(out_dir / "decorrelation_summary.json", "w") as handle:
+            json.dump({"roc": roc_summary, "decorrelation": rows}, handle, indent=2)
+    print(f"=== Decorrelation plots saved: {out_dir} ===", flush=True)
+
+
 def process_signal(args, signal: str) -> None:
     print(f"\n=== ModelComparison: {signal} ===", flush=True)
+    if args.decorrelation_only:
+        make_decorrelation_plots(signal)
+        return
     table_dir = ensure_masked_tables(args, signal)
     if args.cache_only:
         print(f"=== Cache ready: {table_dir} ===", flush=True)
@@ -939,6 +1245,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--retrain", action="store_true",
                         help="Accepted for compatibility; tabular trainings always consume the masked cache")
     parser.add_argument("--plots-only", action="store_true", help="Only rebuild comparison plots from existing predictions")
+    parser.add_argument("--decorrelation-only", action="store_true",
+                        help="Only rebuild architecture decorrelation plots from existing predictions")
     parser.add_argument("--pn-only", action="store_true", help="Only refresh ParticleNet reference and plots")
     parser.add_argument("--cache-only", action="store_true", help="Only build/validate masked tabular caches")
     args = parser.parse_args()

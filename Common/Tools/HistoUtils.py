@@ -109,7 +109,8 @@ def load_histogram(file_path, hist_path, era=None, missing_logger=None):
         return None
 
 
-def calculate_systematics(h, systematics, file_path, args, era=None, missing_logger=None):
+def calculate_systematics(h, systematics, file_path, args, era=None, missing_logger=None,
+                          variation_scale=1.0):
     """Calculate systematic uncertainties for a histogram
 
     Args:
@@ -119,6 +120,8 @@ def calculate_systematics(h, systematics, file_path, args, era=None, missing_log
         args: Argument parser object with channel, histkey, exclude attributes
         era (str, optional): Era information for logging
         missing_logger (logging.Logger, optional): Logger for missing histograms
+        variation_scale (float): Scale factor to apply to Up/Down histograms
+            before comparing them to the central histogram.
 
     Returns:
         ROOT.TH1: Histogram with systematic uncertainties applied
@@ -145,6 +148,9 @@ def calculate_systematics(h, systematics, file_path, args, era=None, missing_log
                 h_down.SetDirectory(0)
                 clip_negative_bins(h_up)
                 clip_negative_bins(h_down)
+                if variation_scale != 1.0:
+                    h_up.Scale(variation_scale)
+                    h_down.Scale(variation_scale)
                 hSysts.append((h_up, h_down))
             else:
                 if missing_logger:

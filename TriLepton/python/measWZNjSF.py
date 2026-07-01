@@ -61,6 +61,8 @@ with open(FAKENORM_PATH) as f:
 
 # Fallback theory norm for rare processes absent from KFactors.json (others group)
 OTHERS_THEORY_NORM = 0.50
+CONV_SF_FALLBACK = {"central": 1.0, "total": 0.20}
+CONV_SF_CACHE = {}
 
 
 def get_theory_norm_fraction(sample, run):
@@ -71,34 +73,56 @@ def get_theory_norm_fraction(sample, run):
     return OTHERS_THEORY_NORM
 
 
+def get_conv_sf(channel, era):
+    """Return central ConvSF and total uncertainty fraction for a WZ channel/era."""
+    zg_channel = channel.replace("WZ", "ZG")
+    cache_key = (zg_channel, era)
+    if cache_key in CONV_SF_CACHE:
+        return CONV_SF_CACHE[cache_key]
+
+    path = f"{WORKDIR}/TriLepton/results/{zg_channel}/{era}/ConvSF.json"
+    if not os.path.exists(path):
+        logging.warning(f"ConvSF.json not found at {path}, using fallback")
+        CONV_SF_CACHE[cache_key] = CONV_SF_FALLBACK
+        return CONV_SF_CACHE[cache_key]
+
+    try:
+        with open(path) as f:
+            cset = json.load(f)
+        corrections = {c["name"]: c for c in cset["corrections"]}
+        central_key = next(k for k in corrections if k.endswith("_Central"))
+        total_up_key = next(k for k in corrections if k.endswith("_total_up"))
+        central = float(corrections[central_key]["data"]["expression"])
+        total_up = float(corrections[total_up_key]["data"]["expression"])
+        if central <= 0:
+            raise ValueError(f"nonpositive central ConvSF {central}")
+        conv_sf = {
+            "central": central,
+            "total": max((total_up - central) / central, 0.0),
+        }
+    except (KeyError, StopIteration, TypeError, ValueError) as e:
+        logging.warning(f"Failed to parse ConvSF from {path}: {e}; using fallback")
+        conv_sf = CONV_SF_FALLBACK
+
+    CONV_SF_CACHE[cache_key] = conv_sf
+    return conv_sf
+
+
 def get_conv_sf_uncertainty_fraction(channels, eralist):
     """Return the max ConvSF total uncertainty fraction across eras.
     Used as the theory norm for the conv background in the WZ CR."""
-    fractions = []
-    for channel in channels:
-        zg_channel = channel.replace("WZ", "ZG")
-        for era in eralist:
-            path = f"{WORKDIR}/TriLepton/results/{zg_channel}/{era}/ConvSF.json"
-            if not os.path.exists(path):
-                logging.warning(f"ConvSF.json not found at {path}, will use fallback")
-                continue
-            with open(path) as f:
-                cset = json.load(f)
-            corrections = {c["name"]: c for c in cset["corrections"]}
-            central_key = next((k for k in corrections if k.endswith("_Central")), None)
-            total_up_key = next((k for k in corrections if k.endswith("_total_up")), None)
-            if central_key and total_up_key:
-                central_val = float(corrections[central_key]["data"]["expression"])
-                total_up_val = float(corrections[total_up_key]["data"]["expression"])
-                if central_val > 0:
-                    fractions.append((total_up_val - central_val) / central_val)
+    fractions = [get_conv_sf(channel, era)["total"] for channel in channels for era in eralist]
+    fraction = max(fractions) if fractions else CONV_SF_FALLBACK["total"]
+    logging.debug(f"Conv theory norm fraction: {fraction:.4f} (max across eras/channels)")
+    return fraction
 
-    if fractions:
-        fraction = max(fractions)
-        logging.debug(f"Conv theory norm fraction: {fraction:.4f} (max across eras/channels)")
-        return fraction
-    logging.warning("No ConvSF.json found, using fallback conv theory norm of 0.20")
-    return 0.20
+
+def apply_conv_scale_factor(hist, channel, era):
+    """Apply central ConvSF to a conversion histogram in-place."""
+    conv_sf = get_conv_sf(channel, era)
+    hist.Scale(conv_sf["central"])
+    logging.debug(f"Applied ConvSF {conv_sf['central']:.4f} to {channel}/{era}")
+    return hist
 
 
 def get_hist_data(channels, era):
@@ -229,6 +253,9 @@ def get_hist_mc(channels, era, mc, syst="Central", theory_scales=None):
             if RUN in KFACTORS and sample in KFACTORS[RUN]:
                 kfactor = KFACTORS[RUN][sample]["kFactor"]
                 h.Scale(kfactor)
+
+            if mc == "conv":
+                h = apply_conv_scale_factor(h, channel, era)
 
             # Apply per-sample theory norm scale if provided
             if sample in theory_scales:
