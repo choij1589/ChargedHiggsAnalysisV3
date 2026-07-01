@@ -40,6 +40,10 @@ CHANNEL_LABELS = {
     "SR3Mu": ("SR", "#mu#mu#mu"),
     "ZFake1E2Mu": ("Z+nonprompt CR", "e#mu#mu"),
     "ZFake3Mu": ("Z+nonprompt CR", "#mu#mu#mu"),
+    "ZG1E2Mu": ("Z+#gamma CR", "e#mu#mu"),
+    "ZG3Mu": ("Z+#gamma CR", "#mu#mu#mu"),
+    "WZ1E2Mu": ("WZ CR", "e#mu#mu"),
+    "WZ3Mu": ("WZ CR", "#mu#mu#mu"),
     "TTZ2E1Mu": ("TTZ CR", "ee#mu"),
 }
 
@@ -165,6 +169,8 @@ def build_config(histkey, channel, options):
     config["signalColors"] = [ROOT.TColor.GetColor(color) for color in options.signal_colors]
     config["run_label"] = "Run 2+3, 200 fb^{#minus1}"
     config["chi2_test"] = False
+    if channel.startswith(("ZG", "WZ")):
+        config["iPos"] = 11
     if histkey == "ZCand/mass":
         config["xRange"] = [81, 101]
         config["yTitle"] = "Events / 1 GeV"
@@ -177,6 +183,8 @@ def build_config(histkey, channel, options):
     config["channel"], config["region"] = CHANNEL_LABELS[channel]
     config["channelPosY"] = 0.75
     config["channelPosX"] = 0.22
+    if channel.startswith("ZG"):
+        config["channelPosY"] = 0.70
     return config
 
 

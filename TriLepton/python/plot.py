@@ -243,11 +243,11 @@ def apply_kfactor(hist, sample, run):
     This uncertainty is applied to all bins in quadrature with existing errors.
     """
     if run not in KFACTORS:
-        return hist
+        return hist, 1.0
 
     kfactors = KFACTORS[run]
     if sample not in kfactors:
-        return hist
+        return hist, 1.0
 
     kfactor = kfactors[sample]["kFactor"]
     hist.Scale(kfactor)
@@ -261,7 +261,7 @@ def apply_kfactor(hist, sample, run):
         apply_rate_uncertainty(hist, rel_unc)
         logging.debug(f"Applied theory uncertainty {rel_unc*100:.1f}% to {sample}")
 
-    return hist
+    return hist, kfactor
 
 #### Get Histograms
 
@@ -340,8 +340,9 @@ for era in era_list:
         if h:
             clip_negative_bins(h)
             # Apply K-factor before systematics
-            h = apply_kfactor(h, sample, get_run_period(era))
-            h = calculate_systematics(h, ERA_SYSTEMATICS[era], file_path, args, era, missing_logger)
+            h, kfactor = apply_kfactor(h, sample, get_run_period(era))
+            h = calculate_systematics(h, ERA_SYSTEMATICS[era], file_path, args, era,
+                                      missing_logger, variation_scale=kfactor)
             # Apply conversion scale factor
             h = apply_conv_scale_factor(h, sample, era, ERA_SAMPLES)
             h = apply_others_uncertainty(h, sample, era, ERA_SAMPLES)

@@ -27,6 +27,10 @@ PAPER_PLOTS = {
     "sr3-high": ("SR3Mu", "pair_highM/mass"),
     "zfake1-zcand": ("ZFake1E2Mu", "ZCand/mass"),
     "zfake3-zcand": ("ZFake3Mu", "ZCand/mass"),
+    "zg1-zcand": ("ZG1E2Mu", "ZCand/mass"),
+    "zg3-zcand": ("ZG3Mu", "ZCand/mass"),
+    "wz1-zcand": ("WZ1E2Mu", "ZCand/mass"),
+    "wz3-zcand": ("WZ3Mu", "ZCand/mass"),
     "ttz-zcand": ("TTZ2E1Mu", "ZCand/mass"),
 }
 

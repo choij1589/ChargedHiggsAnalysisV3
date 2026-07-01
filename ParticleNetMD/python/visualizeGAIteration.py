@@ -1163,9 +1163,19 @@ def plot_mass_sculpting_one_class(y_true_by_split: Dict[str, np.ndarray],
     )
     keepalive = []
 
+    canvas.cd(2)
+    ratio_frame = canvas.cd(2).GetPrimitive("hframe")
+    if ratio_frame:
+        ratio_frame.GetYaxis().CenterTitle()
+        ratio_frame.GetYaxis().SetTitleSize(0.115)
+        ratio_frame.GetYaxis().SetTitleOffset(0.58)
+
     canvas.cd(1)
     canvas.cd(1).SetGrid(0, 0)
-    legend = CMS.cmsLeg(0.42, 0.62, 0.94, 0.88, textSize=0.030, columns=2)
+    legend = CMS.cmsLeg(0.45, 0.55, 0.94, 0.88, textSize=0.034, columns=2)
+    for method, value in [("SetMargin", 0.14), ("SetColumnSeparation", 0.03), ("SetEntrySeparation", 0.01)]:
+        if hasattr(legend, method):
+            getattr(legend, method)(value)
     for _split, _label, hist in hists:
         CMS.cmsObjectDraw(
             hist,
@@ -1194,7 +1204,7 @@ def plot_mass_sculpting_one_class(y_true_by_split: Dict[str, np.ndarray],
                 CMS.addToLegend(legend, (hist, f"{label} {split}", "L"))
     legend.Draw()
 
-    CMS.drawText(class_label, posX=0.20, posY=0.76, font=62, align=0, size=0.045)
+    CMS.drawText(class_label, posX=0.20, posY=0.77, font=62, align=0, size=0.046)
     y_text = 0.69
     for split in ["train", "test"]:
         if split in dcors:
@@ -1204,9 +1214,9 @@ def plot_mass_sculpting_one_class(y_true_by_split: Dict[str, np.ndarray],
                 posY=y_text,
                 font=42,
                 align=0,
-                size=0.030,
+                size=0.038,
             )
-            y_text -= 0.055
+            y_text -= 0.065
     canvas.cd(1).RedrawAxis()
 
     canvas.cd(2)
@@ -1244,6 +1254,7 @@ def plot_mass_sculpting_one_class(y_true_by_split: Dict[str, np.ndarray],
     canvas._keepalive = keepalive
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     canvas.SaveAs(output_path)
+    canvas.SaveAs(os.path.splitext(output_path)[0] + ".pdf")
     canvas.Close()
 
 

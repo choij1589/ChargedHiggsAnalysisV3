@@ -1,0 +1,231 @@
+{
+  "roc": {
+    "per_model": {
+      "BDT": {
+        "nonprompt": {
+          "train": 0.9382621757111971,
+          "test": 0.9139072367339233
+        },
+        "diboson": {
+          "train": 0.9751004609594858,
+          "test": 0.9569262410413772
+        },
+        "ttX": {
+          "train": 0.9598091125982223,
+          "test": 0.9432541023256247
+        }
+      },
+      "DNN": {
+        "nonprompt": {
+          "train": 0.9062288693421372,
+          "test": 0.9012425358409529
+        },
+        "diboson": {
+          "train": 0.9691784656254849,
+          "test": 0.956062713630329
+        },
+        "ttX": {
+          "train": 0.9457911579331686,
+          "test": 0.9393825927966848
+        }
+      },
+      "DNN_MD": {
+        "nonprompt": {
+          "train": 0.8998669428633448,
+          "test": 0.8951562973736953
+        },
+        "diboson": {
+          "train": 0.9660301991312822,
+          "test": 0.9557470525451688
+        },
+        "ttX": {
+          "train": 0.9423335309455376,
+          "test": 0.9365990105575012
+        }
+      },
+      "ParticleNet_best": {
+        "nonprompt": {
+          "train": 0.9131913440284951,
+          "test": 0.9120382069631466
+        },
+        "diboson": {
+          "train": 0.9598241205306088,
+          "test": 0.9592556224346204
+        },
+        "ttX": {
+          "train": 0.932868581441567,
+          "test": 0.9329833694011689
+        }
+      },
+      "ParticleNet_best_MD": {
+        "nonprompt": {
+          "train": 0.9102854894032661,
+          "test": 0.908921801594379
+        },
+        "diboson": {
+          "train": 0.9579942048211808,
+          "test": 0.9581300141831242
+        },
+        "ttX": {
+          "train": 0.9311333981823168,
+          "test": 0.9314874026683686
+        }
+      }
+    },
+    "model_comparison": {
+      "nonprompt": {
+        "BDT": {
+          "test": 0.9139072367339233
+        },
+        "DNN": {
+          "test": 0.9012425358409529
+        },
+        "DNN_MD": {
+          "test": 0.8951562973736953
+        },
+        "ParticleNet_best": {
+          "test": 0.9120382069631466
+        },
+        "ParticleNet_best_MD": {
+          "test": 0.908921801594379
+        }
+      },
+      "diboson": {
+        "BDT": {
+          "test": 0.9569262410413772
+        },
+        "DNN": {
+          "test": 0.956062713630329
+        },
+        "DNN_MD": {
+          "test": 0.9557470525451688
+        },
+        "ParticleNet_best": {
+          "test": 0.9592556224346204
+        },
+        "ParticleNet_best_MD": {
+          "test": 0.9581300141831242
+        }
+      },
+      "ttX": {
+        "BDT": {
+          "test": 0.9432541023256247
+        },
+        "DNN": {
+          "test": 0.9393825927966848
+        },
+        "DNN_MD": {
+          "test": 0.9365990105575012
+        },
+        "ParticleNet_best": {
+          "test": 0.9329833694011689
+        },
+        "ParticleNet_best_MD": {
+          "test": 0.9314874026683686
+        }
+      }
+    }
+  },
+  "decorrelation": [
+    {
+      "signal": "MHc130_MA90",
+      "model": "BDT",
+      "display": "BDT",
+      "split": "train",
+      "dcor_psig_mass1": 0.1859435886144638,
+      "dcor_psig_mass2": 0.30707111954689026,
+      "dcor_lr_background_mass1": 0.18862934410572052,
+      "dcor_lr_background_mass2": 0.3363271951675415
+    },
+    {
+      "signal": "MHc130_MA90",
+      "model": "BDT",
+      "display": "BDT",
+      "split": "test",
+      "dcor_psig_mass1": 0.19488221406936646,
+      "dcor_psig_mass2": 0.3200267553329468,
+      "dcor_lr_background_mass1": 0.1892438530921936,
+      "dcor_lr_background_mass2": 0.31631532311439514
+    },
+    {
+      "signal": "MHc130_MA90",
+      "model": "DNN",
+      "display": "DNN",
+      "split": "train",
+      "dcor_psig_mass1": 0.18090102076530457,
+      "dcor_psig_mass2": 0.29964950680732727,
+      "dcor_lr_background_mass1": 0.14733077585697174,
+      "dcor_lr_background_mass2": 0.30260276794433594
+    },
+    {
+      "signal": "MHc130_MA90",
+      "model": "DNN",
+      "display": "DNN",
+      "split": "test",
+      "dcor_psig_mass1": 0.18394948542118073,
+      "dcor_psig_mass2": 0.27167779207229614,
+      "dcor_lr_background_mass1": 0.159024178981781,
+      "dcor_lr_background_mass2": 0.27855515480041504
+    },
+    {
+      "signal": "MHc130_MA90",
+      "model": "DNN_MD",
+      "display": "DNN MD",
+      "split": "train",
+      "dcor_psig_mass1": 0.0987761989235878,
+      "dcor_psig_mass2": 0.15375973284244537,
+      "dcor_lr_background_mass1": 0.04346325993537903,
+      "dcor_lr_background_mass2": 0.06101417541503906
+    },
+    {
+      "signal": "MHc130_MA90",
+      "model": "DNN_MD",
+      "display": "DNN MD",
+      "split": "test",
+      "dcor_psig_mass1": 0.09475085139274597,
+      "dcor_psig_mass2": 0.14015746116638184,
+      "dcor_lr_background_mass1": 0.048474300652742386,
+      "dcor_lr_background_mass2": 0.04860371723771095
+    },
+    {
+      "signal": "MHc130_MA90",
+      "model": "ParticleNet_best",
+      "display": "ParticleNet",
+      "split": "train",
+      "dcor_psig_mass1": 0.07611687481403351,
+      "dcor_psig_mass2": 0.11022276431322098,
+      "dcor_lr_background_mass1": 0.05199462175369263,
+      "dcor_lr_background_mass2": 0.06718434393405914
+    },
+    {
+      "signal": "MHc130_MA90",
+      "model": "ParticleNet_best",
+      "display": "ParticleNet",
+      "split": "test",
+      "dcor_psig_mass1": 0.07762549072504044,
+      "dcor_psig_mass2": 0.12961331009864807,
+      "dcor_lr_background_mass1": 0.051443155854940414,
+      "dcor_lr_background_mass2": 0.04959315434098244
+    },
+    {
+      "signal": "MHc130_MA90",
+      "model": "ParticleNet_best_MD",
+      "display": "ParticleNet MD",
+      "split": "train",
+      "dcor_psig_mass1": 0.07451009750366211,
+      "dcor_psig_mass2": 0.0909905731678009,
+      "dcor_lr_background_mass1": 0.05925561487674713,
+      "dcor_lr_background_mass2": 0.04429122433066368
+    },
+    {
+      "signal": "MHc130_MA90",
+      "model": "ParticleNet_best_MD",
+      "display": "ParticleNet MD",
+      "split": "test",
+      "dcor_psig_mass1": 0.06522554159164429,
+      "dcor_psig_mass2": 0.09851362556219101,
+      "dcor_lr_background_mass1": 0.05512411892414093,
+      "dcor_lr_background_mass2": 0.0767216831445694
+    }
+  ]
+}

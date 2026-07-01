@@ -58,6 +58,7 @@ with open(FAKENORM_PATH) as f:
 
 # Fallback theory norm for rare processes absent from KFactors.json (others group)
 OTHERS_THEORY_NORM = 0.50
+RUN3_WZ_SAMPLE = "WZTo3LNu_powheg"
 
 
 def get_theory_norm_fraction(sample, run):
@@ -180,7 +181,11 @@ def get_yield_mc_with_error(channels, era, mc, syst="Central", theory_scales=Non
             continue
 
         for sample in mc_samples:
-            file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, run_syst=True)
+            use_no_wzsf = run == "Run3" and sample == RUN3_WZ_SAMPLE
+            file_path = build_sknanoutput_path(
+                WORKDIR, channel, flag, era, sample,
+                run_syst=True, no_wzsf=use_no_wzsf
+            )
             if not os.path.exists(file_path):
                 logging.warning(f"File {file_path} does not exist, skipping")
                 continue

@@ -4,6 +4,9 @@ ERAsRun3=("2022" "2022EE" "2023" "2023BPix" "Run3")
 CHANNELsRun2=("SR1E2Mu" "SR3Mu" "ZFake1E2Mu" "ZFake3Mu" "ZG1E2Mu" "ZG3Mu" "TTZ2E1Mu")
 CHANNELsRun3=("SR1E2Mu" "SR3Mu" "ZFake1E2Mu" "ZFake3Mu" "ZG1E2Mu" "ZG3Mu" "WZ1E2Mu" "WZ3Mu" "TTZ2E1Mu")
 
+CHANNELsRun2=("TTZ2E1Mu")
+CHANNELsRun3=("TTZ2E1Mu")
+
 for ERA in "${ERAsRun2[@]}"; do
   for CHANNEL in "${CHANNELsRun2[@]}"; do
     echo "Processing ERA: $ERA, CHANNEL: $CHANNEL"
