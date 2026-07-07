@@ -1,0 +1,3208 @@
+{
+  "metadata": {
+    "schema_version": 1,
+    "era": "Run3",
+    "eras": [
+      "2022",
+      "2022EE",
+      "2023",
+      "2023BPix"
+    ],
+    "channel": "WZ3Mu",
+    "systematic": "Central",
+    "source": "Analyzer Central/cutflow histograms",
+    "pre_skim": {
+      "included_as_cutflow_bins": false,
+      "policy": "Analyzer-only start selected for this implementation.",
+      "background_note": "Background files already come from Skim_TriLep outputs. The skimmer selection is documented here but not reconstructed into extra JSON bins.",
+      "signal_note": "Signal cutflow starts at the analyzer Initial bin.",
+      "Skim_TriLep_background_selection": [
+        "preselected electron pT > 8 and eta acceptance",
+        "preselected muon pT > 8 and eta acceptance",
+        "NEl + NMu >= 3",
+        "leading lepton pT > 15"
+      ]
+    },
+    "benchmark_signals": [
+      "MHc70_MA15",
+      "MHc100_MA60",
+      "MHc130_MA90",
+      "MHc160_MA155"
+    ],
+    "cut_order": [
+      "Initial",
+      "NoiseFilter",
+      "EventVetoMap",
+      "LeptonSelection",
+      "ConversionFilter",
+      "Trigger",
+      "KinematicCuts",
+      "Final"
+    ],
+    "cut_definitions": {
+      "Initial": "Analyzer entry point after input MiniAOD/NanoAOD production and skimmed TriLepton tree selection.",
+      "NoiseFilter": "Common event noise filters passed.",
+      "EventVetoMap": "Event veto map selection passed.",
+      "LeptonSelection": "Three-lepton channel object and flavor selection passed.",
+      "ConversionFilter": "Conversion veto/filter selection passed.",
+      "Trigger": "Analysis trigger selection passed.",
+      "KinematicCuts": "Channel kinematic selection passed.",
+      "Final": "Final WZ3Mu diboson control-region selection."
+    },
+    "cutflow_weights": {
+      "PromptAnalyzer": {
+        "data": "1.0",
+        "mc_and_signal": "MCweight() * ev.GetTriggerLumi(\"Full\")",
+        "not_applied": [
+          "KFactor",
+          "ConvSF",
+          "WZNjetsSF",
+          "fake-rate normalization",
+          "fake weights",
+          "lepton reconstruction/ID/isolation scale factors",
+          "trigger scale factors",
+          "pileup scale factors",
+          "b-tagging scale factors",
+          "post-processing normalization factors"
+        ]
+      },
+      "MatrixAnalyzer": {
+        "nonprompt": "1.0 unit cutflow weight; fake weights are not applied to cutflow bins.",
+        "not_applied": [
+          "KFactor",
+          "ConvSF",
+          "WZNjetsSF",
+          "fake-rate normalization",
+          "post-processing normalization factors"
+        ]
+      }
+    },
+    "excluded_corrections": [
+      "KFactor",
+      "ConvSF",
+      "WZNjetsSF",
+      "fake-rate normalization",
+      "post-processing rate uncertainties"
+    ],
+    "notes": [
+      "Per-cut statistical errors are read from ROOT bin errors.",
+      "Category and total errors are summed in quadrature across samples and eras.",
+      "Shared pre-final stages may be read from the run-flag cutflow when the final-channel cutflow is empty.",
+      "Final is always read from the final-channel cutflow.",
+      "JetRequirements is emitted only for SR/ZFake channels, where the analyzers fill that stage."
+    ]
+  },
+  "samples": {
+    "nonprompt:DoubleMuon_C": {
+      "sample": "DoubleMuon_C",
+      "label": "nonprompt:DoubleMuon_C",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2022/Skim_TriLep_DoubleMuon_C.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 554986.0,
+          "stat_error": 744.973825043538
+        },
+        "NoiseFilter": {
+          "yield": 549230.0,
+          "stat_error": 741.1005329913074
+        },
+        "EventVetoMap": {
+          "yield": 539200.0,
+          "stat_error": 734.3023900274328
+        },
+        "LeptonSelection": {
+          "yield": 185.0,
+          "stat_error": 13.601470508735444
+        },
+        "ConversionFilter": {
+          "yield": 185.0,
+          "stat_error": 13.601470508735444
+        },
+        "Trigger": {
+          "yield": 173.0,
+          "stat_error": 13.152946437965905
+        },
+        "KinematicCuts": {
+          "yield": 147.0,
+          "stat_error": 12.12435565298214
+        },
+        "Final": {
+          "yield": 23.0,
+          "stat_error": 4.795831523312719
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_DoubleMuon_C.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon0_C_v1": {
+      "sample": "Muon0_C_v1",
+      "label": "nonprompt:Muon0_C_v1",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon0_C_v1.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 4489111.0,
+          "stat_error": 2118.7522271374723
+        },
+        "NoiseFilter": {
+          "yield": 4468739.0,
+          "stat_error": 2113.939213884827
+        },
+        "EventVetoMap": {
+          "yield": 4370816.0,
+          "stat_error": 2090.649659794773
+        },
+        "LeptonSelection": {
+          "yield": 747.0,
+          "stat_error": 27.331300737432898
+        },
+        "ConversionFilter": {
+          "yield": 747.0,
+          "stat_error": 27.331300737432898
+        },
+        "Trigger": {
+          "yield": 700.0,
+          "stat_error": 26.457513110645905
+        },
+        "KinematicCuts": {
+          "yield": 583.0,
+          "stat_error": 24.145392935299274
+        },
+        "Final": {
+          "yield": 103.0,
+          "stat_error": 10.14889156509222
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon0_C_v1.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon0_C_v2": {
+      "sample": "Muon0_C_v2",
+      "label": "nonprompt:Muon0_C_v2",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon0_C_v2.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 1398961.0,
+          "stat_error": 1182.776817493478
+        },
+        "NoiseFilter": {
+          "yield": 1392559.0,
+          "stat_error": 1180.067370958116
+        },
+        "EventVetoMap": {
+          "yield": 1364088.0,
+          "stat_error": 1167.9417793708726
+        },
+        "LeptonSelection": {
+          "yield": 238.0,
+          "stat_error": 15.427248620541512
+        },
+        "ConversionFilter": {
+          "yield": 238.0,
+          "stat_error": 15.427248620541512
+        },
+        "Trigger": {
+          "yield": 225.0,
+          "stat_error": 15.0
+        },
+        "KinematicCuts": {
+          "yield": 190.0,
+          "stat_error": 13.784048752090222
+        },
+        "Final": {
+          "yield": 38.0,
+          "stat_error": 6.164414002968976
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon0_C_v2.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon0_C_v3": {
+      "sample": "Muon0_C_v3",
+      "label": "nonprompt:Muon0_C_v3",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon0_C_v3.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 1736014.0,
+          "stat_error": 1317.5788401458183
+        },
+        "NoiseFilter": {
+          "yield": 1728086.0,
+          "stat_error": 1314.566848813707
+        },
+        "EventVetoMap": {
+          "yield": 1692113.0,
+          "stat_error": 1300.812438439916
+        },
+        "LeptonSelection": {
+          "yield": 296.0,
+          "stat_error": 17.204650534085253
+        },
+        "ConversionFilter": {
+          "yield": 296.0,
+          "stat_error": 17.204650534085253
+        },
+        "Trigger": {
+          "yield": 284.0,
+          "stat_error": 16.852299546352718
+        },
+        "KinematicCuts": {
+          "yield": 242.0,
+          "stat_error": 15.556349186104045
+        },
+        "Final": {
+          "yield": 33.0,
+          "stat_error": 5.744562646538029
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon0_C_v3.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon0_C_v4": {
+      "sample": "Muon0_C_v4",
+      "label": "nonprompt:Muon0_C_v4",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon0_C_v4.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 12499300.0,
+          "stat_error": 3535.4349095974035
+        },
+        "NoiseFilter": {
+          "yield": 12439715.0,
+          "stat_error": 3526.9980153099036
+        },
+        "EventVetoMap": {
+          "yield": 12173122.0,
+          "stat_error": 3489.000143307535
+        },
+        "LeptonSelection": {
+          "yield": 1919.0,
+          "stat_error": 43.80639222761902
+        },
+        "ConversionFilter": {
+          "yield": 1919.0,
+          "stat_error": 43.80639222761902
+        },
+        "Trigger": {
+          "yield": 1794.0,
+          "stat_error": 42.35563716909474
+        },
+        "KinematicCuts": {
+          "yield": 1492.0,
+          "stat_error": 38.62641583165593
+        },
+        "Final": {
+          "yield": 260.0,
+          "stat_error": 16.1245154965971
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon0_C_v4.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon0_D_v1": {
+      "sample": "Muon0_D_v1",
+      "label": "nonprompt:Muon0_D_v1",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023BPix/Skim_TriLep_Muon0_D_v1.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 9005347.0,
+          "stat_error": 3000.8910343429666
+        },
+        "NoiseFilter": {
+          "yield": 8963585.0,
+          "stat_error": 2993.924681751363
+        },
+        "EventVetoMap": {
+          "yield": 8798017.0,
+          "stat_error": 2966.145141425146
+        },
+        "LeptonSelection": {
+          "yield": 1495.0,
+          "stat_error": 38.66522985836241
+        },
+        "ConversionFilter": {
+          "yield": 1495.0,
+          "stat_error": 38.66522985836241
+        },
+        "Trigger": {
+          "yield": 1398.0,
+          "stat_error": 37.389838191679836
+        },
+        "KinematicCuts": {
+          "yield": 1180.0,
+          "stat_error": 34.351128074635334
+        },
+        "Final": {
+          "yield": 224.0,
+          "stat_error": 14.966629547095765
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon0_D_v1.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon0_D_v2": {
+      "sample": "Muon0_D_v2",
+      "label": "nonprompt:Muon0_D_v2",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023BPix/Skim_TriLep_Muon0_D_v2.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 2024965.0,
+          "stat_error": 1423.0126492761756
+        },
+        "NoiseFilter": {
+          "yield": 2015576.0,
+          "stat_error": 1419.7098295074243
+        },
+        "EventVetoMap": {
+          "yield": 1981715.0,
+          "stat_error": 1407.733994758953
+        },
+        "LeptonSelection": {
+          "yield": 297.0,
+          "stat_error": 17.233687939614086
+        },
+        "ConversionFilter": {
+          "yield": 297.0,
+          "stat_error": 17.233687939614086
+        },
+        "Trigger": {
+          "yield": 275.0,
+          "stat_error": 16.583123951777
+        },
+        "KinematicCuts": {
+          "yield": 230.0,
+          "stat_error": 15.165750888103101
+        },
+        "Final": {
+          "yield": 46.0,
+          "stat_error": 6.782329983125268
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon0_D_v2.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon1_C_v1": {
+      "sample": "Muon1_C_v1",
+      "label": "nonprompt:Muon1_C_v1",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon1_C_v1.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 4481140.0,
+          "stat_error": 2116.8703314090826
+        },
+        "NoiseFilter": {
+          "yield": 4460621.0,
+          "stat_error": 2112.018229087997
+        },
+        "EventVetoMap": {
+          "yield": 4366879.0,
+          "stat_error": 2089.7078743211932
+        },
+        "LeptonSelection": {
+          "yield": 769.0,
+          "stat_error": 27.730849247724095
+        },
+        "ConversionFilter": {
+          "yield": 769.0,
+          "stat_error": 27.730849247724095
+        },
+        "Trigger": {
+          "yield": 712.0,
+          "stat_error": 26.68332812825267
+        },
+        "KinematicCuts": {
+          "yield": 590.0,
+          "stat_error": 24.289915602982237
+        },
+        "Final": {
+          "yield": 108.0,
+          "stat_error": 10.392304845413264
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon1_C_v1.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon1_C_v2": {
+      "sample": "Muon1_C_v2",
+      "label": "nonprompt:Muon1_C_v2",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon1_C_v2.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 1399726.0,
+          "stat_error": 1183.100164821221
+        },
+        "NoiseFilter": {
+          "yield": 1393498.0,
+          "stat_error": 1180.4651625524575
+        },
+        "EventVetoMap": {
+          "yield": 1365665.0,
+          "stat_error": 1168.6167036286963
+        },
+        "LeptonSelection": {
+          "yield": 214.0,
+          "stat_error": 14.628738838327793
+        },
+        "ConversionFilter": {
+          "yield": 214.0,
+          "stat_error": 14.628738838327793
+        },
+        "Trigger": {
+          "yield": 198.0,
+          "stat_error": 14.071247279470288
+        },
+        "KinematicCuts": {
+          "yield": 171.0,
+          "stat_error": 13.076696830622021
+        },
+        "Final": {
+          "yield": 27.0,
+          "stat_error": 5.196152422706632
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon1_C_v2.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon1_C_v3": {
+      "sample": "Muon1_C_v3",
+      "label": "nonprompt:Muon1_C_v3",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon1_C_v3.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 1750376.0,
+          "stat_error": 1323.0177625413803
+        },
+        "NoiseFilter": {
+          "yield": 1742494.0,
+          "stat_error": 1320.035605580395
+        },
+        "EventVetoMap": {
+          "yield": 1707539.0,
+          "stat_error": 1306.7283573872573
+        },
+        "LeptonSelection": {
+          "yield": 315.0,
+          "stat_error": 17.74823934929885
+        },
+        "ConversionFilter": {
+          "yield": 315.0,
+          "stat_error": 17.74823934929885
+        },
+        "Trigger": {
+          "yield": 298.0,
+          "stat_error": 17.26267650163207
+        },
+        "KinematicCuts": {
+          "yield": 252.0,
+          "stat_error": 15.874507866387544
+        },
+        "Final": {
+          "yield": 42.0,
+          "stat_error": 6.48074069840786
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon1_C_v3.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon1_C_v4": {
+      "sample": "Muon1_C_v4",
+      "label": "nonprompt:Muon1_C_v4",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon1_C_v4.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 12501545.0,
+          "stat_error": 3535.7523951770154
+        },
+        "NoiseFilter": {
+          "yield": 12441652.0,
+          "stat_error": 3527.2726007497636
+        },
+        "EventVetoMap": {
+          "yield": 12179644.0,
+          "stat_error": 3489.9346698756412
+        },
+        "LeptonSelection": {
+          "yield": 2009.0,
+          "stat_error": 44.82186966202994
+        },
+        "ConversionFilter": {
+          "yield": 2009.0,
+          "stat_error": 44.82186966202994
+        },
+        "Trigger": {
+          "yield": 1893.0,
+          "stat_error": 43.508619835614184
+        },
+        "KinematicCuts": {
+          "yield": 1595.0,
+          "stat_error": 39.93745109543172
+        },
+        "Final": {
+          "yield": 288.0,
+          "stat_error": 16.97056274847714
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon1_C_v4.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon1_D_v1": {
+      "sample": "Muon1_D_v1",
+      "label": "nonprompt:Muon1_D_v1",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023BPix/Skim_TriLep_Muon1_D_v1.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 9020505.0,
+          "stat_error": 3003.415555663252
+        },
+        "NoiseFilter": {
+          "yield": 8978321.0,
+          "stat_error": 2996.384654879944
+        },
+        "EventVetoMap": {
+          "yield": 8814922.0,
+          "stat_error": 2968.9934321247665
+        },
+        "LeptonSelection": {
+          "yield": 1431.0,
+          "stat_error": 37.82856063875548
+        },
+        "ConversionFilter": {
+          "yield": 1431.0,
+          "stat_error": 37.82856063875548
+        },
+        "Trigger": {
+          "yield": 1357.0,
+          "stat_error": 36.837480912787726
+        },
+        "KinematicCuts": {
+          "yield": 1144.0,
+          "stat_error": 33.823069050575526
+        },
+        "Final": {
+          "yield": 219.0,
+          "stat_error": 14.798648586948742
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon1_D_v1.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon1_D_v2": {
+      "sample": "Muon1_D_v2",
+      "label": "nonprompt:Muon1_D_v2",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2023BPix/Skim_TriLep_Muon1_D_v2.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 2026675.0,
+          "stat_error": 1423.6133604318275
+        },
+        "NoiseFilter": {
+          "yield": 2017160.0,
+          "stat_error": 1420.267580422788
+        },
+        "EventVetoMap": {
+          "yield": 1982513.0,
+          "stat_error": 1408.017400460662
+        },
+        "LeptonSelection": {
+          "yield": 314.0,
+          "stat_error": 17.72004514666935
+        },
+        "ConversionFilter": {
+          "yield": 314.0,
+          "stat_error": 17.72004514666935
+        },
+        "Trigger": {
+          "yield": 301.0,
+          "stat_error": 17.349351572897472
+        },
+        "KinematicCuts": {
+          "yield": 253.0,
+          "stat_error": 15.905973720586866
+        },
+        "Final": {
+          "yield": 49.0,
+          "stat_error": 7.0
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon1_D_v2.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon_C": {
+      "sample": "Muon_C",
+      "label": "nonprompt:Muon_C",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2022/Skim_TriLep_Muon_C.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 7518316.0,
+          "stat_error": 2741.954777161724
+        },
+        "NoiseFilter": {
+          "yield": 7488070.0,
+          "stat_error": 2736.4338106374876
+        },
+        "EventVetoMap": {
+          "yield": 7324367.0,
+          "stat_error": 2706.3567761845443
+        },
+        "LeptonSelection": {
+          "yield": 1577.0,
+          "stat_error": 39.71145930332956
+        },
+        "ConversionFilter": {
+          "yield": 1577.0,
+          "stat_error": 39.71145930332956
+        },
+        "Trigger": {
+          "yield": 1486.0,
+          "stat_error": 38.54867053479276
+        },
+        "KinematicCuts": {
+          "yield": 1228.0,
+          "stat_error": 35.04283093587046
+        },
+        "Final": {
+          "yield": 197.0,
+          "stat_error": 14.035668847618199
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon_C.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon_D": {
+      "sample": "Muon_D",
+      "label": "nonprompt:Muon_D",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2022/Skim_TriLep_Muon_D.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 4994862.0,
+          "stat_error": 2234.91879047092
+        },
+        "NoiseFilter": {
+          "yield": 4976836.0,
+          "stat_error": 2230.882336655163
+        },
+        "EventVetoMap": {
+          "yield": 4871394.0,
+          "stat_error": 2207.12346732121
+        },
+        "LeptonSelection": {
+          "yield": 1056.0,
+          "stat_error": 32.49615361854384
+        },
+        "ConversionFilter": {
+          "yield": 1056.0,
+          "stat_error": 32.49615361854384
+        },
+        "Trigger": {
+          "yield": 976.0,
+          "stat_error": 31.240998703626616
+        },
+        "KinematicCuts": {
+          "yield": 818.0,
+          "stat_error": 28.600699292150182
+        },
+        "Final": {
+          "yield": 137.0,
+          "stat_error": 11.704699910719626
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon_D.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon_E": {
+      "sample": "Muon_E",
+      "label": "nonprompt:Muon_E",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2022EE/Skim_TriLep_Muon_E.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 10461836.0,
+          "stat_error": 3234.4761554230076
+        },
+        "NoiseFilter": {
+          "yield": 10420575.0,
+          "stat_error": 3228.0915414529372
+        },
+        "EventVetoMap": {
+          "yield": 10142925.0,
+          "stat_error": 3184.7959118285744
+        },
+        "LeptonSelection": {
+          "yield": 2036.0,
+          "stat_error": 45.12205669071391
+        },
+        "ConversionFilter": {
+          "yield": 2036.0,
+          "stat_error": 45.12205669071391
+        },
+        "Trigger": {
+          "yield": 1913.0,
+          "stat_error": 43.73785545725808
+        },
+        "KinematicCuts": {
+          "yield": 1582.0,
+          "stat_error": 39.774363602702685
+        },
+        "Final": {
+          "yield": 243.0,
+          "stat_error": 15.588457268119896
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon_E.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon_F": {
+      "sample": "Muon_F",
+      "label": "nonprompt:Muon_F",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2022EE/Skim_TriLep_Muon_F.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 38118420.0,
+          "stat_error": 6174.011661796567
+        },
+        "NoiseFilter": {
+          "yield": 37955832.0,
+          "stat_error": 6160.830463500842
+        },
+        "EventVetoMap": {
+          "yield": 36931652.0,
+          "stat_error": 6077.141762374809
+        },
+        "LeptonSelection": {
+          "yield": 6447.0,
+          "stat_error": 80.2932126645833
+        },
+        "ConversionFilter": {
+          "yield": 6447.0,
+          "stat_error": 80.2932126645833
+        },
+        "Trigger": {
+          "yield": 6070.0,
+          "stat_error": 77.91020472312982
+        },
+        "KinematicCuts": {
+          "yield": 5119.0,
+          "stat_error": 71.54718722633336
+        },
+        "Final": {
+          "yield": 868.0,
+          "stat_error": 29.46183972531247
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon_F.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "nonprompt:Muon_G": {
+      "sample": "Muon_G",
+      "label": "nonprompt:Muon_G",
+      "category": "nonprompt",
+      "analyzer": "MatrixAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/MatrixAnalyzer/Run3Mu_RunCR_NoTreeMode/2022EE/Skim_TriLep_Muon_G.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 6979524.0,
+          "stat_error": 2641.878876860179
+        },
+        "NoiseFilter": {
+          "yield": 6948244.0,
+          "stat_error": 2635.952199870096
+        },
+        "EventVetoMap": {
+          "yield": 6778716.0,
+          "stat_error": 2603.596742969233
+        },
+        "LeptonSelection": {
+          "yield": 1131.0,
+          "stat_error": 33.63034344160047
+        },
+        "ConversionFilter": {
+          "yield": 1131.0,
+          "stat_error": 33.63034344160047
+        },
+        "Trigger": {
+          "yield": 1047.0,
+          "stat_error": 32.357379374726875
+        },
+        "KinematicCuts": {
+          "yield": 890.0,
+          "stat_error": 29.832867780352597
+        },
+        "Final": {
+          "yield": 155.0,
+          "stat_error": 12.449899597988733
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_Muon_G.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "DYJets": {
+      "sample": "DYJets",
+      "label": "DYJets",
+      "category": "conv",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_DYJets.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_DYJets.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_DYJets.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_DYJets.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 16158904.75,
+          "stat_error": 5534.949574530194
+        },
+        "NoiseFilter": {
+          "yield": 16145424.0,
+          "stat_error": 5532.771376865051
+        },
+        "EventVetoMap": {
+          "yield": 15931939.125,
+          "stat_error": 5488.787781226089
+        },
+        "LeptonSelection": {
+          "yield": 3525.084503173828,
+          "stat_error": 87.67569033714143
+        },
+        "ConversionFilter": {
+          "yield": 817.4023132324219,
+          "stat_error": 37.652717867773625
+        },
+        "Trigger": {
+          "yield": 805.1731567382812,
+          "stat_error": 37.390124196029774
+        },
+        "KinematicCuts": {
+          "yield": 626.5930213928223,
+          "stat_error": 33.508026076515506
+        },
+        "Final": {
+          "yield": 2.068360984325409,
+          "stat_error": 2.1399331522391076
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_DYJets.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "DYJets10to50": {
+      "sample": "DYJets10to50",
+      "label": "DYJets10to50",
+      "category": "conv",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_DYJets10to50.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_DYJets10to50.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_DYJets10to50.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_DYJets10to50.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 4431532.25,
+          "stat_error": 4353.328363947521
+        },
+        "NoiseFilter": {
+          "yield": 4427093.8125,
+          "stat_error": 4351.272809577095
+        },
+        "EventVetoMap": {
+          "yield": 4359115.9375,
+          "stat_error": 4313.99282685953
+        },
+        "LeptonSelection": {
+          "yield": 355.2165069580078,
+          "stat_error": 41.84690200123176
+        },
+        "ConversionFilter": {
+          "yield": -2.4071977138519287,
+          "stat_error": 2.4071977138519287
+        },
+        "Trigger": {
+          "yield": -2.4071977138519287,
+          "stat_error": 2.4071977138519287
+        },
+        "KinematicCuts": {
+          "yield": 0.0,
+          "stat_error": 0.0
+        },
+        "Final": {
+          "yield": 0.0,
+          "stat_error": 0.0
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_DYJets10to50.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "flag",
+          "Trigger": "flag",
+          "KinematicCuts": "flag",
+          "Final": "channel"
+        }
+      }
+    },
+    "TTG_PTG100to200": {
+      "sample": "TTG_PTG100to200",
+      "label": "TTG_PTG100to200",
+      "category": "conv",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_TTG_PTG100to200.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_TTG_PTG100to200.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_TTG_PTG100to200.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_TTG_PTG100to200.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 4965.813293457031,
+          "stat_error": 19.64774915495975
+        },
+        "NoiseFilter": {
+          "yield": 4950.501037597656,
+          "stat_error": 19.622613135754285
+        },
+        "EventVetoMap": {
+          "yield": 4792.26904296875,
+          "stat_error": 19.29198897924234
+        },
+        "LeptonSelection": {
+          "yield": 3.196556180715561,
+          "stat_error": 0.46316302246343616
+        },
+        "ConversionFilter": {
+          "yield": 2.9333803355693817,
+          "stat_error": 0.44525555207217143
+        },
+        "Trigger": {
+          "yield": 2.8395558297634125,
+          "stat_error": 0.4386158203387537
+        },
+        "KinematicCuts": {
+          "yield": 0.4252486824989319,
+          "stat_error": 0.17899638602412063
+        },
+        "Final": {
+          "yield": 0.027979183942079544,
+          "stat_error": 0.027979183942079544
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_TTG_PTG100to200.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "TTG_PTG10to100": {
+      "sample": "TTG_PTG10to100",
+      "label": "TTG_PTG10to100",
+      "category": "conv",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_TTG_PTG10to100.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_TTG_PTG10to100.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_TTG_PTG10to100.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_TTG_PTG10to100.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 45499.203125,
+          "stat_error": 101.3391980969835
+        },
+        "NoiseFilter": {
+          "yield": 45450.50390625,
+          "stat_error": 101.28781762522344
+        },
+        "EventVetoMap": {
+          "yield": 43676.45751953125,
+          "stat_error": 99.26342256184257
+        },
+        "LeptonSelection": {
+          "yield": 8.628380358219147,
+          "stat_error": 1.2226354719340347
+        },
+        "ConversionFilter": {
+          "yield": 6.333065032958984,
+          "stat_error": 1.0139223526576435
+        },
+        "Trigger": {
+          "yield": 6.333065032958984,
+          "stat_error": 0.9960154698306215
+        },
+        "KinematicCuts": {
+          "yield": 2.635813891887665,
+          "stat_error": 0.6900581038784902
+        },
+        "Final": {
+          "yield": 0.18219026178121567,
+          "stat_error": 0.18694567244286406
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_TTG_PTG10to100.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "TTG_PTG200toInf": {
+      "sample": "TTG_PTG200toInf",
+      "label": "TTG_PTG200toInf",
+      "category": "conv",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_TTG_PTG200toInf.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_TTG_PTG200toInf.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_TTG_PTG200toInf.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_TTG_PTG200toInf.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 1862.7062072753906,
+          "stat_error": 7.410396876830999
+        },
+        "NoiseFilter": {
+          "yield": 1851.3957824707031,
+          "stat_error": 7.388789674081457
+        },
+        "EventVetoMap": {
+          "yield": 1792.3832550048828,
+          "stat_error": 7.269950798912249
+        },
+        "LeptonSelection": {
+          "yield": 1.4099255204200745,
+          "stat_error": 0.19019460473226135
+        },
+        "ConversionFilter": {
+          "yield": 1.3682707250118256,
+          "stat_error": 0.18670008765407606
+        },
+        "Trigger": {
+          "yield": 1.3031420707702637,
+          "stat_error": 0.18258868306221937
+        },
+        "KinematicCuts": {
+          "yield": 0.11709314212203026,
+          "stat_error": 0.05918337340803423
+        },
+        "Final": {
+          "yield": 0.009211238473653793,
+          "stat_error": 0.015954333037001566
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_TTG_PTG200toInf.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "TTHToNonbb": {
+      "sample": "TTHToNonbb",
+      "label": "TTHToNonbb",
+      "category": "ttX",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_TTHToNonbb.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_TTHToNonbb.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_TTHToNonbb.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_TTHToNonbb.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 4587.5560302734375,
+          "stat_error": 1.4349906948261983
+        },
+        "NoiseFilter": {
+          "yield": 4581.770263671875,
+          "stat_error": 1.4340663944182241
+        },
+        "EventVetoMap": {
+          "yield": 4364.021789550781,
+          "stat_error": 1.399511044497126
+        },
+        "LeptonSelection": {
+          "yield": 19.24432611465454,
+          "stat_error": 0.0921852854779514
+        },
+        "ConversionFilter": {
+          "yield": 19.24432611465454,
+          "stat_error": 0.0921852854779514
+        },
+        "Trigger": {
+          "yield": 19.140721321105957,
+          "stat_error": 0.09193878229973172
+        },
+        "KinematicCuts": {
+          "yield": 18.59904193878174,
+          "stat_error": 0.0906290786686653
+        },
+        "Final": {
+          "yield": 1.2401063442230225,
+          "stat_error": 0.02332374492187337
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_TTHToNonbb.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "TTWToLNu": {
+      "sample": "TTWToLNu",
+      "label": "TTWToLNu",
+      "category": "ttX",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_TTWToLNu.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_TTWToLNu.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_TTWToLNu.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_TTWToLNu.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 5095.594177246094,
+          "stat_error": 17.1332637910834
+        },
+        "NoiseFilter": {
+          "yield": 5088.515441894531,
+          "stat_error": 17.12083148360325
+        },
+        "EventVetoMap": {
+          "yield": 4899.507629394531,
+          "stat_error": 16.7798493709313
+        },
+        "LeptonSelection": {
+          "yield": 28.40836000442505,
+          "stat_error": 1.2336788058927683
+        },
+        "ConversionFilter": {
+          "yield": 28.40836000442505,
+          "stat_error": 1.2336788058927683
+        },
+        "Trigger": {
+          "yield": 28.2795729637146,
+          "stat_error": 1.2309492932977864
+        },
+        "KinematicCuts": {
+          "yield": 27.997901916503906,
+          "stat_error": 1.2239133655662175
+        },
+        "Final": {
+          "yield": 1.5618276447057724,
+          "stat_error": 0.28349356116097957
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_TTWToLNu.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "TTZ_M4to50": {
+      "sample": "TTZ_M4to50",
+      "label": "TTZ_M4to50",
+      "category": "ttX",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_TTZ_M4to50.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_TTZ_M4to50.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_TTZ_M4to50.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_TTZ_M4to50.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 890.9024887084961,
+          "stat_error": 1.8237216081730463
+        },
+        "NoiseFilter": {
+          "yield": 889.964958190918,
+          "stat_error": 1.8227341830450172
+        },
+        "EventVetoMap": {
+          "yield": 853.9947738647461,
+          "stat_error": 1.785464269830492
+        },
+        "LeptonSelection": {
+          "yield": 15.780225157737732,
+          "stat_error": 0.2449188376095435
+        },
+        "ConversionFilter": {
+          "yield": 15.780225157737732,
+          "stat_error": 0.2449188376095435
+        },
+        "Trigger": {
+          "yield": 15.643561005592346,
+          "stat_error": 0.2435293908883203
+        },
+        "KinematicCuts": {
+          "yield": 12.796211242675781,
+          "stat_error": 0.220589234999964
+        },
+        "Final": {
+          "yield": 0.4404471814632416,
+          "stat_error": 0.042184805118053
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_TTZ_M4to50.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "TTZ_M50": {
+      "sample": "TTZ_M50",
+      "label": "TTZ_M50",
+      "category": "ttX",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_TTZ_M50.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_TTZ_M50.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_TTZ_M50.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_TTZ_M50.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 3087.386993408203,
+          "stat_error": 4.5983419772847824
+        },
+        "NoiseFilter": {
+          "yield": 3083.1084594726562,
+          "stat_error": 4.595065502221372
+        },
+        "EventVetoMap": {
+          "yield": 2968.6380310058594,
+          "stat_error": 4.509332174746624
+        },
+        "LeptonSelection": {
+          "yield": 159.24235725402832,
+          "stat_error": 1.0392848572311226
+        },
+        "ConversionFilter": {
+          "yield": 159.24235725402832,
+          "stat_error": 1.0392848572311226
+        },
+        "Trigger": {
+          "yield": 158.5660572052002,
+          "stat_error": 1.0374251581702834
+        },
+        "KinematicCuts": {
+          "yield": 157.9398021697998,
+          "stat_error": 1.035491604095024
+        },
+        "Final": {
+          "yield": 38.466177463531494,
+          "stat_error": 0.517882008123321
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_TTZ_M50.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "tZq": {
+      "sample": "tZq",
+      "label": "tZq",
+      "category": "ttX",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_tZq.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_tZq.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_tZq.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_tZq.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 1826.1587524414062,
+          "stat_error": 4.4152607590370305
+        },
+        "NoiseFilter": {
+          "yield": 1824.349105834961,
+          "stat_error": 4.413029153904246
+        },
+        "EventVetoMap": {
+          "yield": 1766.8527374267578,
+          "stat_error": 4.340717322850146
+        },
+        "LeptonSelection": {
+          "yield": 81.20947551727295,
+          "stat_error": 0.9228514837972642
+        },
+        "ConversionFilter": {
+          "yield": 81.20947551727295,
+          "stat_error": 0.9228514837972642
+        },
+        "Trigger": {
+          "yield": 80.93212985992432,
+          "stat_error": 0.9213692044037459
+        },
+        "KinematicCuts": {
+          "yield": 80.38698291778564,
+          "stat_error": 0.9186079852230479
+        },
+        "Final": {
+          "yield": 27.288398504257202,
+          "stat_error": 0.5372766275887149
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_tZq.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "WZTo3LNu_powheg": {
+      "sample": "WZTo3LNu_powheg",
+      "label": "WZTo3LNu_powheg",
+      "category": "diboson",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_WZTo3LNu_powheg.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_WZTo3LNu_powheg.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_WZTo3LNu_powheg.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_WZTo3LNu_powheg.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 41425.8662109375,
+          "stat_error": 25.885461663636296
+        },
+        "NoiseFilter": {
+          "yield": 41398.8671875,
+          "stat_error": 25.876925426404018
+        },
+        "EventVetoMap": {
+          "yield": 40760.013671875,
+          "stat_error": 25.67813298640826
+        },
+        "LeptonSelection": {
+          "yield": 4416.859191894531,
+          "stat_error": 8.464157374759191
+        },
+        "ConversionFilter": {
+          "yield": 4416.859191894531,
+          "stat_error": 8.464157374759191
+        },
+        "Trigger": {
+          "yield": 4374.510437011719,
+          "stat_error": 8.423294888549409
+        },
+        "KinematicCuts": {
+          "yield": 4185.823303222656,
+          "stat_error": 8.23907890277956
+        },
+        "Final": {
+          "yield": 2209.9518432617188,
+          "stat_error": 5.986971549474527
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_WZTo3LNu_powheg.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "ZZTo4L_powheg": {
+      "sample": "ZZTo4L_powheg",
+      "label": "ZZTo4L_powheg",
+      "category": "diboson",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_ZZTo4L_powheg.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_ZZTo4L_powheg.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_ZZTo4L_powheg.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_ZZTo4L_powheg.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 15408.311279296875,
+          "stat_error": 3.584612819109198
+        },
+        "NoiseFilter": {
+          "yield": 15401.430908203125,
+          "stat_error": 3.583794280074922
+        },
+        "EventVetoMap": {
+          "yield": 15184.238159179688,
+          "stat_error": 3.558834752034218
+        },
+        "LeptonSelection": {
+          "yield": 1203.8958587646484,
+          "stat_error": 1.0041559916270943
+        },
+        "ConversionFilter": {
+          "yield": 1203.8958587646484,
+          "stat_error": 1.0041559916270943
+        },
+        "Trigger": {
+          "yield": 1189.48681640625,
+          "stat_error": 0.998078991728466
+        },
+        "KinematicCuts": {
+          "yield": 1077.8259735107422,
+          "stat_error": 0.949995977940522
+        },
+        "Final": {
+          "yield": 158.16720008850098,
+          "stat_error": 0.3637923566686281
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_ZZTo4L_powheg.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "TTTT": {
+      "sample": "TTTT",
+      "label": "TTTT",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_TTTT.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_TTTT.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_TTTT.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_TTTT.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 336.02705001831055,
+          "stat_error": 0.2359990634552389
+        },
+        "NoiseFilter": {
+          "yield": 335.34663009643555,
+          "stat_error": 0.23575156198558445
+        },
+        "EventVetoMap": {
+          "yield": 316.7966423034668,
+          "stat_error": 0.22913626617692667
+        },
+        "LeptonSelection": {
+          "yield": 1.2275809943675995,
+          "stat_error": 0.013984486267125508
+        },
+        "ConversionFilter": {
+          "yield": 1.2275809943675995,
+          "stat_error": 0.013984486267125508
+        },
+        "Trigger": {
+          "yield": 1.2233624309301376,
+          "stat_error": 0.013957800014738054
+        },
+        "KinematicCuts": {
+          "yield": 1.2120686322450638,
+          "stat_error": 0.013882217686567083
+        },
+        "Final": {
+          "yield": 0.025229627499356866,
+          "stat_error": 0.0020112434245875004
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_TTTT.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "VBFHToZZTo4L": {
+      "sample": "VBFHToZZTo4L",
+      "label": "VBFHToZZTo4L",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_VBFHToZZTo4L.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_VBFHToZZTo4L.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_VBFHToZZTo4L.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_VBFHToZZTo4L.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 33.90496826171875,
+          "stat_error": 0.05400549997837314
+        },
+        "NoiseFilter": {
+          "yield": 33.88380479812622,
+          "stat_error": 0.053988681702270495
+        },
+        "EventVetoMap": {
+          "yield": 33.14591360092163,
+          "stat_error": 0.05339783556512371
+        },
+        "LeptonSelection": {
+          "yield": 2.6134990453720093,
+          "stat_error": 0.0149847282952269
+        },
+        "ConversionFilter": {
+          "yield": 2.6134990453720093,
+          "stat_error": 0.0149847282952269
+        },
+        "Trigger": {
+          "yield": 2.5933049023151398,
+          "stat_error": 0.01492685929604228
+        },
+        "KinematicCuts": {
+          "yield": 2.493751347064972,
+          "stat_error": 0.014637106787498112
+        },
+        "Final": {
+          "yield": 0.3888114355504513,
+          "stat_error": 0.005775427602704673
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_VBFHToZZTo4L.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "WWW": {
+      "sample": "WWW",
+      "label": "WWW",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_WWW.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_WWW.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_WWW.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_WWW.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 1331.644271850586,
+          "stat_error": 2.6327787874522706
+        },
+        "NoiseFilter": {
+          "yield": 1329.4576110839844,
+          "stat_error": 2.6306888515629225
+        },
+        "EventVetoMap": {
+          "yield": 1289.3586883544922,
+          "stat_error": 2.590763707181031
+        },
+        "LeptonSelection": {
+          "yield": 8.646138906478882,
+          "stat_error": 0.21416129474747148
+        },
+        "ConversionFilter": {
+          "yield": 8.646138906478882,
+          "stat_error": 0.21416129474747148
+        },
+        "Trigger": {
+          "yield": 8.617462992668152,
+          "stat_error": 0.2138399920801135
+        },
+        "KinematicCuts": {
+          "yield": 8.491749167442322,
+          "stat_error": 0.21230875426471393
+        },
+        "Final": {
+          "yield": 1.5150457322597504,
+          "stat_error": 0.08796312012434576
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_WWW.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "WWZ": {
+      "sample": "WWZ",
+      "label": "WWZ",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_WWZ.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_WWZ.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_WWZ.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_WWZ.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 1335.7996673583984,
+          "stat_error": 1.18991358145536
+        },
+        "NoiseFilter": {
+          "yield": 1333.2021179199219,
+          "stat_error": 1.1887761557060876
+        },
+        "EventVetoMap": {
+          "yield": 1289.2710266113281,
+          "stat_error": 1.1691524567510636
+        },
+        "LeptonSelection": {
+          "yield": 29.510170459747314,
+          "stat_error": 0.1784025204268233
+        },
+        "ConversionFilter": {
+          "yield": 29.510170459747314,
+          "stat_error": 0.1784025204268233
+        },
+        "Trigger": {
+          "yield": 29.42137050628662,
+          "stat_error": 0.178135955135967
+        },
+        "KinematicCuts": {
+          "yield": 29.30956530570984,
+          "stat_error": 0.17778491193061016
+        },
+        "Final": {
+          "yield": 19.83620572090149,
+          "stat_error": 0.14628275277572603
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_WWZ.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "WZZ": {
+      "sample": "WZZ",
+      "label": "WZZ",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_WZZ.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_WZZ.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_WZZ.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_WZZ.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 452.9506950378418,
+          "stat_error": 0.40035862920713855
+        },
+        "NoiseFilter": {
+          "yield": 452.12208557128906,
+          "stat_error": 0.3999987780833459
+        },
+        "EventVetoMap": {
+          "yield": 436.979923248291,
+          "stat_error": 0.39329871617033074
+        },
+        "LeptonSelection": {
+          "yield": 12.110895872116089,
+          "stat_error": 0.06605417143106287
+        },
+        "ConversionFilter": {
+          "yield": 12.110895872116089,
+          "stat_error": 0.06605417143106287
+        },
+        "Trigger": {
+          "yield": 12.069033145904541,
+          "stat_error": 0.06594394209646165
+        },
+        "KinematicCuts": {
+          "yield": 12.011397242546082,
+          "stat_error": 0.06578378625591796
+        },
+        "Final": {
+          "yield": 7.254934191703796,
+          "stat_error": 0.05112257060317081
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_WZZ.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "ZZZ": {
+      "sample": "ZZZ",
+      "label": "ZZZ",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_ZZZ.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_ZZZ.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_ZZZ.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_ZZZ.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 93.5640869140625,
+          "stat_error": 0.09466088334288432
+        },
+        "NoiseFilter": {
+          "yield": 93.4495325088501,
+          "stat_error": 0.09460328920819915
+        },
+        "EventVetoMap": {
+          "yield": 90.65429878234863,
+          "stat_error": 0.09318878497061524
+        },
+        "LeptonSelection": {
+          "yield": 1.0443086624145508,
+          "stat_error": 0.010023924305592586
+        },
+        "ConversionFilter": {
+          "yield": 1.0443086624145508,
+          "stat_error": 0.010023924305592586
+        },
+        "Trigger": {
+          "yield": 1.0415399670600891,
+          "stat_error": 0.010010900165861775
+        },
+        "KinematicCuts": {
+          "yield": 1.035442091524601,
+          "stat_error": 0.009979420731922041
+        },
+        "Final": {
+          "yield": 0.5087264217436314,
+          "stat_error": 0.007001132780551635
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_ZZZ.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "ggHToZZTo4L": {
+      "sample": "ggHToZZTo4L",
+      "label": "ggHToZZTo4L",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_ggHToZZTo4L.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_ggHToZZTo4L.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_ggHToZZTo4L.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_ggHToZZTo4L.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 375.09640884399414,
+          "stat_error": 0.47571578797049074
+        },
+        "NoiseFilter": {
+          "yield": 375.01185607910156,
+          "stat_error": 0.47565509215854695
+        },
+        "EventVetoMap": {
+          "yield": 368.43707275390625,
+          "stat_error": 0.47171498689001945
+        },
+        "LeptonSelection": {
+          "yield": 32.16671657562256,
+          "stat_error": 0.14138558683236135
+        },
+        "ConversionFilter": {
+          "yield": 32.16671657562256,
+          "stat_error": 0.14138558683236135
+        },
+        "Trigger": {
+          "yield": 31.86332941055298,
+          "stat_error": 0.14070227273490632
+        },
+        "KinematicCuts": {
+          "yield": 30.332756280899048,
+          "stat_error": 0.13721303593873926
+        },
+        "Final": {
+          "yield": 3.0961258113384247,
+          "stat_error": 0.0439297268707971
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_ggHToZZTo4L.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "tHW": {
+      "sample": "tHW",
+      "label": "tHW",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_tHW.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_tHW.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_tHW.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_tHW.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 2696.9608154296875,
+          "stat_error": 1.5141868380424341
+        },
+        "NoiseFilter": {
+          "yield": 2690.1056518554688,
+          "stat_error": 1.512287078817049
+        },
+        "EventVetoMap": {
+          "yield": 2587.2366638183594,
+          "stat_error": 1.4838319964379658
+        },
+        "LeptonSelection": {
+          "yield": 5.927004516124725,
+          "stat_error": 0.07194455900869622
+        },
+        "ConversionFilter": {
+          "yield": 5.927004516124725,
+          "stat_error": 0.07194455900869622
+        },
+        "Trigger": {
+          "yield": 5.907303273677826,
+          "stat_error": 0.07183298480957064
+        },
+        "KinematicCuts": {
+          "yield": 5.830146074295044,
+          "stat_error": 0.07140037952099551
+        },
+        "Final": {
+          "yield": 0.6322470679879189,
+          "stat_error": 0.023498157839205093
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_tHW.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "tHq": {
+      "sample": "tHq",
+      "label": "tHq",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_tHq.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_tHq.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_tHq.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_tHq.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 7146.9798583984375,
+          "stat_error": 4.106982436398984
+        },
+        "NoiseFilter": {
+          "yield": 7138.9176025390625,
+          "stat_error": 4.104591486056378
+        },
+        "EventVetoMap": {
+          "yield": 6871.880615234375,
+          "stat_error": 4.029796343084012
+        },
+        "LeptonSelection": {
+          "yield": 10.719248533248901,
+          "stat_error": 0.16022386625916904
+        },
+        "ConversionFilter": {
+          "yield": 10.719248533248901,
+          "stat_error": 0.16022386625916904
+        },
+        "Trigger": {
+          "yield": 10.658325910568237,
+          "stat_error": 0.15978811800098427
+        },
+        "KinematicCuts": {
+          "yield": 10.2485990524292,
+          "stat_error": 0.15661369436359568
+        },
+        "Final": {
+          "yield": 1.1644381284713745,
+          "stat_error": 0.05269565478177303
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_tHq.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "tWZ_thadWlep": {
+      "sample": "tWZ_thadWlep",
+      "label": "tWZ_thadWlep",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_tWZ_thadWlep.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_tWZ_thadWlep.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_tWZ_thadWlep.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_tWZ_thadWlep.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 128.9154281616211,
+          "stat_error": 0.06805019224987346
+        },
+        "NoiseFilter": {
+          "yield": 128.72630882263184,
+          "stat_error": 0.06800239603336576
+        },
+        "EventVetoMap": {
+          "yield": 124.7097339630127,
+          "stat_error": 0.06694362434158085
+        },
+        "LeptonSelection": {
+          "yield": 12.09371566772461,
+          "stat_error": 0.020896639447577074
+        },
+        "ConversionFilter": {
+          "yield": 12.09371566772461,
+          "stat_error": 0.020896639447577074
+        },
+        "Trigger": {
+          "yield": 12.05409824848175,
+          "stat_error": 0.020862506242615732
+        },
+        "KinematicCuts": {
+          "yield": 12.019094228744507,
+          "stat_error": 0.020832035883531042
+        },
+        "Final": {
+          "yield": 3.954421281814575,
+          "stat_error": 0.012057917765030315
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_tWZ_thadWlep.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "tWZ_tlepWhad": {
+      "sample": "tWZ_tlepWhad",
+      "label": "tWZ_tlepWhad",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_tWZ_tlepWhad.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_tWZ_tlepWhad.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_tWZ_tlepWhad.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_tWZ_tlepWhad.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 125.84353065490723,
+          "stat_error": 0.06732132814666479
+        },
+        "NoiseFilter": {
+          "yield": 125.6711254119873,
+          "stat_error": 0.06727738908314378
+        },
+        "EventVetoMap": {
+          "yield": 121.56107139587402,
+          "stat_error": 0.06617631474789201
+        },
+        "LeptonSelection": {
+          "yield": 10.91280722618103,
+          "stat_error": 0.019910460632435012
+        },
+        "ConversionFilter": {
+          "yield": 10.91280722618103,
+          "stat_error": 0.019910460632435012
+        },
+        "Trigger": {
+          "yield": 10.87870192527771,
+          "stat_error": 0.019878066923033483
+        },
+        "KinematicCuts": {
+          "yield": 10.832957029342651,
+          "stat_error": 0.019838285852510875
+        },
+        "Final": {
+          "yield": 3.8602494299411774,
+          "stat_error": 0.01194965434226312
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_tWZ_tlepWhad.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    },
+    "tWZ_tlepWlep": {
+      "sample": "tWZ_tlepWlep",
+      "label": "tWZ_tlepWlep",
+      "category": "others",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022/Skim_TriLep_tWZ_tlepWlep.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2022EE/Skim_TriLep_tWZ_tlepWlep.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023/Skim_TriLep_tWZ_tlepWlep.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunCR_NoTreeMode/2023BPix/Skim_TriLep_tWZ_tlepWlep.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 77.37821674346924,
+          "stat_error": 0.052609114403709294
+        },
+        "NoiseFilter": {
+          "yield": 77.26782131195068,
+          "stat_error": 0.05257267250102183
+        },
+        "EventVetoMap": {
+          "yield": 75.4096097946167,
+          "stat_error": 0.05194467779967074
+        },
+        "LeptonSelection": {
+          "yield": 5.797937870025635,
+          "stat_error": 0.01440391487163854
+        },
+        "ConversionFilter": {
+          "yield": 5.797937870025635,
+          "stat_error": 0.01440391487163854
+        },
+        "Trigger": {
+          "yield": 5.7799137234687805,
+          "stat_error": 0.01438083056407601
+        },
+        "KinematicCuts": {
+          "yield": 5.756309866905212,
+          "stat_error": 0.014352462130081584
+        },
+        "Final": {
+          "yield": 2.0055819749832153,
+          "stat_error": 0.008561716586367323
+        }
+      },
+      "bin_sources": {
+        "Skim_TriLep_tWZ_tlepWlep.root": {
+          "Initial": "channel",
+          "NoiseFilter": "channel",
+          "EventVetoMap": "channel",
+          "LeptonSelection": "channel",
+          "ConversionFilter": "channel",
+          "Trigger": "channel",
+          "KinematicCuts": "channel",
+          "Final": "channel"
+        }
+      }
+    }
+  },
+  "categories": {
+    "nonprompt": {
+      "Initial": {
+        "yield": 130961609.0,
+        "stat_error": 11443.84590074508
+      },
+      "NoiseFilter": {
+        "yield": 130380793.0,
+        "stat_error": 11418.440918093855
+      },
+      "EventVetoMap": {
+        "yield": 127385287.0,
+        "stat_error": 11286.50907056739
+      },
+      "LeptonSelection": {
+        "yield": 22476.0,
+        "stat_error": 149.91997865528128
+      },
+      "ConversionFilter": {
+        "yield": 22476.0,
+        "stat_error": 149.91997865528128
+      },
+      "Trigger": {
+        "yield": 21100.0,
+        "stat_error": 145.2583904633395
+      },
+      "KinematicCuts": {
+        "yield": 17706.0,
+        "stat_error": 133.06389442670013
+      },
+      "Final": {
+        "yield": 3060.0,
+        "stat_error": 55.31726674375732
+      }
+    },
+    "conv": {
+      "Initial": {
+        "yield": 20642764.722625732,
+        "stat_error": 7042.573763762907
+      },
+      "NoiseFilter": {
+        "yield": 20624770.21322632,
+        "stat_error": 7039.590402514947
+      },
+      "EventVetoMap": {
+        "yield": 20341316.172317505,
+        "stat_error": 6981.948415565269
+      },
+      "LeptonSelection": {
+        "yield": 3893.5358721911907,
+        "stat_error": 97.15933004434153
+      },
+      "ConversionFilter": {
+        "yield": 825.6298316121101,
+        "stat_error": 37.74629666113396
+      },
+      "Trigger": {
+        "yield": 813.241721957922,
+        "stat_error": 37.483779925579555
+      },
+      "KinematicCuts": {
+        "yield": 629.7711771093309,
+        "stat_error": 33.5156610274819
+      },
+      "Final": {
+        "yield": 2.287741668522358,
+        "stat_error": 2.1483249186223765
+      }
+    },
+    "ttX": {
+      "Initial": {
+        "yield": 15487.598442077637,
+        "stat_error": 18.42751104852623
+      },
+      "NoiseFilter": {
+        "yield": 15467.708229064941,
+        "stat_error": 18.414429947693048
+      },
+      "EventVetoMap": {
+        "yield": 14853.014961242676,
+        "stat_error": 18.05230628680864
+      },
+      "LeptonSelection": {
+        "yield": 303.8847440481186,
+        "stat_error": 1.8767564134965402
+      },
+      "ConversionFilter": {
+        "yield": 303.8847440481186,
+        "stat_error": 1.8767564134965402
+      },
+      "Trigger": {
+        "yield": 302.5620423555374,
+        "stat_error": 1.8730103139640593
+      },
+      "KinematicCuts": {
+        "yield": 297.7199401855469,
+        "stat_error": 1.863040702608684
+      },
+      "Final": {
+        "yield": 68.99695713818073,
+        "stat_error": 0.7997250170969449
+      }
+    },
+    "diboson": {
+      "Initial": {
+        "yield": 56834.177490234375,
+        "stat_error": 26.132481217873405
+      },
+      "NoiseFilter": {
+        "yield": 56800.298095703125,
+        "stat_error": 26.123913393011634
+      },
+      "EventVetoMap": {
+        "yield": 55944.25183105469,
+        "stat_error": 25.923576498237168
+      },
+      "LeptonSelection": {
+        "yield": 5620.75505065918,
+        "stat_error": 8.52351390684681
+      },
+      "ConversionFilter": {
+        "yield": 5620.75505065918,
+        "stat_error": 8.52351390684681
+      },
+      "Trigger": {
+        "yield": 5563.997253417969,
+        "stat_error": 8.48222013703914
+      },
+      "KinematicCuts": {
+        "yield": 5263.649276733398,
+        "stat_error": 8.293667073395847
+      },
+      "Final": {
+        "yield": 2368.1190433502197,
+        "stat_error": 5.998014105767669
+      }
+    },
+    "others": {
+      "Initial": {
+        "yield": 14135.064997673035,
+        "stat_error": 5.289005679228205
+      },
+      "NoiseFilter": {
+        "yield": 14113.16214799881,
+        "stat_error": 5.285262591900468
+      },
+      "EventVetoMap": {
+        "yield": 13605.441259860992,
+        "stat_error": 5.193533174337856
+      },
+      "LeptonSelection": {
+        "yield": 132.7700243294239,
+        "stat_error": 0.3666802692033924
+      },
+      "ConversionFilter": {
+        "yield": 132.7700243294239,
+        "stat_error": 0.3666802692033924
+      },
+      "Trigger": {
+        "yield": 132.10774643719196,
+        "stat_error": 0.36585919910372994
+      },
+      "KinematicCuts": {
+        "yield": 129.57383631914854,
+        "stat_error": 0.36194384018272807
+      },
+      "Final": {
+        "yield": 44.24201682419516,
+        "stat_error": 0.19353654688285696
+      }
+    }
+  },
+  "total_background": {
+    "Initial": {
+      "yield": 151690830.56355572,
+      "stat_error": 13437.2804045819
+    },
+    "NoiseFilter": {
+      "yield": 151091944.3816991,
+      "stat_error": 13414.084967647346
+    },
+    "EventVetoMap": {
+      "yield": 147811005.88036966,
+      "stat_error": 13271.545334586397
+    },
+    "LeptonSelection": {
+      "yield": 32426.945691227913,
+      "stat_error": 178.8637536591495
+    },
+    "ConversionFilter": {
+      "yield": 29359.039650648832,
+      "stat_error": 154.84537406718343
+    },
+    "Trigger": {
+      "yield": 27911.90876416862,
+      "stat_error": 150.26850580395165
+    },
+    "KinematicCuts": {
+      "yield": 24026.714230347425,
+      "stat_error": 137.48340398621363
+    },
+    "Final": {
+      "yield": 5543.645758981118,
+      "stat_error": 55.68903383671611
+    }
+  },
+  "signals": {
+    "MHc70_MA15": {
+      "sample": "MHc70_MA15",
+      "label": "MHc70_MA15",
+      "category": "signal",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2022/TTToHcToWAToMuMu-MHc70_MA15.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2022EE/TTToHcToWAToMuMu-MHc70_MA15.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2023/TTToHcToWAToMuMu-MHc70_MA15.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2023BPix/TTToHcToWAToMuMu-MHc70_MA15.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 640.1957397460938,
+          "stat_error": 0.546855896135402
+        },
+        "NoiseFilter": {
+          "yield": 639.8194885253906,
+          "stat_error": 0.5466942451388072
+        },
+        "EventVetoMap": {
+          "yield": 617.552604675293,
+          "stat_error": 0.5371083665448838
+        },
+        "LeptonSelection": {
+          "yield": 54.896695613861084,
+          "stat_error": 0.16028209982048489
+        },
+        "ConversionFilter": {
+          "yield": 54.896695613861084,
+          "stat_error": 0.16028209982048489
+        },
+        "Trigger": {
+          "yield": 54.05133008956909,
+          "stat_error": 0.15904021652356606
+        },
+        "KinematicCuts": {
+          "yield": 51.78545570373535,
+          "stat_error": 0.15567618850123813
+        },
+        "Final": {
+          "yield": 0.0,
+          "stat_error": 0.0
+        }
+      },
+      "bin_sources": {
+        "TTToHcToWAToMuMu-MHc70_MA15.root": {
+          "Initial": "flag",
+          "NoiseFilter": "flag",
+          "EventVetoMap": "flag",
+          "LeptonSelection": "flag",
+          "ConversionFilter": "flag",
+          "Trigger": "flag",
+          "KinematicCuts": "flag",
+          "Final": "missing_channel_final"
+        }
+      }
+    },
+    "MHc100_MA60": {
+      "sample": "MHc100_MA60",
+      "label": "MHc100_MA60",
+      "category": "signal",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2022/TTToHcToWAToMuMu-MHc100_MA60.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2022EE/TTToHcToWAToMuMu-MHc100_MA60.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2023/TTToHcToWAToMuMu-MHc100_MA60.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2023BPix/TTToHcToWAToMuMu-MHc100_MA60.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 722.6322174072266,
+          "stat_error": 0.688834956372133
+        },
+        "NoiseFilter": {
+          "yield": 722.2374267578125,
+          "stat_error": 0.6886487251304835
+        },
+        "EventVetoMap": {
+          "yield": 700.2888641357422,
+          "stat_error": 0.6776034436805528
+        },
+        "LeptonSelection": {
+          "yield": 115.75019454956055,
+          "stat_error": 0.27439498906090265
+        },
+        "ConversionFilter": {
+          "yield": 115.75019454956055,
+          "stat_error": 0.27439498906090265
+        },
+        "Trigger": {
+          "yield": 115.22253799438477,
+          "stat_error": 0.2737694623959291
+        },
+        "KinematicCuts": {
+          "yield": 113.13750267028809,
+          "stat_error": 0.27129685898470585
+        },
+        "Final": {
+          "yield": 0.0,
+          "stat_error": 0.0
+        }
+      },
+      "bin_sources": {
+        "TTToHcToWAToMuMu-MHc100_MA60.root": {
+          "Initial": "flag",
+          "NoiseFilter": "flag",
+          "EventVetoMap": "flag",
+          "LeptonSelection": "flag",
+          "ConversionFilter": "flag",
+          "Trigger": "flag",
+          "KinematicCuts": "flag",
+          "Final": "missing_channel_final"
+        }
+      }
+    },
+    "MHc130_MA90": {
+      "sample": "MHc130_MA90",
+      "label": "MHc130_MA90",
+      "category": "signal",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2022/TTToHcToWAToMuMu-MHc130_MA90.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2022EE/TTToHcToWAToMuMu-MHc130_MA90.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2023/TTToHcToWAToMuMu-MHc130_MA90.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2023BPix/TTToHcToWAToMuMu-MHc130_MA90.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 721.4302978515625,
+          "stat_error": 0.6192635080560821
+        },
+        "NoiseFilter": {
+          "yield": 721.0037307739258,
+          "stat_error": 0.6190789199259644
+        },
+        "EventVetoMap": {
+          "yield": 701.3798828125,
+          "stat_error": 0.6106106765343347
+        },
+        "LeptonSelection": {
+          "yield": 132.361234664917,
+          "stat_error": 0.26560327416274127
+        },
+        "ConversionFilter": {
+          "yield": 132.361234664917,
+          "stat_error": 0.26560327416274127
+        },
+        "Trigger": {
+          "yield": 131.87935829162598,
+          "stat_error": 0.26511857430066066
+        },
+        "KinematicCuts": {
+          "yield": 130.55103492736816,
+          "stat_error": 0.26378154652953895
+        },
+        "Final": {
+          "yield": 0.0,
+          "stat_error": 0.0
+        }
+      },
+      "bin_sources": {
+        "TTToHcToWAToMuMu-MHc130_MA90.root": {
+          "Initial": "flag",
+          "NoiseFilter": "flag",
+          "EventVetoMap": "flag",
+          "LeptonSelection": "flag",
+          "ConversionFilter": "flag",
+          "Trigger": "flag",
+          "KinematicCuts": "flag",
+          "Final": "missing_channel_final"
+        }
+      }
+    },
+    "MHc160_MA155": {
+      "sample": "MHc160_MA155",
+      "label": "MHc160_MA155",
+      "category": "signal",
+      "analyzer": "PromptAnalyzer",
+      "status": "ok",
+      "files": [
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2022/TTToHcToWAToMuMu-MHc160_MA155.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2022EE/TTToHcToWAToMuMu-MHc160_MA155.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2023/TTToHcToWAToMuMu-MHc160_MA155.root",
+        "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunSyst_RunTheoryUnc/2023BPix/TTToHcToWAToMuMu-MHc160_MA155.root"
+      ],
+      "cutflow": {
+        "Initial": {
+          "yield": 531.074089050293,
+          "stat_error": 0.45391608325412147
+        },
+        "NoiseFilter": {
+          "yield": 530.6801681518555,
+          "stat_error": 0.4537470116664201
+        },
+        "EventVetoMap": {
+          "yield": 520.5089263916016,
+          "stat_error": 0.4493669815132392
+        },
+        "LeptonSelection": {
+          "yield": 108.71802806854248,
+          "stat_error": 0.20553683452972016
+        },
+        "ConversionFilter": {
+          "yield": 108.71802806854248,
+          "stat_error": 0.20553683452972016
+        },
+        "Trigger": {
+          "yield": 108.39041900634766,
+          "stat_error": 0.2052267214434289
+        },
+        "KinematicCuts": {
+          "yield": 108.22036457061768,
+          "stat_error": 0.20506534715186792
+        },
+        "Final": {
+          "yield": 0.0,
+          "stat_error": 0.0
+        }
+      },
+      "bin_sources": {
+        "TTToHcToWAToMuMu-MHc160_MA155.root": {
+          "Initial": "flag",
+          "NoiseFilter": "flag",
+          "EventVetoMap": "flag",
+          "LeptonSelection": "flag",
+          "ConversionFilter": "flag",
+          "Trigger": "flag",
+          "KinematicCuts": "flag",
+          "Final": "missing_channel_final"
+        }
+      }
+    }
+  },
+  "data": {
+    "sample": "data",
+    "label": "data",
+    "category": "data",
+    "analyzer": "PromptAnalyzer",
+    "status": "ok",
+    "files": [
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2022/Skim_TriLep_DoubleMuon_C.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2022/Skim_TriLep_Muon_C.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2022/Skim_TriLep_Muon_D.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2022EE/Skim_TriLep_Muon_E.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2022EE/Skim_TriLep_Muon_F.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2022EE/Skim_TriLep_Muon_G.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon0_C_v1.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon0_C_v2.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon0_C_v3.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon0_C_v4.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon1_C_v1.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon1_C_v2.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon1_C_v3.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023/Skim_TriLep_Muon1_C_v4.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023BPix/Skim_TriLep_Muon0_D_v1.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023BPix/Skim_TriLep_Muon0_D_v2.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023BPix/Skim_TriLep_Muon1_D_v1.root",
+      "/data9/Users/choij/Sync/workspace/ChargedHiggsAnalysisV3/SKNanoOutput/PromptAnalyzer/Run3Mu_RunCR_NoTreeMode/2023BPix/Skim_TriLep_Muon1_D_v2.root"
+    ],
+    "cutflow": {
+      "Initial": {
+        "yield": 130961609.0,
+        "stat_error": 11443.845900745082
+      },
+      "NoiseFilter": {
+        "yield": 130380793.0,
+        "stat_error": 11418.440918093851
+      },
+      "EventVetoMap": {
+        "yield": 127385287.0,
+        "stat_error": 11286.509070567388
+      },
+      "LeptonSelection": {
+        "yield": 11291.0,
+        "stat_error": 106.25911725588537
+      },
+      "ConversionFilter": {
+        "yield": 11291.0,
+        "stat_error": 106.25911725588537
+      },
+      "Trigger": {
+        "yield": 10946.0,
+        "stat_error": 104.62313319720452
+      },
+      "KinematicCuts": {
+        "yield": 9830.0,
+        "stat_error": 99.14635646356352
+      },
+      "Final": {
+        "yield": 2956.0,
+        "stat_error": 54.36910887627274
+      }
+    },
+    "bin_sources": {
+      "Skim_TriLep_DoubleMuon_C.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon_C.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon_D.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon_E.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon_F.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon_G.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon0_C_v1.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon0_C_v2.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon0_C_v3.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon0_C_v4.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon1_C_v1.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon1_C_v2.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon1_C_v3.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon1_C_v4.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon0_D_v1.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon0_D_v2.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon1_D_v1.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      },
+      "Skim_TriLep_Muon1_D_v2.root": {
+        "Initial": "channel",
+        "NoiseFilter": "channel",
+        "EventVetoMap": "channel",
+        "LeptonSelection": "channel",
+        "ConversionFilter": "channel",
+        "Trigger": "channel",
+        "KinematicCuts": "channel",
+        "Final": "channel"
+      }
+    }
+  }
+}

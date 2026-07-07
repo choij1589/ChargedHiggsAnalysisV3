@@ -1,0 +1,227 @@
+{
+  "schema_version": 2,
+  "description": "Conversion K-factor for ZG3Mu 2023BPix. Uncertainties: stat (CR measurement), nonprompt (per-era from FakeNorm.json), theory norms for subtracted backgrounds (per-sample xsecErr from KFactors.json).",
+  "corrections": [
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_Central",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (Central)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.5323391475569835",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_statistical_up",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (statistical_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.7400344911680712",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_statistical_down",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (statistical_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.32464380394589587",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_nonprompt_up",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (nonprompt_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.33473049143590566",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_nonprompt_down",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (nonprompt_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.7299478036780614",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_theory_diboson_up",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (theory_diboson_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.43967290630172046",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_theory_diboson_down",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (theory_diboson_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.6250053888122468",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_theory_ttX_up",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (theory_ttX_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.5322516702762785",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_theory_ttX_down",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (theory_ttX_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.5324266248376887",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_theory_others_up",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (theory_others_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.5291565986592868",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_theory_others_down",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (theory_others_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.5355216964546802",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_total_up",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (total_up)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.8336424918295715",
+        "parser": "TFormula",
+        "variables": []
+      }
+    },
+    {
+      "name": "ConvSF_ZG3Mu_2023BPix_total_down",
+      "description": "Conversion scale factor for ZG3Mu 2023BPix (total_down)",
+      "version": 1,
+      "inputs": [],
+      "output": {
+        "name": "sf",
+        "type": "real",
+        "description": "Scale factor"
+      },
+      "data": {
+        "nodetype": "formula",
+        "expression": "0.2310358032843956",
+        "parser": "TFormula",
+        "variables": []
+      }
+    }
+  ]
+}

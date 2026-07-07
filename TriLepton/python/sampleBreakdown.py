@@ -7,7 +7,7 @@ Extract event counts and errors (statistical and systematic separately) for all 
 Histogram selection:
 - 1E2Mu SR/ZFake channels: 'pair/mass' by default, or 'pair_onZ/mass' with --onZ flag
 - 3Mu SR/ZFake channels: 'pair_lowM/mass' by default, or 'pair_lowM_onZ/mass' with --onZ flag
-- Control regions (ZG/WZ): 'ZCand/mass' always (--onZ flag not supported)
+- Control regions (ZG/WZ/TTZ): 'ZCand/mass' always (--onZ flag not supported)
 
 Usage:
     python python/sampleBreakdown.py --era Run2 --channel SR1E2Mu
@@ -22,7 +22,7 @@ import json
 import ctypes
 from math import sqrt
 import argparse
-from ROOT import TFile, gROOT
+from ROOT import gROOT
 
 gROOT.SetBatch(True)
 
@@ -30,9 +30,8 @@ gROOT.SetBatch(True)
 WORKDIR = os.environ.get("WORKDIR", os.getcwd())
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 
-from plotter import get_era_list, get_CoM_energy
-from HistoUtils import (load_histogram, sum_histograms, load_era_configs, get_sample_lists,
-                        merge_systematics)
+from plotter import get_era_list
+from HistoUtils import load_histogram, sum_histograms, load_era_configs, get_sample_lists
 from utils import build_sknanoutput_path
 
 
@@ -127,118 +126,6 @@ def add_systematic_error(systematics, name, error):
         systematics[name] = sqrt(systematics[name]**2 + error**2)
     else:
         systematics[name] = error
-
-
-def make_null_efficiency(status, weighting, reason=None):
-    """Build a null efficiency payload with a machine-readable status."""
-    efficiency = {
-        "value": None,
-        "stat_error": None,
-        "initial": None,
-        "initial_stat_error": None,
-        "final": None,
-        "final_stat_error": None,
-        "weighting": weighting,
-        "status": status
-    }
-    if reason:
-        efficiency["reason"] = reason
-    return efficiency
-
-
-def calculate_cutflow_efficiency(initial, initial_error, final, final_error, weighting):
-    """Calculate Final/Initial cutflow efficiency with stat-only uncertainty."""
-    if initial == 0.0:
-        efficiency = make_null_efficiency("zero_denominator", weighting)
-        efficiency.update({
-            "initial": initial,
-            "initial_stat_error": initial_error,
-            "final": final,
-            "final_stat_error": final_error
-        })
-        return efficiency
-
-    value = final / initial
-    stat_error = sqrt((final_error / initial)**2 + ((final * initial_error) / (initial**2))**2)
-    return {
-        "value": value,
-        "stat_error": stat_error,
-        "initial": initial,
-        "initial_stat_error": initial_error,
-        "final": final,
-        "final_stat_error": final_error,
-        "weighting": weighting,
-        "status": "ok"
-    }
-
-
-def load_cutflow_counts(file_path, flag, channel, era, weighting):
-    """
-    Load Initial and Final cutflow entries from one ROOT file.
-
-    CutStage.Initial is filled at x=0, ROOT bin 1. CutStage.Final is filled at
-    x=8, ROOT bin 9.
-    """
-    initial_hist = load_histogram(file_path, f"{flag}/Central/cutflow", era)
-    final_hist = load_histogram(file_path, f"{channel}/Central/cutflow", era)
-
-    missing = []
-    if initial_hist is None:
-        missing.append(f"{flag}/Central/cutflow")
-    if final_hist is None:
-        missing.append(f"{channel}/Central/cutflow")
-    if missing:
-        return {
-            "initial": 0.0,
-            "initial_stat_error": 0.0,
-            "final": 0.0,
-            "final_stat_error": 0.0,
-            "weighting": weighting,
-            "status": "missing_cutflow",
-            "reason": ", ".join(missing)
-        }
-
-    if initial_hist.GetNbinsX() < 1 or final_hist.GetNbinsX() < 9:
-        return {
-            "initial": 0.0,
-            "initial_stat_error": 0.0,
-            "final": 0.0,
-            "final_stat_error": 0.0,
-            "weighting": weighting,
-            "status": "missing_cutflow_bin",
-            "reason": f"initial_nbins={initial_hist.GetNbinsX()}, final_nbins={final_hist.GetNbinsX()}"
-        }
-
-    return {
-        "initial": float(initial_hist.GetBinContent(1)),
-        "initial_stat_error": float(initial_hist.GetBinError(1)),
-        "final": float(final_hist.GetBinContent(9)),
-        "final_stat_error": float(final_hist.GetBinError(9)),
-        "weighting": weighting,
-        "status": "ok"
-    }
-
-
-def combine_cutflow_counts(counts, weighting, missing_status="missing_member_cutflow"):
-    """Sum cutflow counts and errors before calculating an aggregate efficiency."""
-    valid_counts = [count for count in counts if count and count.get("status") == "ok"]
-    if len(valid_counts) != len(counts):
-        missing_reasons = [
-            count.get("reason", count.get("status", "missing"))
-            for count in counts
-            if not count or count.get("status") != "ok"
-        ]
-        return make_null_efficiency(
-            missing_status,
-            weighting,
-            "; ".join(missing_reasons) if missing_reasons else None
-        )
-
-    initial = sum(count["initial"] for count in valid_counts)
-    initial_error = sqrt(sum(count["initial_stat_error"]**2 for count in valid_counts))
-    final = sum(count["final"] for count in valid_counts)
-    final_error = sqrt(sum(count["final_stat_error"]**2 for count in valid_counts))
-    return calculate_cutflow_efficiency(initial, initial_error, final, final_error, weighting)
 
 
 def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name=None,
@@ -454,9 +341,13 @@ def get_conv_scale_factor(conv_sf_data, era, channel):
 
     Reads Common/Data/ConvSF.json (structure: {channel_flag: {era: {central, total, ...}}}).
     The 'total' field is already a relative fraction (e.g. 0.10 = 10%).
+    TTZ2E1Mu has no dedicated ConvSF measurement; match plotting behavior with
+    no central scale and a 20% rate uncertainty.
     """
     if "1E2Mu" in channel:
         channel_flag = "1E2Mu"
+    elif "2E1Mu" in channel:
+        return 1.0, 0.20
     elif "3Mu" in channel:
         channel_flag = "3Mu"
     else:
@@ -474,7 +365,7 @@ def main():
     parser.add_argument("--era", required=True, type=str,
                        help="Era (2016preVFP, 2016postVFP, 2017, 2018, Run2, 2022, 2022EE, 2023, 2023BPix, Run3)")
     parser.add_argument("--channel", required=True, type=str,
-                       help="Channel (SR1E2Mu, SR3Mu, ZFake1E2Mu, ZFake3Mu, ZG1E2Mu, ZG3Mu)")
+                       help="Channel (SR1E2Mu, SR3Mu, ZFake1E2Mu, ZFake3Mu, ZG1E2Mu, ZG3Mu, WZ1E2Mu, WZ3Mu, TTZ2E1Mu)")
     parser.add_argument("--exclude", default=None, type=str,
                        help="Exclude systematics: WZSF, ConvSF, or Syst")
     parser.add_argument("--blind", action="store_true",
@@ -484,15 +375,19 @@ def main():
     args = parser.parse_args()
 
     # Determine if this is a control region channel
-    is_control_region = args.channel.startswith("ZG") or args.channel.startswith("WZ")
+    is_control_region = (
+        args.channel.startswith("ZG")
+        or args.channel.startswith("WZ")
+        or args.channel.startswith("TTZ")
+    )
 
     # Deprecate --onZ flag for control regions
     if args.onZ and is_control_region:
-        raise ValueError(f"--onZ flag is not supported for control region channels (ZG, WZ). "
+        raise ValueError(f"--onZ flag is not supported for control region channels (ZG, WZ, TTZ). "
                         f"Control regions use ZCand/mass by default.")
 
     # Histogram key selection:
-    # - Control regions (ZG, WZ): ZCand/mass
+    # - Control regions (ZG, WZ, TTZ): ZCand/mass
     # - 1E2Mu SR/ZFake: pair/mass by default, or pair_onZ/mass with --onZ flag
     # - 3Mu SR/ZFake: pair_lowM/mass by default, or pair_lowM_onZ/mass with --onZ flag
     if is_control_region:
@@ -505,12 +400,14 @@ def main():
         raise ValueError(f"Cannot determine histogram key for channel: {args.channel}")
 
     # Check channel validity
-    if args.channel not in ["SR1E2Mu", "SR3Mu", "ZFake1E2Mu", "ZFake3Mu", "ZG1E2Mu", "ZG3Mu", "WZ1E2Mu", "WZ3Mu"]:
+    if args.channel not in ["SR1E2Mu", "SR3Mu", "ZFake1E2Mu", "ZFake3Mu", "ZG1E2Mu", "ZG3Mu", "WZ1E2Mu", "WZ3Mu", "TTZ2E1Mu"]:
         raise ValueError(f"Invalid channel: {args.channel}")
 
-    # Extract channel flag (1E2Mu or 3Mu)
+    # Extract channel flag (1E2Mu, 2E1Mu, or 3Mu)
     if "1E2Mu" in args.channel:
         channel_flag = "1E2Mu"
+    elif "2E1Mu" in args.channel:
+        channel_flag = "2E1Mu"
     elif "3Mu" in args.channel:
         channel_flag = "3Mu"
     else:
@@ -519,6 +416,8 @@ def main():
     # Determine FLAG based on channel
     if "1E2Mu" in args.channel:
         FLAG = "Run1E2Mu"
+    elif "2E1Mu" in args.channel:
+        FLAG = "Run2E1Mu"
     elif "3Mu" in args.channel:
         FLAG = "Run3Mu"
     else:
@@ -537,7 +436,6 @@ def main():
     # Load configurations using HistoUtils functions
     ERA_SAMPLES, ERA_SYSTEMATICS = load_era_configs(channel_args, era_list)
     DATAPERIODs, MC_CATEGORIES, _ = get_sample_lists(ERA_SAMPLES, ["nonprompt", "conv", "ttX", "diboson", "others"])
-    SYSTEMATICS = merge_systematics(ERA_SYSTEMATICS)
 
     # Validate that systematics are consistent across eras (unless systematics are excluded)
     if len(era_list) > 1 and not (args.exclude == "Syst"):
@@ -614,11 +512,9 @@ def main():
     # ===== 2. Load and process NONPROMPT histograms =====
     print("[INFO] Loading nonprompt histograms...")
     nonprompt_hists = {}
-    cutflow_efficiencies = {}
     for sample in nonprompt:
         era_hists = []
         nonprompt_rate_components = []
-        sample_cutflows = []
         for era in era_list:
             if era not in ERA_SAMPLES:
                 continue
@@ -630,8 +526,6 @@ def main():
                 nonprompt_rate_components.append(
                     (get_histogram_events(h), get_fake_norm_uncertainty(FAKENORM, FLAG, era))
                 )
-                sample_cutflows.append(load_cutflow_counts(
-                    file_path, FLAG, args.channel, era, "matrix_unweighted_cutflow"))
 
         if era_hists:
             h_total = sum_histograms(era_hists, f"{sample}_total")
@@ -640,9 +534,6 @@ def main():
             nonprompt_sample_name = f"nonprompt_{sample}"
             output["samples"][nonprompt_sample_name] = extract_stat_syst_errors(
                 h_total, rate_uncs=[("nonprompt_rate", nonprompt_rate_unc)])
-            output["samples"][nonprompt_sample_name]["efficiency"] = combine_cutflow_counts(
-                sample_cutflows, "matrix_unweighted_cutflow", missing_status="missing_cutflow")
-            cutflow_efficiencies[nonprompt_sample_name] = output["samples"][nonprompt_sample_name]["efficiency"]
             nonprompt_hists[nonprompt_sample_name] = h_total
             print(f"[INFO]   {nonprompt_sample_name}: {output['samples'][nonprompt_sample_name]['events']:.2f} events")
 
@@ -654,7 +545,6 @@ def main():
         # Dictionary to track systematic variations per source: {syst_name: {'up': [h_up_era1, ...], 'down': [h_down_era1, ...]}}
         syst_variations = {}
         conv_rate_components = []
-        sample_cutflows = []
 
         for era in era_list:
             if era not in ERA_SAMPLES:
@@ -665,8 +555,6 @@ def main():
             h = load_histogram(file_path, hist_path, era)
             if h:
                 hSysts = None
-                sample_cutflows.append(load_cutflow_counts(
-                    file_path, FLAG, args.channel, era, "mc_xsec_lumi_cutflow"))
 
                 # Load systematic variations (unless excluded)
                 if not args.exclude or args.exclude != "Syst":
@@ -737,9 +625,6 @@ def main():
 
             output["samples"][sample] = extract_stat_syst_errors(
                 h_total, combined_systs, rate_uncs=rate_uncs)
-            output["samples"][sample]["efficiency"] = combine_cutflow_counts(
-                sample_cutflows, "mc_xsec_lumi_cutflow", missing_status="missing_cutflow")
-            cutflow_efficiencies[sample] = output["samples"][sample]["efficiency"]
             mc_hists[sample] = h_total
             print(f"[INFO]   {sample}: {output['samples'][sample]['events']:.2f} events")
 
@@ -756,31 +641,11 @@ def main():
         if cat_sample_names:
             output["categories"][category] = sum_sample_errors(
                 [output["samples"][s] for s in cat_sample_names])
-            category_weighting = "matrix_unweighted_cutflow" if category == "nonprompt" else "mc_xsec_lumi_cutflow"
-            output["categories"][category]["efficiency"] = combine_cutflow_counts(
-                [cutflow_efficiencies[s] for s in cat_sample_names], category_weighting)
             print(f"[INFO]   {category}: {output['categories'][category]['events']:.2f} events")
 
     # Calculate total background
     if output["categories"]:
         output["total_background"] = sum_sample_errors(list(output["categories"].values()))
-        has_nonprompt = "nonprompt" in output["categories"]
-        prompt_categories = [
-            category for category in ["conv", "ttX", "diboson", "others"]
-            if category in output["categories"]
-        ]
-        if has_nonprompt and prompt_categories:
-            output["total_background"]["efficiency"] = make_null_efficiency(
-                "mixed_weighting_not_defined",
-                "mixed",
-                "prompt MC cutflows are xsec/lumi weighted, nonprompt cutflows are unweighted"
-            )
-        elif has_nonprompt:
-            output["total_background"]["efficiency"] = output["categories"]["nonprompt"]["efficiency"]
-        else:
-            output["total_background"]["efficiency"] = combine_cutflow_counts(
-                [output["categories"][category]["efficiency"] for category in prompt_categories],
-                "mc_xsec_lumi_cutflow")
         print(f"[INFO] Total background: {output['total_background']['events']:.2f} events")
     else:
         output["total_background"] = None
@@ -793,7 +658,6 @@ def main():
 
         for signal_mass in SIGNALS:
             era_signal_hists = []
-            signal_cutflows = []
             for era in era_list:
                 if era not in ERA_SAMPLES:
                     continue
@@ -804,14 +668,10 @@ def main():
                 h = load_histogram(file_path, hist_path, era)
                 if h:
                     era_signal_hists.append(h)
-                    signal_cutflows.append(load_cutflow_counts(
-                        file_path, FLAG, args.channel, era, "mc_xsec_lumi_cutflow"))
 
             if era_signal_hists:
                 h_signal = sum_histograms(era_signal_hists, signal_mass)
                 output["signals"][signal_mass] = extract_stat_syst_errors(h_signal)
-                output["signals"][signal_mass]["efficiency"] = combine_cutflow_counts(
-                    signal_cutflows, "mc_xsec_lumi_cutflow", missing_status="missing_cutflow")
                 print(f"[INFO]   {signal_mass}: {output['signals'][signal_mass]['events']:.2f} events")
 
     # ===== 6. Save to JSON =====
