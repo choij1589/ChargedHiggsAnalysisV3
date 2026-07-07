@@ -176,8 +176,10 @@ class _AllEraCMSStyleMixin:
     def _configure_cms_style(self, config):
         run2_lumi = _LUMI_CONFIG["Run2"]["combined"]
         run3_lumi = _LUMI_CONFIG["Run3"]["combined"]
+        run2_energy = _LUMI_CONFIG["Run2"]["energy_TeV"]
+        run3_energy = _LUMI_CONFIG["Run3"]["energy_TeV"]
         CMS.SetLumi(None, run=f"Run 2+3, {run2_lumi}+{run3_lumi} fb^{{#minus1}}")
-        CMS.SetEnergy(0, unit="13/13.6 TeV")
+        CMS.SetEnergy(0, unit=f"{run2_energy:g}/{run3_energy:g} TeV")
         return None, "Run 2+3"
 
 
@@ -219,7 +221,9 @@ def _build_header_text(era_scope):
     if era_scope == "All":
         l2 = _LUMI_CONFIG["Run2"]["combined"]
         l3 = _LUMI_CONFIG["Run3"]["combined"]
-        return f"Run 2+3, {l2}+{l3} fb^{{#minus1}} (13/13.6 TeV)"
+        e2 = _LUMI_CONFIG["Run2"]["energy_TeV"]
+        e3 = _LUMI_CONFIG["Run3"]["energy_TeV"]
+        return f"Run 2+3, {l2}+{l3} fb^{{#minus1}} ({e2:g}/{e3:g} TeV)"
     if era_scope == "Run2":
         l = _LUMI_CONFIG["Run2"]["combined"]
         return f"Run 2, {l} fb^{{#minus1}} (13 TeV)"

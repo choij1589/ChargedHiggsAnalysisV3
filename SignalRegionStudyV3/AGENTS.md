@@ -349,6 +349,17 @@ SKNanoOutput/MatrixAnalyzer/{Run1E2Mu,Run3Mu,Run2E1Mu}/{era}/Skim_TriLep_{sample
 SKNanoOutput/PromptAnalyzer/{Run1E2Mu,Run3Mu,Run2E1Mu}/{era}/Skim_TriLep_{data}.root
 ```
 
+For mass points listed in `configs/masspoints.json` under `particlenet`,
+preprocessing uses the mass-dependent ParticleNet `NoHistMode` input
+directories instead:
+
+```text
+SKNanoOutput/PromptAnalyzer/{Run1E2Mu,Run3Mu}_{MHc}_RunSyst_RunTheoryUnc_NoHistMode/{era}/TTToHcToWAToMuMu-{masspoint}.root
+SKNanoOutput/PromptAnalyzer/{Run1E2Mu,Run3Mu,Run2E1Mu}_{MHc}_RunSyst_NoHistMode/{era}/Skim_TriLep_{sample}.root
+SKNanoOutput/MatrixAnalyzer/{Run1E2Mu,Run3Mu,Run2E1Mu}_{MHc}_NoHistMode/{era}/Skim_TriLep_{sample}.root
+SKNanoOutput/PromptAnalyzer/{Run1E2Mu,Run3Mu,Run2E1Mu}_{MHc}_NoHistMode/{era}/Skim_TriLep_{data}.root
+```
+
 `TTZ2E1Mu` maps to the `Run2E1Mu` input channel and reuses the `SR1E2Mu`
 systematics/samplegroup config. Signal processing is only done for `SR1E2Mu`
 and `SR3Mu`.

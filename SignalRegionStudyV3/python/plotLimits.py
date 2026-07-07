@@ -61,13 +61,19 @@ LumiInfo_extended["All"] = _LUMI_CONFIG["All"]["combined"]
 def get_CoM_energy_extended(era):
     """Get center-of-mass energy string for era."""
     if era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
-        return "13"
+        return f"{_LUMI_CONFIG['Run2']['energy_TeV']:g}"
     elif era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
-        return "13.6"
+        return f"{_LUMI_CONFIG['Run3']['energy_TeV']:g}"
     elif era == "All":
-        return "13+13.6"
+        run2_energy = _LUMI_CONFIG["Run2"]["energy_TeV"]
+        run3_energy = _LUMI_CONFIG["Run3"]["energy_TeV"]
+        return f"{run2_energy:g}+{run3_energy:g}"
     else:
         raise ValueError(f"Unknown era: {era}")
+
+
+def get_all_lumi_label():
+    return f"Run 2+3, {_LUMI_CONFIG['All']['combined']:g} fb^{{#minus1}}"
 
 
 def create_graphs(limits_dict):
@@ -148,14 +154,14 @@ CMS.ResetAdditionalInfo()
 
 if args.era == "All":
     # Combined Run2+Run3 at 13/13.6 TeV
-    CMS.SetLumi(None, run="Run 2+3, 200 fb^{#minus1}")
-    CMS.SetEnergy(0, unit="13/13.6 TeV")  # energy=0 uses unit string directly
+    CMS.SetLumi(None, run=get_all_lumi_label())
+    CMS.SetEnergy(0, unit=f"{get_CoM_energy_extended('All').replace('+', '/')} TeV")
 elif args.era == "Run2":
     CMS.SetLumi(LumiInfo_extended["Run2"], run="Run2")
-    CMS.SetEnergy(13)
+    CMS.SetEnergy(_LUMI_CONFIG["Run2"]["energy_TeV"])
 elif args.era == "Run3":
     CMS.SetLumi(LumiInfo_extended["Run3"], run="Run3")
-    CMS.SetEnergy(13.6)
+    CMS.SetEnergy(_LUMI_CONFIG["Run3"]["energy_TeV"])
 else:
     # Individual era
     CMS.SetLumi(LumiInfo.get(args.era, LumiInfo_extended.get(args.era)), run=args.era)

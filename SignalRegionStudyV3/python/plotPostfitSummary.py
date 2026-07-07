@@ -606,7 +606,10 @@ def draw_ownership_guides(canvas, intervals, x_range):
 
 def summary_header_text(era_scope):
     if era_scope == "All":
-        return "Run 2+3, 200 fb^{#minus1} (13/13.6 TeV)"
+        lumi = pm._LUMI_CONFIG["All"]["combined"]
+        e2 = pm._LUMI_CONFIG["Run2"]["energy_TeV"]
+        e3 = pm._LUMI_CONFIG["Run3"]["energy_TeV"]
+        return f"Run 2+3, {lumi:g} fb^{{#minus1}} ({e2:g}/{e3:g} TeV)"
     return pm._build_header_text(era_scope)
 
 

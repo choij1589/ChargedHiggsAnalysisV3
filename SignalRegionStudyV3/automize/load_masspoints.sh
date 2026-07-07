@@ -12,6 +12,7 @@ impact = d.get('impact', {})
 signal_injection = d.get('signal_injection', {})
 hybridnew = d.get('hybridnew', {})
 gof = d.get('gof', {})
+lee = d.get('LEE', [])
 
 print(' '.join(baseline))
 print(' '.join(particlenet))
@@ -24,6 +25,7 @@ print(' '.join(hybridnew.get('baseline', baseline)))
 print(' '.join(hybridnew.get('particlenet', particlenet)))
 print(' '.join(gof.get('baseline', baseline)))
 print(' '.join(gof.get('particlenet', particlenet)))
+print(' '.join(lee))
 ")
 
 read -ra MASSPOINTs_BASELINE        <<< "$(sed -n '1p' <<< "$_mp_all")"
@@ -37,4 +39,5 @@ read -ra MASSPOINTs_HYBRIDNEW_BASELINE <<< "$(sed -n '8p' <<< "$_mp_all")"
 read -ra MASSPOINTs_HYBRIDNEW_PN    <<< "$(sed -n '9p' <<< "$_mp_all")"
 read -ra MASSPOINTs_GOF_BASELINE    <<< "$(sed -n '10p' <<< "$_mp_all")"
 read -ra MASSPOINTs_GOF_PN          <<< "$(sed -n '11p' <<< "$_mp_all")"
+read -ra MASSPOINTs_LEE             <<< "$(sed -n '12p' <<< "$_mp_all")"
 unset _mp_all

@@ -85,6 +85,28 @@ def input_channel_dir(channel, masspoint):
     return input_channel
 
 
+def input_mode(masspoint):
+    """Return the SKNanoOutput production mode used by this mass point."""
+    return "NoHistMode" if masspoint in PN_TRAINED_MASSPOINTS else "standard"
+
+
+def prompt_input_dir(channel, masspoint, suffix=""):
+    """Return PromptAnalyzer directory name for this channel/mass point."""
+    input_channel = input_channel_dir(channel, masspoint)
+    directory = f"{input_channel}{suffix}"
+    if masspoint in PN_TRAINED_MASSPOINTS:
+        directory = f"{directory}_NoHistMode"
+    return directory
+
+
+def matrix_input_dir(channel, masspoint):
+    """Return MatrixAnalyzer directory name for this channel/mass point."""
+    input_channel = input_channel_dir(channel, masspoint)
+    if masspoint in PN_TRAINED_MASSPOINTS:
+        return f"{input_channel}_NoHistMode"
+    return input_channel
+
+
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Preprocess samples for SignalRegionStudyV3")
@@ -416,10 +438,10 @@ def process_samples_batch(preprocessor, samples, input_base_path, output_path,
 def process_backgrounds(workdir, era, channel, masspoint, basedir, preprocessor,
                         config, syst_categories, kfactors):
     """Process all background samples for a channel."""
-    input_channel = input_channel_dir(channel, masspoint)
+    input_channel = prompt_input_dir(channel, masspoint, "_RunSyst")
     reserved_keys = {"data", "nonprompt"}
 
-    bkg_base_path = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}_RunSyst/{era}"
+    bkg_base_path = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}/{era}"
 
     for category in [k for k in config['samples'] if k not in reserved_keys]:
         output_name = category
@@ -444,7 +466,7 @@ def process_backgrounds(workdir, era, channel, masspoint, basedir, preprocessor,
 
 def process_nonprompt(workdir, era, channel, masspoint, basedir, preprocessor, config):
     """Process nonprompt samples for a channel."""
-    input_channel = input_channel_dir(channel, masspoint)
+    input_channel = matrix_input_dir(channel, masspoint)
 
     logging.info("=" * 60)
     logging.info("Processing Nonprompt")
@@ -462,7 +484,7 @@ def process_nonprompt(workdir, era, channel, masspoint, basedir, preprocessor, c
 
 def process_data(workdir, era, channel, masspoint, basedir, preprocessor, config):
     """Process data samples for a channel."""
-    input_channel = input_channel_dir(channel, masspoint)
+    input_channel = prompt_input_dir(channel, masspoint)
 
     logging.info("=" * 60)
     logging.info("Processing Data")
@@ -512,6 +534,7 @@ def main():
     logging.info(f"Preprocessing {args.masspoint} for {args.era} era and {args.channel} channel")
     logging.info(f"Input channel: {CHANNEL_INPUT_MAP[args.channel]}")
     logging.info(f"Input directory channel: {input_channel_dir(args.channel, args.masspoint)}")
+    logging.info(f"Input mode: {input_mode(args.masspoint)}")
     logging.info(f"Config channel: {CHANNEL_CONFIG_MAP[args.channel]}")
     logging.info(f"Found {len(syst_categories['preprocessed_shape'])} preprocessed shape systematics")
     logging.info(f"Found {len(syst_categories['valued_shape'])} valued shape systematics")
@@ -526,13 +549,13 @@ def main():
 
     # === 1. Process Signal (only for signal channels) ===
     if args.channel in CHANNELS_WITH_SIGNAL:
-        input_channel = input_channel_dir(args.channel, args.masspoint)
+        input_channel = prompt_input_dir(args.channel, args.masspoint, "_RunSyst_RunTheoryUnc")
 
         logging.info("=" * 60)
         logging.info("Processing Signal")
         logging.info("=" * 60)
 
-        signal_input = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}_RunSyst_RunTheoryUnc/{args.era}/TTToHcToWAToMuMu-{args.masspoint}.root"
+        signal_input = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}/{args.era}/TTToHcToWAToMuMu-{args.masspoint}.root"
         if not os.path.exists(signal_input):
             raise FileNotFoundError(f"Signal file not found: {signal_input}")
 

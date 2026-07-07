@@ -505,8 +505,10 @@ def draw_combined_blind_stack(agg_bkgs, signal_per_mp, label_top, systSrc,
     pm.CMS.setCMSStyle()
     run2_lumi = pm._LUMI_CONFIG["Run2"]["combined"]
     run3_lumi = pm._LUMI_CONFIG["Run3"]["combined"]
+    run2_energy = pm._LUMI_CONFIG["Run2"]["energy_TeV"]
+    run3_energy = pm._LUMI_CONFIG["Run3"]["energy_TeV"]
     pm.CMS.SetLumi(None, run=f"Run 2+3, {run2_lumi}+{run3_lumi} fb^{{#minus1}}")
-    pm.CMS.SetEnergy(0, unit="13/13.6 TeV")
+    pm.CMS.SetEnergy(0, unit=f"{run2_energy:g}/{run3_energy:g} TeV")
     pm.CMS.SetExtraText("Preliminary")
 
     # Build the summed background hist for the shaded syst band + y-max probe.

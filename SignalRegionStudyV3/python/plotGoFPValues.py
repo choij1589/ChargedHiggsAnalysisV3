@@ -17,7 +17,7 @@ COMMON_TOOLS = REPO_ROOT.parent / "Common" / "Tools"
 if str(COMMON_TOOLS) not in sys.path:
     sys.path.insert(0, str(COMMON_TOOLS))
 
-from plotter import PALETTE  # noqa: E402
+from plotter import EnergyInfo, LumiInfo, PALETTE  # noqa: E402
 
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
 
@@ -106,8 +106,27 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_lumi_label():
-    return "Run 2+3, 200 fb^{#minus1}"
+def format_energy(value):
+    return f"{value:g}"
+
+
+def configure_lumi_label(eras):
+    selected = set(eras)
+    CMS.ResetAdditionalInfo()
+    if selected == {"Run2"}:
+        CMS.SetLumi(LumiInfo["Run2"], run="Run2")
+        CMS.SetEnergy(EnergyInfo["Run2"])
+        return
+    if selected == {"Run3"}:
+        CMS.SetLumi(LumiInfo["Run3"], run="Run3")
+        CMS.SetEnergy(EnergyInfo["Run3"])
+        return
+
+    CMS.SetLumi(None, run=f"Run 2+3, {LumiInfo['All']:g} fb^{{#minus1}}")
+    CMS.SetEnergy(
+        0,
+        unit=f"{format_energy(EnergyInfo['Run2'])}/{format_energy(EnergyInfo['Run3'])} TeV",
+    )
 
 
 def read_gof(path, fit_name):
@@ -221,9 +240,7 @@ def draw_plot(args, mhc, series):
     xmax = max(all_ma) + 5.0
 
     CMS.SetExtraText("Preliminary")
-    CMS.ResetAdditionalInfo()
-    CMS.SetLumi(None, run=get_lumi_label())
-    CMS.SetEnergy(0, unit="13/13.6 TeV")
+    configure_lumi_label(args.eras)
 
     canvas_name = f"gof_pvalues_mHc{mhc}"
     canvas = CMS.cmsCanvas(

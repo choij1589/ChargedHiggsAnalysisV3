@@ -71,7 +71,7 @@ if not WORKDIR:
 
 # Add path to Common/Tools for plotter imports
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
-from plotter import ComparisonCanvas, get_CoM_energy, get_era_list, LumiInfo
+from plotter import ComparisonCanvas, EnergyInfo, get_CoM_energy, get_era_list, LumiInfo
 from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
 
@@ -102,7 +102,7 @@ def expand_eras(era):
 def get_CoM_energy_extended(era):
     """CoM energy string. Supports Run2/Run3/All in addition to plotter.get_CoM_energy."""
     if era == "All":
-        return "13/13.6"
+        return f"{EnergyInfo['Run2']:g}/{EnergyInfo['Run3']:g}"
     return get_CoM_energy(era)
 
 
