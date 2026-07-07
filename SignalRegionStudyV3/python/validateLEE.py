@@ -396,20 +396,27 @@ def model_datacard_consistency(model_payload):
 
 
 def stability_check(global_payload, zmax_values):
+    # Toys are iid by construction (deterministic per-toy seeds, independent
+    # jobs), so no ordering trend is possible; this compares two independent
+    # halves at 2 sigma to catch gross inconsistencies (corrupt batches,
+    # mixed generation models) without a ~32% false-alarm rate.
     z_obs = global_payload["observed"]["Z_obs"]
     n_full = len(zmax_values)
     n_half = n_full // 2
     if n_half < 1:
         return {"status": "fail", "reason": "not enough toys"}
 
-    half_exceed = sum(1 for value in zmax_values[:n_half] if value >= z_obs)
+    first_exceed = sum(1 for value in zmax_values[:n_half] if value >= z_obs)
+    second_exceed = sum(1 for value in zmax_values[n_half:2 * n_half] if value >= z_obs)
     full_exceed = sum(1 for value in zmax_values if value >= z_obs)
-    p_half = (1.0 + half_exceed) / (n_half + 1.0)
+    p_first = (1.0 + first_exceed) / (n_half + 1.0)
+    p_second = (1.0 + second_exceed) / (n_half + 1.0)
     p_full = (1.0 + full_exceed) / (n_full + 1.0)
-    unc_half = pvalue_uncertainty(p_half, n_half)
-    unc_full = pvalue_uncertainty(p_full, n_full)
-    combined_unc = math.sqrt(unc_half ** 2 + unc_full ** 2)
-    compatible = abs(p_half - p_full) <= combined_unc
+    unc_first = pvalue_uncertainty(p_first, n_half)
+    unc_second = pvalue_uncertainty(p_second, n_half)
+    combined_unc = math.sqrt(unc_first ** 2 + unc_second ** 2)
+    pull = abs(p_first - p_second) / combined_unc if combined_unc > 0 else float("inf")
+    compatible = pull <= 2.0
 
     z_obs_tail = normal_tail(z_obs)
     n_trials = global_payload["trials_set"]["n_masspoints"]
@@ -420,20 +427,27 @@ def stability_check(global_payload, zmax_values):
         "status": "pass" if compatible and sidak_ok else "fail",
         "first_half": {
             "n_toys": n_half,
-            "n_exceed": half_exceed,
-            "p": p_half,
-            "uncertainty": unc_half,
+            "n_exceed": first_exceed,
+            "p": p_first,
+            "uncertainty": unc_first,
+        },
+        "second_half": {
+            "n_toys": n_half,
+            "n_exceed": second_exceed,
+            "p": p_second,
+            "uncertainty": unc_second,
         },
         "full": {
             "n_toys": n_full,
             "n_exceed": full_exceed,
             "p": p_full,
-            "uncertainty": unc_full,
+            "uncertainty": pvalue_uncertainty(p_full, n_full),
         },
         "compatibility": {
-            "absolute_difference": abs(p_half - p_full),
+            "absolute_difference": abs(p_first - p_second),
             "combined_uncertainty": combined_unc,
-            "compatible_within_one_combined_uncertainty": compatible,
+            "pull": pull,
+            "compatible_within_two_sigma": compatible,
         },
         "sidak": {
             "local_p": z_obs_tail,
