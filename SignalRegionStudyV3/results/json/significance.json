@@ -1,0 +1,44 @@
+{
+  "era": "All",
+  "channel": "Combined",
+  "binning": "extended_unblind",
+  "note": "Observed uncapped significance (combine -M Significance --uncapped=1 --rMin=-20 --rMax=20) for the mass points with the largest excess/deficit in obs/exp0 of the unblind asymptotic limits.",
+  "results": {
+    "Baseline": {
+      "MHc70_MA18": {
+        "selection": "max_excess",
+        "significance": 2.055914756224007,
+        "pvalue_one_sided": 0.019895366757955318,
+        "obs_over_exp0": 2.2538370568365624,
+        "limit_obs": 2.322070816754003e-06,
+        "limit_exp0": 1.0302744866628523e-06
+      },
+      "MHc160_MA105": {
+        "selection": "max_deficit",
+        "significance": -2.035904555879986,
+        "pvalue_one_sided": 0.020879970132165374,
+        "obs_over_exp0": 0.5329342428460957,
+        "limit_obs": 8.522001507033777e-07,
+        "limit_exp0": 1.5990718595079688e-06
+      }
+    },
+    "ParticleNet": {
+      "MHc160_MA85": {
+        "selection": "max_excess",
+        "significance": 1.463962178588879,
+        "pvalue_one_sided": 0.07160214129885782,
+        "obs_over_exp0": 1.7066352782342022,
+        "limit_obs": 2.692401139842793e-06,
+        "limit_exp0": 1.5776078077024925e-06
+      },
+      "MHc130_MA90": {
+        "selection": "max_deficit",
+        "significance": -1.3010381049649855,
+        "pvalue_one_sided": 0.0966227060176153,
+        "obs_over_exp0": 0.6540554977843963,
+        "limit_obs": 1.9654153523341025e-06,
+        "limit_exp0": 3.0049672527666523e-06
+      }
+    }
+  }
+}

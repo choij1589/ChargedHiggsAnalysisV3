@@ -1,0 +1,82 @@
+{
+  "bias_corrected_crosscheck": {
+    "Z_global": 0.8071493903015062,
+    "description": "p_global recomputed after subtracting each mass point's toy mean Z (removes residual generation-model calibration offsets, which are uniformly negative); the raw p_global is therefore an underestimate and this value an approximate upper counterpart",
+    "max_abs_mean_offset": 0.511097148448629,
+    "n_exceed": 209,
+    "p": 0.2097902097902098,
+    "uncertainty": 0.012875491356309068
+  },
+  "binning": "extended_unblind",
+  "channel": "Combined",
+  "created_at_utc": "2026-07-07T21:12:38.425772+00:00",
+  "era": "All",
+  "global_pvalue": {
+    "Z_global": 1.1270052536677486,
+    "estimator": "(1 + N_exceed) / (N_valid + 1)",
+    "n_exceed": 129,
+    "p": 0.12987012987012986,
+    "side": "excess",
+    "uncertainty": 0.010630328275159025
+  },
+  "masspoint": "MHc70_MA18",
+  "method": "Baseline",
+  "observed": {
+    "Z_obs": 2.055914756224007,
+    "source": "templates/All/Combined/MHc70_MA18/Baseline/extended_unblind/combine_output/significance/higgsCombine.MHc70_MA18.Baseline.extended_unblind.Significance.Significance.mH120.root"
+  },
+  "toys": {
+    "expected": 1000,
+    "invalid": 0,
+    "last_toy": 1000,
+    "missing": 0,
+    "start_toy": 1,
+    "valid": 1000
+  },
+  "trials_set": {
+    "masspoints": [
+      "MHc70_MA15",
+      "MHc70_MA18",
+      "MHc70_MA30",
+      "MHc70_MA40",
+      "MHc70_MA55",
+      "MHc70_MA65",
+      "MHc85_MA15",
+      "MHc85_MA21",
+      "MHc85_MA30",
+      "MHc85_MA42",
+      "MHc85_MA55",
+      "MHc85_MA70",
+      "MHc85_MA80",
+      "MHc100_MA15",
+      "MHc100_MA24",
+      "MHc100_MA40",
+      "MHc115_MA15",
+      "MHc115_MA27",
+      "MHc115_MA42",
+      "MHc115_MA57",
+      "MHc130_MA15",
+      "MHc130_MA30",
+      "MHc130_MA55",
+      "MHc145_MA15",
+      "MHc145_MA35",
+      "MHc145_MA45",
+      "MHc160_MA15",
+      "MHc160_MA17",
+      "MHc160_MA20",
+      "MHc160_MA25",
+      "MHc160_MA30",
+      "MHc160_MA35",
+      "MHc160_MA40",
+      "MHc160_MA45",
+      "MHc160_MA50"
+    ],
+    "n_masspoints": 35,
+    "source": "configs/masspoints.json:LEE"
+  },
+  "zmax_distribution": {
+    "max": 3.2652690456256996,
+    "median": 1.4125746020563568,
+    "min": 0.05543192719947426
+  }
+}
