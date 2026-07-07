@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Build the fine-binned background model for LEE pseudo-experiments."""
+"""Build the fine-binned background model for LEE pseudo-experiments.
+
+The model is built per background process (per subera input file) and each
+process histogram is floored in coarse blocks before summing: within each
+block the total is clipped at zero and redistributed proportionally to the
+positive fine-bin content. This mimics the per-process negative-bin flooring
+applied by makeBinnedTemplates.py to the datacard templates, so the toy
+expectation tracks the frozen datacard backgrounds. A net-sum flooring would
+undershoot them by up to ~10% (see docs/LEE.md).
+"""
 
 import argparse
 import json
@@ -17,14 +26,25 @@ MODEL_XMIN = 10.0
 MODEL_XMAX = 100.0
 MODEL_BIN_WIDTH = 0.1
 MODEL_NBINS = int(round((MODEL_XMAX - MODEL_XMIN) / MODEL_BIN_WIDTH))
+FLOOR_BLOCK_WIDTH = 0.5
 LEE_CATEGORIES = ("SR1E2Mu_Run2", "SR3Mu_Run2", "SR1E2Mu_Run3", "SR3Mu_Run3")
+CONSISTENCY_WARN_THRESHOLD = 0.10
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--masspoint", default=DEFAULT_MASSPOINT)
+    parser.add_argument("--floor-block-width", type=float, default=FLOOR_BLOCK_WIDTH,
+                        help="Block width in GeV for per-process negative-content "
+                             f"flooring [default: {FLOOR_BLOCK_WIDTH}]")
     parser.add_argument("--debug", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    ratio = args.floor_block_width / MODEL_BIN_WIDTH
+    if args.floor_block_width <= 0 or abs(ratio - round(ratio)) > 1e-9:
+        parser.error(
+            f"--floor-block-width must be a positive multiple of {MODEL_BIN_WIDTH}"
+        )
+    return args
 
 
 def module_dir():
@@ -133,11 +153,11 @@ def required_category_inputs(base_dir, masspoint):
     return required
 
 
-def observable_expression(channel, mass1, mass2):
+def observable_expression(channel):
     if channel == "SR1E2Mu":
-        return mass1
+        return "(double)mass1"
     if channel == "SR3Mu":
-        return min(mass1, mass2)
+        return "std::min((double)mass1, (double)mass2)"
     raise ValueError(f"Unsupported LEE channel '{channel}'")
 
 
@@ -159,51 +179,93 @@ def validate_tree(path):
     return root_file, tree
 
 
-def fill_model_hist(category, inputs):
+def block_floor_contents(contents, block_nbins):
+    """Floor negative content per block, redistributing each block total
+    proportionally to the positive fine-bin content within the block."""
+    floored = [0.0] * len(contents)
+    floored_blocks = 0
+    for start in range(0, len(contents), block_nbins):
+        block = contents[start:start + block_nbins]
+        total = sum(block)
+        if any(value < 0.0 for value in block):
+            floored_blocks += 1
+        if total <= 0.0:
+            continue
+        positive = [max(0.0, value) for value in block]
+        positive_sum = sum(positive)
+        if positive_sum > 0.0:
+            for offset, value in enumerate(positive):
+                floored[start + offset] = total * value / positive_sum
+        else:
+            share = total / len(block)
+            for offset in range(len(block)):
+                floored[start + offset] = share
+    return floored, floored_blocks
+
+
+def fill_process_contents(item):
+    logging.info("Reading %s", item["path"])
+    root_file, tree = validate_tree(item["path"])
+    n_entries = int(tree.GetEntries())
+    root_file.Close()
+
+    frame = ROOT.RDataFrame("Central", item["path"]).Define(
+        "lee_obs", observable_expression(item["channel"])
+    )
+    weight_sum_result = frame.Sum("weight")
+    hist_result = frame.Histo1D(
+        (f"lee_fine_{item['subera']}_{item['process']}", "",
+         MODEL_NBINS, MODEL_XMIN, MODEL_XMAX),
+        "lee_obs",
+        "weight",
+    )
+    weight_sum = float(weight_sum_result.GetValue())
+    hist = hist_result.GetValue()
+    contents = [hist.GetBinContent(index) for index in range(1, MODEL_NBINS + 1)]
+    return contents, {
+        "entries": n_entries,
+        "weight_sum": weight_sum,
+        "in_model_range_weight_sum": sum(contents),
+    }
+
+
+def fill_model_hist(category, inputs, block_nbins):
     hist = ROOT.TH1D(category, category, MODEL_NBINS, MODEL_XMIN, MODEL_XMAX)
-    hist.Sumw2()
     hist.SetDirectory(0)
 
+    total_contents = [0.0] * MODEL_NBINS
+    pre_floor_integral = 0.0
+    floored_blocks_total = 0
     input_records = []
     for item in inputs:
-        logging.info("Reading %s", item["path"])
-        root_file, tree = validate_tree(item["path"])
-        try:
-            n_entries = int(tree.GetEntries())
-            weight_sum = 0.0
-            in_range_weight_sum = 0.0
-            for event in tree:
-                obs = observable_expression(item["channel"], event.mass1, event.mass2)
-                weight = float(event.weight)
-                weight_sum += weight
-                if MODEL_XMIN <= obs < MODEL_XMAX:
-                    in_range_weight_sum += weight
-                    hist.Fill(obs, weight)
-            input_records.append(
-                {
-                    "subera": item["subera"],
-                    "channel": item["channel"],
-                    "process": item["process"],
-                    "path": item["path"],
-                    "entries": n_entries,
-                    "weight_sum": weight_sum,
-                    "in_model_range_weight_sum": in_range_weight_sum,
-                }
-            )
-        finally:
-            root_file.Close()
+        contents, stats = fill_process_contents(item)
+        raw_in_range = stats["in_model_range_weight_sum"]
+        floored, floored_blocks = block_floor_contents(contents, block_nbins)
+        floored_sum = sum(floored)
+        pre_floor_integral += raw_in_range
+        floored_blocks_total += floored_blocks
+        for index, value in enumerate(floored):
+            total_contents[index] += value
+        input_records.append(
+            {
+                "subera": item["subera"],
+                "channel": item["channel"],
+                "process": item["process"],
+                "path": item["path"],
+                "entries": stats["entries"],
+                "weight_sum": stats["weight_sum"],
+                "in_model_range_weight_sum": raw_in_range,
+                "post_floor_weight_sum": floored_sum,
+                "floored_blocks": floored_blocks,
+            }
+        )
 
-    pre_floor_integral = hist.Integral()
-    floored_yield = 0.0
-    floored_bins = 0
-    for idx in range(1, hist.GetNbinsX() + 1):
-        content = hist.GetBinContent(idx)
-        if content < 0.0:
-            floored_yield += -content
-            floored_bins += 1
-            hist.SetBinContent(idx, 0.0)
-            hist.SetBinError(idx, 0.0)
+    for index, value in enumerate(total_contents):
+        hist.SetBinContent(index + 1, value)
+        hist.SetBinError(index + 1, 0.0)
+
     post_floor_integral = hist.Integral()
+    floored_yield = post_floor_integral - pre_floor_integral
     floor_fraction = (
         floored_yield / post_floor_integral if post_floor_integral > 0.0 else 0.0
     )
@@ -213,9 +275,93 @@ def fill_model_hist(category, inputs):
         "pre_floor_integral": pre_floor_integral,
         "post_floor_integral": post_floor_integral,
         "floored_yield": floored_yield,
-        "floored_bins": floored_bins,
+        "floored_blocks": floored_blocks_total,
         "floor_fraction": floor_fraction,
     }
+
+
+def datacard_background_total(base_dir, masspoint, category):
+    shapes_path = os.path.join(template_dir(base_dir, masspoint), "shapes.root")
+    if not os.path.exists(shapes_path):
+        raise FileNotFoundError(f"shapes.root not found: {shapes_path}")
+    root_file = ROOT.TFile.Open(shapes_path, "READ")
+    if not root_file or root_file.IsZombie():
+        raise OSError(f"Could not open shapes file: {shapes_path}")
+    try:
+        directory = root_file.Get(category)
+        if not directory:
+            raise KeyError(f"Category '{category}' not found in {shapes_path}")
+        # Deduplicate ROOT key cycles by name.
+        names = sorted({key.GetName() for key in directory.GetListOfKeys()})
+        total = 0.0
+        for name in names:
+            if name == "data_obs" or name.startswith(("signal", "MHc")):
+                continue
+            if name.endswith(("Up", "Down")):
+                continue
+            hist = directory.Get(name)
+            if not hist.InheritsFrom("TH1"):
+                continue
+            total += hist.Integral()
+    finally:
+        root_file.Close()
+    return total
+
+
+def model_window_integral(hist, mass_min, mass_max):
+    total = 0.0
+    for index in range(1, hist.GetNbinsX() + 1):
+        low = hist.GetBinLowEdge(index)
+        high = hist.GetBinLowEdge(index + 1)
+        if high <= mass_min or low >= mass_max:
+            continue
+        overlap = (min(high, mass_max) - max(low, mass_min)) / (high - low)
+        total += hist.GetBinContent(index) * overlap
+    return total
+
+
+def check_consistency(base_dir, lee_masspoints, trial_windows, hists):
+    """Compare the model projection over each trial window against the
+    datacard total background. Records ratios; ratios far from 1 mean the
+    toy expectation is biased against the frozen fit model."""
+    consistency = {}
+    worst = None
+    for masspoint in lee_masspoints:
+        consistency[masspoint] = {}
+        for cat in LEE_CATEGORIES:
+            window = trial_windows[masspoint][cat]
+            model_integral = model_window_integral(
+                hists[cat], window["mass_min"], window["mass_max"]
+            )
+            datacard_total = datacard_background_total(base_dir, masspoint, cat)
+            if datacard_total <= 0.0:
+                raise ValueError(
+                    f"Non-positive datacard background for {masspoint}/{cat}: "
+                    f"{datacard_total}"
+                )
+            ratio = model_integral / datacard_total
+            consistency[masspoint][cat] = {
+                "model_integral": model_integral,
+                "datacard_background": datacard_total,
+                "ratio": ratio,
+            }
+            deviation = abs(1.0 - ratio)
+            if worst is None or deviation > worst[0]:
+                worst = (deviation, masspoint, cat, ratio)
+            if deviation > CONSISTENCY_WARN_THRESHOLD:
+                logging.warning(
+                    "Model/datacard mismatch %s/%s: ratio=%.4f",
+                    masspoint,
+                    cat,
+                    ratio,
+                )
+    logging.info(
+        "Consistency check worst deviation: %s/%s ratio=%.4f",
+        worst[1],
+        worst[2],
+        worst[3],
+    )
+    return consistency
 
 
 def write_outputs(outdir, hists, metadata):
@@ -250,22 +396,25 @@ def main():
     lee_masspoints = validate_masspoint(base_dir, args.masspoint)
     trial_windows = validate_trial_binning(base_dir, lee_masspoints)
     inputs = required_category_inputs(base_dir, args.masspoint)
+    block_nbins = int(round(args.floor_block_width / MODEL_BIN_WIDTH))
 
     hists = {}
     category_metadata = {}
     for category in LEE_CATEGORIES:
         logging.info("Building LEE background model category %s", category)
-        hist, meta = fill_model_hist(category, inputs[category])
+        hist, meta = fill_model_hist(category, inputs[category], block_nbins)
         hists[category] = hist
         category_metadata[category] = meta
         logging.info(
-            "%s: B=%.6f, floored %.6f in %d bins (fraction %.6g)",
+            "%s: B=%.6f, flooring added %.6f over %d blocks (fraction %.6g)",
             category,
             meta["post_floor_integral"],
             meta["floored_yield"],
-            meta["floored_bins"],
+            meta["floored_blocks"],
             meta["floor_fraction"],
         )
+
+    consistency = check_consistency(base_dir, lee_masspoints, trial_windows, hists)
 
     metadata = {
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -285,9 +434,21 @@ def main():
             "bin_width": MODEL_BIN_WIDTH,
             "nbins": MODEL_NBINS,
         },
+        "flooring_scheme": {
+            "name": "per_process_block_floor",
+            "block_width": args.floor_block_width,
+            "block_nbins": block_nbins,
+            "description": (
+                "Per background process (per subera input file), block totals "
+                "are clipped at zero and redistributed proportionally to the "
+                "positive fine-bin content, mimicking the per-process "
+                "negative-bin flooring of the datacard templates."
+            ),
+        },
         "trials_masspoints": lee_masspoints,
         "trial_windows": trial_windows,
         "categories": category_metadata,
+        "consistency": consistency,
     }
 
     root_path, json_path = write_outputs(output_dir(base_dir, args.masspoint), hists, metadata)
