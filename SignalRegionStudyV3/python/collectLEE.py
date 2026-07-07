@@ -124,6 +124,7 @@ def read_toy_fit(path, expected_masspoints):
         "seed": payload.get("seed"),
         "Z_max": z_max,
         "Z_max_from_file": payload.get("Z_max"),
+        "Z_values": values,
     }, []
 
 
@@ -255,6 +256,23 @@ def main():
     p_unc = pvalue_uncertainty(p_global, n_valid)
     z_global = z_global_from_pvalue(p_global)
 
+    # Bias-corrected cross-check: remove each point's toy mean-Z offset
+    # (residual generation-model mismatch is uniformly negative, making the
+    # raw p_global an underestimate) and recount exceedances.
+    n_points = len(masspoints)
+    z_means = [
+        sum(record["Z_values"][index] for record in valid_toys) / n_valid
+        for index in range(n_points)
+    ]
+    n_exceed_corrected = sum(
+        1 for record in valid_toys
+        if max(
+            record["Z_values"][index] - z_means[index]
+            for index in range(n_points)
+        ) >= z_obs
+    )
+    p_corrected = (1.0 + n_exceed_corrected) / (n_valid + 1.0)
+
     output_dir = args.output_dir
     plot_dir = os.path.join(output_dir, "plots")
     os.makedirs(plot_dir, exist_ok=True)
@@ -290,6 +308,20 @@ def main():
             "p": p_global,
             "uncertainty": p_unc,
             "Z_global": z_global,
+        },
+        "bias_corrected_crosscheck": {
+            "description": (
+                "p_global recomputed after subtracting each mass point's toy "
+                "mean Z (removes residual generation-model calibration "
+                "offsets, which are uniformly negative); the raw p_global is "
+                "therefore an underestimate and this value an approximate "
+                "upper counterpart"
+            ),
+            "n_exceed": n_exceed_corrected,
+            "p": p_corrected,
+            "uncertainty": pvalue_uncertainty(p_corrected, n_valid),
+            "Z_global": z_global_from_pvalue(p_corrected),
+            "max_abs_mean_offset": max(abs(value) for value in z_means),
         },
         "zmax_distribution": {
             "min": min(zmax_values),

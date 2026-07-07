@@ -99,9 +99,13 @@ global p-value is requested for it, run the same machinery on its own grid.
    nuisances exactly as the data fit did ("nominal toys, profiled fits") —
    standard for a sub-3σ LEE quote. The flooring scheme is chosen to track
    the frozen datacard backgrounds; residual per-point expectation offsets
-   of a few % (up to ~±8%) are irreducible because the 35 datacards are
-   mutually inconsistent at that level, so toy Z means within ±0.3 of zero
-   are accepted and p_global carries a corresponding mild model dependence.
+   of a few % (up to ~±8% in window totals, larger in individual core bins)
+   are irreducible because the 35 datacards are mutually inconsistent at
+   that level. In the production campaign the toy Z means came out uniformly
+   negative, down to −0.51 for 12/35 points beyond the ±0.30 gate; this was
+   accepted and documented (Section 6) because the direction makes the raw
+   p_global an underestimate, with the de-meaned cross-check bracketing the
+   truth from above.
 2. **Frozen statistical model**: datacards, adaptive binning, lowstat/shape
    fallbacks, autoMCStats settings are kept exactly as in production; only
    `data_obs` changes per toy. This conditioning is correct because the
@@ -357,16 +361,45 @@ Validation checks:
    `1 - (1 - p_local)^35`, which should be above the toy p-value for the
    correlated scan.
 
-## 6. How to Quote the Result (AN wording)
+## 6. Result and How to Quote It (AN wording)
+
+Final numbers (1000 toys, per-process block-floored generation model):
+
+| Quantity | Value |
+| --- | --- |
+| Z_obs (MHc70_MA18, local) | +2.056 (p_local = 0.020) |
+| **p_global (excess)** | **0.130 ± 0.011** (129/1000 toys) |
+| **Z_global** | **1.13** |
+| Bias-corrected cross-check | p = 0.210 ± 0.013 (Z = 0.81) |
+| Šidák independent-trials bound | 0.505 |
+
+The toy Z calibration retains uniformly *negative* per-point mean offsets
+(12/35 points between −0.30 and −0.51): the shared generation model cannot
+reproduce the per-coarse-bin yield pattern that per-process flooring injects
+into each point's own datacard (window totals agree to ±9%, individual
+signal-weighted core bins deviate by up to ~15%). Because the offsets are all
+negative, the toy Z_max distribution is shifted low and the raw p_global is
+an **underestimate** — quoting Z_global = 1.13 is an upper bound on the true
+global significance. The `bias_corrected_crosscheck` in
+`results/lee/global_pvalue.json` (subtracting each point's toy mean-Z before
+recounting exceedances) gives p ≈ 0.21, bracketing the truth from the other
+side. The physics conclusion is identical everywhere in that bracket.
+
+The superseded v1 campaign (net-floored model, p_global = 0.069 — biased low
+by the total-yield undershoot) is archived under
+`results/lee/archive_netfloor/`. Do not quote it.
 
 > The largest local excess of the Baseline scan is observed at MHc70_MA18
 > with a local significance of 2.06σ (p_local = 0.020). The global
 > probability for a background fluctuation at least as large anywhere in the
 > low-mass scan region (MHc < 100 GeV or mA < 60 GeV, 35 mass points — the
-> region sharing a common SR3Mu observable definition) is p_global = X ± Y,
-> estimated from N background-only pseudo-experiments evaluated coherently at
-> all mass points with the statistical model frozen to the one used on data.
-> Since this restricted trials set can only decrease the global p-value, the
+> region sharing a common SR3Mu observable definition) is p_global = 0.130 ±
+> 0.011 (a global significance of at most 1.1σ), estimated from 1000
+> background-only pseudo-experiments evaluated coherently at all mass points
+> with the statistical model frozen to the one used on data. Residual toy
+> calibration offsets are uniformly negative, meaning this p_global is if
+> anything underestimated (a bias-corrected cross-check gives p ≈ 0.21).
+> Since the restricted trials set can only decrease the global p-value, the
 > full-scan global p-value is necessarily larger; the excess is consistent
 > with a background fluctuation.
 
