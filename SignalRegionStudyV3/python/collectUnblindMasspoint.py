@@ -2,8 +2,8 @@
 """Collect unblind review artifacts for one mass point.
 
 This script copies existing GoF, prefit/postfit mass, impact, and nuisance-pull
-artifacts into a compact per-masspoint folder. It does not run Combine or
-regenerate plots.
+artifacts into a method-centric visualization folder. It does not run Combine
+or regenerate plots.
 """
 
 from __future__ import annotations
@@ -97,6 +97,8 @@ def copy_artifact(
     note: str = "",
 ) -> None:
     if not source.is_file():
+        if not dry_run and destination.exists():
+            destination.unlink()
         entries.append(
             Entry(
                 category=category,
@@ -144,6 +146,8 @@ def copy_first_existing(
     source_list = list(sources)
     source = first_existing(source_list)
     if source is None:
+        if not dry_run and destination.exists():
+            destination.unlink()
         entries.append(
             Entry(
                 category=category,
@@ -161,9 +165,32 @@ def copy_first_existing(
 def prepare_output_dir(output_dir: Path, dry_run: bool) -> None:
     if dry_run:
         return
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def cleanup_masspoint_outputs(output_dir: Path, masspoint: str, dry_run: bool) -> None:
+    if dry_run or not output_dir.exists():
+        return
+
+    patterns = (
+        f"FitDiag/*/*/prefit_mass/{masspoint}.png",
+        f"FitDiag/*/*/postfit_b_mass/{masspoint}.png",
+        f"FitDiag/*/*/postfit_s_mass/{masspoint}.png",
+        f"GoF/*/*/{masspoint}.png",
+        f"GoF/*/*/{masspoint}.pdf",
+        f"GoF/*/*/{masspoint}.json",
+        f"Impacts/{masspoint}.pdf",
+        f"NuisancePulls/{masspoint}.pdf",
+        f"metadata/{masspoint}.json",
+    )
+    for pattern in patterns:
+        for path in output_dir.glob(pattern):
+            if path.is_file():
+                path.unlink()
+
+    score_dir = output_dir / "Scores" / masspoint
+    if score_dir.exists():
+        shutil.rmtree(score_dir)
 
 
 def fitdiag_plot_candidates(
@@ -221,7 +248,9 @@ def collect_postfit_grid(
             ("postfit_b_mass", f"postfit_b_mass_{era}_{channel}.png"),
             ("postfit_s_mass", f"postfit_s_mass_{era}_{channel}.png"),
         ):
-            destination = output_dir / "FitDiag" / filename
+            destination = (
+                output_dir / "FitDiag" / era / channel / category / f"{masspoint}.png"
+            )
             copy_first_existing(
                 fitdiag_plot_candidates(
                     template_root,
@@ -267,11 +296,10 @@ def collect_gof_grid(
             / "gof"
         )
         for category, filename, destination_name in (
-            ("gof_plot", "gof_plot.png", f"gof_plot_{era}_{channel}.png"),
-            ("gof_plot", "gof_plot.pdf", f"gof_plot_{era}_{channel}.pdf"),
-            ("gof_json", "gof.json", f"gof_{era}_{channel}.json"),
+            ("gof_plot", "gof_plot.png", f"{masspoint}.png"),
+            ("gof_json", "gof.json", f"{masspoint}.json"),
         ):
-            destination = output_dir / "GoF" / destination_name
+            destination = output_dir / "GoF" / era / channel / destination_name
             copy_artifact(
                 base / filename,
                 destination,
@@ -311,13 +339,13 @@ def collect_score_grid(
             / "scores"
             / channel
         )
-        era_tag = "ALL" if era == "All" else era
         for filename in SCORE_FILENAMES:
             source_name = Path(filename)
             destination = (
                 output_dir
                 / "Scores"
-                / f"{source_name.stem}_{era_tag}_{channel}{source_name.suffix}"
+                / masspoint
+                / f"{source_name.stem}_{era}_{channel}{source_name.suffix}"
             )
             copy_artifact(
                 source_dir / filename,
@@ -333,42 +361,43 @@ def collect_score_grid(
     return copied
 
 
-def write_reports(output_dir: Path, entries: list[Entry], dry_run: bool) -> None:
+def write_reports(
+    output_dir: Path,
+    masspoint: str,
+    method: str,
+    suffix: str,
+    entries: list[Entry],
+    dry_run: bool,
+) -> None:
     if dry_run:
         return
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    metadata_dir = output_dir / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    missing = [entry for entry in entries if entry.status == "missing"]
     manifest = {
+        "masspoint": masspoint,
+        "method": method,
+        "binning_suffix": suffix,
         "entries": [asdict(entry) for entry in entries],
+        "missing": [asdict(entry) for entry in missing],
         "summary": {
             "copied": sum(entry.status == "copied" for entry in entries),
-            "missing": sum(entry.status == "missing" for entry in entries),
+            "missing": len(missing),
         },
     }
-    (output_dir / "manifest.json").write_text(
+    (metadata_dir / f"{masspoint}.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     )
-
-    missing = [entry for entry in entries if entry.status == "missing"]
-    if missing:
-        lines = [
-            f"[{entry.era}] {entry.category}: {entry.source}"
-            + (f" ({entry.note})" if entry.note else "")
-            for entry in missing
-        ]
-        (output_dir / "missing.txt").write_text("\n".join(lines) + "\n")
-    else:
-        missing_path = output_dir / "missing.txt"
-        if missing_path.exists():
-            missing_path.unlink()
 
 
 def collect(args: argparse.Namespace) -> int:
     template_root = args.template_root.resolve()
-    output_dir = (args.output_dir / args.masspoint / args.method).resolve()
+    output_dir = (args.output_dir / args.method).resolve()
     suffix = binning_suffix(args.binning, args.nuisance)
     entries: list[Entry] = []
     prepare_output_dir(output_dir, args.dry_run)
+    cleanup_masspoint_outputs(output_dir, args.masspoint, args.dry_run)
 
     if not args.skip_gof:
         collect_gof_grid(
@@ -409,7 +438,7 @@ def collect(args: argparse.Namespace) -> int:
                 base / "impacts_obs" / "condor" / "impacts.pdf",
                 base / "impacts_obs" / "impacts.pdf",
             ),
-            output_dir / "impacts.pdf",
+            output_dir / "Impacts" / f"{args.masspoint}.pdf",
             "impact",
             "All",
             entries,
@@ -421,26 +450,13 @@ def collect(args: argparse.Namespace) -> int:
                 base / "fitdiag" / "nuisance_pulls_both.pdf",
                 base / "fitdiag" / "nuisance_pulls.pdf",
             ),
-            output_dir / "nuisance_pulls.pdf",
+            output_dir / "NuisancePulls" / f"{args.masspoint}.pdf",
             "nuisance_pulls",
             "All",
             entries,
             args.dry_run,
             note="prefer _both source; destination name preserved",
         )
-        copy_first_existing(
-            (
-                base / "fitdiag" / "nuisance_pulls_filtered_both.pdf",
-                base / "fitdiag" / "nuisance_pulls_filtered.pdf",
-            ),
-            output_dir / "nuisance_pulls_filtered.pdf",
-            "nuisance_pulls_filtered",
-            "All",
-            entries,
-            args.dry_run,
-            note="prefer _both source; destination name preserved",
-        )
-
     n_mass_plots = 0
     if not args.skip_fitdiag:
         n_mass_plots = collect_postfit_grid(
@@ -464,7 +480,9 @@ def collect(args: argparse.Namespace) -> int:
             )
         )
 
-    write_reports(output_dir, entries, args.dry_run)
+    write_reports(
+        output_dir, args.masspoint, args.method, suffix, entries, args.dry_run
+    )
 
     copied = sum(entry.status in {"copied", "dry_run"} for entry in entries)
     missing = sum(entry.status == "missing" for entry in entries)

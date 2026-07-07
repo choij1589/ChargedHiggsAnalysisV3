@@ -3,8 +3,8 @@
 # collectUnblindResults.sh - Gather unblind diagnostic plots by mass point.
 #
 # Reads completed mass-point lists from configs/masspoints.json and copies
-# existing artifacts into results/unblind/<masspoint>/<method>/. If a completed
-# list is empty, falls back to the active method list.
+# existing artifacts into results/unblind/<method>/. If a completed list is
+# empty, falls back to the active method list.
 
 set -euo pipefail
 
@@ -94,7 +94,7 @@ Options:
   --strict            Exit nonzero if any artifact is missing
 
 Output:
-  results/unblind/MASSPOINT/METHOD/
+  results/unblind/METHOD/
 EOF
             exit 0
             ;;
@@ -238,5 +238,5 @@ done
 
 echo ""
 echo "Collection complete: $total masspoint-method entries processed."
-echo "Output root: ${SCRIPT_DIR}/results/unblind"
+echo "Output root: ${SCRIPT_DIR}/results/unblind/<METHOD>"
 exit "$status"
