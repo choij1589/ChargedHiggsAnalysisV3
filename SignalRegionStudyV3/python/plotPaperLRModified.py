@@ -17,7 +17,7 @@ MODULE_DIR = Path(__file__).resolve().parents[1]
 WORKDIR = Path(os.environ.get("WORKDIR", MODULE_DIR.parent))
 
 sys.path.insert(0, str(WORKDIR / "Common" / "Tools"))
-from plotter import ComparisonCanvas, PALETTE_LONG  # noqa: E402
+from plotter import ComparisonCanvas, EnergyInfo, LumiInfo, PALETTE_LONG  # noqa: E402
 
 
 ROOT.gROOT.SetBatch(True)
@@ -360,8 +360,8 @@ def build_config(region, edges):
 
     return {
         "era": "All",
-        "CoM": "13/13.6",
-        "run_label": "Run 2+3, 200 fb^{#minus1}",
+        "CoM": f"{EnergyInfo['Run2']:g}/{EnergyInfo['Run3']:g}",
+        "run_label": f"Run 2+3, {LumiInfo['All']:g} fb^{{#minus1}}",
         "xTitle": "Modified LR Score",
         "yTitle": "Events",
         "rTitle": "Data / Pred",

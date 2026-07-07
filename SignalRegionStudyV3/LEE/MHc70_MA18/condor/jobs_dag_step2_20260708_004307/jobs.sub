@@ -1,0 +1,16 @@
+JobBatchName = lee_step2_MHc70_MA18
+universe = vanilla
+executable = /u/user/choij/scratch/ChargedHiggsAnalysisV3/SignalRegionStudyV3/scripts/generateLEEToys.sh
+arguments = --masspoint $(masspoint) --toy $(toy) --force
+output = logs/toy_$(toy).out
+error  = logs/toy_$(toy).err
+log    = dag.log
+
+request_cpus = 1
+request_memory = 2GB
+request_disk = 2GB
+
+getenv = True
+should_transfer_files = NO
+
+queue

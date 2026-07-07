@@ -98,4 +98,4 @@ python3 python/plotPostfitSummary.py --mhc 160 \
 #./automize/hybridnew.sh --mode all --method ParticleNet --binning extended --unblind --auto-grid
 
 # Collect review artifacts by mass point.
-./automize/collectUnblindResults.sh --method all --binning extended
+#./automize/collectUnblindResults.sh --method all --binning extended

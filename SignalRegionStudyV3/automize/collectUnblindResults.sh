@@ -2,8 +2,9 @@
 #
 # collectUnblindResults.sh - Gather unblind diagnostic plots by mass point.
 #
-# Reads configs/masspoints.json baseline_done/particlenet_done and copies existing
-# artifacts into results/unblind/<masspoint>/<method>/.
+# Reads completed mass-point lists from configs/masspoints.json and copies
+# existing artifacts into results/unblind/<masspoint>/<method>/. If a completed
+# list is empty, falls back to the active method list.
 
 set -euo pipefail
 
@@ -87,8 +88,8 @@ Options:
                      distributions
                      [default: {Run2,Run3,All} x {SR1E2Mu,SR3Mu,Combined}]
   --config PATH       Masspoint JSON [default: configs/masspoints.json]
-                     Uses baseline_done for Baseline and particlenet_done for
-                     ParticleNet.
+                     Uses baseline_done/particlenet_done first, falling back
+                     to baseline/particlenet when the completed list is empty.
   --dry-run           Print collection summary without copying
   --strict            Exit nonzero if any artifact is missing
 
@@ -180,10 +181,15 @@ import json
 import sys
 
 config, method = sys.argv[1], sys.argv[2]
-key = "baseline_done" if method == "Baseline" else "particlenet_done"
+done_key, active_key = (
+    ("baseline_done", "baseline")
+    if method == "Baseline"
+    else ("particlenet_done", "particlenet")
+)
 with open(config) as handle:
     data = json.load(handle)
-for masspoint in data.get(key, []):
+masspoints = data.get(done_key) or data.get(active_key, [])
+for masspoint in masspoints:
     print(masspoint)
 PY
 }
