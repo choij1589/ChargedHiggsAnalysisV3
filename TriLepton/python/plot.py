@@ -84,10 +84,6 @@ with open(f"{WORKDIR}/Common/Data/FakeNorm.json") as f:
 RUN2_ERAS = ["2016preVFP", "2016postVFP", "2017", "2018"]
 RUN3_ERAS = ["2022", "2022EE", "2023", "2023BPix"]
 
-# Samples reweighted by the WZ Njet SF; the WZ generator differs between runs, and
-# --era All spans both, so carry the union.
-WZ_SAMPLES = ["WZTo3LNu_amcatnlo", "WZTo3LNu_powheg", "ZZTo4L_powheg"]
-
 
 def get_plot_era_list(era):
     if era == "All":
@@ -249,27 +245,26 @@ def get_kfactor_info(sample, run):
     return entry["kFactor"], entry.get("xsecErr", 1.0) - 1.0
 
 def get_mc_rate_uncertainties(sample, era, era_samples, xsec_rel_unc, conv_rel_unc):
-    """Collect rate uncertainties for one (era, sample) as (name, value, correlated).
+    """Rate uncertainties for one (era, sample): (name, value, corr_samples, corr_eras).
 
-    Correlated entries share one nuisance within an era; that is right for
-    normalizations that come from a single measurement (ConvSF, WZNjSF) and wrong
-    for per-process cross-section priors, which a datacard writes as separate lnN.
+    The two axes are independent. Theory priors (cross sections, the flat "others"
+    normalization) are the same number every year, so they correlate across eras but
+    not across unrelated processes -- a datacard writes them as separate per-process
+    lnN. Measured normalizations (ConvSF, WZNjSF) are shared by every sample they
+    scale; ConvSF is re-measured per era, while the WZNjSF prior is not.
     """
     rate_uncs = []
 
     if xsec_rel_unc > 0.0:
-        rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False))
-
-    if sample in WZ_SAMPLES and args.exclude != "WZSF":
-        rate_uncs.append(("WZ_rate", 0.20, True))
+        rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False, True))
 
     if conv_rel_unc > 0.0:
-        rate_uncs.append(("conv_rate", conv_rel_unc, True))
+        rate_uncs.append(("conv_rate", conv_rel_unc, True, False))
 
     # "others" samples are unrelated processes absent from KFactors.json, so each
     # carries its own prior rather than a shared one.
     if sample in era_samples[era]["others"]:
-        rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False))
+        rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False, True))
 
     return rate_uncs
 
@@ -341,7 +336,7 @@ for era in era_list:
             # overwriting it.
             np_unc = FAKENORM.get(FLAG, {}).get(era, 0.30)
             total_builder.add(era, sample, h,
-                              rate_uncs=[("nonprompt_rate", np_unc, True)])
+                              rate_uncs=[("nonprompt_rate", np_unc, True, False)])
             era_nonprompt_hists[sample].append(h)
 
     # Load MC for this era

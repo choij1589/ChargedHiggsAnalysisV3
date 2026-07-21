@@ -370,12 +370,7 @@ def main():
     prompt_mc_categories = ["conv", "ttX", "diboson", "others"]
     prompt_mc_list = sum([MC_CATEGORIES[category] for category in prompt_mc_categories], [])
 
-    # Determine WZ sample name based on era (Run2 vs Run3)
     run_period = get_run_period(args.era)
-    if run_period == "Run2":
-        WZ_SAMPLES = ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"]
-    elif run_period == "Run3":
-        WZ_SAMPLES = ["WZTo3LNu_powheg", "ZZTo4L_powheg"]
 
     # Map each sample to its category, for routing contributions into the builders
     SAMPLE_CATEGORY = {}
@@ -462,7 +457,7 @@ def main():
                 continue
 
             rate_uncs = [("nonprompt_rate",
-                          get_fake_norm_uncertainty(FAKENORM, FLAG, era), True)]
+                          get_fake_norm_uncertainty(FAKENORM, FLAG, era), True, False)]
             for builder in (sample_builder, category_builders["nonprompt"], total_builder):
                 builder.add(era, sample, h, rate_uncs=rate_uncs)
 
@@ -494,6 +489,9 @@ def main():
             if args.exclude != "Syst":
                 # Use era-specific systematics (validated to be consistent across eras)
                 era_systs = ERA_SYSTEMATICS.get(era, {})
+                if args.exclude == "WZSF":
+                    # WZNjetsSF is the measured WZ Njet reweighting, Run3 only
+                    era_systs = {k: v for k, v in era_systs.items() if k != "WZNjetsSF"}
                 if era_systs:
                     hSysts = load_systematic_variations(file_path, args.channel, HISTKEY,
                                                        era_systs, era)
@@ -504,22 +502,18 @@ def main():
             # Per-process cross-section priors stay independent: a datacard writes
             # these as separate lnN per process, so they do not share a nuisance.
             if xsec_rel_unc > 0.0:
-                rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False))
-
-            # One WZNjSF measurement, shared by the samples it reweights
-            if sample in WZ_SAMPLES and args.exclude != "WZSF":
-                rate_uncs.append(("WZ_rate", 0.20, True))
+                rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False, True))
 
             # One ConvSF measurement per era, shared by every conversion sample
             if args.exclude != "ConvSF" and sample in MC_CATEGORIES["conv"]:
                 scale, conv_rel_unc = get_conv_scale_factor(CONV_SF_DATA, era, args.channel)
                 scale_with_variations(h, hSysts, scale)
-                rate_uncs.append(("conv_rate", conv_rel_unc, True))
+                rate_uncs.append(("conv_rate", conv_rel_unc, True, False))
 
             # Flat normalization for the "others" category. These are unrelated
             # processes absent from KFactors.json, so each carries its own prior.
             if sample in ERA_SAMPLES[era]["others"]:
-                rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False))
+                rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False, True))
 
             for builder in (sample_builder, category_builders[category], total_builder):
                 builder.add(era, sample, h, variations=hSysts, rate_uncs=rate_uncs)

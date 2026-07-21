@@ -27,10 +27,6 @@ from utils import build_sknanoutput_path, scale_with_variations
 RUN2_ERAS = ["2016preVFP", "2016postVFP", "2017", "2018"]
 RUN3_ERAS = ["2022", "2022EE", "2023", "2023BPix"]
 
-# Samples reweighted by the WZ Njet SF; the generator differs between runs and these
-# plots span both, so carry the union.
-WZ_SAMPLES = ["WZTo3LNu_amcatnlo", "WZTo3LNu_powheg", "ZZTo4L_powheg"]
-
 # Flat normalization uncertainty for the "others" category, absent from KFactors.json
 OTHERS_XSEC_UNC = 0.50
 
@@ -150,25 +146,24 @@ def get_conv_scale_factor(sample, era, era_samples, channel_flag, conv_sf_data, 
 
 
 def get_mc_rate_uncertainties(sample, era, era_samples, xsec_rel_unc, conv_rel_unc, exclude=None):
-    """Collect rate uncertainties for one (era, sample) as (name, value, correlated).
+    """Rate uncertainties for one (era, sample): (name, value, corr_samples, corr_eras).
 
-    Correlated entries share one nuisance within an era, which is right for
-    normalizations from a single measurement (ConvSF, WZNjSF) and wrong for
-    per-process cross-section priors, which a datacard writes as separate lnN.
+    The two axes are independent. Theory priors (cross sections, the flat "others"
+    normalization) are the same number every year, so they correlate across eras but
+    not across unrelated processes -- a datacard writes them as separate per-process
+    lnN. Measured normalizations (ConvSF, WZNjSF) are shared by every sample they
+    scale; ConvSF is re-measured per era, while the WZNjSF prior is not.
     """
     rate_uncs = []
 
     if xsec_rel_unc > 0.0:
-        rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False))
-
-    if sample in WZ_SAMPLES and exclude != "WZSF":
-        rate_uncs.append(("WZ_rate", 0.20, True))
+        rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False, True))
 
     if conv_rel_unc > 0.0:
-        rate_uncs.append(("conv_rate", conv_rel_unc, True))
+        rate_uncs.append(("conv_rate", conv_rel_unc, True, False))
 
     if sample in era_samples[era]["others"]:
-        rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False))
+        rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False, True))
 
     return rate_uncs
 
@@ -314,7 +309,7 @@ def load_plot_objects(channel, histkey, config, options):
                 # overwriting it.
                 np_unc = fake_norm.get(flag, {}).get(era, 0.30)
                 total_builder.add(era, sample, hist,
-                                  rate_uncs=[("nonprompt_rate", np_unc, True)])
+                                  rate_uncs=[("nonprompt_rate", np_unc, True, False)])
                 era_nonprompt_hists[sample].append(hist)
 
         all_era_samples = (

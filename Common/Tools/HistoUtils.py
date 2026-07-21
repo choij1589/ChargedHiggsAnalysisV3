@@ -476,12 +476,13 @@ class CorrelatedTotalBuilder:
     prefit stat+syst tables and plot bands only:
 
     - shape sources are summed across BOTH samples and eras, then enveloped once
-    - rate sources marked correlated are summed across samples within an era, then
-      combined in quadrature across eras
-    - rate sources marked uncorrelated stay in quadrature across samples and eras
+    - rate sources declare the sample and era axes independently; contributions
+      sharing a group key add coherently, and groups combine in quadrature
 
-    The era treatment is deliberately asymmetric (shape correlated, rate not); it
-    preserves the pre-existing convention rather than pre-empting Combine.
+    The two rate axes are genuinely independent. A theory prior (a cross-section
+    uncertainty) is the same number every year, so it is correlated across eras but
+    not across unrelated processes. A per-era measurement (ConvSF, FakeNorm) is the
+    opposite: shared by every sample it scales, but re-measured each era.
 
     Statistical errors ride along in the bin errors, which TH1::Add already combines
     in quadrature -- the correct treatment, since samples are statistically
@@ -518,7 +519,7 @@ class CorrelatedTotalBuilder:
             h_central: Central histogram, already scaled (ConvSF, K-factor),
                        with pure statistical bin errors
             variations: {source: (h_up, h_down)}, already scaled to match h_central
-            rate_uncs: [(name, relative_uncertainty, correlated_bool)]
+            rate_uncs: [(name, relative_uncertainty, correlate_samples, correlate_eras)]
         """
         if h_central is None:
             return
@@ -535,11 +536,12 @@ class CorrelatedTotalBuilder:
             entry["central"] = self._accumulate(entry["central"], h_central,
                                                 f"{self.name}_{source}_central")
 
-        for source, rel_unc, correlated in (rate_uncs or []):
+        for source, rel_unc, correlate_samples, correlate_eras in (rate_uncs or []):
             if rel_unc <= 0.0:
                 continue
-            # One nuisance per era when correlated, per (era, sample) otherwise
-            group_key = era if correlated else (era, sample)
+            # Collapsing an axis merges those contributions into one nuisance
+            group_key = (None if correlate_eras else era,
+                         None if correlate_samples else sample)
             contribution = h_central.Clone(f"{self.name}_{source}_rate")
             contribution.SetDirectory(0)
             contribution.Scale(rel_unc)
