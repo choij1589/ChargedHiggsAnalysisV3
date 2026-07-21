@@ -26,6 +26,10 @@ from ROOT import gROOT
 
 gROOT.SetBatch(True)
 
+# Flat normalization uncertainty for the "others" category. These samples are absent
+# from KFactors.json and otherwise carry no theory norm (see plot.py:apply_others_uncertainty).
+OTHERS_XSEC_UNC = 0.50
+
 # Add Common/Tools to path
 WORKDIR = os.environ.get("WORKDIR", os.getcwd())
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
@@ -545,6 +549,7 @@ def main():
         # Dictionary to track systematic variations per source: {syst_name: {'up': [h_up_era1, ...], 'down': [h_down_era1, ...]}}
         syst_variations = {}
         conv_rate_components = []
+        others_rate_components = []
 
         for era in era_list:
             if era not in ERA_SAMPLES:
@@ -573,6 +578,10 @@ def main():
                             h_up.Scale(scale)
                             h_down.Scale(scale)
                     conv_rate_components.append((get_histogram_events(h), rel_unc))
+
+                # Flat normalization uncertainty for the "others" category
+                if sample in ERA_SAMPLES[era]["others"]:
+                    others_rate_components.append((get_histogram_events(h), OTHERS_XSEC_UNC))
 
                 era_hists.append(h)
 
@@ -610,6 +619,10 @@ def main():
                     (yield_value * kfactor, rel_unc)
                     for yield_value, rel_unc in conv_rate_components
                 ]
+                others_rate_components = [
+                    (yield_value * kfactor, rel_unc)
+                    for yield_value, rel_unc in others_rate_components
+                ]
 
             rate_uncs = []
             if xsec_rel_unc > 0.0:
@@ -622,6 +635,10 @@ def main():
             if conv_rate_components:
                 conv_rate_unc = combine_rate_uncertainties(conv_rate_components)
                 rate_uncs.append(("conv_rate", conv_rate_unc))
+
+            if others_rate_components:
+                others_rate_unc = combine_rate_uncertainties(others_rate_components)
+                rate_uncs.append(("others_xsec", others_rate_unc))
 
             output["samples"][sample] = extract_stat_syst_errors(
                 h_total, combined_systs, rate_uncs=rate_uncs)
