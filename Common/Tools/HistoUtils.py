@@ -177,6 +177,50 @@ def calculate_systematics(h, systematics, file_path, args, era=None, missing_log
     return h
 
 
+def load_systematic_variations(file_path, channel, histkey, systematics, era=None,
+                               missing_logger=None, clip=False):
+    """Load systematic up/down variation histograms from one file.
+
+    The loading half of calculate_systematics, but returning the histograms instead
+    of folding them into bin errors. Keeping the variations alive lets callers sum
+    them across samples before taking an envelope, which is what treating a source
+    as one nuisance requires -- see CorrelatedTotalBuilder.
+
+    Args:
+        file_path (str): Path to ROOT file
+        channel (str): Analysis channel, the top-level directory in the file
+        histkey (str): Histogram path below the systematic directory
+        systematics (dict): {name: [up_variation, down_variation]}
+        era (str, optional): Era information for logging
+        missing_logger (logging.Logger, optional): Logger for missing histograms
+        clip (bool): Zero out negative bins, matching calculate_systematics
+
+    Returns:
+        dict: {name: (h_up, h_down)}, containing only sources where both were found
+    """
+    era_info = f"[{era}] " if era else ""
+    variations = {}
+
+    for syst, sources in systematics.items():
+        syst_up, syst_down = tuple(sources)
+        h_up = load_histogram(file_path, f"{channel}/{syst_up}/{histkey}", era)
+        h_down = load_histogram(file_path, f"{channel}/{syst_down}/{histkey}", era)
+
+        if h_up and h_down:
+            if clip:
+                clip_negative_bins(h_up)
+                clip_negative_bins(h_down)
+            variations[syst] = (h_up, h_down)
+        elif missing_logger:
+            for name, hist in ((syst_up, h_up), (syst_down, h_down)):
+                if not hist:
+                    missing_logger.info(
+                        f"{era_info}MISSING_SYSTEMATIC: {channel}/{name}/{histkey} "
+                        f"in {os.path.basename(file_path)}")
+
+    return variations
+
+
 def sum_histograms(hist_list, name):
     """Sum a list of histograms
 

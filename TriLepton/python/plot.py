@@ -8,10 +8,14 @@ import ROOT
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 from plotter import PALETTE_LONG as PALETTE
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
-                        calculate_systematics, sum_histograms, load_era_configs,
-                        get_sample_lists, clip_negative_bins)
-from utils import build_sknanoutput_path, apply_rate_uncertainty
+                        load_systematic_variations, sum_histograms, load_era_configs,
+                        get_sample_lists, clip_negative_bins, CorrelatedTotalBuilder)
+from utils import build_sknanoutput_path, scale_with_variations
 ROOT.gROOT.SetBatch(True)
+
+# Flat normalization uncertainty for the "others" category, which is absent from
+# KFactors.json and otherwise carries no theory norm.
+OTHERS_XSEC_UNC = 0.50
 
 # Fixed color mapping for backgrounds (consistent across all plots)
 BKG_COLORS = {
@@ -79,6 +83,10 @@ with open(f"{WORKDIR}/Common/Data/FakeNorm.json") as f:
 
 RUN2_ERAS = ["2016preVFP", "2016postVFP", "2017", "2018"]
 RUN3_ERAS = ["2022", "2022EE", "2023", "2023BPix"]
+
+# Samples reweighted by the WZ Njet SF; the WZ generator differs between runs, and
+# --era All spans both, so carry the union.
+WZ_SAMPLES = ["WZTo3LNu_amcatnlo", "WZTo3LNu_powheg", "ZZTo4L_powheg"]
 
 
 def get_plot_era_list(era):
@@ -206,62 +214,64 @@ else:
 os.makedirs(os.path.dirname(OUTPUTPATH), exist_ok=True)
 
 
-def apply_conv_scale_factor(hist, sample, era, era_samples):
-    """Apply conversion scale factor and total uncertainty to conversion samples.
-    Uses Common/Data/ConvSF.json. Falls back to SF=1.0 ± 20% for 2E1Mu."""
-    if args.exclude == "ConvSF":
-        return hist
-    if sample not in era_samples[era]["conv"]:
-        return hist
+# Rate uncertainties are reported to CorrelatedTotalBuilder rather than folded into
+# bin errors here, so that sources shared between processes stay correlated. Bin
+# errors must therefore remain pure statistical.
 
-    # 2E1Mu: no dedicated measurement
+def get_conv_scale_factor(sample, era, era_samples):
+    """Return (scale, relative uncertainty) for a conversion sample.
+
+    Uses Common/Data/ConvSF.json. Falls back to SF=1.0 +- 20% for 2E1Mu, which has
+    no dedicated measurement.
+    """
+    if args.exclude == "ConvSF" or sample not in era_samples[era]["conv"]:
+        return 1.0, 0.0
+
     if channel_flag == "2E1Mu":
-        apply_rate_uncertainty(hist, 0.20)
-        return hist
+        return 1.0, 0.20
 
     era_data = CONV_SF_DATA.get(channel_flag, {}).get(era)
     if era_data is None:
         logging.warning(f"No ConvSF for {channel_flag}/{era}, using default SF=1.0 ± 20%")
-        apply_rate_uncertainty(hist, 0.20)
-        return hist
+        return 1.0, 0.20
 
-    hist.Scale(era_data["central"])
-    apply_rate_uncertainty(hist, era_data["total"])
-    return hist
+    return era_data["central"], era_data["total"]
 
-def apply_others_uncertainty(hist, sample, era, era_samples):
-    """Apply 50% flat normalization uncertainty to 'others' category samples.
-    These samples are absent from KFactors.json and otherwise carry no theory norm."""
-    if sample in era_samples[era]["others"]:
-        apply_rate_uncertainty(hist, 0.50)
-    return hist
+def get_kfactor_info(sample, run):
+    """Return (K-factor, relative cross-section uncertainty) from KFactors.json.
 
-def apply_kfactor(hist, sample, run):
-    """Apply K-factor and theory uncertainty to sample if defined in KFactors.json
-
-    The xsecErr in KFactors.json is a multiplicative factor (e.g., 1.075 means 7.5% uncertainty).
-    This uncertainty is applied to all bins in quadrature with existing errors.
+    xsecErr is stored as a multiplicative factor (1.075 means 7.5%).
     """
-    if run not in KFACTORS:
-        return hist, 1.0
+    if run not in KFACTORS or sample not in KFACTORS[run]:
+        return 1.0, 0.0
 
-    kfactors = KFACTORS[run]
-    if sample not in kfactors:
-        return hist, 1.0
+    entry = KFACTORS[run][sample]
+    return entry["kFactor"], entry.get("xsecErr", 1.0) - 1.0
 
-    kfactor = kfactors[sample]["kFactor"]
-    hist.Scale(kfactor)
-    logging.debug(f"Applied K-factor {kfactor} to {sample}")
+def get_mc_rate_uncertainties(sample, era, era_samples, xsec_rel_unc, conv_rel_unc):
+    """Collect rate uncertainties for one (era, sample) as (name, value, correlated).
 
-    # Apply theory uncertainty if available
-    if "xsecErr" in kfactors[sample]:
-        xsec_err_factor = kfactors[sample]["xsecErr"]
-        # Convert multiplicative factor to relative uncertainty (e.g., 1.075 -> 0.075)
-        rel_unc = xsec_err_factor - 1.0
-        apply_rate_uncertainty(hist, rel_unc)
-        logging.debug(f"Applied theory uncertainty {rel_unc*100:.1f}% to {sample}")
+    Correlated entries share one nuisance within an era; that is right for
+    normalizations that come from a single measurement (ConvSF, WZNjSF) and wrong
+    for per-process cross-section priors, which a datacard writes as separate lnN.
+    """
+    rate_uncs = []
 
-    return hist, kfactor
+    if xsec_rel_unc > 0.0:
+        rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False))
+
+    if sample in WZ_SAMPLES and args.exclude != "WZSF":
+        rate_uncs.append(("WZ_rate", 0.20, True))
+
+    if conv_rel_unc > 0.0:
+        rate_uncs.append(("conv_rate", conv_rel_unc, True))
+
+    # "others" samples are unrelated processes absent from KFactors.json, so each
+    # carries its own prior rather than a shared one.
+    if sample in era_samples[era]["others"]:
+        rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False))
+
+    return rate_uncs
 
 #### Get Histograms
 
@@ -309,22 +319,29 @@ else:
     if eras_without_data:
         logging.warning(f"Data for {args.histkey} completely missing in eras: {eras_without_data}")
 
-# Load nonprompt samples from each era
+# Load nonprompt samples from each era.
+# Contributions are accumulated per (era, sample) so that each named source stays
+# one nuisance within an era; the builder supplies the uncertainty band below.
 HISTs = {}
+total_builder = CorrelatedTotalBuilder("total_background")
+
 for era in era_list:
     # Load nonprompt for this era
     for sample in ERA_SAMPLES[era]["nonprompt"]:
         file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample,
                                            is_nonprompt=True, no_hem_veto=args.noHEMVeto)
         hist_path = f"{args.channel}/Central/{args.histkey}"
-        
+
         h = load_histogram(file_path, hist_path, era, missing_logger)
         if h:
             clip_negative_bins(h)
-            # Set per-era nonprompt uncertainty from FakeNorm.json (fallback 30%)
+            # Per-era nonprompt normalization from FakeNorm.json (fallback 30%). One
+            # fake-rate measurement per era, shared by every data stream, so it is
+            # correlated -- and added alongside the statistical error rather than
+            # overwriting it.
             np_unc = FAKENORM.get(FLAG, {}).get(era, 0.30)
-            for bin in range(h.GetNcells()):
-                h.SetBinError(bin, h.GetBinContent(bin) * np_unc)
+            total_builder.add(era, sample, h,
+                              rate_uncs=[("nonprompt_rate", np_unc, True)])
             era_nonprompt_hists[sample].append(h)
 
     # Load MC for this era
@@ -339,13 +356,19 @@ for era in era_list:
         h = load_histogram(file_path, hist_path, era, missing_logger)
         if h:
             clip_negative_bins(h)
-            # Apply K-factor before systematics
-            h, kfactor = apply_kfactor(h, sample, get_run_period(era))
-            h = calculate_systematics(h, ERA_SYSTEMATICS[era], file_path, args, era,
-                                      missing_logger, variation_scale=kfactor)
-            # Apply conversion scale factor
-            h = apply_conv_scale_factor(h, sample, era, ERA_SAMPLES)
-            h = apply_others_uncertainty(h, sample, era, ERA_SAMPLES)
+            variations = load_systematic_variations(file_path, args.channel, args.histkey,
+                                                    ERA_SYSTEMATICS[era], era,
+                                                    missing_logger, clip=True)
+
+            # Scale central and variations together, K-factor before ConvSF
+            kfactor, xsec_rel_unc = get_kfactor_info(sample, get_run_period(era))
+            scale_with_variations(h, variations, kfactor)
+            conv_scale, conv_rel_unc = get_conv_scale_factor(sample, era, ERA_SAMPLES)
+            scale_with_variations(h, variations, conv_scale)
+
+            rate_uncs = get_mc_rate_uncertainties(sample, era, ERA_SAMPLES,
+                                                  xsec_rel_unc, conv_rel_unc)
+            total_builder.add(era, sample, h, variations=variations, rate_uncs=rate_uncs)
             era_mc_hists[sample].append(h)
 
 # Step 3: Sum histograms across eras
@@ -438,7 +461,7 @@ if args.channel in ["SR1E2Mu", "SR3Mu"]:
         if not SIGNALs:
             logging.warning(f"ParticleNet score plot for {mass_point}, but no matching signal histogram found")
 
-plotter = ComparisonCanvas(data, BKGs, config)
+plotter = ComparisonCanvas(data, BKGs, config, total_syst=total_builder.total_hist())
 plotter.drawPadUp()
 if SIGNALs:
     plotter.drawSignals(SIGNALs)

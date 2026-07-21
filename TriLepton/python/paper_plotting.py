@@ -14,17 +14,25 @@ from plotter import ComparisonCanvas, PALETTE, PALETTE_LONG, get_era_list, get_C
 from HistoUtils import (
     setup_missing_histogram_logging,
     load_histogram,
-    calculate_systematics,
+    load_systematic_variations,
     sum_histograms,
     load_era_configs,
     get_sample_lists,
     clip_negative_bins,
+    CorrelatedTotalBuilder,
 )
-from utils import build_sknanoutput_path, apply_rate_uncertainty
+from utils import build_sknanoutput_path, scale_with_variations
 
 
 RUN2_ERAS = ["2016preVFP", "2016postVFP", "2017", "2018"]
 RUN3_ERAS = ["2022", "2022EE", "2023", "2023BPix"]
+
+# Samples reweighted by the WZ Njet SF; the generator differs between runs and these
+# plots span both, so carry the union.
+WZ_SAMPLES = ["WZTo3LNu_amcatnlo", "WZTo3LNu_powheg", "ZZTo4L_powheg"]
+
+# Flat normalization uncertainty for the "others" category, absent from KFactors.json
+OTHERS_XSEC_UNC = 0.50
 
 BKG_COLORS = {
     "nonprompt": PALETTE_LONG[0],
@@ -112,42 +120,57 @@ def load_common_data(workdir):
     return kfactors, conv_sf, fake_norm
 
 
-def apply_kfactor(hist, sample, run, kfactors):
+# Rate uncertainties are reported to CorrelatedTotalBuilder rather than folded into
+# bin errors, so that sources shared between processes stay correlated. Bin errors
+# must therefore remain pure statistical.
+
+def get_kfactor_info(sample, run, kfactors):
+    """Return (K-factor, relative cross-section uncertainty) from KFactors.json."""
     if run not in kfactors or sample not in kfactors[run]:
-        return hist
+        return 1.0, 0.0
 
-    sample_kfactor = kfactors[run][sample]["kFactor"]
-    hist.Scale(sample_kfactor)
-
-    if "xsecErr" in kfactors[run][sample]:
-        apply_rate_uncertainty(hist, kfactors[run][sample]["xsecErr"] - 1.0)
-
-    return hist
+    entry = kfactors[run][sample]
+    return entry["kFactor"], entry.get("xsecErr", 1.0) - 1.0
 
 
-def apply_conv_scale_factor(hist, sample, era, era_samples, channel_flag, conv_sf_data, exclude=None):
+def get_conv_scale_factor(sample, era, era_samples, channel_flag, conv_sf_data, exclude=None):
+    """Return (scale, relative uncertainty) for a conversion sample."""
     if exclude == "ConvSF" or sample not in era_samples[era]["conv"]:
-        return hist
+        return 1.0, 0.0
 
     if channel_flag == "2E1Mu":
-        apply_rate_uncertainty(hist, 0.20)
-        return hist
+        return 1.0, 0.20
 
     era_data = conv_sf_data.get(channel_flag, {}).get(era)
     if era_data is None:
         logging.warning(f"No ConvSF for {channel_flag}/{era}, using default SF=1.0 ± 20%")
-        apply_rate_uncertainty(hist, 0.20)
-        return hist
+        return 1.0, 0.20
 
-    hist.Scale(era_data["central"])
-    apply_rate_uncertainty(hist, era_data["total"])
-    return hist
+    return era_data["central"], era_data["total"]
 
 
-def apply_others_uncertainty(hist, sample, era, era_samples):
+def get_mc_rate_uncertainties(sample, era, era_samples, xsec_rel_unc, conv_rel_unc, exclude=None):
+    """Collect rate uncertainties for one (era, sample) as (name, value, correlated).
+
+    Correlated entries share one nuisance within an era, which is right for
+    normalizations from a single measurement (ConvSF, WZNjSF) and wrong for
+    per-process cross-section priors, which a datacard writes as separate lnN.
+    """
+    rate_uncs = []
+
+    if xsec_rel_unc > 0.0:
+        rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False))
+
+    if sample in WZ_SAMPLES and exclude != "WZSF":
+        rate_uncs.append(("WZ_rate", 0.20, True))
+
+    if conv_rel_unc > 0.0:
+        rate_uncs.append(("conv_rate", conv_rel_unc, True))
+
     if sample in era_samples[era]["others"]:
-        apply_rate_uncertainty(hist, 0.50)
-    return hist
+        rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False))
+
+    return rate_uncs
 
 
 def build_config(histkey, channel, options):
@@ -264,6 +287,10 @@ def load_plot_objects(channel, histkey, config, options):
     era_mc_hists = {sample: [] for sample in mc_list}
     era_nonprompt_hists = {sample: [] for sample in mc_categories["nonprompt"]}
 
+    # Accumulated per (era, sample) so each named source stays one nuisance within
+    # an era; supplies the uncertainty band instead of stacking per-sample errors.
+    total_builder = CorrelatedTotalBuilder("total_background")
+
     for era in era_list:
         era_data = []
         for sample in era_samples[era]["data"]:
@@ -282,9 +309,12 @@ def load_plot_objects(channel, histkey, config, options):
             hist = load_histogram(file_path, hist_path, era, missing_logger)
             if hist:
                 clip_negative_bins(hist)
+                # One fake-rate measurement per era, shared by every data stream, so
+                # correlated -- and added alongside the statistical error rather than
+                # overwriting it.
                 np_unc = fake_norm.get(flag, {}).get(era, 0.30)
-                for bin_idx in range(hist.GetNcells()):
-                    hist.SetBinError(bin_idx, hist.GetBinContent(bin_idx) * np_unc)
+                total_builder.add(era, sample, hist,
+                                  rate_uncs=[("nonprompt_rate", np_unc, True)])
                 era_nonprompt_hists[sample].append(hist)
 
         all_era_samples = (
@@ -299,10 +329,21 @@ def load_plot_objects(channel, histkey, config, options):
             hist = load_histogram(file_path, hist_path, era, missing_logger)
             if hist:
                 clip_negative_bins(hist)
-                hist = apply_kfactor(hist, sample, get_run_period(era), kfactors)
-                hist = calculate_systematics(hist, era_systematics[era], file_path, args, era, missing_logger)
-                hist = apply_conv_scale_factor(hist, sample, era, era_samples, channel_flag, conv_sf_data)
-                hist = apply_others_uncertainty(hist, sample, era, era_samples)
+                variations = load_systematic_variations(file_path, channel, histkey,
+                                                        era_systematics[era], era,
+                                                        missing_logger, clip=True)
+
+                # Scale central and variations together, K-factor before ConvSF
+                kfactor, xsec_rel_unc = get_kfactor_info(sample, get_run_period(era), kfactors)
+                scale_with_variations(hist, variations, kfactor)
+                conv_scale, conv_rel_unc = get_conv_scale_factor(
+                    sample, era, era_samples, channel_flag, conv_sf_data)
+                scale_with_variations(hist, variations, conv_scale)
+
+                rate_uncs = get_mc_rate_uncertainties(sample, era, era_samples,
+                                                      xsec_rel_unc, conv_rel_unc)
+                total_builder.add(era, sample, hist, variations=variations,
+                                  rate_uncs=rate_uncs)
                 era_mc_hists[sample].append(hist)
 
     data = sum_histograms(era_data_hists, "data_total")
@@ -338,7 +379,8 @@ def load_plot_objects(channel, histkey, config, options):
     }
     config["colors"] = [BKG_COLORS[name] for name in bkgs.keys()]
 
-    return data, bkgs, load_signals(channel, histkey, flag, era_list, options)
+    return (data, bkgs, load_signals(channel, histkey, flag, era_list, options),
+            total_builder.total_hist())
 
 
 def load_signals(channel, histkey, flag, era_list, options):
@@ -404,13 +446,13 @@ def apply_adaptive_binning(config, bkgs, options, histkey):
 
 def render_paper_plot(channel, histkey, options):
     config = build_config(histkey, channel, options)
-    data, bkgs, signals = load_plot_objects(channel, histkey, config, options)
+    data, bkgs, signals, total_syst = load_plot_objects(channel, histkey, config, options)
     adaptive_edges = apply_adaptive_binning(config, bkgs, options, histkey)
 
     output_path = build_output_path(channel, histkey, options)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    plotter = ComparisonCanvas(data, bkgs, config)
+    plotter = ComparisonCanvas(data, bkgs, config, total_syst=total_syst)
     plotter.drawPadUp()
     if signals:
         plotter.drawSignals(signals)

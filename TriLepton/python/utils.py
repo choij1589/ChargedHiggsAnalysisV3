@@ -17,6 +17,22 @@ def apply_rate_uncertainty(hist, rel_unc):
         hist.SetBinError(bin_idx, sqrt(stat_error**2 + rate_error**2))
 
 
+def scale_with_variations(h_central, variations, factor):
+    """Scale a central histogram and its systematic variations by the same factor.
+
+    Args:
+        h_central: ROOT TH1 to scale in place
+        variations: {source: (h_up, h_down)} scaled alongside it
+        factor: Multiplicative scale (K-factor, ConvSF, ...)
+    """
+    if factor == 1.0:
+        return
+    h_central.Scale(factor)
+    for h_up, h_down in variations.values():
+        h_up.Scale(factor)
+        h_down.Scale(factor)
+
+
 def build_sknanoutput_path(workdir, channel, flag, era, sample,
                            is_nonprompt=False, run_syst=False, no_wzsf=False,
                            no_hem_veto=False):

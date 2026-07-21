@@ -36,8 +36,8 @@ sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 
 from plotter import get_era_list
 from HistoUtils import (load_histogram, sum_histograms, load_era_configs, get_sample_lists,
-                        CorrelatedTotalBuilder)
-from utils import build_sknanoutput_path
+                        load_systematic_variations, CorrelatedTotalBuilder)
+from utils import build_sknanoutput_path, scale_with_variations
 
 CATEGORIES = ["nonprompt", "conv", "ttX", "diboson", "others"]
 
@@ -109,16 +109,6 @@ def get_kfactor_info(kfactors, sample, run_period):
     xsec_rel_unc = xsec_err_factor - 1.0
 
     return kfactor, xsec_rel_unc
-
-
-def scale_with_variations(h_central, variations, factor):
-    """Scale a central histogram and its systematic variations by the same factor."""
-    if factor == 1.0:
-        return
-    h_central.Scale(factor)
-    for h_up, h_down in variations.values():
-        h_up.Scale(factor)
-        h_down.Scale(factor)
 
 
 def add_systematic_error(systematics, name, error):
@@ -206,34 +196,6 @@ def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name
         "syst_error": syst_error,
         "total_error": total_error
     }
-
-
-def load_systematic_variations(era, sample, channel, histkey, systematics, flag, debug=False):
-    """Load systematic up/down variations for a sample
-
-    Args:
-        systematics: Dictionary mapping systematic names to [up_variation, down_variation] pairs
-                    e.g., {"L1Prefire": ["L1Prefire_Up", "L1Prefire_Down"]}
-
-    Returns:
-        Dict of {name: (h_up, h_down)}; empty if no systematics found
-    """
-    hSysts = {}
-
-    for syst, sources in systematics.items():
-        syst_up, syst_down = tuple(sources)
-        file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, run_syst=True)
-        hist_path_up = f"{channel}/{syst_up}/{histkey}"
-        hist_path_down = f"{channel}/{syst_down}/{histkey}"
-
-        h_up = load_histogram(file_path, hist_path_up, era)
-        h_down = load_histogram(file_path, hist_path_down, era)
-        if h_up and h_down:
-            hSysts[syst] = (h_up, h_down)
-        elif debug:
-            print(f"[DEBUG]     Missing {syst}: h_up={h_up is not None}, h_down={h_down is not None}")
-
-    return hSysts
 
 
 def validate_era_systematics(era_systematics, era_list):
@@ -533,8 +495,8 @@ def main():
                 # Use era-specific systematics (validated to be consistent across eras)
                 era_systs = ERA_SYSTEMATICS.get(era, {})
                 if era_systs:
-                    hSysts = load_systematic_variations(era, sample, args.channel,
-                                                       HISTKEY, era_systs, FLAG, False)
+                    hSysts = load_systematic_variations(file_path, args.channel, HISTKEY,
+                                                       era_systs, era)
 
             scale_with_variations(h, hSysts, kfactor)
 
