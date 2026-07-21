@@ -562,7 +562,10 @@ class ComparisonCanvas(BaseCanvas):
 
         # Now draw all signals
         n_signals = len(self.signals)
-        use_extended = n_signals > len(PALETTE_LONG)
+        # self.palette is truncated to the number of stacked backgrounds, so it can be
+        # shorter than the signal list when a category is empty -- high jet-multiplicity
+        # bins, for instance. Fall back to PALETTE_LONG rather than indexing past its end.
+        use_extended = n_signals > min(len(PALETTE_LONG), len(self.palette))
         signal_colors = self.config.get("signalColors")
         signal_line_width = self.config.get("signalLineWidth", 2)
         signal_fill = self.config.get("signalFill", False)
