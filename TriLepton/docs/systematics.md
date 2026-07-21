@@ -1,10 +1,11 @@
 # Systematic Uncertainties in TriLepton
 
-How `python/sampleBreakdown.py` (yield tables) and `python/plot.py` /
-`python/paper_plotting.py` (data-MC plots) build their uncertainties.
+How `python/sampleBreakdown.py` (yield tables) and `python/plot.py`,
+`python/paper_plotting.py`, `python/plotNMinusOne.py` (plots) build their
+uncertainties.
 
-Both go through `CorrelatedTotalBuilder` (`Common/Tools/HistoUtils.py:465`), so the
-two agree by construction. Numbers here are prefit only — the full correlation model
+All four go through `CorrelatedTotalBuilder` (`Common/Tools/HistoUtils.py:465`), so
+they agree by construction. Numbers here are prefit only — the full correlation model
 belongs to the Combine step.
 
 ## Where sources come from
@@ -173,6 +174,12 @@ binning and overflow handling as the stack, which matters for the adaptive binni
   encoding a difference. Combine resolves it; the prefit table does not.
 - **`FakeNorm.json` has no `Run2E1Mu` block**, so every `TTZ2E1Mu` run falls back to a
   hardcoded 30% with a warning (`sampleBreakdown.py:251`), rather than failing fast.
-- **`plotNMinusOne.py`, `plotCompareHEMVeto.py` and `DiLepton/`** still fold
-  systematics into per-sample bin errors via `HistoUtils.calculate_systematics`
-  (`HistoUtils.py:113`) and so retain the per-process quadrature treatment.
+- **N-1 plots have no shape component.** The analyzer fills `NMinusOne/*` under
+  `Central` only — `JetEn_Up/NMinusOne/...` and friends do not exist — so
+  `plotNMinusOne.py` can apply rate uncertainties but not shape variations, and logs a
+  warning saying so. The `baseline/*` keys are the exception: they map to ordinary
+  histograms, get the full treatment, and reproduce `plot.py` exactly. Filling N-1
+  histograms for each systematic in the analyzer would close this.
+- **`plotCompareHEMVeto.py` and `DiLepton/`** still fold systematics into per-sample
+  bin errors via `HistoUtils.calculate_systematics` (`HistoUtils.py:113`) and so retain
+  the per-process quadrature treatment.
