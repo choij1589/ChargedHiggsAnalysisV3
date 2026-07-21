@@ -144,6 +144,14 @@ Best GA model output:
 GAOptim/{channel}/{signal}/fold-4/best_model/model.pt
 ```
 
+Run the five-model comparison (BDT/DNN/DNN_MD/ParticleNet/ParticleNet_MD, see `docs/ModelComparison.md`):
+
+```bash
+python python/runModelComparison.py --signal MHc130_MA90
+python python/runModelComparison.py --signal MHc130_MA90 --plots-only   # plots from cached predictions
+python python/runModelComparison.py --signal MHc130_MA90 --pn-only      # re-export PN predictions + plots
+```
+
 ## Configuration
 
 Primary configs:
@@ -151,6 +159,8 @@ Primary configs:
 - `configs/SglConfig.json`: single-model and lambda-sweep training defaults.
 - `configs/GAConfig.json`: GA search space and GA training defaults.
 - `configs/histkeys_validate.json`: observables for dataset validation.
+- `ModelComparison/configs/ParticleNet/default_config.json`: canonical comparison ParticleNet (conv 512-256-256, edge dropout 0, initLR 5e-4, CyclicLR, weighted CE).
+- `ModelComparison/configs/ParticleNet_MD/default_config.json`: same architecture with DisCo loss, `disco_lambda 0.1`.
 
 Current `SglConfig.json` defaults include:
 
@@ -238,6 +248,7 @@ Entry points:
 - `python/validateDatasets.py`: validation histogram fill and plot phases.
 - `python/dibosonRankPromote.py`: diboson promotion tables.
 - `python/nonpromptPromotion.py`: nonprompt fake-rate validation.
+- `python/runModelComparison.py`: five-model comparison driver (BDT/DNN/DNN_MD/ParticleNet/ParticleNet_MD).
 
 Library modules:
 
@@ -276,6 +287,9 @@ Common output directories:
 - `LambdaSweep/{channel}/{signal}/fold-4/`: lambda-sweep training outputs.
 - `GAOptim/{channel}/{signal}/fold-4/GA-iter{N}/`: GA iteration outputs.
 - `GAOptim/{channel}/{signal}/fold-4/best_model/`: best GA model and copied diagnostics.
+- `ModelComparison/{model}/Combined/{signal}/fold-4/`: comparison trainings and cached predictions.
+- `ModelComparison/plots/{signal}/`: comparison plots and summaries (`decorrelation/` subdirectory for the decorrelation suite).
+- `BackUp/ModelComparison/`: retired comparison variants (GA-based references, LR/scheduler scan).
 - `logs/`: dataset stats, sweep logs, GA logs, validation logs.
 - `TrainTestLR/`: train/test likelihood-ratio outputs.
 
@@ -298,5 +312,6 @@ Some scripts also create `results/`, `plots/`, or validation subdirectories as n
 - `docs/STEP1_PREPROCESSING.md`: data preparation, augmentation, validation.
 - `docs/STEP2-DECORRELATION.md`: lambda/decorrelation workflow.
 - `docs/STEP3_HYPERPARAM.md`: GA optimization details.
+- `docs/ModelComparison.md`: five-model comparison workflow and canonical ParticleNet configuration.
 - `docs/BOARD.md`: project task/status notes.
 - `DataAugment/*.md`: sample-specific augmentation and dataset notes.

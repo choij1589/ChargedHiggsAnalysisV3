@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Run the masked OS-dimuon-pT BDT/DNN/ParticleNet comparison.
 
-The comparison retrains the tabular BDT and DNN on a shared cache where
-os_dimu1_pt and os_dimu2_pt are removed. ParticleNet is kept as the nominal
-graph-model reference because its standard input has no explicit pair-pT column.
+All five models (BDT, DNN, DNN_MD, ParticleNet, ParticleNet_MD) are trained by
+this driver on a shared cache where os_dimu1_pt and os_dimu2_pt are removed
+from the tabular features. Both ParticleNet variants use the canonical
+conv 512-256-256 / edge-dropout 0 / initLR 5e-4 / CyclicLR configuration
+stored under ModelComparison/configs/ParticleNet[_MD]/default_config.json;
+the MD variant adds DisCo decorrelation with lambda 0.1.
 """
 
 from __future__ import annotations
 
 import argparse
-import copy
 import csv
 import json
 import os
@@ -31,7 +33,6 @@ SIGNALS = ["MHc130_MA90", "MHc160_MA85", "MHc100_MA95"]
 MASKED_COLUMNS = ["os_dimu1_pt", "os_dimu2_pt"]
 COMPARISON_ROOT = bdt.PARTICLENETMD_DIR / "ModelComparison"
 MODELS = ["BDT", "DNN", "DNN_MD", "ParticleNet", "ParticleNet_MD"]
-DECORRELATION_MODELS = ["BDT", "DNN", "DNN_MD", "ParticleNet_best", "ParticleNet_best_MD"]
 SPLITS = ["train", "test"]
 PLOT_LINE_WIDTH = 2
 MODEL_REGISTRY = {
@@ -75,23 +76,12 @@ MODEL_REGISTRY = {
         "display": "ParticleNet MD",
         "tag": "ParticleNet_MD",
     },
-    "ParticleNet_best": {
-        "source_dir": "ParticleNet_512_256_256_lr5e-4_CyclicLR",
-        "score_key": "pn_scores",
-        "lr_key": "pn_lr",
-        "color": "#f89c20",
-        "display": "ParticleNet",
-        "tag": "ParticleNet",
-    },
-    "ParticleNet_best_MD": {
-        "source_dir": "ParticleNet_512_256_256_lr5e-4_CyclicLR_MD",
-        "score_key": "pn_scores",
-        "lr_key": "pn_lr",
-        "color": "#7a21dd",
-        "display": "ParticleNet MD",
-        "tag": "ParticleNet_MD",
-    },
 }
+PN_TRAIN_CONFIGS = {
+    "ParticleNet": COMPARISON_ROOT / "configs" / "ParticleNet" / "default_config.json",
+    "ParticleNet_MD": COMPARISON_ROOT / "configs" / "ParticleNet_MD" / "default_config.json",
+}
+PN_LOSS_TAGS = {"ParticleNet": "weighted_ce", "ParticleNet_MD": "discoL"}
 MODEL_SCORE_KEYS = {key: cfg["score_key"] for key, cfg in MODEL_REGISTRY.items()}
 MODEL_LR_KEYS = {key: cfg["lr_key"] for key, cfg in MODEL_REGISTRY.items()}
 MODEL_ROOT_COLORS = {key: cfg["color"] for key, cfg in MODEL_REGISTRY.items()}
@@ -264,44 +254,13 @@ def run_tabular_training(args, signal: str, table_dir: Path, model: str) -> None
     run_command(cmd)
 
 
-def write_particlenet_weighted_ce_config(args, signal: str) -> Path:
-    base_config = copy.deepcopy(load_sgl_config(args.config).config)
-    ga_path = bdt.PARTICLENETMD_DIR / "GAOptim" / "Combined" / signal / "fold-4" / "ga_optimization_results.json"
-    if not ga_path.exists():
-        raise RuntimeError(f"GA best config is missing: {ga_path}")
-    decoded = load_json(ga_path)["best_chromosome"]["decoded"]
-
-    ga_config_path = bdt.PARTICLENETMD_DIR / "configs" / "GAConfig.json"
-    ga_config = load_json(ga_config_path) if ga_config_path.exists() else {}
-    ga_training = ga_config.get("training_parameters", {})
-
-    train_params = base_config["training_parameters"]
-    for key in ["max_epochs", "batch_size", "dropout_p", "early_stopping_patience", "train_folds", "valid_folds"]:
-        if key in ga_training:
-            train_params[key] = ga_training[key]
-    train_params["loss_type"] = "weighted_ce"
-    train_params["test_folds"] = train_params.get("test_folds", [4])
-
-    base_config["model_config"]["nNodes"] = int(decoded["nNodes"])
-    base_config["optimization_config"]["optimizer"] = decoded["optimizer"]
-    base_config["optimization_config"]["initLR"] = float(decoded["initLR"])
-    base_config["optimization_config"]["weight_decay"] = float(decoded["weight_decay"])
-    base_config["optimization_config"]["scheduler"] = decoded["scheduler"]
-    base_config["disco_parameters"]["disco_lambda"] = 0.0
-    base_config["system_config"]["device"] = args.device
-    base_config["output_config"]["results_dir"] = "ModelComparison/ParticleNet"
-    base_config["description"] = f"ModelComparison no-decorrelation ParticleNet config for {signal}"
-
-    out_dir = COMPARISON_ROOT / "configs" / "ParticleNet"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{signal}_weighted_ce_best_config.json"
-    with open(out_path, "w") as handle:
-        json.dump(base_config, handle, indent=2)
-    return out_path
-
-
-def run_particlenet_training(args, signal: str) -> None:
-    config_path = write_particlenet_weighted_ce_config(args, signal)
+def run_particlenet_training(args, signal: str, model: str) -> None:
+    config_path = PN_TRAIN_CONFIGS[model]
+    if not config_path.exists():
+        raise RuntimeError(f"Missing canonical ParticleNet config: {config_path}")
+    if args.device != "cuda":
+        print(f"  Warning: {model} training device comes from {config_path} "
+              f"(system_config.device), not --device {args.device}", flush=True)
     cmd = [
         sys.executable,
         "python/trainMultiClass.py",
@@ -314,16 +273,18 @@ def run_particlenet_training(args, signal: str) -> None:
     run_command(cmd)
 
 
-def find_particlenet_weighted_ce_artifacts(signal: str) -> Tuple[Path, Path, Path]:
-    out_dir = COMPARISON_ROOT / "ParticleNet" / "Combined" / signal / "fold-4"
-    model_paths = sorted((out_dir / "models").glob("*-weighted_ce-*.pt"))
-    if not model_paths:
-        raise RuntimeError(f"No weighted-CE ParticleNet checkpoint found under {out_dir / 'models'}")
-    model_path = model_paths[-1]
-    model_name = model_path.stem
-    json_path = out_dir / f"{model_name}.json"
+def find_particlenet_artifacts(signal: str, model: str) -> Tuple[Path, Path, Path]:
+    out_dir = COMPARISON_ROOT / model_source_dir(model) / "Combined" / signal / "fold-4"
+    tag = PN_LOSS_TAGS[model]
+    candidates = [path for path in (out_dir / "models").glob("*.pt") if tag in path.name]
+    if not candidates:
+        candidates = list((out_dir / "models").glob("*.pt"))
+    if not candidates:
+        raise RuntimeError(f"No ParticleNet checkpoint found under {out_dir / 'models'}")
+    model_path = max(candidates, key=lambda path: path.stat().st_mtime)
+    json_path = out_dir / f"{model_path.stem}.json"
     if not json_path.exists():
-        raise RuntimeError(f"Missing ParticleNet weighted-CE metadata: {json_path}")
+        raise RuntimeError(f"Missing ParticleNet metadata: {json_path}")
     return out_dir, model_path, json_path
 
 
@@ -363,6 +324,12 @@ def evaluate_particle_net_artifacts(config, signal: str, fold_list: Sequence[int
 
 
 def save_particlenet_reference(args, signal: str, table_dir: Path, model: str) -> None:
+    if model not in PN_TRAIN_CONFIGS:
+        raise ValueError(f"Unsupported ParticleNet export model: {model}")
+    if args.pilot:
+        print(f"  Skipping {model} reference export in pilot mode "
+              "(trainMultiClass wrote pilot outputs, not fold-4 checkpoints)", flush=True)
+        return
     config = load_sgl_config(args.config)
     folds, caps, pilot_events_per_class = split_settings(args, config)
     out_dir = COMPARISON_ROOT / model / "Combined" / signal / "fold-4"
@@ -370,17 +337,13 @@ def save_particlenet_reference(args, signal: str, table_dir: Path, model: str) -
 
     thresholds = bdt.load_thresholds(signal)
     summary = {"signal": signal, "backend": model, "channel": "Combined"}
-    if model == "ParticleNet":
-        _train_dir, model_path, info_path = find_particlenet_weighted_ce_artifacts(signal)
-        summary["source_model"] = str(model_path)
-        summary["source_metadata"] = str(info_path)
-    elif model == "ParticleNet_MD":
-        model_path = bdt.PARTICLENETMD_DIR / "GAOptim" / "Combined" / signal / "fold-4" / "best_model" / "model.pt"
-        info_path = bdt.PARTICLENETMD_DIR / "GAOptim" / "Combined" / signal / "fold-4" / "best_model" / "model_info.json"
-        summary["source_model"] = str(model_path)
-        summary["source_metadata"] = str(info_path)
-    else:
-        raise ValueError(f"Unsupported ParticleNet export model: {model}")
+    _train_dir, model_path, info_path = find_particlenet_artifacts(signal, model)
+    summary["source_model"] = str(model_path)
+    summary["source_metadata"] = str(info_path)
+    hyper = load_json(info_path).get("hyperparameters", {})
+    summary["loss_type"] = hyper.get("loss_type", PN_LOSS_TAGS[model])
+    summary["disco_lambda"] = float(hyper.get("disco_lambda") or 0.0)
+    summary["edge_dropout_p"] = float(hyper.get("edge_dropout_p") or 0.0)
 
     for split in ["train", "test"]:
         table_path = table_dir / f"{split}_{bdt.cache_suffix(caps[split], pilot_events_per_class)}.npz"
@@ -417,9 +380,6 @@ def save_particlenet_reference(args, signal: str, table_dir: Path, model: str) -
             "average_auc": avg_auc,
             "mass_correlation": bdt.mass_correlation_metrics(scores, table),
         }
-    summary["loss_type"] = "weighted_ce" if model == "ParticleNet" else "disco"
-    summary["disco_lambda"] = 0.0 if model == "ParticleNet" else 0.1
-
     with open(out_dir / "summary.json", "w") as handle:
         json.dump(summary, handle, indent=2)
 
@@ -1032,96 +992,13 @@ def peak_metrics(pred: Dict[str, np.ndarray], model: str, mass_name: str = "mass
     }
 
 
-def plot_nominal_shift(signal: str, model: str, masked_pred: Dict[str, np.ndarray], out_dir: Path) -> Optional[Dict[str, float]]:
-    nominal_path = bdt.PARTICLENETMD_DIR / model / "Combined" / signal / "fold-4" / "predictions_test.npz"
-    if not nominal_path.exists():
-        return None
-    nominal = load_table(nominal_path)
-    nominal_key = MODEL_LR_KEYS[model]
-    if nominal_key not in nominal or len(nominal[nominal_key]) != len(masked_pred["y"]):
-        return None
-    if not np.array_equal(nominal["y"], masked_pred["y"]):
-        return None
-
-    require_root_cmsstyle()
-    ROOT = bdt.ROOT
-    CMS = bdt.CMS
-
-    masked_lr = model_lr(masked_pred, model)
-    delta = masked_lr - nominal[nominal_key]
-    weights = np.abs(masked_pred["weight"])
-
-    h_delta = bdt.make_root_hist(
-        f"h_lr_shift_{signal}_{model}",
-        delta,
-        weights,
-        60,
-        -1.0,
-        1.0,
-        use_abs_weight=False,
-    )
-    h_delta.SetLineColor(model_root_color(model))
-    h_delta.SetLineWidth(PLOT_LINE_WIDTH)
-    h_delta.SetMarkerSize(0)
-    canvas = CMS.cmsCanvas(
-        "",
-        -1.0,
-        1.0,
-        0.0,
-        max(0.01, h_delta.GetMaximum() * 1.45),
-        "Masked LR #minus nominal LR",
-        "Weighted events",
-        square=True,
-        iPos=0,
-        extraSpace=0.0,
-    )
-    canvas.SetGrid()
-    CMS.cmsObjectDraw(h_delta, "hist", LineColor=h_delta.GetLineColor(), LineWidth=PLOT_LINE_WIDTH)
-    CMS.drawText(f"{signal} {model}", posX=0.20, posY=0.76, font=62, align=0, size=0.034)
-    canvas._keepalive = [h_delta]
-    bdt.save_root_canvas(canvas, out_dir / f"lr_shift_{model}_delta.png")
-
-    h2 = ROOT.TH2D(f"h_lr_shift2d_{signal}_{model}", "", 50, 0.0, 1.0, 50, 0.0, 1.0)
-    h2.SetDirectory(0)
-    finite = np.isfinite(nominal[nominal_key]) & np.isfinite(masked_lr) & np.isfinite(weights)
-    for xval, yval, weight in zip(nominal[nominal_key][finite], masked_lr[finite], weights[finite]):
-        h2.Fill(float(xval), float(yval), float(weight))
-    canvas2 = CMS.cmsCanvas(
-        "",
-        0.0,
-        1.0,
-        0.0,
-        1.0,
-        "Nominal LR",
-        "Masked LR",
-        square=True,
-        iPos=0,
-        extraSpace=0.0,
-    )
-    canvas2.SetGrid()
-    CMS.cmsObjectDraw(h2, "COLZ")
-    diag = ROOT.TLine(0.0, 0.0, 1.0, 1.0)
-    diag.SetLineStyle(ROOT.kDashed)
-    diag.SetLineColor(ROOT.kGray + 2)
-    diag.SetLineWidth(PLOT_LINE_WIDTH)
-    diag.Draw()
-    CMS.drawText(f"{signal} {model}", posX=0.20, posY=0.76, font=62, align=0, size=0.034)
-    canvas2._keepalive = [h2, diag]
-    bdt.save_root_canvas(canvas2, out_dir / f"lr_shift_{model}_scatter.png")
-    return {
-        "mean_delta": float(np.average(delta, weights=np.abs(masked_pred["weight"]))),
-        "rms_delta": float(np.sqrt(np.average(delta * delta, weights=np.abs(masked_pred["weight"])))),
-        "max_abs_delta": float(np.max(np.abs(delta))),
-    }
-
-
 def make_comparison_plots(signal: str) -> None:
     out_dir = COMPARISON_ROOT / "plots" / signal
     out_dir.mkdir(parents=True, exist_ok=True)
-    preds = {
-        model: {split: load_prediction(signal, model, split) for split in SPLITS}
-        for model in MODELS
-    }
+    preds = load_available_predictions(signal, MODELS)
+    if not preds:
+        print(f"  Warning: no cached predictions available for comparison plots in {signal}", flush=True)
+        return
 
     roc_summary = plot_roc_suite(signal, preds, out_dir)
     plot_lr_distributions(signal, preds, out_dir)
@@ -1129,7 +1006,6 @@ def make_comparison_plots(signal: str) -> None:
     plot_mass_sculpting(signal, preds, out_dir, "mass2")
 
     rows: List[Dict[str, object]] = []
-    shift_summary: Dict[str, object] = {}
     for model, split_preds in preds.items():
         pred = split_preds["test"]
         scores = model_scores(pred, model)
@@ -1146,23 +1022,20 @@ def make_comparison_plots(signal: str) -> None:
         }
         metrics.update(peak_metrics(pred, model))
         rows.append(metrics)
-        if model == "BDT":
-            shift = plot_nominal_shift(signal, model, pred, out_dir)
-            if shift is not None:
-                shift_summary[model] = shift
 
-    with open(out_dir / "summary.csv", "w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
+    if rows:
+        with open(out_dir / "summary.csv", "w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
     with open(out_dir / "summary.json", "w") as handle:
-        json.dump({"roc": roc_summary, "metrics": rows, "nominal_to_masked_shift": shift_summary}, handle, indent=2)
+        json.dump({"roc": roc_summary, "metrics": rows}, handle, indent=2)
 
 
 def make_decorrelation_plots(signal: str) -> None:
     out_dir = COMPARISON_ROOT / "plots" / signal / "decorrelation"
     out_dir.mkdir(parents=True, exist_ok=True)
-    preds = load_available_predictions(signal, DECORRELATION_MODELS)
+    preds = load_available_predictions(signal, MODELS)
     if not preds:
         print(f"  Warning: no cached predictions available for decorrelation plots in {signal}", flush=True)
         return
@@ -1220,10 +1093,12 @@ def process_signal(args, signal: str) -> None:
             run_tabular_training(args, signal, table_dir, "BDT")
             run_tabular_training(args, signal, table_dir, "DNN")
             run_tabular_training(args, signal, table_dir, "DNN_MD")
-            run_particlenet_training(args, signal)
+            run_particlenet_training(args, signal, "ParticleNet")
+            run_particlenet_training(args, signal, "ParticleNet_MD")
         save_particlenet_reference(args, signal, table_dir, "ParticleNet")
         save_particlenet_reference(args, signal, table_dir, "ParticleNet_MD")
     make_comparison_plots(signal)
+    make_decorrelation_plots(signal)
     print(f"=== Done: {COMPARISON_ROOT / 'plots' / signal} ===", flush=True)
 
 
@@ -1234,7 +1109,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", default=None, help="Path to SglConfig JSON")
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--pilot", action="store_true")
+    parser.add_argument("--pilot", action="store_true",
+                        help="Smoke-test trainings on reduced data; PN reference export is skipped")
     parser.add_argument("--pilot-events-per-class", type=int, default=250)
     parser.add_argument("--max-events-per-class", type=int, default=None)
     parser.add_argument("--cap-test", action="store_true")
@@ -1247,7 +1123,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--plots-only", action="store_true", help="Only rebuild comparison plots from existing predictions")
     parser.add_argument("--decorrelation-only", action="store_true",
                         help="Only rebuild architecture decorrelation plots from existing predictions")
-    parser.add_argument("--pn-only", action="store_true", help="Only refresh ParticleNet reference and plots")
+    parser.add_argument("--pn-only", action="store_true",
+                        help="Skip training; re-export ParticleNet/ParticleNet_MD predictions from existing "
+                             "checkpoints and rebuild plots")
     parser.add_argument("--cache-only", action="store_true", help="Only build/validate masked tabular caches")
     args = parser.parse_args()
     if not args.all and not args.signal:

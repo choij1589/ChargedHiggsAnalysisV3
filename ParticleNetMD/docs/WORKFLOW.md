@@ -53,6 +53,10 @@ sbatch submit_sweep.slurm
 
 # 8. Summarize GA loss and select best model
 python python/summarizeGALoss.py --signal MHc130_MA90 --channel Combined
+
+# 9. Five-model comparison (BDT/DNN/DNN_MD/ParticleNet/ParticleNet_MD)
+# See ModelComparison.md for details
+python python/runModelComparison.py --signal MHc130_MA90
 ```
 
 ---

@@ -1,0 +1,54 @@
+{
+  "signal": "MHc100_MA95",
+  "backend": "ParticleNet_MD",
+  "channel": "Combined",
+  "source_model": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/ModelComparison/ParticleNet_MD/Combined/MHc100_MA95/fold-4/models/ParticleNet-conv512x256x256-Adam-initLR0p0005-decay0p00003-CyclicLR-discoL0p1-edgeDrop0-3grp-nonprompt-diboson-ttX.pt",
+  "source_metadata": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/ModelComparison/ParticleNet_MD/Combined/MHc100_MA95/fold-4/ParticleNet-conv512x256x256-Adam-initLR0p0005-decay0p00003-CyclicLR-discoL0p1-edgeDrop0-3grp-nonprompt-diboson-ttX.json",
+  "loss_type": "disco",
+  "disco_lambda": 0.1,
+  "edge_dropout_p": 0.0,
+  "train": {
+    "auc": {
+      "nonprompt": 0.8911904157035774,
+      "diboson": 0.947144745866119,
+      "ttX": 0.9200449617533204
+    },
+    "average_auc": 0.9194600411076722,
+    "mass_correlation": {
+      "mass1": {
+        "disco": 0.15071958303451538,
+        "pearson_absw": 0.05224025140831688,
+        "spearman_absw": -0.0027724011560004316,
+        "n_valid": 600000
+      },
+      "mass2": {
+        "disco": 0.1051323190331459,
+        "pearson_absw": -0.03506866446353943,
+        "spearman_absw": -7.506961133104645e-05,
+        "n_valid": 231397
+      }
+    }
+  },
+  "test": {
+    "auc": {
+      "nonprompt": 0.8895818994002218,
+      "diboson": 0.9475079124203902,
+      "ttX": 0.9179714118003218
+    },
+    "average_auc": 0.9183537412069779,
+    "mass_correlation": {
+      "mass1": {
+        "disco": 0.13969121873378754,
+        "pearson_absw": 0.051155020924472154,
+        "spearman_absw": 0.0008844258680439748,
+        "n_valid": 546366
+      },
+      "mass2": {
+        "disco": 0.07029697299003601,
+        "pearson_absw": -0.031107221919955123,
+        "spearman_absw": 0.0003282420980987139,
+        "n_valid": 217100
+      }
+    }
+  }
+}
