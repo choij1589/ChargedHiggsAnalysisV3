@@ -1,0 +1,31 @@
+{
+  "model_name": "ParametricPN-MHc100-MA85x90x95-nNodes256-Adam-initLR0p0001-decay0p00003-ReduceLROnPlateau-discoL0p1-3grp-nonprompt-diboson-ttX",
+  "model_type": "ParticleNet",
+  "num_parameters": 1071153,
+  "trainable_parameters": 1071153,
+  "num_classes": 4,
+  "input_features": {
+    "node_features": 9,
+    "graph_features": 9
+  },
+  "architecture": {
+    "hidden_nodes": 256,
+    "conv_channels": null,
+    "dropout_p": 0.4,
+    "edge_dropout_p": 0.4
+  },
+  "training_mode": "grouped",
+  "parametric": {
+    "enabled": true,
+    "mhc": 100,
+    "ma_values": [
+      85,
+      90,
+      95
+    ],
+    "ma_center": 90.0,
+    "ma_scale": 10.0,
+    "signal_mass_balance": "event_count",
+    "background_hypotheses": "duplicate_all"
+  }
+}

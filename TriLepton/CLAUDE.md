@@ -51,6 +51,8 @@ bash scripts/parseCvSFToCommonData.sh  # Copy to Common/Data/ConvSF
 TriLepton/
 ├── doThis.sh                      # Main: drawPlots for all eras/channels
 ├── doSampleBreakdown.sh           # Event yield extraction with errors
+├── docs/
+│   └── systematics.md             # Systematic treatment for plot.py + sampleBreakdown.py
 ├── configs/
 │   ├── histkeys.json              # 100+ kinematic histogram definitions
 │   ├── histkeys.score.json        # ML score distributions per signal mass point
@@ -170,3 +172,7 @@ Histogram structure: `{Channel}/[Systematic]/[Subpath]`
 **ConvSF must be distributed** before TriLepton plots accurately reflect conversion backgrounds. Run `parseCvSFToCommonData.sh` after measuring ConvSF.
 
 **Missing `--onZ` for on-Z selections:** The `--onZ` flag in `sampleBreakdown.py` only applies to SR and ZFake channels; ZG/WZ always use `ZCand/mass`.
+
+**Systematics are correlated within an era.** `plot.py`, `paper_plotting.py` and `sampleBreakdown.py` accumulate contributions into `HistoUtils.CorrelatedTotalBuilder`, which sums shifted histograms before enveloping so a shared source stays one nuisance. Histograms passed in must have **pure statistical** bin errors — folding a rate uncertainty into them double-counts. See `docs/systematics.md`.
+
+**WZ normalization differs by run.** Run2 uses the cross-section error from `KFactors.json`; Run3 uses the measured `WZNjetsSF` shape variation. There is no flat `WZ_rate`, and `ZZTo4L_powheg` is not a WZNjSF target.

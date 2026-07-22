@@ -340,7 +340,25 @@ def build_ratio_histogram(numerator, denominator, name=None):
 
 
 class ComparisonCanvas(BaseCanvas):
-    def __init__(self, incl, hists, config):
+    def __init__(self, incl, hists, config, total_syst=None):
+        """
+        Args:
+            incl: Inclusive (data) histogram, drawn on top
+            hists: Dict of histograms to stack
+            total_syst: Optional histogram supplying the uncertainty band's bin
+                errors. Stacking the inputs adds their bin errors in quadrature,
+                which treats each systematic as independent per process; pass a
+                histogram built with HistoUtils.CorrelatedTotalBuilder to keep
+                shared sources correlated. Only the bin errors are taken -- the
+                bin contents still come from the stack, so the band cannot drift
+                away from the histograms actually drawn.
+
+                Note that rebinning still merges bin errors in quadrature, which
+                understates a source correlated across the merged bins. That
+                limitation predates this argument and applies equally to the
+                stacked inputs; it only affects rebinned plots, not the yields
+                reported by TriLepton/python/sampleBreakdown.py.
+        """
         super().__init__()
         self.config = config
 
@@ -354,11 +372,15 @@ class ComparisonCanvas(BaseCanvas):
         # Apply binning (fixed-width or variable)
         self.incl = self._apply_binning(self.incl, config)
         self.hists = self._apply_binning(self.hists, config)
+        if total_syst is not None:
+            total_syst = self._apply_binning(total_syst, config)
 
         # Apply overflow handling if requested (NEW FEATURE for ComparisonCanvas)
         self._set_overflow(self.incl, config)
         for hist in self.hists.values():
             self._set_overflow(hist, config)
+        if total_syst is not None:
+            self._set_overflow(total_syst, config)
 
         # Create systematics histogram (sum of all backgrounds)
         self.systematics = None
@@ -367,6 +389,15 @@ class ComparisonCanvas(BaseCanvas):
                 self.systematics = hist.Clone("syst")
             else:
                 self.systematics.Add(hist)
+
+        # Adopt correlated bin errors, keeping the stacked contents
+        if total_syst is not None and self.systematics is not None:
+            if total_syst.GetNbinsX() != self.systematics.GetNbinsX():
+                raise ValueError(
+                    f"total_syst has {total_syst.GetNbinsX()} bins but the stack has "
+                    f"{self.systematics.GetNbinsX()}; they must share a binning")
+            for ibin in range(self.systematics.GetNcells()):
+                self.systematics.SetBinError(ibin, total_syst.GetBinError(ibin))
 
         # Calculate chi^2 if requested (before blind mode replaces data)
         self.chi2_result = None
@@ -531,7 +562,10 @@ class ComparisonCanvas(BaseCanvas):
 
         # Now draw all signals
         n_signals = len(self.signals)
-        use_extended = n_signals > len(PALETTE_LONG)
+        # self.palette is truncated to the number of stacked backgrounds, so it can be
+        # shorter than the signal list when a category is empty -- high jet-multiplicity
+        # bins, for instance. Fall back to PALETTE_LONG rather than indexing past its end.
+        use_extended = n_signals > min(len(PALETTE_LONG), len(self.palette))
         signal_colors = self.config.get("signalColors")
         signal_line_width = self.config.get("signalLineWidth", 2)
         signal_fill = self.config.get("signalFill", False)

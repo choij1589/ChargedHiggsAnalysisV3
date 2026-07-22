@@ -26,13 +26,20 @@ from ROOT import gROOT
 
 gROOT.SetBatch(True)
 
+# Flat normalization uncertainty for the "others" category. These samples are absent
+# from KFactors.json and otherwise carry no theory norm (see plot.py:apply_others_uncertainty).
+OTHERS_XSEC_UNC = 0.50
+
 # Add Common/Tools to path
 WORKDIR = os.environ.get("WORKDIR", os.getcwd())
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 
 from plotter import get_era_list
-from HistoUtils import load_histogram, sum_histograms, load_era_configs, get_sample_lists
-from utils import build_sknanoutput_path
+from HistoUtils import (load_histogram, sum_histograms, load_era_configs, get_sample_lists,
+                        load_systematic_variations, CorrelatedTotalBuilder)
+from utils import build_sknanoutput_path, scale_with_variations
+
+CATEGORIES = ["nonprompt", "conv", "ttX", "diboson", "others"]
 
 
 def load_signal_config():
@@ -102,22 +109,6 @@ def get_kfactor_info(kfactors, sample, run_period):
     xsec_rel_unc = xsec_err_factor - 1.0
 
     return kfactor, xsec_rel_unc
-
-
-def get_histogram_events(hist):
-    """Return histogram yield including underflow and overflow."""
-    if hist is None:
-        return 0.0
-    return hist.Integral(0, hist.GetNbinsX() + 1)
-
-
-def combine_rate_uncertainties(yield_uncertainties):
-    """Convert per-era yield/fraction pairs into one relative rate uncertainty."""
-    total_yield = sum(yield_value for yield_value, _ in yield_uncertainties)
-    if total_yield == 0.0:
-        return 0.0
-    abs_unc_sq = sum((yield_value * rel_unc)**2 for yield_value, rel_unc in yield_uncertainties)
-    return sqrt(abs_unc_sq) / abs(total_yield)
 
 
 def add_systematic_error(systematics, name, error):
@@ -207,34 +198,6 @@ def extract_stat_syst_errors(h_central, hSysts=None, rate_unc=0.0, rate_unc_name
     }
 
 
-def load_systematic_variations(era, sample, channel, histkey, systematics, flag, debug=False):
-    """Load systematic up/down variations for a sample
-
-    Args:
-        systematics: Dictionary mapping systematic names to [up_variation, down_variation] pairs
-                    e.g., {"L1Prefire": ["L1Prefire_Up", "L1Prefire_Down"]}
-
-    Returns:
-        List of (name, h_up, h_down) tuples, or None if no systematics found
-    """
-    hSysts = []
-
-    for syst, sources in systematics.items():
-        syst_up, syst_down = tuple(sources)
-        file_path = build_sknanoutput_path(WORKDIR, channel, flag, era, sample, run_syst=True)
-        hist_path_up = f"{channel}/{syst_up}/{histkey}"
-        hist_path_down = f"{channel}/{syst_down}/{histkey}"
-
-        h_up = load_histogram(file_path, hist_path_up, era)
-        h_down = load_histogram(file_path, hist_path_down, era)
-        if h_up and h_down:
-            hSysts.append((syst, h_up, h_down))
-        elif debug:
-            print(f"[DEBUG]     Missing {syst}: h_up={h_up is not None}, h_down={h_down is not None}")
-
-    return hSysts if hSysts else None
-
-
 def validate_era_systematics(era_systematics, era_list):
     """
     Validate that all eras in era_list have identical systematic sources.
@@ -274,45 +237,6 @@ def validate_era_systematics(era_systematics, era_list):
             if extra_in_era:
                 error_msg += f"  Extra in {era}: {sorted(extra_in_era)}\n"
             raise ValueError(error_msg)
-
-
-def sum_sample_errors(error_dicts):
-    """
-    Sum errors from multiple samples in quadrature (for category totals).
-    Assumes samples are independent.
-
-    Args:
-        error_dicts: List of dicts with events, stat_error, systematics, syst_error, total_error
-
-    Returns:
-        dict with merged events and errors, including per-systematic breakdown
-    """
-    total_events = sum(d["events"] for d in error_dicts)
-    total_stat = sqrt(sum(d["stat_error"]**2 for d in error_dicts))
-
-    # Merge systematic uncertainties by source
-    # Collect all unique systematic names
-    all_syst_names = set()
-    for d in error_dicts:
-        all_syst_names.update(d["systematics"].keys())
-
-    # Sum each systematic in quadrature across samples
-    merged_systematics = {}
-    for syst_name in all_syst_names:
-        syst_squared = sum(d["systematics"].get(syst_name, 0.0)**2 for d in error_dicts)
-        merged_systematics[syst_name] = sqrt(syst_squared)
-
-    # Calculate total systematic error
-    total_syst = sqrt(sum(v**2 for v in merged_systematics.values()))
-    total_error = sqrt(total_stat**2 + total_syst**2)
-
-    return {
-        "events": total_events,
-        "stat_error": total_stat,
-        "systematics": merged_systematics,
-        "syst_error": total_syst,
-        "total_error": total_error
-    }
 
 
 def load_conv_sf_data():
@@ -446,17 +370,25 @@ def main():
     prompt_mc_categories = ["conv", "ttX", "diboson", "others"]
     prompt_mc_list = sum([MC_CATEGORIES[category] for category in prompt_mc_categories], [])
 
-    # Determine WZ sample name based on era (Run2 vs Run3)
     run_period = get_run_period(args.era)
-    if run_period == "Run2":
-        WZ_SAMPLES = ["WZTo3LNu_amcatnlo", "ZZTo4L_powheg"]
-    elif run_period == "Run3":
-        WZ_SAMPLES = ["WZTo3LNu_powheg", "ZZTo4L_powheg"]
+
+    # Map each sample to its category, for routing contributions into the builders
+    SAMPLE_CATEGORY = {}
+    for category in CATEGORIES:
+        for sample in MC_CATEGORIES[category]:
+            SAMPLE_CATEGORY[sample] = category
 
     # Load K-factors
     KFACTORS = load_kfactors()
     FAKENORM = load_fake_norm()
     CONV_SF_DATA = load_conv_sf_data() if args.exclude != "ConvSF" else {}
+
+    # Category and total-background builders. Contributions are added per (era, sample)
+    # so each named source stays one nuisance within an era; the background total is
+    # built from every sample rather than by merging the category summaries, which
+    # would re-introduce quadrature between categories for shared shape sources.
+    category_builders = {category: CorrelatedTotalBuilder(category) for category in CATEGORIES}
+    total_builder = CorrelatedTotalBuilder("total_background")
 
     # Initialize output structure
     output = {
@@ -510,41 +442,37 @@ def main():
             print(f"[INFO]   {sample}: {output['samples'][sample]['events']:.2f} events")
 
     # ===== 2. Load and process NONPROMPT histograms =====
+    # The fake-rate normalization is one measurement per era, shared by every data
+    # stream, so it is added as a correlated rate source.
     print("[INFO] Loading nonprompt histograms...")
-    nonprompt_hists = {}
     for sample in nonprompt:
-        era_hists = []
-        nonprompt_rate_components = []
+        sample_builder = CorrelatedTotalBuilder(f"nonprompt_{sample}")
         for era in era_list:
             if era not in ERA_SAMPLES:
                 continue
             file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample, is_nonprompt=True)
             hist_path = f"{args.channel}/Central/{HISTKEY}"
             h = load_histogram(file_path, hist_path, era)
-            if h:
-                era_hists.append(h)
-                nonprompt_rate_components.append(
-                    (get_histogram_events(h), get_fake_norm_uncertainty(FAKENORM, FLAG, era))
-                )
+            if not h:
+                continue
 
-        if era_hists:
-            h_total = sum_histograms(era_hists, f"{sample}_total")
-            nonprompt_rate_unc = combine_rate_uncertainties(nonprompt_rate_components)
+            rate_uncs = [("nonprompt_rate",
+                          get_fake_norm_uncertainty(FAKENORM, FLAG, era), True, False)]
+            for builder in (sample_builder, category_builders["nonprompt"], total_builder):
+                builder.add(era, sample, h, rate_uncs=rate_uncs)
+
+        if not sample_builder.is_empty():
             # Use "nonprompt_" prefix to avoid overwriting data samples
             nonprompt_sample_name = f"nonprompt_{sample}"
-            output["samples"][nonprompt_sample_name] = extract_stat_syst_errors(
-                h_total, rate_uncs=[("nonprompt_rate", nonprompt_rate_unc)])
-            nonprompt_hists[nonprompt_sample_name] = h_total
+            output["samples"][nonprompt_sample_name] = sample_builder.summary()
             print(f"[INFO]   {nonprompt_sample_name}: {output['samples'][nonprompt_sample_name]['events']:.2f} events")
 
     # ===== 3. Load and process MC histograms =====
     print("[INFO] Loading MC histograms...")
-    mc_hists = {}
     for sample in prompt_mc_list:
-        era_hists = []
-        # Dictionary to track systematic variations per source: {syst_name: {'up': [h_up_era1, ...], 'down': [h_down_era1, ...]}}
-        syst_variations = {}
-        conv_rate_components = []
+        sample_builder = CorrelatedTotalBuilder(sample)
+        category = SAMPLE_CATEGORY[sample]
+        kfactor, xsec_rel_unc = get_kfactor_info(KFACTORS, sample, run_period)
 
         for era in era_list:
             if era not in ERA_SAMPLES:
@@ -553,102 +481,58 @@ def main():
             file_path = build_sknanoutput_path(WORKDIR, args.channel, FLAG, era, sample, run_syst=True)
             hist_path = f"{args.channel}/Central/{HISTKEY}"
             h = load_histogram(file_path, hist_path, era)
-            if h:
-                hSysts = None
+            if not h:
+                continue
 
-                # Load systematic variations (unless excluded)
-                if not args.exclude or args.exclude != "Syst":
-                    # Use era-specific systematics (validated to be consistent across eras)
-                    era_systs = ERA_SYSTEMATICS.get(era, {})
-                    if era_systs:
-                        hSysts = load_systematic_variations(era, sample, args.channel,
-                                                           HISTKEY, era_systs, FLAG, False)
+            # Load systematic variations (unless excluded)
+            hSysts = {}
+            if args.exclude != "Syst":
+                # Use era-specific systematics (validated to be consistent across eras)
+                era_systs = ERA_SYSTEMATICS.get(era, {})
+                if args.exclude == "WZSF":
+                    # WZNjetsSF is the measured WZ Njet reweighting, Run3 only
+                    era_systs = {k: v for k, v in era_systs.items() if k != "WZNjetsSF"}
+                if era_systs:
+                    hSysts = load_systematic_variations(file_path, args.channel, HISTKEY,
+                                                       era_systs, era)
 
-                # Apply conversion scale factor per era before summing
-                if not (args.exclude == "ConvSF") and sample in MC_CATEGORIES["conv"]:
-                    scale, rel_unc = get_conv_scale_factor(CONV_SF_DATA, era, args.channel)
-                    h.Scale(scale)
-                    if hSysts:
-                        for _, h_up, h_down in hSysts:
-                            h_up.Scale(scale)
-                            h_down.Scale(scale)
-                    conv_rate_components.append((get_histogram_events(h), rel_unc))
-
-                era_hists.append(h)
-
-                if hSysts:
-                    # Store up/down variations for each systematic source
-                    for syst_name, h_up, h_down in hSysts:
-                        if syst_name not in syst_variations:
-                            syst_variations[syst_name] = {'up': [], 'down': []}
-                        syst_variations[syst_name]['up'].append(h_up)
-                        syst_variations[syst_name]['down'].append(h_down)
-
-        if era_hists:
-            h_total = sum_histograms(era_hists, f"{sample}_total")
-
-            # Sum systematic variations across eras
-            combined_systs = None
-            if syst_variations:
-                combined_systs = []
-                for syst_name, variations in syst_variations.items():
-                    h_up_total = sum_histograms(variations['up'], f"{sample}_{syst_name}_up")
-                    h_down_total = sum_histograms(variations['down'], f"{sample}_{syst_name}_down")
-                    if h_up_total and h_down_total:
-                        combined_systs.append((syst_name, h_up_total, h_down_total))
-
-            # Apply K-factor scaling
-            kfactor, xsec_rel_unc = get_kfactor_info(KFACTORS, sample, run_period)
-            if kfactor != 1.0:
-                h_total.Scale(kfactor)
-                # Also scale systematic variations
-                if combined_systs:
-                    for _, h_up, h_down in combined_systs:
-                        h_up.Scale(kfactor)
-                        h_down.Scale(kfactor)
-                conv_rate_components = [
-                    (yield_value * kfactor, rel_unc)
-                    for yield_value, rel_unc in conv_rate_components
-                ]
+            scale_with_variations(h, hSysts, kfactor)
 
             rate_uncs = []
+            # Per-process cross-section priors stay independent: a datacard writes
+            # these as separate lnN per process, so they do not share a nuisance.
             if xsec_rel_unc > 0.0:
-                rate_uncs.append(("xsec", xsec_rel_unc))
+                rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False, True))
 
-            # Add WZ rate uncertainty if applicable
-            if sample in WZ_SAMPLES and not (args.exclude == "WZSF"):
-                rate_uncs.append(("WZ_rate", 0.20))
+            # One ConvSF measurement per era, shared by every conversion sample
+            if args.exclude != "ConvSF" and sample in MC_CATEGORIES["conv"]:
+                scale, conv_rel_unc = get_conv_scale_factor(CONV_SF_DATA, era, args.channel)
+                scale_with_variations(h, hSysts, scale)
+                rate_uncs.append(("conv_rate", conv_rel_unc, True, False))
 
-            if conv_rate_components:
-                conv_rate_unc = combine_rate_uncertainties(conv_rate_components)
-                rate_uncs.append(("conv_rate", conv_rate_unc))
+            # Flat normalization for the "others" category. These are unrelated
+            # processes absent from KFactors.json, so each carries its own prior.
+            if sample in ERA_SAMPLES[era]["others"]:
+                rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False, True))
 
-            output["samples"][sample] = extract_stat_syst_errors(
-                h_total, combined_systs, rate_uncs=rate_uncs)
-            mc_hists[sample] = h_total
+            for builder in (sample_builder, category_builders[category], total_builder):
+                builder.add(era, sample, h, variations=hSysts, rate_uncs=rate_uncs)
+
+        if not sample_builder.is_empty():
+            output["samples"][sample] = sample_builder.summary()
             print(f"[INFO]   {sample}: {output['samples'][sample]['events']:.2f} events")
 
-    # ===== 4. Merge into categories =====
+    # ===== 4. Summarize categories and the background total =====
     print("[INFO] Merging samples into categories...")
-    all_hists = {**nonprompt_hists, **mc_hists}
-    for category in ["nonprompt", "conv", "ttX", "diboson", "others"]:
-        # Handle nonprompt samples which have "nonprompt_" prefix
-        if category == "nonprompt":
-            cat_sample_names = [f"nonprompt_{s}" for s in MC_CATEGORIES[category] if f"nonprompt_{s}" in output["samples"]]
-        else:
-            cat_sample_names = [s for s in MC_CATEGORIES[category] if s in output["samples"]]
+    for category in CATEGORIES:
+        if category_builders[category].is_empty():
+            continue
+        output["categories"][category] = category_builders[category].summary()
+        print(f"[INFO]   {category}: {output['categories'][category]['events']:.2f} events")
 
-        if cat_sample_names:
-            output["categories"][category] = sum_sample_errors(
-                [output["samples"][s] for s in cat_sample_names])
-            print(f"[INFO]   {category}: {output['categories'][category]['events']:.2f} events")
-
-    # Calculate total background
-    if output["categories"]:
-        output["total_background"] = sum_sample_errors(list(output["categories"].values()))
+    if not total_builder.is_empty():
+        output["total_background"] = total_builder.summary()
         print(f"[INFO] Total background: {output['total_background']['events']:.2f} events")
-    else:
-        output["total_background"] = None
 
     # ===== 5. Load signal histograms (if SR channel) =====
     if args.channel.startswith("SR"):

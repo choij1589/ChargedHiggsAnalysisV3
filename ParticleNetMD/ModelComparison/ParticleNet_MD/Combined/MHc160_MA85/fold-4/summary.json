@@ -2,52 +2,53 @@
   "signal": "MHc160_MA85",
   "backend": "ParticleNet_MD",
   "channel": "Combined",
-  "source_model": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/GAOptim/Combined/MHc160_MA85/fold-4/best_model/model.pt",
-  "source_metadata": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/GAOptim/Combined/MHc160_MA85/fold-4/best_model/model_info.json",
+  "source_model": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/ModelComparison/ParticleNet_MD/Combined/MHc160_MA85/fold-4/models/ParticleNet-conv512x256x256-Adam-initLR0p0005-decay0p00003-CyclicLR-discoL0p1-edgeDrop0-3grp-nonprompt-diboson-ttX.pt",
+  "source_metadata": "/home/choij/Sync/workspace/ChargedHiggsAnalysisV3/ParticleNetMD/ModelComparison/ParticleNet_MD/Combined/MHc160_MA85/fold-4/ParticleNet-conv512x256x256-Adam-initLR0p0005-decay0p00003-CyclicLR-discoL0p1-edgeDrop0-3grp-nonprompt-diboson-ttX.json",
+  "loss_type": "disco",
+  "disco_lambda": 0.1,
+  "edge_dropout_p": 0.0,
   "train": {
     "auc": {
-      "nonprompt": 0.8906878896950496,
-      "diboson": 0.9415003638958805,
-      "ttX": 0.916777499703395
+      "nonprompt": 0.9005197306509434,
+      "diboson": 0.9473572432401999,
+      "ttX": 0.9241255636528387
     },
-    "average_auc": 0.9163219177647751,
+    "average_auc": 0.9240008458479939,
     "mass_correlation": {
       "mass1": {
-        "disco": 0.1359163522720337,
-        "pearson_absw": -0.015763169799522747,
-        "spearman_absw": -0.0020686990964100364,
+        "disco": 0.13774071633815765,
+        "pearson_absw": -0.019735145474202652,
+        "spearman_absw": -0.002914736198417503,
         "n_valid": 600000
       },
       "mass2": {
-        "disco": 0.16639314591884613,
-        "pearson_absw": -0.10136746029987728,
-        "spearman_absw": -0.0015784912213883354,
+        "disco": 0.1668621301651001,
+        "pearson_absw": -0.10091229372683815,
+        "spearman_absw": 0.0036381935514860075,
         "n_valid": 233201
       }
     }
   },
   "test": {
     "auc": {
-      "nonprompt": 0.8913083030104204,
-      "diboson": 0.9429156090661895,
-      "ttX": 0.9189748421131729
+      "nonprompt": 0.9008968570492102,
+      "diboson": 0.9482894289861483,
+      "ttX": 0.926240412182443
     },
-    "average_auc": 0.917732918063261,
+    "average_auc": 0.9251422327392671,
     "mass_correlation": {
       "mass1": {
-        "disco": 0.1501777172088623,
-        "pearson_absw": -0.01854889643587794,
-        "spearman_absw": 0.001367620408264597,
+        "disco": 0.1571349799633026,
+        "pearson_absw": -0.02263440392804315,
+        "spearman_absw": 0.0026390212742984248,
         "n_valid": 545473
       },
       "mass2": {
-        "disco": 0.11950436234474182,
-        "pearson_absw": -0.09822080208583572,
-        "spearman_absw": -0.0027242651827012305,
+        "disco": 0.1252513974905014,
+        "pearson_absw": -0.09881096498755998,
+        "spearman_absw": 0.0002197696480415876,
         "n_valid": 217906
       }
     }
-  },
-  "loss_type": "disco",
-  "disco_lambda": 0.1
+  }
 }

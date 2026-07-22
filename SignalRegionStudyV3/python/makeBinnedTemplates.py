@@ -489,22 +489,19 @@ def load_sample_block(workdir, era, channel):
     return samplegroups[era][channel]
 
 
-def getFitResultDCBMulti(input_paths, mA_nominal, outdir, era, masspoint, channel=""):
-    """Fit the summed/appended signal trees for one merged Run-period category."""
-    if not input_paths:
-        raise FileNotFoundError(f"No signal files provided for {era}/{channel}/{masspoint}")
-    missing = [path for path in input_paths if not os.path.exists(path)]
-    if missing:
-        raise FileNotFoundError("Missing signal file(s): " + ", ".join(missing))
+def fit_dcb(chain, mA_nominal):
+    """Two-stage Double Crystal Ball fit on a ``TChain('Central')`` holding
+    ``mass`` and ``weight`` branches.
 
-    logging.info(f"Fitting category signal with DCB, nominal mA = {mA_nominal} GeV")
-    ROOT.RooMsgService.instance().setGlobalKillBelow(ROOT.RooFit.WARNING)
-
-    chain = ROOT.TChain("Central")
-    for path in input_paths:
-        chain.Add(path)
+    Returns the fitted parameters plus the narrow fit window (``fit_lo``,
+    ``fit_hi``). This is the pure-fit core shared by ``getFitResultDCBMulti``
+    (which adds diagnostic plotting) and the standalone signal-efficiency tool;
+    it has no plotting side effects.
+    """
     if chain.GetEntries() <= 0:
-        raise RuntimeError(f"No signal entries found for {era}/{channel}/{masspoint}")
+        raise RuntimeError("No signal entries found for DCB fit")
+
+    ROOT.RooMsgService.instance().setGlobalKillBelow(ROOT.RooFit.WARNING)
 
     wide_lo = max(mA_nominal - mA_nominal / 3.0, 12.0)
     wide_hi = mA_nominal + mA_nominal / 3.0
@@ -512,8 +509,10 @@ def getFitResultDCBMulti(input_paths, mA_nominal, outdir, era, masspoint, channe
     mass_w = ROOT.RooRealVar("mass", "mass", wide_lo, wide_hi)
     weight_w = ROOT.RooRealVar("weight", "weight", -10, 10)
     ds_wide = ROOT.RooDataSet(
-        "ds_wide", "", chain, ROOT.RooArgSet(mass_w, weight_w),
-        f"mass >= {wide_lo} && mass <= {wide_hi}", "weight"
+        "ds_wide", "", ROOT.RooArgSet(mass_w, weight_w),
+        ROOT.RooFit.Import(chain),
+        ROOT.RooFit.Cut(f"mass >= {wide_lo} && mass <= {wide_hi}"),
+        ROOT.RooFit.WeightVar("weight"),
     )
 
     pre_x0 = ROOT.RooRealVar("pre_x0", "x0", mA_nominal, wide_lo, wide_hi)
@@ -539,8 +538,10 @@ def getFitResultDCBMulti(input_paths, mA_nominal, outdir, era, masspoint, channe
     mass_n = ROOT.RooRealVar("mass", "mass", fit_lo, fit_hi)
     weight_n = ROOT.RooRealVar("weight", "weight", -10, 10)
     ds_narrow = ROOT.RooDataSet(
-        "ds_narrow", "", chain, ROOT.RooArgSet(mass_n, weight_n),
-        f"mass >= {fit_lo} && mass <= {fit_hi}", "weight"
+        "ds_narrow", "", ROOT.RooArgSet(mass_n, weight_n),
+        ROOT.RooFit.Import(chain),
+        ROOT.RooFit.Cut(f"mass >= {fit_lo} && mass <= {fit_hi}"),
+        ROOT.RooFit.WeightVar("weight"),
     )
 
     dcb_x0 = ROOT.RooRealVar("dcb_x0", "x0", fitted_mA, fit_lo, fit_hi)
@@ -559,6 +560,40 @@ def getFitResultDCBMulti(input_paths, mA_nominal, outdir, era, masspoint, channe
 
     sigma_eff = sqrt(0.5 * (dcb_sL.getVal()**2 + dcb_sR.getVal()**2))
 
+    return {
+        "x0": float(dcb_x0.getVal()),
+        "sigmaL": float(dcb_sL.getVal()),
+        "sigmaR": float(dcb_sR.getVal()),
+        "alphaL": float(dcb_aL.getVal()),
+        "nL": float(dcb_nL.getVal()),
+        "alphaR": float(dcb_aR.getVal()),
+        "nR": float(dcb_nR.getVal()),
+        "sigma_eff": float(sigma_eff),
+        "fit_lo": float(fit_lo),
+        "fit_hi": float(fit_hi),
+    }
+
+
+def getFitResultDCBMulti(input_paths, mA_nominal, outdir, era, masspoint, channel=""):
+    """Fit the summed/appended signal trees for one merged Run-period category."""
+    if not input_paths:
+        raise FileNotFoundError(f"No signal files provided for {era}/{channel}/{masspoint}")
+    missing = [path for path in input_paths if not os.path.exists(path)]
+    if missing:
+        raise FileNotFoundError("Missing signal file(s): " + ", ".join(missing))
+
+    logging.info(f"Fitting category signal with DCB, nominal mA = {mA_nominal} GeV")
+
+    chain = ROOT.TChain("Central")
+    for path in input_paths:
+        chain.Add(path)
+    if chain.GetEntries() <= 0:
+        raise RuntimeError(f"No signal entries found for {era}/{channel}/{masspoint}")
+
+    fit = fit_dcb(chain, mA_nominal)
+    fit_lo = fit["fit_lo"]
+    fit_hi = fit["fit_hi"]
+
     hist_name = f"h_fit_{era}_{channel}".replace("-", "_")
     hist = ROOT.TH1D(hist_name, "", 100, fit_lo, fit_hi)
     hist.Sumw2()
@@ -568,13 +603,13 @@ def getFitResultDCBMulti(input_paths, mA_nominal, outdir, era, masspoint, channe
     mass_plot = ROOT.RooRealVar("mass_plot", "mass", fit_lo, fit_hi)
     roo_data = ROOT.RooDataHist("data_plot", "", ROOT.RooArgList(mass_plot), hist)
 
-    p_x0 = ROOT.RooRealVar("p_x0", "x0", dcb_x0.getVal())
-    p_sL = ROOT.RooRealVar("p_sL", "sL", dcb_sL.getVal())
-    p_sR = ROOT.RooRealVar("p_sR", "sR", dcb_sR.getVal())
-    p_aL = ROOT.RooRealVar("p_aL", "aL", dcb_aL.getVal())
-    p_nL = ROOT.RooRealVar("p_nL", "nL", dcb_nL.getVal())
-    p_aR = ROOT.RooRealVar("p_aR", "aR", dcb_aR.getVal())
-    p_nR = ROOT.RooRealVar("p_nR", "nR", dcb_nR.getVal())
+    p_x0 = ROOT.RooRealVar("p_x0", "x0", fit["x0"])
+    p_sL = ROOT.RooRealVar("p_sL", "sL", fit["sigmaL"])
+    p_sR = ROOT.RooRealVar("p_sR", "sR", fit["sigmaR"])
+    p_aL = ROOT.RooRealVar("p_aL", "aL", fit["alphaL"])
+    p_nL = ROOT.RooRealVar("p_nL", "nL", fit["nL"])
+    p_aR = ROOT.RooRealVar("p_aR", "aR", fit["alphaR"])
+    p_nR = ROOT.RooRealVar("p_nR", "nR", fit["nR"])
     for var in [p_x0, p_sL, p_sR, p_aL, p_nL, p_aR, p_nR]:
         var.setConstant(True)
     dcb_plot = ROOT.RooCrystalBall(
@@ -602,14 +637,14 @@ def getFitResultDCBMulti(input_paths, mA_nominal, outdir, era, masspoint, channe
     canvas.canv.SaveAs(f"{outdir}/signal_fit.{category_name(channel, era)}.png")
 
     result = {
-        "x0": float(dcb_x0.getVal()),
-        "sigmaL": float(dcb_sL.getVal()),
-        "sigmaR": float(dcb_sR.getVal()),
-        "alphaL": float(dcb_aL.getVal()),
-        "nL": float(dcb_nL.getVal()),
-        "alphaR": float(dcb_aR.getVal()),
-        "nR": float(dcb_nR.getVal()),
-        "sigma_eff": float(sigma_eff),
+        "x0": fit["x0"],
+        "sigmaL": fit["sigmaL"],
+        "sigmaR": fit["sigmaR"],
+        "alphaL": fit["alphaL"],
+        "nL": fit["nL"],
+        "alphaR": fit["alphaR"],
+        "nR": fit["nR"],
+        "sigma_eff": fit["sigma_eff"],
     }
     logging.info(
         "Category DCB fit result: x0=%.2f, sigma_eff=%.3f GeV",

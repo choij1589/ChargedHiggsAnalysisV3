@@ -168,8 +168,9 @@ class ROCCurveCalculator:
         fpr_sorted = fpr[sorted_indices]
         tpr_sorted = tpr[sorted_indices]
 
-        # Trapezoidal integration
-        auc = np.trapz(tpr_sorted, fpr_sorted)
+        # Trapezoidal integration (np.trapz removed in numpy 2.0)
+        trapezoid = getattr(np, "trapezoid", None) or np.trapz
+        auc = trapezoid(tpr_sorted, fpr_sorted)
 
         return float(np.clip(auc, 0, 1))
 

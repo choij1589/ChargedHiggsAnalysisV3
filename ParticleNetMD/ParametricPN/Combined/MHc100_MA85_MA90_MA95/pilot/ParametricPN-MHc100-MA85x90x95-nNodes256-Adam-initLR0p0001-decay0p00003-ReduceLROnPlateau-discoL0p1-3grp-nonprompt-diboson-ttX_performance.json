@@ -1,0 +1,112 @@
+{
+  "model_name": "ParametricPN-MHc100-MA85x90x95-nNodes256-Adam-initLR0p0001-decay0p00003-ReduceLROnPlateau-discoL0p1-3grp-nonprompt-diboson-ttX",
+  "signal_sample": "TTToHcToWAToMuMu-MHc100_MA85_MA90_MA95",
+  "channel": "Combined",
+  "fold": 4,
+  "pilot_mode": true,
+  "training_config": {
+    "model_type": "ParticleNet",
+    "num_classes": 4,
+    "use_groups": true,
+    "optimizer": "Adam",
+    "scheduler": "ReduceLROnPlateau",
+    "loss_type": "disco",
+    "initial_lr": 0.0001,
+    "weight_decay": 3e-05,
+    "dropout_p": 0.4,
+    "max_epochs": 2,
+    "batch_size": 512
+  },
+  "background_info": {
+    "mode": "grouped",
+    "num_groups": 3,
+    "groups": {
+      "nonprompt": [
+        "TTLL_powheg",
+        "TTLL_mtop171p5_powheg",
+        "TTLL_mtop173p5_powheg",
+        "TTLL_TuneCP5up_powheg",
+        "TTLL_TuneCP5down_powheg",
+        "TTLL_TuneCP5CR1_powheg",
+        "TTLL_TuneCP5CR2_powheg",
+        "TTLL_hdamp_up_powheg",
+        "TTLL_hdamp_down_powheg"
+      ],
+      "diboson": [
+        "WZTo3LNu",
+        "ZZTo4L_powheg"
+      ],
+      "ttX": [
+        "TTZ",
+        "tZq"
+      ]
+    }
+  },
+  "training_results": {
+    "model_type": "ParticleNet",
+    "num_classes": 4,
+    "use_groups": true,
+    "background_groups": {
+      "nonprompt": [
+        "TTLL_powheg",
+        "TTLL_mtop171p5_powheg",
+        "TTLL_mtop173p5_powheg",
+        "TTLL_TuneCP5up_powheg",
+        "TTLL_TuneCP5down_powheg",
+        "TTLL_TuneCP5CR1_powheg",
+        "TTLL_TuneCP5CR2_powheg",
+        "TTLL_hdamp_up_powheg",
+        "TTLL_hdamp_down_powheg"
+      ],
+      "diboson": [
+        "WZTo3LNu",
+        "ZZTo4L_powheg"
+      ],
+      "ttX": [
+        "TTZ",
+        "tZq"
+      ]
+    },
+    "epochs_completed": 2,
+    "total_training_time": 1.7511868476867676,
+    "avg_epoch_time": 0.8755934238433838,
+    "best_valid_loss": 0.9339184761047363,
+    "early_stopped": false,
+    "model_parameters": 1071153,
+    "final_memory_mb": 6496.8671875,
+    "training_history": [
+      {
+        "epoch": 0,
+        "train_loss": 1.7726507186889648,
+        "train_acc": 0.23576826602220535,
+        "valid_loss": 0.9339184761047363,
+        "valid_acc": 0.26007491524796933,
+        "epoch_time": 1.2033154964447021,
+        "memory_mb": 6496.30859375,
+        "cpu_percent": 0.0,
+        "timestamp": 1784604153.9515636,
+        "train_ce_loss": 1.7361099004745484,
+        "train_disco_term": 0.365408593416214,
+        "valid_ce_loss": 0.8382959564526876,
+        "valid_disco_term": 0.9562248388926188
+      },
+      {
+        "epoch": 1,
+        "train_loss": 1.840285873413086,
+        "train_acc": 0.21475696563720703,
+        "valid_loss": 0.9535202980041504,
+        "valid_acc": 0.24852761905640364,
+        "epoch_time": 0.5478713512420654,
+        "memory_mb": 6496.8671875,
+        "cpu_percent": 99.3,
+        "timestamp": 1784604154.6761994,
+        "train_ce_loss": 1.802758240699768,
+        "train_disco_term": 0.3752743065357208,
+        "valid_ce_loss": 0.8608247637748718,
+        "valid_disco_term": 0.926955779393514
+      }
+    ],
+    "test_loss": 0.9567266305287679,
+    "test_accuracy": 0.21847805194556713
+  }
+}

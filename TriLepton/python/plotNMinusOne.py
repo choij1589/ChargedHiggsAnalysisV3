@@ -8,10 +8,13 @@ import ROOT
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 from plotter import PALETTE_LONG as PALETTE
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
-                        sum_histograms, load_era_configs,
-                        get_sample_lists, clip_negative_bins)
-from utils import build_sknanoutput_path
+                        load_systematic_variations, sum_histograms, load_era_configs,
+                        get_sample_lists, clip_negative_bins, CorrelatedTotalBuilder)
+from utils import build_sknanoutput_path, scale_with_variations
 ROOT.gROOT.SetBatch(True)
+
+# Flat normalization for the "others" category, absent from KFactors.json
+OTHERS_XSEC_UNC = 0.50
 
 BKG_COLORS = {
     "nonprompt": PALETTE[0],
@@ -133,32 +136,49 @@ class ChannelArgs:
         self.channel = channel_flag
 
 
-def apply_kfactor(hist, sample, run, kfactors):
-    if run not in kfactors:
-        return hist
-    if sample not in kfactors[run]:
-        return hist
+# Rate uncertainties go to CorrelatedTotalBuilder rather than into bin errors, so
+# that sources shared between processes stay correlated. See docs/systematics.md.
 
-    kfactor = kfactors[run][sample]["kFactor"]
-    hist.Scale(kfactor)
-    logging.debug(f"Applied K-factor {kfactor} to {sample}")
-    return hist
+def get_kfactor_info(sample, run, kfactors):
+    """Return (K-factor, relative cross-section uncertainty) from KFactors.json."""
+    if run not in kfactors or sample not in kfactors[run]:
+        return 1.0, 0.0
+
+    entry = kfactors[run][sample]
+    return entry["kFactor"], entry.get("xsecErr", 1.0) - 1.0
 
 
-def apply_conv_scale_factor(hist, sample, era, era_samples, channel_flag, conv_sf_data, exclude=None):
-    if exclude == "ConvSF":
-        return hist
-    if sample not in era_samples[era]["conv"]:
-        return hist
+def get_conv_scale_factor(sample, era, era_samples, channel_flag, conv_sf_data, exclude=None):
+    """Return (scale, relative uncertainty) for a conversion sample."""
+    if exclude == "ConvSF" or sample not in era_samples[era]["conv"]:
+        return 1.0, 0.0
 
     era_data = conv_sf_data.get(channel_flag, {}).get(era)
     if era_data is None:
-        logging.warning(f"No ConvSF for {channel_flag}/{era}; leaving conversion sample unscaled")
-        return hist
+        logging.warning(f"No ConvSF for {channel_flag}/{era}, using default SF=1.0 ± 20%")
+        return 1.0, 0.20
 
-    hist.Scale(era_data["central"])
-    logging.debug(f"Applied ConvSF {era_data['central']} to {sample} in {channel_flag}/{era}")
-    return hist
+    return era_data["central"], era_data["total"]
+
+
+def get_mc_rate_uncertainties(sample, era, era_samples, xsec_rel_unc, conv_rel_unc):
+    """Rate uncertainties for one (era, sample): (name, value, corr_samples, corr_eras).
+
+    Theory priors are the same number every year but independent per process;
+    measured normalizations are shared across samples but re-measured each era.
+    """
+    rate_uncs = []
+
+    if xsec_rel_unc > 0.0:
+        rate_uncs.append((f"xsec_{sample}", xsec_rel_unc, False, True))
+
+    if conv_rel_unc > 0.0:
+        rate_uncs.append(("conv_rate", conv_rel_unc, True, False))
+
+    if sample in era_samples[era]["others"]:
+        rate_uncs.append(("others_xsec", OTHERS_XSEC_UNC, False, True))
+
+    return rate_uncs
 
 
 def build_config(args, hist_configs):
@@ -172,7 +192,7 @@ def build_config(args, hist_configs):
     config["iPos"] = 0
     config["legend"] = (0.72, 0.55, 0.99, 0.89)
     config["legendTextSize"] = 0.038
-    config["systSrc"] = "Stat"
+    config["systSrc"] = "Stat+Syst"
     config["signalLegend"] = (0.32, 0.63, 0.73, 0.87)
     config["signalLegendTextSize"] = 0.034
     config["signalLineWidth"] = args.signal_line_width
@@ -203,15 +223,24 @@ def build_output_path(args, workdir):
     return f"{output_root}/{args.era}/{args.channel}/{subdir}/{output_name}"
 
 
-def get_root_hist_path(channel, histkey):
+def get_hist_subpath(histkey):
+    """Path below {channel}/{systematic}/ for one N-1 key."""
     if histkey.startswith("baseline/"):
-        return f"{channel}/Central/{histkey.removeprefix('baseline/')}"
-    return f"{channel}/Central/NMinusOne/{histkey}"
+        return histkey.removeprefix("baseline/")
+    return f"NMinusOne/{histkey}"
+
+
+def get_root_hist_path(channel, histkey):
+    return f"{channel}/Central/{get_hist_subpath(histkey)}"
 
 
 def load_plot_objects(args, workdir, era_list, flag, channel_flag, era_samples,
-                      mc_categories, mc_list, kfactors, conv_sf_data, missing_logger):
+                      era_systematics, mc_categories, mc_list, kfactors, conv_sf_data,
+                      fake_norm, missing_logger):
     hist_path = get_root_hist_path(args.channel, args.histkey)
+    hist_subpath = get_hist_subpath(args.histkey)
+    total_builder = CorrelatedTotalBuilder("total_background")
+    shape_sources_found = 0
     era_data_hists = []
     era_mc_hists = {sample: [] for sample in mc_list}
     era_nonprompt_hists = {sample: [] for sample in mc_categories["nonprompt"]}
@@ -247,6 +276,9 @@ def load_plot_objects(args, workdir, era_list, flag, channel_flag, era_samples,
             hist = load_histogram(file_path, hist_path, era, missing_logger)
             if hist:
                 clip_negative_bins(hist)
+                np_unc = fake_norm.get(flag, {}).get(era, 0.30)
+                total_builder.add(era, sample, hist,
+                                  rate_uncs=[("nonprompt_rate", np_unc, True, False)])
                 era_nonprompt_hists[sample].append(hist)
 
         all_era_samples = (
@@ -262,9 +294,24 @@ def load_plot_objects(args, workdir, era_list, flag, channel_flag, era_samples,
             hist = load_histogram(file_path, hist_path, era, missing_logger)
             if hist:
                 clip_negative_bins(hist)
-                hist = apply_kfactor(hist, sample, get_run_period(era), kfactors)
-                hist = apply_conv_scale_factor(hist, sample, era, era_samples,
-                                               channel_flag, conv_sf_data, args.exclude)
+                # Only the baseline/* keys have systematic variations in the analyzer
+                # output; genuine N-1 keys are filled for Central only, so those plots
+                # carry rate uncertainties without a shape component.
+                variations = load_systematic_variations(
+                    file_path, args.channel, hist_subpath, era_systematics[era],
+                    era, missing_logger, clip=True)
+                shape_sources_found += len(variations)
+
+                kfactor, xsec_rel_unc = get_kfactor_info(sample, get_run_period(era), kfactors)
+                scale_with_variations(hist, variations, kfactor)
+                conv_scale, conv_rel_unc = get_conv_scale_factor(
+                    sample, era, era_samples, channel_flag, conv_sf_data, args.exclude)
+                scale_with_variations(hist, variations, conv_scale)
+
+                rate_uncs = get_mc_rate_uncertainties(sample, era, era_samples,
+                                                      xsec_rel_unc, conv_rel_unc)
+                total_builder.add(era, sample, hist, variations=variations,
+                                  rate_uncs=rate_uncs)
                 era_mc_hists[sample].append(hist)
 
     hists = {}
@@ -298,7 +345,12 @@ def load_plot_objects(args, workdir, era_list, flag, channel_flag, era_samples,
         if merged_by_category[bkg_name] is not None:
             backgrounds[bkg_name] = merged_by_category[bkg_name]
 
-    return data, backgrounds
+    if shape_sources_found == 0:
+        logging.warning(
+            f"No systematic variations found for {hist_subpath}; the band covers "
+            f"statistical and rate uncertainties only")
+
+    return data, backgrounds, total_builder.total_hist()
 
 
 def load_signals(args, workdir, era_list, flag, missing_logger):
@@ -349,6 +401,8 @@ def main():
         kfactors = json.load(f)
     with open(f"{workdir}/Common/Data/ConvSF.json") as f:
         conv_sf_data = json.load(f)
+    with open(f"{workdir}/Common/Data/FakeNorm.json") as f:
+        fake_norm = json.load(f)
 
     config = build_config(args, hist_configs)
     era_list = get_plot_era_list(args.era)
@@ -359,7 +413,7 @@ def main():
 
     flag, channel_flag = get_channel_flags(args.channel)
     channel_args = ChannelArgs(channel_flag)
-    era_samples, _ = load_era_configs(channel_args, era_list)
+    era_samples, era_systematics = load_era_configs(channel_args, era_list)
     _, mc_categories, mc_list = get_sample_lists(
         era_samples, ["nonprompt", "conv", "ttX", "diboson", "others"]
     )
@@ -367,14 +421,14 @@ def main():
     output_path = build_output_path(args, workdir)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    data, backgrounds = load_plot_objects(
-        args, workdir, era_list, flag, channel_flag, era_samples, mc_categories,
-        mc_list, kfactors, conv_sf_data, missing_logger
+    data, backgrounds, total_syst = load_plot_objects(
+        args, workdir, era_list, flag, channel_flag, era_samples, era_systematics,
+        mc_categories, mc_list, kfactors, conv_sf_data, fake_norm, missing_logger
     )
     signals = load_signals(args, workdir, era_list, flag, missing_logger)
     config["colors"] = [BKG_COLORS[bkg] for bkg in backgrounds.keys()]
 
-    plotter = ComparisonCanvas(data, backgrounds, config)
+    plotter = ComparisonCanvas(data, backgrounds, config, total_syst=total_syst)
     plotter.drawPadUp()
     if signals:
         plotter.drawSignals(signals)

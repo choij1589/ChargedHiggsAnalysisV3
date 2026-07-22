@@ -11,6 +11,7 @@ This module contains common functionality for:
 """
 
 import os
+import ctypes
 import logging
 import json
 import ROOT
@@ -174,6 +175,50 @@ def calculate_systematics(h, systematics, file_path, args, era=None, missing_log
         f.Close()
 
     return h
+
+
+def load_systematic_variations(file_path, channel, histkey, systematics, era=None,
+                               missing_logger=None, clip=False):
+    """Load systematic up/down variation histograms from one file.
+
+    The loading half of calculate_systematics, but returning the histograms instead
+    of folding them into bin errors. Keeping the variations alive lets callers sum
+    them across samples before taking an envelope, which is what treating a source
+    as one nuisance requires -- see CorrelatedTotalBuilder.
+
+    Args:
+        file_path (str): Path to ROOT file
+        channel (str): Analysis channel, the top-level directory in the file
+        histkey (str): Histogram path below the systematic directory
+        systematics (dict): {name: [up_variation, down_variation]}
+        era (str, optional): Era information for logging
+        missing_logger (logging.Logger, optional): Logger for missing histograms
+        clip (bool): Zero out negative bins, matching calculate_systematics
+
+    Returns:
+        dict: {name: (h_up, h_down)}, containing only sources where both were found
+    """
+    era_info = f"[{era}] " if era else ""
+    variations = {}
+
+    for syst, sources in systematics.items():
+        syst_up, syst_down = tuple(sources)
+        h_up = load_histogram(file_path, f"{channel}/{syst_up}/{histkey}", era)
+        h_down = load_histogram(file_path, f"{channel}/{syst_down}/{histkey}", era)
+
+        if h_up and h_down:
+            if clip:
+                clip_negative_bins(h_up)
+                clip_negative_bins(h_down)
+            variations[syst] = (h_up, h_down)
+        elif missing_logger:
+            for name, hist in ((syst_up, h_up), (syst_down, h_down)):
+                if not hist:
+                    missing_logger.info(
+                        f"{era_info}MISSING_SYSTEMATIC: {channel}/{name}/{histkey} "
+                        f"in {os.path.basename(file_path)}")
+
+    return variations
 
 
 def sum_histograms(hist_list, name):
@@ -415,3 +460,203 @@ def calculate_chi2(h_obs, h_exp, normalize=False):
     ndf = int(round(chi2 / chi2_ndf)) if chi2_ndf > 0 else 0
 
     return chi2, ndf, p_value
+
+
+class CorrelatedTotalBuilder:
+    """Accumulate per-(era, sample) histograms into a total with correlated errors.
+
+    Computing uncertainties per sample and then adding samples in quadrature treats
+    every named source as an independent nuisance per process. That understates
+    shared systematics: one JES shift moves every MC process coherently, and one
+    ConvSF or fake-rate measurement normalizes its whole category together. This
+    builder instead sums the shifted histograms first (TH1::Add) and takes the
+    envelope against the summed central, so the correlation falls out naturally.
+
+    Correlation model. The full model belongs to the Combine step; this covers
+    prefit stat+syst tables and plot bands only:
+
+    - shape sources are summed across BOTH samples and eras, then enveloped once
+    - rate sources declare the sample and era axes independently; contributions
+      sharing a group key add coherently, and groups combine in quadrature
+
+    The two rate axes are genuinely independent. A theory prior (a cross-section
+    uncertainty) is the same number every year, so it is correlated across eras but
+    not across unrelated processes. A per-era measurement (ConvSF, FakeNorm) is the
+    opposite: shared by every sample it scales, but re-measured each era.
+
+    Statistical errors ride along in the bin errors, which TH1::Add already combines
+    in quadrature -- the correct treatment, since samples are statistically
+    independent. Callers must therefore pass histograms whose bin errors are pure
+    stat, with no rate uncertainty folded in.
+    """
+
+    def __init__(self, name="total"):
+        self.name = name
+        self._central = None
+        # source -> {"up": TH1, "down": TH1, "central": TH1 of contributors only}
+        self._shape = {}
+        # source -> {group_key: TH1 of absolute errors}; one group == one nuisance
+        self._rate = {}
+
+    @staticmethod
+    def _accumulate(target, hist, name):
+        """Clone on first use, TH1::Add afterwards."""
+        if hist is None:
+            return target
+        if target is None:
+            clone = hist.Clone(name)
+            clone.SetDirectory(0)
+            return clone
+        target.Add(hist)
+        return target
+
+    def add(self, era, sample, h_central, variations=None, rate_uncs=None):
+        """Add one (era, sample) contribution.
+
+        Args:
+            era: Era name, used to group correlated rate uncertainties
+            sample: Sample name, used to separate uncorrelated rate uncertainties
+            h_central: Central histogram, already scaled (ConvSF, K-factor),
+                       with pure statistical bin errors
+            variations: {source: (h_up, h_down)}, already scaled to match h_central
+            rate_uncs: [(name, relative_uncertainty, correlate_samples, correlate_eras)]
+        """
+        if h_central is None:
+            return
+
+        self._central = self._accumulate(self._central, h_central, f"{self.name}_central")
+
+        for source, (h_up, h_down) in (variations or {}).items():
+            if h_up is None or h_down is None:
+                continue
+            entry = self._shape.setdefault(source, {"up": None, "down": None, "central": None})
+            entry["up"] = self._accumulate(entry["up"], h_up, f"{self.name}_{source}_up")
+            entry["down"] = self._accumulate(entry["down"], h_down, f"{self.name}_{source}_down")
+            # Track which contributions carry this source, for _shape_variation below
+            entry["central"] = self._accumulate(entry["central"], h_central,
+                                                f"{self.name}_{source}_central")
+
+        for source, rel_unc, correlate_samples, correlate_eras in (rate_uncs or []):
+            if rel_unc <= 0.0:
+                continue
+            # Collapsing an axis merges those contributions into one nuisance
+            group_key = (None if correlate_eras else era,
+                         None if correlate_samples else sample)
+            contribution = h_central.Clone(f"{self.name}_{source}_rate")
+            contribution.SetDirectory(0)
+            contribution.Scale(rel_unc)
+            groups = self._rate.setdefault(source, {})
+            if group_key in groups:
+                groups[group_key].Add(contribution)
+            else:
+                groups[group_key] = contribution
+
+    def _shape_variation(self, source, direction):
+        """Return the total up/down histogram for one source.
+
+        Contributions that do not carry this source fall back to their central
+        histogram. Without that substitution the summed variation silently drops
+        those processes and the envelope blows up -- load-bearing for the background
+        total, since nonprompt samples carry no variations at all.
+
+        Computed as (sum of variations) + (total central - central of contributors),
+        which avoids retaining every input histogram just to fill the gaps.
+        """
+        entry = self._shape[source]
+        total = entry[direction].Clone(f"{self.name}_{source}_{direction}_full")
+        total.SetDirectory(0)
+        total.Add(self._central)
+        total.Add(entry["central"], -1.0)
+        return total
+
+    def _envelope_hists(self):
+        return {
+            source: (self._shape_variation(source, "up"), self._shape_variation(source, "down"))
+            for source in self._shape
+        }
+
+    @staticmethod
+    def _combine(systematics, name, error):
+        """Store a systematic, combining name collisions in quadrature."""
+        if name in systematics:
+            systematics[name] = sqrt(systematics[name]**2 + error**2)
+        else:
+            systematics[name] = error
+
+    def is_empty(self):
+        return self._central is None
+
+    def central_hist(self, name=None):
+        """Summed central histogram with statistical bin errors only."""
+        if self._central is None:
+            return None
+        clone = self._central.Clone(name or f"{self.name}_central_total")
+        clone.SetDirectory(0)
+        return clone
+
+    def total_hist(self, name=None):
+        """Summed histogram whose bin errors are stat (+) syst in quadrature.
+
+        Uses a per-bin envelope, which is what a plotted uncertainty band needs.
+        """
+        if self._central is None:
+            return None
+
+        total = self._central.Clone(name or f"{self.name}_total")
+        total.SetDirectory(0)
+        envelopes = self._envelope_hists()
+
+        for ibin in range(total.GetNcells()):
+            central = self._central.GetBinContent(ibin)
+            stat_error = self._central.GetBinError(ibin)
+            syst_squared = 0.0
+            for h_up, h_down in envelopes.values():
+                syst_up = abs(h_up.GetBinContent(ibin) - central)
+                syst_down = abs(h_down.GetBinContent(ibin) - central)
+                syst_squared += max(syst_up, syst_down)**2
+            for groups in self._rate.values():
+                syst_squared += sum(g.GetBinContent(ibin)**2 for g in groups.values())
+            total.SetBinError(ibin, sqrt(stat_error**2 + syst_squared))
+
+        return total
+
+    def summary(self):
+        """Return integrated yield and errors, matching extract_stat_syst_errors keys.
+
+        Uses an integral-based envelope rather than a per-bin one: this reports a
+        single integrated yield, and summing per-bin envelopes in quadrature would
+        understate a normalization-like shift.
+        """
+        if self._central is None:
+            return {
+                "events": 0.0,
+                "stat_error": 0.0,
+                "systematics": {},
+                "syst_error": 0.0,
+                "total_error": 0.0
+            }
+
+        error_stat = ctypes.c_double(0.0)
+        nbins = self._central.GetNbinsX()
+        events = self._central.IntegralAndError(0, nbins + 1, error_stat)
+        stat_error = float(error_stat.value)
+
+        systematics = {}
+        for source, (h_up, h_down) in self._envelope_hists().items():
+            up = h_up.Integral(0, h_up.GetNbinsX() + 1)
+            down = h_down.Integral(0, h_down.GetNbinsX() + 1)
+            self._combine(systematics, source, max(abs(up - events), abs(down - events)))
+
+        for source, groups in self._rate.items():
+            group_squared = sum(g.Integral(0, g.GetNbinsX() + 1)**2 for g in groups.values())
+            self._combine(systematics, source, sqrt(group_squared))
+
+        syst_error = sqrt(sum(v**2 for v in systematics.values()))
+
+        return {
+            "events": float(events),
+            "stat_error": stat_error,
+            "systematics": systematics,
+            "syst_error": syst_error,
+            "total_error": sqrt(stat_error**2 + syst_error**2)
+        }
