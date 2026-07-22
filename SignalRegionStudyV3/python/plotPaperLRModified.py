@@ -17,7 +17,8 @@ MODULE_DIR = Path(__file__).resolve().parents[1]
 WORKDIR = Path(os.environ.get("WORKDIR", MODULE_DIR.parent))
 
 sys.path.insert(0, str(WORKDIR / "Common" / "Tools"))
-from plotter import ComparisonCanvas, EnergyInfo, LumiInfo, PALETTE_LONG  # noqa: E402
+from plotter import (ComparisonCanvas, EnergyInfo,  # noqa: E402
+                     LumiInfoExact, PALETTE_LONG)
 
 
 ROOT.gROOT.SetBatch(True)
@@ -70,8 +71,23 @@ def parse_args():
         default="results/paper",
         help="base output directory, relative to SignalRegionStudyV3 unless absolute",
     )
+    parser.add_argument(
+        "--base-width",
+        type=float,
+        default=BASE_WIDTH,
+        help=("uniform bin width of the starting grid, before adaptive merging "
+              "(default: %(default)s). A non-default value writes into a "
+              "bin<width> subdirectory, e.g. --base-width 0.04 -> SR/bin0p04/"),
+    )
     parser.add_argument("--debug", action="store_true", help="enable debug logging")
     return parser.parse_args()
+
+
+def base_width_tag(base_width):
+    """Output subdirectory for a base binning; empty string keeps the default location."""
+    if abs(base_width - BASE_WIDTH) < 1e-9:
+        return ""
+    return "bin" + f"{base_width:g}".replace(".", "p")
 
 
 def resolve_output_root(path):
@@ -97,8 +113,11 @@ def cache_path(region, masspoint):
     )
 
 
-def output_path(output_root, region, masspoint):
-    return output_root / region / f"{SCORE_KEY}_{masspoint}.pdf"
+def output_path(output_root, region, masspoint, subdir=""):
+    directory = output_root / region
+    if subdir:
+        directory = directory / subdir
+    return directory / f"{SCORE_KEY}_{masspoint}.pdf"
 
 
 def format_signal_label(masspoint):
@@ -156,13 +175,17 @@ def rebin_with_edges(hist, edges, name):
     return rebinned
 
 
-def build_base_edges():
-    n_bins = int(round(1.0 / BASE_WIDTH))
-    return [round(i * BASE_WIDTH, 6) for i in range(n_bins + 1)]
+def build_base_edges(base_width=BASE_WIDTH):
+    if base_width <= 0.0:
+        raise ValueError(f"base width must be positive, got {base_width}")
+    n_bins = int(round(1.0 / base_width))
+    if abs(n_bins * base_width - 1.0) > 1e-9:
+        raise ValueError(f"base width {base_width} does not divide the [0, 1] score range evenly")
+    return [round(i * base_width, 6) for i in range(n_bins + 1)]
 
 
-def build_adaptive_edges(total_bkg):
-    base_edges = build_base_edges()
+def build_adaptive_edges(total_bkg, base_width=BASE_WIDTH):
+    base_edges = build_base_edges(base_width)
     base_hist = rebin_with_edges(total_bkg, base_edges, f"{total_bkg.GetName()}_base")
 
     adaptive_edges = [base_edges[0]]
@@ -318,7 +341,7 @@ def apply_total_uncertainty(grouped_bkgs, hists, edges):
             hist.SetBinError(ibin, total_err if hist is dominant else 0.0)
 
 
-def build_plot_objects(region, masspoint):
+def build_plot_objects(region, masspoint, base_width=BASE_WIDTH):
     hists = load_score_histograms(region, masspoint)
     required_hists = [*ORIGINAL_BKGS, "data_obs"]
     if region == "SR":
@@ -328,7 +351,7 @@ def build_plot_objects(region, masspoint):
             raise RuntimeError(f"{required} histogram missing for {region}/{masspoint}")
 
     total_bkg = total_background(hists)
-    edges = build_adaptive_edges(total_bkg)
+    edges = build_adaptive_edges(total_bkg, base_width)
 
     data = rebin_with_edges(hists["data_obs"], edges, "data_obs")
     data.SetTitle("Data")
@@ -360,18 +383,23 @@ def build_config(region, edges):
 
     return {
         "era": "All",
-        "CoM": f"{EnergyInfo['Run2']:g}/{EnergyInfo['Run3']:g}",
-        "run_label": f"Run 2+3, {LumiInfo['All']:g} fb^{{#minus1}}",
+        # Per-energy luminosities, CMS style for multi-energy combinations:
+        # "138 fb^-1 (13 TeV) + 62.4 fb^-1 (13.6 TeV)". cmsstyle appends the
+        # CoM in parentheses, so the Run3 energy is carried by "CoM" and the
+        # Run2 term is baked into "run_label".
+        "CoM": f"{EnergyInfo['Run3']:g} TeV",
+        "run_label": (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
+                      f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}"),
         "xTitle": "Modified LR Score",
         "yTitle": "Events",
         "rTitle": "Data / Pred",
         # Histograms are already adaptively rebinned before construction.
         # Keeping xRange to endpoints avoids a second variable Rebin call.
         "xRange": [edges[0], edges[-1]],
-        "rRange": [0.0, 2.0],
+        "rRange": [0.5, 1.5],
         "maxDigits": 3,
         "overflow": False,
-        "iPos": 0,
+        "iPos": 11,
         "legend": (0.72, 0.55, 0.99, 0.89),
         "legendTextSize": 0.038,
         "legendColumns": 1,
@@ -382,7 +410,9 @@ def build_config(region, edges):
         "signalColors": [SIGNAL_COLOR],
         "channel": channel_label,
         "region": region_label,
-        "channelPosY": 0.75,
+        # iPos=11 puts "CMS"/"Preliminary" inside the frame, so the channel
+        # block starts lower to clear them.
+        "channelPosY": 0.72,
         "channelPosX": 0.22,
         "chi2_test": False,
         "normalize_chi2": False,
@@ -410,11 +440,11 @@ def draw_integrated_signal(plotter, signals):
     plotter.canv.cd(1).RedrawAxis()
 
 
-def draw_masspoint(region, masspoint, output_root):
-    data, bkgs, signals, edges = build_plot_objects(region, masspoint)
+def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH):
+    data, bkgs, signals, edges = build_plot_objects(region, masspoint, base_width)
     config = build_config(region, edges)
 
-    out_path = output_path(output_root, region, masspoint)
+    out_path = output_path(output_root, region, masspoint, base_width_tag(base_width))
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     plotter = ComparisonCanvas(data, bkgs, config)
@@ -426,7 +456,7 @@ def draw_masspoint(region, masspoint, output_root):
     plotter.mass_label.SetNDC(True)
     plotter.mass_label.SetTextFont(42)
     plotter.mass_label.SetTextSize(0.045)
-    plotter.mass_label.DrawLatex(0.22, 0.65, format_signal_label(masspoint))
+    plotter.mass_label.DrawLatex(0.22, 0.62, format_signal_label(masspoint))
     plotter.drawPadDown()
     plotter.canv.SaveAs(str(out_path))
     return out_path, edges
@@ -442,7 +472,7 @@ def main():
 
     for region in selected_regions:
         for masspoint in selected:
-            out_path, edges = draw_masspoint(region, masspoint, output_root)
+            out_path, edges = draw_masspoint(region, masspoint, output_root, args.base_width)
             logging.info("Wrote %s", out_path)
             logging.info(
                 "Adaptive edges for %s/%s (%d bins): %s",

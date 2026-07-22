@@ -6,7 +6,7 @@ import ROOT
 import json
 import yaml
 import cmsstyle as CMS
-from plotter import LumiInfo, get_CoM_energy, PALETTE_LONG
+from plotter import LumiInfo, LumiInfoExact, EnergyInfo, get_CoM_energy, PALETTE_LONG
 
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
 
@@ -56,24 +56,6 @@ if args.era not in VALID_ERAS:
 # Extend LumiInfo for "All"
 LumiInfo_extended = dict(LumiInfo)
 LumiInfo_extended["All"] = _LUMI_CONFIG["All"]["combined"]
-
-
-def get_CoM_energy_extended(era):
-    """Get center-of-mass energy string for era."""
-    if era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
-        return f"{_LUMI_CONFIG['Run2']['energy_TeV']:g}"
-    elif era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
-        return f"{_LUMI_CONFIG['Run3']['energy_TeV']:g}"
-    elif era == "All":
-        run2_energy = _LUMI_CONFIG["Run2"]["energy_TeV"]
-        run3_energy = _LUMI_CONFIG["Run3"]["energy_TeV"]
-        return f"{run2_energy:g}+{run3_energy:g}"
-    else:
-        raise ValueError(f"Unknown era: {era}")
-
-
-def get_all_lumi_label():
-    return f"Run 2+3, {_LUMI_CONFIG['All']['combined']:g} fb^{{#minus1}}"
 
 
 def create_graphs(limits_dict):
@@ -152,16 +134,18 @@ else:
 CMS.SetExtraText("Preliminary")
 CMS.ResetAdditionalInfo()
 
+# Luminosity header follows the paper convention shared with plotPaperPostfitSummary.py,
+# plotPaperLRModified.py and plotPaperTemplates.py: un-rounded per-period luminosities from
+# LumiInfoExact, each run period quoted with its own energy, and no "Run2,"-style prefix.
 if args.era == "All":
-    # Combined Run2+Run3 at 13/13.6 TeV
-    CMS.SetLumi(None, run=get_all_lumi_label())
-    CMS.SetEnergy(0, unit=f"{get_CoM_energy_extended('All').replace('+', '/')} TeV")
-elif args.era == "Run2":
-    CMS.SetLumi(LumiInfo_extended["Run2"], run="Run2")
-    CMS.SetEnergy(_LUMI_CONFIG["Run2"]["energy_TeV"])
-elif args.era == "Run3":
-    CMS.SetLumi(LumiInfo_extended["Run3"], run="Run3")
-    CMS.SetEnergy(_LUMI_CONFIG["Run3"]["energy_TeV"])
+    # cmsstyle renders "<cms_lumi> (<cms_energy>)", so only the Run3 energy can live in
+    # SetEnergy; the whole Run2 term is baked into the run label.
+    CMS.SetLumi(None, run=(f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
+                           f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}"))
+    CMS.SetEnergy(0, unit=f"{EnergyInfo['Run3']:g} TeV")
+elif args.era in ("Run2", "Run3"):
+    CMS.SetLumi(None, run=f"{LumiInfoExact[args.era]:g} fb^{{#minus1}}")
+    CMS.SetEnergy(EnergyInfo[args.era])
 else:
     # Individual era
     CMS.SetLumi(LumiInfo.get(args.era, LumiInfo_extended.get(args.era)), run=args.era)
@@ -182,9 +166,10 @@ _CHANNEL_LABELS = {
 }
 _channel_label_txt = _CHANNEL_LABELS[args.channel]
 
-# CMS label position: iPos=11 (top-left, outside frame) by default; iPos=0 (top-left, inside)
-# for xsec mode where the y-axis label is wider and the outside layout overlaps.
-_iPos = 0 if args.mode == "xsec" else 11
+# CMS label position: iPos=11 puts "CMS"/"Preliminary" inside the frame at top-left, matching
+# the paper figures. Kept for both modes -- with iPos=0 the out-of-frame "Preliminary" runs
+# into the luminosity string on the xsec plots, whose y-axis title is wider.
+_iPos = 11
 
 
 def _ymax_from(limits_dict):
@@ -327,12 +312,35 @@ elif args.method == "ParticleNet":
     limits_below = {mp: limits_baseline[mp] for mp in limits_baseline if int(mp.split("_")[1][2:]) < pnet_min}
     limits_above = {mp: limits_baseline[mp] for mp in limits_baseline if int(mp.split("_")[1][2:]) > pnet_max}
 
-    # Create graphs
+    # Expected line and bands are continued onto the ParticleNet window edge using the
+    # Baseline point sitting exactly at m_A = pnet_min / pnet_max, so the two regions meet
+    # instead of leaving a hole. Observed keeps the strict split: only the ParticleNet
+    # observed is drawn at the boundary mass. Skipped when --mhc is omitted, where the
+    # curated list can hold several entries at one m_A (e.g. two at m_A = 95).
+    def _boundary_anchor(target_ma):
+        if args.mhc is None:
+            return {}
+        return {mp: v for mp, v in limits_baseline.items()
+                if int(mp.split("_")[1][2:]) == target_ma}
+
+    limits_below_exp = {**limits_below, **_boundary_anchor(pnet_min)}
+    limits_above_exp = {**limits_above, **_boundary_anchor(pnet_max)}
+    # A single point draws neither a line nor a band; treat it as absent so it also
+    # stays out of the y_max scan (matters for MHc100, which has no "above" region).
+    if len(limits_below_exp) < 2:
+        limits_below_exp = {}
+    if len(limits_above_exp) < 2:
+        limits_above_exp = {}
+
+    # Create graphs. graphs_below/graphs_above feed the observed markers only; the
+    # *_exp graphs carry the boundary-anchored expected line and bands.
     graphs_pnet = create_graphs(limits_pnet)
     graphs_below = create_graphs(limits_below) if limits_below else None
     graphs_above = create_graphs(limits_above) if limits_above else None
+    graphs_below_exp = create_graphs(limits_below_exp) if limits_below_exp else None
+    graphs_above_exp = create_graphs(limits_above_exp) if limits_above_exp else None
 
-    y_max = max(_ymax_from(d) for d in (limits_pnet, limits_below, limits_above) if d)
+    y_max = max(_ymax_from(d) for d in (limits_pnet, limits_below_exp, limits_above_exp) if d)
     x_max = float(args.mhc - 5) if args.mhc is not None else 155.0
     canv = CMS.cmsCanvas("limit", 15., x_max, 0., y_max,
                          "m_{A} [GeV]", y_label_full,
@@ -340,7 +348,7 @@ elif args.method == "ParticleNet":
     canv.cd()
 
     # Draw all regions (bands and observed)
-    for g in [graphs_pnet, graphs_below, graphs_above]:
+    for g in [graphs_pnet, graphs_below_exp, graphs_above_exp]:
         if g:
             CMS.cmsObjectDraw(g['exp2sigma'], "E3 same", FillColor=ROOT.TColor.GetColor("#85D1FBff"))
             CMS.cmsObjectDraw(g['exp1sigma'], "E3 same", FillColor=ROOT.TColor.GetColor("#FFDF7Fff"))
@@ -358,10 +366,10 @@ elif args.method == "ParticleNet":
         CMS.cmsObjectDraw(graphs_baseline_at_pnet['exp'], "L same")
 
     # Draw expected lines (baseline regions first, then ParticleNet on top)
-    if graphs_below:
-        CMS.cmsObjectDraw(graphs_below['exp'], "L same")
-    if graphs_above:
-        CMS.cmsObjectDraw(graphs_above['exp'], "L same")
+    if graphs_below_exp:
+        CMS.cmsObjectDraw(graphs_below_exp['exp'], "L same")
+    if graphs_above_exp:
+        CMS.cmsObjectDraw(graphs_above_exp['exp'], "L same")
     CMS.cmsObjectDraw(graphs_pnet['exp'], "L same")
     if draw_cms_ref:
         CMS.cmsObjectDraw(g_cms_ref, "L same")
@@ -421,9 +429,13 @@ elif args.method == "ParticleNet":
     print(f"Created Brazilian plot with ParticleNet ({pnet_min}-{pnet_max} GeV{mhc_msg})")
     print(f"  ParticleNet: {len(limits_pnet)} mass points")
     if graphs_below:
-        print(f"  Baseline (below): {len(limits_below)} mass points")
+        n_anchor = len(limits_below_exp) - len(limits_below)
+        print(f"  Baseline (below): {len(limits_below)} mass points"
+              f"{f' (+{n_anchor} boundary anchor at MA{pnet_min})' if n_anchor > 0 else ''}")
     if graphs_above:
-        print(f"  Baseline (above): {len(limits_above)} mass points")
+        n_anchor = len(limits_above_exp) - len(limits_above)
+        print(f"  Baseline (above): {len(limits_above)} mass points"
+              f"{f' (+{n_anchor} boundary anchor at MA{pnet_max})' if n_anchor > 0 else ''}")
     if args.stack_baseline:
         print(f"  Baseline at PN points: {len(limits_baseline_at_pnet)} mass points overlay")
 

@@ -53,7 +53,9 @@ else:
 # Reference cross-section and normalization constants
 # Use 13 TeV ttbar cross-section for ALL eras (signal samples already scaled to 13 TeV reference)
 REFERENCE_XSEC = 5.0  # fb
+# NNLO+NNLL, https://twiki.cern.ch/twiki/bin/view/LHCPhysics/TtbarNNLO
 TTBAR_XEC_13TEV = 833.9e3  # fb
+TTBAR_XEC_13p6TEV = 923.6e3  # fb
 BR_TTBAR_TO_LEPTON = 2 * 0.5456  # 2 for charge conjugation, 0.5456 for non-hadronic decay of two W bosons
 
 

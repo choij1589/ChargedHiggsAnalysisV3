@@ -23,6 +23,17 @@ LumiInfo["Run2"] = _LUMI_CONFIG["Run2"]["combined"]
 LumiInfo["Run3"] = _LUMI_CONFIG["Run3"]["combined"]
 LumiInfo["All"] = _LUMI_CONFIG["All"]["combined"]
 
+# Un-rounded per-period sums. LumiInfo carries the rounded display values that
+# CMS quotes for a single period (Run2 -> 138, from 137.6). Figures that print
+# the periods side by side ("137.6 fb^-1 (13 TeV) + 62.4 fb^-1 (13.6 TeV)")
+# need the exact sums so the two terms add up to the combined total.
+LumiInfoExact = {
+    period: sum(lumi for era, lumi in _LUMI_CONFIG[period].items()
+                if era not in ("combined", "energy_TeV"))
+    for period in ("Run2", "Run3")
+}
+LumiInfoExact["All"] = LumiInfoExact["Run2"] + LumiInfoExact["Run3"]
+
 # Energy info from JSON
 EnergyInfo = {
     "Run2": _LUMI_CONFIG["Run2"]["energy_TeV"],

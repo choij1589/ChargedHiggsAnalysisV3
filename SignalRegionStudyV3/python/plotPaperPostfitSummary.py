@@ -18,7 +18,8 @@ MODULE_DIR = Path(__file__).resolve().parents[1]
 WORKDIR = Path(os.environ.get("WORKDIR", MODULE_DIR.parent))
 
 sys.path.insert(0, str(WORKDIR / "Common" / "Tools"))
-from plotter import ComparisonCanvas, EnergyInfo, LumiInfo, PALETTE_LONG  # noqa: E402
+from plotter import (ComparisonCanvas, EnergyInfo,  # noqa: E402
+                     LumiInfoExact, PALETTE_LONG)
 
 
 ROOT.gROOT.SetBatch(True)
@@ -258,8 +259,13 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high):
     y_range = visible_y_range(data, backgrounds, x_min, x_max)
     return {
         "era": "All",
-        "CoM": f"{EnergyInfo['Run2']:g}/{EnergyInfo['Run3']:g}",
-        "run_label": f"Run 2+3, {LumiInfo['All']:g} fb^{{#minus1}}",
+        # Per-energy luminosities, CMS style for multi-energy combinations:
+        # "138 fb^-1 (13 TeV) + 62.4 fb^-1 (13.6 TeV)". cmsstyle appends the
+        # CoM in parentheses, so the Run3 energy is carried by "CoM" and the
+        # Run2 term is baked into "run_label".
+        "CoM": f"{EnergyInfo['Run3']:g} TeV",
+        "run_label": (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
+                      f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}"),
         "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
         "yTitle": f"Events / {BIN_WIDTH:g} GeV",
         "rTitle": "Data / Pred",
@@ -268,15 +274,18 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high):
         "rRange": [0.0, 5.0],
         "maxDigits": 3,
         "overflow": False,
-        "iPos": 0,
-        "legend": (0.72, 0.55, 0.99, 0.89),
+        "iPos": 11,
+        # Two columns: data + 5 background groups + Stat+Syst fill four rows.
+        "legend": (0.50, 0.65, 0.99, 0.89),
         "legendTextSize": 0.038,
-        "legendColumns": 1,
+        "legendColumns": 2,
         "colors": [BKG_COLORS[name] for name in backgrounds.keys()],
         "channel": channel_label,
         "region": region_label,
         "channelPosX": 0.22,
-        "channelPosY": 0.75,
+        # iPos=11 puts "CMS"/"Preliminary" inside the frame, so the channel
+        # block starts lower to clear them.
+        "channelPosY": 0.72,
         "chi2_test": False,
         "normalize_chi2": False,
     }
@@ -289,14 +298,14 @@ def draw_region_label(plotter, label):
     region.SetNDC(True)
     region.SetTextFont(42)
     region.SetTextSize(0.045)
-    region.DrawLatex(0.22, 0.65, label)
+    region.DrawLatex(0.22, 0.62, label)
     labels.append(region)
 
     fit_label = ROOT.TLatex()
     fit_label.SetNDC(True)
     fit_label.SetTextFont(42)
     fit_label.SetTextSize(0.04)
-    fit_label.DrawLatex(0.22, 0.60, "B-only Post-fit")
+    fit_label.DrawLatex(0.22, 0.57, "B-only Post-fit")
     labels.append(fit_label)
     plotter._paper_region_labels = labels
 
