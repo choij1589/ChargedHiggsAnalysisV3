@@ -36,8 +36,35 @@ from ROCCurveCalculator import PALETTE, ROCCurveCalculator  # noqa: E402
 
 DEFAULT_SIGNALS = ["MHc100_MA95", "MHc130_MA90", "MHc160_MA85"]
 CLASS_DISPLAY_NAMES = ["Signal", "Nonprompt", "Diboson", "ttX"]
+# Typeset names for the figures; the plain names above stay the keys everywhere
+# else (summary dicts, stdout).
+CLASS_LATEX_NAMES = ["Signal", "Nonprompt", "Diboson", "t#bar{t}X"]
 BACKGROUND_CLASSES = [1, 2, 3]
 SIGNAL_PATTERN = re.compile(r"^MHc(?P<hc>\d+)_MA(?P<a>\d+)$")
+
+CURVE_LINE_WIDTH = 3
+# The no-discrimination diagonal is a reference, not a result, so it stays the
+# faintest thing on the canvas.
+DIAGONAL_COLOR = ROOT.kGray
+
+# The key is identical in every mass point, so it is dropped from the plots and
+# published once as its own panel -- the same scheme as the TriLepton paper
+# figures. What stays in the plot is the per-mass-point information: the mass
+# label and the test AUCs, colored to match their curves.
+LEGEND_PANEL_NAME = "legend.pdf"
+LEGEND_PANEL_TEXT_SIZE = 0.055
+LEGEND_PANEL_ROW_SPACING = 1.55  # row pitch in units of the text size
+LEGEND_PANEL_LEFT = 0.04
+LEGEND_PANEL_COLUMN_GAP = 0.01
+LEGEND_PANEL_CLASS_WIDTH = 0.42
+LEGEND_PANEL_CLASS_MARGIN = 0.24
+LEGEND_PANEL_STYLE_WIDTH = 0.54
+LEGEND_PANEL_STYLE_MARGIN = 0.20
+
+COMMENT_POS_X = 0.20
+COMMENT_POS_Y = 0.73
+COMMENT_ROW = 0.058
+COMMENT_TEXT_SIZE = 0.040
 
 
 def parse_args() -> argparse.Namespace:
@@ -92,7 +119,7 @@ def configure_cms_style() -> None:
 
     CMS.setCMSStyle()
     CMS.SetExtraText("Simulation Preliminary")
-    CMS.SetLumi(None, run="Run 2+3,")
+    CMS.SetLumi(None, run="")
     CMS.SetEnergy(0, unit="13/13.6 TeV")
 
 
@@ -146,6 +173,99 @@ def draw_legend(x1: float, y1: float, x2: float, y2: float, text_size: float):
     return legend
 
 
+def paper_panel_size() -> Tuple[int, int]:
+    """Pixel size of one ROC plot, so the legend panel matches it exactly.
+
+    Read off a throwaway canvas built exactly like the real ones rather than
+    hardcoded, which would drift if cmsstyle changed its reference dimensions.
+    """
+    probe = make_canvas()
+    size = (probe.GetWindowWidth(), probe.GetWindowHeight())
+    probe.Close()
+    return size
+
+
+def build_legend_proxies(prefix: str) -> Tuple[List[Tuple], List[Tuple], List[object]]:
+    """Dummy graphs styled like the drawn curves, plus their legend entries.
+
+    Returns (class_entries, style_entries, proxies); the caller must keep
+    `proxies` alive until the canvas is written, since TLegend does not own
+    them. The prefix keeps the ROOT names unique across panels.
+    """
+    proxies: List[object] = []
+
+    def new_proxy(color: int, line_style: int) -> "ROOT.TGraph":
+        graph = ROOT.TGraph(2)
+        graph.SetPoint(0, 0.0, 0.0)
+        graph.SetPoint(1, 1.0, 1.0)
+        graph.SetName(f"{prefix}_{len(proxies)}")
+        graph.SetLineColor(color)
+        graph.SetLineWidth(CURVE_LINE_WIDTH)
+        graph.SetLineStyle(line_style)
+        graph.SetMarkerSize(0)
+        proxies.append(graph)
+        return graph
+
+    class_entries = [
+        (new_proxy(PALETTE[bg_class], ROOT.kSolid), CLASS_LATEX_NAMES[bg_class], "L")
+        for bg_class in BACKGROUND_CLASSES
+    ]
+
+    # Line style carries train vs test for every class, so the key is drawn once
+    # in black rather than repeated per color.
+    style_entries = [
+        (new_proxy(ROOT.kBlack, ROOT.kSolid), "Test", "L"),
+        (new_proxy(ROOT.kBlack, ROOT.kDashed), "Train", "L"),
+        (new_proxy(DIAGONAL_COLOR, ROOT.kDashed), "No discrimination", "L"),
+    ]
+
+    return class_entries, style_entries, proxies
+
+
+def render_legend_panel(output_dir: Path) -> Path:
+    """Write the shared key as its own panel, sized like a ROC plot."""
+    width, height = paper_panel_size()
+    canvas = ROOT.TCanvas("paper_roc_legend", "paper_roc_legend", 50, 50, width, height)
+    canvas.SetFillColor(0)
+    canvas.SetBorderMode(0)
+    canvas.SetFrameFillStyle(0)
+    canvas.SetFrameBorderMode(0)
+    canvas.cd()
+
+    class_entries, style_entries, proxies = build_legend_proxies("paper_roc_legend")
+    row = LEGEND_PANEL_TEXT_SIZE * LEGEND_PANEL_ROW_SPACING
+
+    # Both blocks are centred on the panel midline so unequal column lengths
+    # stay visually balanced.
+    def block_y(n_entries: int) -> Tuple[float, float]:
+        block_height = row * n_entries
+        return 0.5 - 0.5 * block_height, 0.5 + 0.5 * block_height
+
+    class_x1 = LEGEND_PANEL_LEFT
+    style_x1 = class_x1 + LEGEND_PANEL_CLASS_WIDTH + LEGEND_PANEL_COLUMN_GAP
+
+    legends = []
+    for x1, width_ndc, margin, entries in (
+        (class_x1, LEGEND_PANEL_CLASS_WIDTH, LEGEND_PANEL_CLASS_MARGIN, class_entries),
+        (style_x1, LEGEND_PANEL_STYLE_WIDTH, LEGEND_PANEL_STYLE_MARGIN, style_entries),
+    ):
+        y1, y2 = block_y(len(entries))
+        legend = draw_legend(x1, y1, x1 + width_ndc, y2, LEGEND_PANEL_TEXT_SIZE)
+        legend.SetMargin(margin)
+        for entry in entries:
+            legend.AddEntry(*entry)
+        legend.Draw()
+        legends.append(legend)
+
+    canvas.Update()
+    output_path = output_dir / LEGEND_PANEL_NAME
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.SaveAs(str(output_path))
+    canvas.Close()
+    del proxies, legends
+    return output_path
+
+
 def mass_point_label(signal: str) -> str:
     match = SIGNAL_PATTERN.match(signal)
     if not match:
@@ -178,18 +298,36 @@ def make_canvas() -> "ROOT.TCanvas":
     return canvas
 
 
-def draw_mass_point(signal: str, keepalive: List[object]) -> None:
-    label = mass_point_label(signal)
-    if HAS_CMS_STYLE:
-        CMS.drawText(label, posX=0.20, posY=0.55, font=42, align=0, size=0.026)
-        return
+def draw_comment(text: str, pos_y: float, keepalive: List[object]) -> None:
+    """One line of the in-plot comment block, drawn black.
 
+    Per-process coloring is done inline with TLatex's #color[] so that the
+    process name and its AUC number stay one string and line up on their own;
+    cmsstyle's drawText() has no color argument either way.
+    """
     latex = ROOT.TLatex()
     latex.SetNDC()
     latex.SetTextFont(42)
-    latex.SetTextSize(0.026)
-    latex.DrawLatex(0.20, 0.55, label)
+    latex.SetTextSize(COMMENT_TEXT_SIZE)
+    latex.SetTextColor(ROOT.kBlack)
+    latex.SetTextAlign(12)
+    latex.DrawLatex(COMMENT_POS_X, pos_y, text)
     keepalive.append(latex)
+
+
+def draw_comments(signal: str, auc_summary: Dict[str, float],
+                  keepalive: List[object]) -> None:
+    """Mass point plus the test AUCs -- the only per-plot part of the key."""
+    pos_y = COMMENT_POS_Y
+    draw_comment(mass_point_label(signal), pos_y, keepalive)
+
+    for bg_class in BACKGROUND_CLASSES:
+        pos_y -= COMMENT_ROW
+        bg_name = CLASS_DISPLAY_NAMES[bg_class]
+        # Process name in the curve's color, the measured value in black.
+        label = (f"#color[{PALETTE[bg_class]}]{{{CLASS_LATEX_NAMES[bg_class]} AUC}} "
+                 f"= {auc_summary[bg_name]:.2f}")
+        draw_comment(label, pos_y, keepalive)
 
 
 def plot_signal(signal: str, predictions: Dict[str, np.ndarray], output_path: Path) -> Dict[str, Dict[str, float]]:
@@ -199,7 +337,6 @@ def plot_signal(signal: str, predictions: Dict[str, np.ndarray], output_path: Pa
     canvas = make_canvas()
     canvas.SetGrid()
 
-    legend = draw_legend(0.18, 0.62, 0.70, 0.77, 0.022)
     keepalive: List[object] = []
     summary: Dict[str, Dict[str, float]] = {}
 
@@ -209,7 +346,7 @@ def plot_signal(signal: str, predictions: Dict[str, np.ndarray], output_path: Pa
     draw_with_cms(
         diagonal,
         "L",
-        LineColor=ROOT.kGray + 2,
+        LineColor=DIAGONAL_COLOR,
         LineWidth=2,
         LineStyle=ROOT.kDashed,
     )
@@ -227,7 +364,7 @@ def plot_signal(signal: str, predictions: Dict[str, np.ndarray], output_path: Pa
             train_graph,
             "L",
             LineColor=color,
-            LineWidth=3,
+            LineWidth=CURVE_LINE_WIDTH,
             LineStyle=ROOT.kDashed,
         )
         keepalive.append(train_graph)
@@ -240,16 +377,14 @@ def plot_signal(signal: str, predictions: Dict[str, np.ndarray], output_path: Pa
             test_graph,
             "L",
             LineColor=color,
-            LineWidth=3,
+            LineWidth=CURVE_LINE_WIDTH,
             LineStyle=ROOT.kSolid,
         )
         keepalive.append(test_graph)
 
-        legend.AddEntry(test_graph, f"{bg_name}: AUC = {auc_test:.4f}", "L")
         summary[bg_name] = {"train": float(auc_train), "test": float(auc_test)}
 
-    legend.Draw()
-    draw_mass_point(signal, keepalive)
+    draw_comments(signal, {name: aucs["test"] for name, aucs in summary.items()}, keepalive)
     canvas.RedrawAxis()
     canvas.Update()
     canvas._keepalive = keepalive
@@ -283,6 +418,9 @@ def format_summary(signal: str, iteration: int, model_idx: int,
 def run(args: argparse.Namespace) -> None:
     input_dir = Path(args.input)
     output_dir = Path(args.output_dir)
+
+    configure_cms_style()
+    print(f"legend panel -> {render_legend_panel(output_dir)}")
 
     for signal in args.signals:
         iteration, model_idx, _summary_path = load_best_model(

@@ -9,7 +9,8 @@ multiple `mA` hypotheses:
 P(class | event, mA)
 ```
 
-For the first study, `mHc` is fixed to `130` and the trained hypotheses are:
+The study has been performed for three fixed `mHc` values — `100`, `130`, and
+`160` — each trained on the same hypotheses:
 
 ```text
 mA = 85, 90, 95
@@ -25,7 +26,14 @@ signal, nonprompt, diboson, ttX
 ParametricPN is intended to answer whether a single mass-conditioned
 ParticleNetMD can match the performance of separately trained plain
 ParticleNetMD models. The first comparison metrics are ROC curves for each mass
-point, followed by score distributions and mass-sculpting checks.
+point, followed by score distributions and mass-sculpting checks. Results for
+all three `mHc` values are summarized in the Findings section below.
+
+**Thesis context:** the production analysis uses the GA-optimized uniform-256
+ParticleNetMD models (`GAOptim/.../best_model`). The 512-256-256 configuration
+in `ModelComparison/` exists only as a capacity-fairness test against the
+tabular DNN and is not the analysis model — so ParametricPN's config and
+baselines (both GA-best, uniform 256) are the production-relevant comparison.
 
 ## Model And Data Definition
 
@@ -187,7 +195,8 @@ python python/trainParametricPN.py \
   --max-epochs 2
 ```
 
-Full run:
+Full run (repeat with `--mhc 100` / `--mhc 160` for the other studies; output
+directories `MHc{N}_MA85_MA90_MA95` are derived automatically):
 
 ```bash
 python python/trainParametricPN.py \
@@ -260,12 +269,14 @@ The comparison script evaluates the trained ParametricPN model against the
 existing GA-best plain ParticleNetMD model for each mass point:
 
 ```text
-GAOptim/Combined/MHc130_MA85/fold-4/best_model/model.pt
-GAOptim/Combined/MHc130_MA90/fold-4/best_model/model.pt
-GAOptim/Combined/MHc130_MA95/fold-4/best_model/model.pt
+GAOptim/Combined/MHc{N}_MA85/fold-4/best_model/model.pt
+GAOptim/Combined/MHc{N}_MA90/fold-4/best_model/model.pt
+GAOptim/Combined/MHc{N}_MA95/fold-4/best_model/model.pt
 ```
 
-Run after ParametricPN training finishes:
+All nine baselines (`mHc = 100, 130, 160` × `mA = 85, 90, 95`) exist as full GA
+optimizations. Run after ParametricPN training finishes (repeat with
+`--mhc 100` / `--mhc 160`):
 
 ```bash
 python python/compareParametricPN.py \
@@ -341,6 +352,47 @@ the full selected comparison sample. The exact pairwise distance-correlation
 calculation is capped by `--dcor-max-events` per model/background/mass
 combination, defaulting to `3000`, to avoid the O(N^2) memory cost of computing
 dCor on the full 50k-event comparison slices.
+
+## Findings (2026-07-23, test fold, Combined channel)
+
+Test-split AUC of `LR(signal vs bg)`, single-mass GA-best baseline vs the
+parametric model (Δ = parametric − baseline), from each study's
+`comparison/auc_summary.csv`:
+
+### MHc = 100 (trained 2026-07-22, early stop at epoch 64)
+
+| mA | NP base | NP param (Δ) | VV base | VV param (Δ) | ttX base | ttX param (Δ) |
+|----|---------|--------------|---------|--------------|----------|----------------|
+| 85 | 0.8820 | 0.8762 (−0.006) | 0.9470 | 0.9455 (−0.002) | 0.9072 | 0.8999 (−0.007) |
+| 90 | 0.8771 | 0.8752 (−0.002) | 0.9425 | 0.9424 (−0.000) | 0.9054 | 0.9029 (−0.003) |
+| 95 | 0.8789 | 0.8767 (−0.002) | 0.9424 | 0.9419 (−0.001) | 0.9090 | 0.9062 (−0.003) |
+
+### MHc = 130 (trained 2026-06-17, early stop at epoch 61)
+
+| mA | NP base | NP param (Δ) | VV base | VV param (Δ) | ttX base | ttX param (Δ) |
+|----|---------|--------------|---------|--------------|----------|----------------|
+| 85 | 0.8944 | 0.8957 (+0.001) | 0.9518 | 0.9501 (−0.002) | 0.9131 | 0.9150 (+0.002) |
+| 90 | 0.8943 | 0.8971 (+0.003) | 0.9535 | 0.9514 (−0.002) | 0.9187 | 0.9197 (+0.001) |
+| 95 | 0.9016 | 0.8983 (−0.003) | 0.9534 | 0.9511 (−0.002) | 0.9264 | 0.9235 (−0.003) |
+
+### MHc = 160 (trained 2026-07-22/23, early stop at epoch 65)
+
+| mA | NP base | NP param (Δ) | VV base | VV param (Δ) | ttX base | ttX param (Δ) |
+|----|---------|--------------|---------|--------------|----------|----------------|
+| 85 | 0.8913 | 0.8903 (−0.001) | 0.9429 | 0.9446 (+0.002) | 0.9190 | 0.9171 (−0.002) |
+| 90 | 0.8910 | 0.8892 (−0.002) | 0.9407 | 0.9422 (+0.001) | 0.9198 | 0.9176 (−0.002) |
+| 95 | 0.8937 | 0.8914 (−0.002) | 0.9423 | 0.9432 (+0.001) | 0.9245 | 0.9193 (−0.005) |
+
+**Conclusion:** across all three `mHc` studies (27 mA × background
+combinations), the parametric model matches the single-mass baselines to
+|Δ AUC| ≤ 0.007, with no endpoint-mass collapse — the largest deviations are a
+mild softening at the `MHc100` `MA85` endpoint (−0.006/−0.007 for NP/ttX).
+Distance correlations `dCor(LR, mass)` remain in the same 0.03–0.14 band for
+both models (subsampled to 3000 events, so small differences are within
+statistical scatter). A single mass-conditioned ParticleNetMD therefore
+reproduces the per-mass GA-best performance over the full tested grid.
+
+---
 
 ## Interpretation Checklist
 

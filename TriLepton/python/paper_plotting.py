@@ -8,9 +8,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
+import cmsstyle as CMS
 import ROOT
 
-from plotter import ComparisonCanvas, PALETTE, PALETTE_LONG, get_era_list, get_CoM_energy
+from plotter import (ComparisonCanvas, PALETTE, PALETTE_LONG, EnergyInfo,
+                     LumiInfoExact, get_era_list)
 from HistoUtils import (
     setup_missing_histogram_logging,
     load_histogram,
@@ -38,6 +40,39 @@ BKG_COLORS = {
     "others": PALETTE_LONG[4],
 }
 BKG_ORDER = ["others", "conv", "diboson", "ttX", "nonprompt"]
+# Legend labels for the paper figures. The internal category names stay as they
+# are everywhere else (sample groups, yield tables); only what the reader sees
+# is typeset.
+BKG_LABELS = {
+    "nonprompt": "Nonprompt",
+    "diboson": "Diboson",
+    "ttX": "t#bar{t}X",
+    "conv": "Conversions",
+    "others": "Others",
+}
+
+SIGNAL_LINE_WIDTH = 3
+DATA_LABEL = "Data"
+SYST_LABEL = "Stat.+Syst."
+# Uncertainty band style, mirrored from ComparisonCanvas.drawPadUp so the shared
+# legend panel shows the same hatching as the plots.
+SYST_FILL_STYLE = 3004
+SYST_FILL_COLOR = 12
+
+# Standalone legend panel: the plots publish no legend of their own, so the 2x2
+# paper figures spend their fourth panel on this one. Geometry is in NDC of a
+# canvas the same size as a plot panel.
+LEGEND_PANEL_ROW_SPACING = 1.55  # row pitch in units of the text size
+# Two side-by-side columns: signals on the left, backgrounds on the right. The
+# mass-point labels are far longer than the process names, so the columns are
+# unequal and each sets its own symbol width (the TLegend margin) to leave the
+# text as much room as it needs.
+LEGEND_PANEL_LEFT = 0.03
+LEGEND_PANEL_COLUMN_GAP = 0.01
+LEGEND_PANEL_BKG_WIDTH = 0.33
+LEGEND_PANEL_BKG_MARGIN = 0.30
+LEGEND_PANEL_SIGNAL_WIDTH = 0.62
+LEGEND_PANEL_SIGNAL_MARGIN = 0.16
 
 CHANNEL_LABELS = {
     "SR1E2Mu": ("SR", "e#mu#mu"),
@@ -48,7 +83,7 @@ CHANNEL_LABELS = {
     "ZG3Mu": ("Z+#gamma CR", "#mu#mu#mu"),
     "WZ1E2Mu": ("WZ CR", "e#mu#mu"),
     "WZ3Mu": ("WZ CR", "#mu#mu#mu"),
-    "TTZ2E1Mu": ("TTZ CR", "ee#mu"),
+    "TTZ2E1Mu": ("t#bar{t}Z CR", "ee#mu"),
 }
 
 
@@ -66,6 +101,11 @@ class PaperPlotOptions:
     adaptive_max_width: float = 10.0
     adaptive_base_width: float = 2.0
     signal_colors: list[str] = field(default_factory=lambda: ["#5790fc", "#f89c20", "#964a8b", "#e42536"])
+    # Legends are identical in every paper plot, so they are dropped from the
+    # plots and published once via render_paper_legend().
+    draw_legends: bool = False
+    legend_panel_text_size: float = 0.040
+    y_headroom: float = 1.5
 
 
 def get_plot_era_list(era):
@@ -80,12 +120,6 @@ def get_run_period(era):
     if era in RUN3_ERAS or era == "Run3":
         return "Run3"
     raise ValueError(f"Invalid era: {era}")
-
-
-def get_plot_com_energy(era):
-    if era == "All":
-        return "13/13.6"
-    return get_CoM_energy(era)
 
 
 def get_channel_flags(channel):
@@ -171,27 +205,41 @@ def get_mc_rate_uncertainties(sample, era, era_samples, xsec_rel_unc, conv_rel_u
 def build_config(histkey, channel, options):
     config = dict(options.hist_configs[histkey])
     config["era"] = "All"
-    config["CoM"] = get_plot_com_energy("All")
-    config["rTitle"] = "Data / Pred"
+    # Per-energy luminosities, CMS style for multi-energy combinations:
+    # "137.6 fb^-1 (13 TeV) + 62.4 fb^-1 (13.6 TeV)". cmsstyle appends the
+    # CoM in parentheses, so the Run3 energy is carried by "CoM" and the
+    # Run2 term is baked into "run_label".
+    config["CoM"] = f"{EnergyInfo['Run3']:g} TeV"
+    config["run_label"] = (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
+                           f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}")
+    config["rTitle"] = "Data / Pred."
+    # No in-plot legend to clear, so the stack can use the vertical space.
+    config["yHeadroom"] = options.y_headroom
+    # Signal regions are statistics-limited over most of the mass range, so the
+    # ratio needs the wider window; the control regions stay on the tight one
+    # shared with the SignalRegionStudyV3 paper plots.
+    config["rRange"] = [0.0, 2.0] if channel.startswith("SR") else [0.5, 1.5]
     config["maxDigits"] = 3
     config["blind"] = options.blind
     config["overflow"] = True
-    config["iPos"] = 0
+    config["iPos"] = 11
     config["legend"] = (0.72, 0.55, 0.99, 0.89)
     config["legendTextSize"] = 0.038
     config["signalLegend"] = (0.32, 0.63, 0.73, 0.87)
     config["signalLegendTextSize"] = 0.034
-    config["signalLineWidth"] = 3
+    # Both legends live in the shared panel unless the caller asks for the
+    # self-contained version of the plots.
+    config["drawLegend"] = options.draw_legends
+    config["drawSignalLegend"] = options.draw_legends
+    config["signalLineWidth"] = SIGNAL_LINE_WIDTH
     config["signalFill"] = True
     config["signalFillAlpha"] = 0.18
     config["signalColors"] = [ROOT.TColor.GetColor(color) for color in options.signal_colors]
-    config["run_label"] = "Run 2+3, 200 fb^{#minus1}"
+    config["systSrc"] = SYST_LABEL
     config["chi2_test"] = False
-    if channel.startswith(("ZG", "WZ")):
-        config["iPos"] = 11
     if histkey == "ZCand/mass":
         config["xRange"] = [81, 101]
-        config["yTitle"] = "Events / 1 GeV"
+        config["yTitle"] = "Events"
         if channel == "TTZ2E1Mu":
             config["xTitle"] = "m(e^{+}e^{-}) [GeV]"
         config["overflow"] = False
@@ -344,7 +392,7 @@ def load_plot_objects(channel, histkey, config, options):
     data = sum_histograms(era_data_hists, "data_total")
     if data is None:
         raise RuntimeError(f"No valid data histograms found for {histkey} in {channel}")
-    data.SetTitle("Data")
+    data.SetTitle(DATA_LABEL)
 
     hists = {}
     for sample in mc_categories["nonprompt"]:
@@ -367,12 +415,16 @@ def load_plot_objects(channel, histkey, config, options):
             else:
                 merged_categories[category].Add(hists[sample])
 
-    bkgs = {
-        name: merged_categories[name]
-        for name in BKG_ORDER
-        if merged_categories.get(name) is not None
-    }
-    config["colors"] = [BKG_COLORS[name] for name in bkgs.keys()]
+    # Keyed by legend label, since ComparisonCanvas labels the stack with the
+    # dict keys; colors are collected alongside so they stay aligned with the
+    # categories that actually survived.
+    bkgs = {}
+    config["colors"] = []
+    for name in BKG_ORDER:
+        if merged_categories.get(name) is None:
+            continue
+        bkgs[BKG_LABELS[name]] = merged_categories[name]
+        config["colors"].append(BKG_COLORS[name])
 
     return (data, bkgs, load_signals(channel, histkey, flag, era_list, options),
             total_builder.total_hist())
@@ -437,6 +489,136 @@ def apply_adaptive_binning(config, bkgs, options, histkey):
     config["xRange"] = edges
     config.pop("rebin", None)
     return edges
+
+
+def build_legend_output_path(options, with_signals=True):
+    """Signal regions and control regions get their own panel, since only the
+    former overlay signals."""
+    name = "legend.pdf" if with_signals else "legend_nosignal.pdf"
+    return options.output_root / "All" / name
+
+
+def paper_panel_size(options):
+    """Pixel size of one paper plot, so the legend panel matches it exactly.
+
+    Taken from a throwaway canvas built the same way ComparisonCanvas builds
+    its own, rather than from hardcoded numbers that would silently drift if
+    cmsstyle changed its reference dimensions.
+    """
+    if options.blind:
+        probe = CMS.cmsCanvas("panel_size_probe", 0., 1., 0., 1., "", "",
+                              square=True, iPos=11, extraSpace=0)
+    else:
+        probe = CMS.cmsDiCanvas("panel_size_probe", 0., 1., 0., 1., 0., 1., "", "", "",
+                                square=True, iPos=11, extraSpace=0)
+    size = (probe.GetWindowWidth(), probe.GetWindowHeight())
+    probe.Close()
+    return size
+
+
+def build_legend_proxies(options, prefix="legend"):
+    """Dummy objects styled like the drawn ones, plus their legend entries.
+
+    Returns (background_entries, signal_entries, proxies); the caller must keep
+    `proxies` alive until the canvas is written, since TLegend does not own them.
+    The prefix keeps the ROOT names unique when several panels are built in one
+    process.
+    """
+    proxies = []
+
+    def new_proxy(suffix):
+        hist = ROOT.TH1F(f"{prefix}_{suffix}", "", 1, 0., 1.)
+        hist.SetDirectory(0)
+        hist.SetStats(0)
+        proxies.append(hist)
+        return hist
+
+    data = new_proxy("data")
+    data.SetMarkerStyle(ROOT.kFullCircle)
+    data.SetMarkerSize(1.0)
+    data.SetMarkerColor(ROOT.kBlack)
+    data.SetLineColor(ROOT.kBlack)
+    bkg_entries = [(data, DATA_LABEL, "PE")]
+
+    # Same order as the stacked legend: top of the stack listed first.
+    for name in reversed(BKG_ORDER):
+        proxy = new_proxy(name)
+        proxy.SetFillColor(BKG_COLORS[name])
+        proxy.SetLineColor(BKG_COLORS[name])
+        proxy.SetFillStyle(1001)
+        bkg_entries.append((proxy, BKG_LABELS[name], "F"))
+
+    syst = new_proxy("syst")
+    syst.SetFillStyle(SYST_FILL_STYLE)
+    syst.SetFillColor(SYST_FILL_COLOR)
+    syst.SetLineWidth(0)
+    syst.SetMarkerSize(0)
+    bkg_entries.append((syst, SYST_LABEL, " FE2"))
+
+    signal_entries = []
+    for idx, signal_mass in enumerate(options.signals):
+        color = ROOT.TColor.GetColor(options.signal_colors[idx % len(options.signal_colors)])
+        proxy = new_proxy(f"signal_{signal_mass}")
+        proxy.SetLineColor(color)
+        proxy.SetLineWidth(SIGNAL_LINE_WIDTH)
+        proxy.SetMarkerSize(0)
+        signal_entries.append((proxy, format_signal_label(signal_mass), "L"))
+
+    return bkg_entries, signal_entries, proxies
+
+
+def render_paper_legend(options, with_signals=True):
+    """Write the shared legend as its own panel, sized like a paper plot."""
+    width, height = paper_panel_size(options)
+    name = "paper_legend" if with_signals else "paper_legend_nosignal"
+    canvas = ROOT.TCanvas(name, name, 50, 50, width, height)
+    canvas.SetFillColor(0)
+    canvas.SetBorderMode(0)
+    canvas.SetFrameFillStyle(0)
+    canvas.SetFrameBorderMode(0)
+    canvas.cd()
+
+    bkg_entries, signal_entries, proxies = build_legend_proxies(options, prefix=name)
+    if not with_signals:
+        signal_entries = []
+    text_size = options.legend_panel_text_size
+    row = text_size * LEGEND_PANEL_ROW_SPACING
+
+    # Each block is centred on the panel's midline, which leaves the shorter
+    # signal column sitting in the middle of the background one.
+    def block_y(n_entries):
+        height = row * n_entries
+        return 0.5 - 0.5 * height, 0.5 + 0.5 * height
+
+    if signal_entries:
+        signal_x1 = LEGEND_PANEL_LEFT
+        bkg_x1 = signal_x1 + LEGEND_PANEL_SIGNAL_WIDTH + LEGEND_PANEL_COLUMN_GAP
+    else:
+        # Nothing to sit beside, so the single column is centred instead.
+        bkg_x1 = 0.5 * (1.0 - LEGEND_PANEL_BKG_WIDTH)
+
+    legends = []
+    if signal_entries:
+        y1, y2 = block_y(len(signal_entries))
+        signal_leg = CMS.cmsLeg(signal_x1, y1, signal_x1 + LEGEND_PANEL_SIGNAL_WIDTH, y2,
+                                textSize=text_size)
+        signal_leg.SetMargin(LEGEND_PANEL_SIGNAL_MARGIN)
+        CMS.addToLegend(signal_leg, *signal_entries)
+        legends.append(signal_leg)
+
+    y1, y2 = block_y(len(bkg_entries))
+    bkg_leg = CMS.cmsLeg(bkg_x1, y1, bkg_x1 + LEGEND_PANEL_BKG_WIDTH, y2, textSize=text_size)
+    bkg_leg.SetMargin(LEGEND_PANEL_BKG_MARGIN)
+    CMS.addToLegend(bkg_leg, *bkg_entries)
+    legends.append(bkg_leg)
+
+    canvas.Update()
+    output_path = build_legend_output_path(options, with_signals)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.SaveAs(str(output_path))
+    canvas.Close()
+    del proxies, legends
+    return output_path
 
 
 def render_paper_plot(channel, histkey, options):

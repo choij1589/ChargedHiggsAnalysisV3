@@ -243,6 +243,36 @@ class BaseCanvas():
 
         return lumiInfo, run
 
+    def _make_legend(self, coords, textSize, columns=None, draw=True):
+        """
+        Build a CMS-style legend.
+
+        With draw=False the legend is created but never attached to the pad, so
+        entries can still be collected while nothing is shown -- used by figures
+        whose legend is published as a separate panel.
+
+        Args:
+            coords (tuple): (x1, y1, x2, y2) in NDC
+            textSize (float): Legend text size
+            columns (int, optional): Number of legend columns
+            draw (bool): Whether to draw the legend on the current pad
+
+        Returns:
+            TLegend: Configured legend object
+        """
+        if draw:
+            return CMS.cmsLeg(*coords, textSize=textSize, columns=columns)
+
+        leg = ROOT.TLegend(*coords, "", "brNDC")
+        leg.SetTextSize(textSize)
+        leg.SetTextFont(42)
+        leg.SetBorderSize(0)
+        leg.SetFillStyle(0)
+        leg.SetFillColor(0)
+        if columns:
+            leg.SetNColumns(columns)
+        return leg
+
     def _create_legend(self, config):
         """
         Create CMS legend with default or custom parameters.
@@ -255,10 +285,9 @@ class BaseCanvas():
         """
         textSize = config.get("legendTextSize", 0.04)
         columns = config.get("legendColumns", 1)
-        if config.get("legend") is not None:
-            return CMS.cmsLeg(*config["legend"], textSize=textSize, columns=columns)
-        else:
-            return CMS.cmsLeg(0.7, 0.89 - 0.05 * 7, 0.99, 0.89, textSize=textSize, columns=columns)
+        coords = config.get("legend") or (0.7, 0.89 - 0.05 * 7, 0.99, 0.89)
+        return self._make_legend(coords, textSize, columns=columns,
+                                 draw=config.get("drawLegend", True))
 
     def _draw_channel_text(self, config):
         """
@@ -434,10 +463,13 @@ class ComparisonCanvas(BaseCanvas):
         # Get axis ranges
         xmin, xmax = self._get_axis_range(config, self.systematics)
 
-        # Calculate y-range with specific logic for ComparisonCanvas
+        # Calculate y-range with specific logic for ComparisonCanvas.
+        # yHeadroom is the linear-scale multiplier above the tallest bin; the
+        # default leaves room for an in-plot legend, figures that publish their
+        # legend elsewhere can ask for less.
         if config.get("yRange") is None:
             ymin = 0.
-            ymax = self.systematics.GetMaximum() * 2
+            ymax = self.systematics.GetMaximum() * config.get("yHeadroom", 2.0)
             if config.get('logy', False):
                 ymin = self.systematics.GetMinimum() * 0.5
                 if not ymin > 0:
@@ -511,7 +543,7 @@ class ComparisonCanvas(BaseCanvas):
             ymax = hist_max * 100
         else:
             ymin = 0.
-            ymax = hist_max * 2
+            ymax = hist_max * self.config.get("yHeadroom", 2.0)
 
         # Update the canvas histogram's y-axis
         pad = self.canv.cd() if self.config.get("no_ratio", False) else self.canv.cd(1)
@@ -558,7 +590,9 @@ class ComparisonCanvas(BaseCanvas):
         sig_legend = self.config.get("signalLegend", (0.30, 0.73, 0.69, 0.88))
         sig_text_size = self.config.get("signalLegendTextSize", 0.026)
         sig_columns = self.config.get("signalLegendColumns", 1)
-        self.sigleg = CMS.cmsLeg(*sig_legend, textSize=sig_text_size, columns=sig_columns)
+        draw_sigleg = self.config.get("drawSignalLegend", True)
+        self.sigleg = self._make_legend(sig_legend, sig_text_size,
+                                        columns=sig_columns, draw=draw_sigleg)
 
         # Process all signals
         for idx, (name, hist) in enumerate(signals.items()):
@@ -601,7 +635,8 @@ class ComparisonCanvas(BaseCanvas):
                 )
             CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=signal_line_width, LineStyle=line_style, MarkerSize=0)
             CMS.addToLegend(self.sigleg, (hist, name, "L"))
-        self.sigleg.Draw()
+        if draw_sigleg:
+            self.sigleg.Draw()
         self._cd_main().RedrawAxis()
 
     def drawPadDown(self):

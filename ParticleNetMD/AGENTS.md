@@ -249,6 +249,8 @@ Entry points:
 - `python/dibosonRankPromote.py`: diboson promotion tables.
 - `python/nonpromptPromotion.py`: nonprompt fake-rate validation.
 - `python/runModelComparison.py`: five-model comparison driver (BDT/DNN/DNN_MD/ParticleNet/ParticleNet_MD).
+- `python/trainParametricPN.py`: mass-parametrized ParticleNetMD training (fixed mHc, multiple mA hypotheses).
+- `python/compareParametricPN.py`: ParametricPN vs single-mass GA-best baseline comparison.
 
 Library modules:
 
@@ -313,5 +315,6 @@ Some scripts also create `results/`, `plots/`, or validation subdirectories as n
 - `docs/STEP2-DECORRELATION.md`: lambda/decorrelation workflow.
 - `docs/STEP3_HYPERPARAM.md`: GA optimization details.
 - `docs/ModelComparison.md`: five-model comparison workflow and canonical ParticleNet configuration.
+- `docs/ParametricPN.md`: mass-parametrized ParticleNetMD study (mHc = 100/130/160) and findings.
 - `docs/BOARD.md`: project task/status notes.
 - `DataAugment/*.md`: sample-specific augmentation and dataset notes.
