@@ -634,7 +634,8 @@ class ComparisonCanvas(BaseCanvas):
                     MarkerSize=0,
                 )
             CMS.cmsObjectDraw(hist, "hist", LineColor=color, LineWidth=signal_line_width, LineStyle=line_style, MarkerSize=0)
-            CMS.addToLegend(self.sigleg, (hist, name, "L"))
+            # A filled signal is shown as a box so the legend matches what is drawn.
+            CMS.addToLegend(self.sigleg, (hist, name, "F" if signal_fill else "L"))
         if draw_sigleg:
             self.sigleg.Draw()
         self._cd_main().RedrawAxis()

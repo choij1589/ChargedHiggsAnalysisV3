@@ -4,7 +4,6 @@ from array import array
 import argparse
 import ROOT
 import json
-import yaml
 import cmsstyle as CMS
 from plotter import LumiInfo, LumiInfoExact, EnergyInfo, get_CoM_energy, PALETTE_LONG
 
@@ -92,43 +91,9 @@ def create_graphs(limits_dict):
             'values': [v for arr in limits.values() for v in arr]}
 
 
-# Load CMS reference limits (HEPData ins1735729, Figure 2b).
-# This curve is for mH+ = 160 GeV only; xsec mode skips the overlay.
-cms_ref_path = "results/yaml/HEPData-ins1735729-v2-Figure_2b.yaml"
-if args.mode == "BR" and os.path.exists(cms_ref_path):
-    with open(cms_ref_path) as f:
-        cms_yaml = yaml.safe_load(f)
-    x_cms_ref = array('d', [v["value"] for v in cms_yaml["independent_variables"][0]["values"]])
-    # dependent_variables[1] is the expected upper limit in units of ×10⁻⁶
-    exp_cms_ref = array('d', [v["value"] * 1e-6 for v in cms_yaml["dependent_variables"][1]["values"]])
-    g_cms_ref = ROOT.TGraph(len(x_cms_ref), x_cms_ref, exp_cms_ref)
-    g_cms_ref.SetLineWidth(2)
-    g_cms_ref.SetLineStyle(2)
-    g_cms_ref.SetLineColor(ROOT.kGreen+2)
-    has_cms_ref = True
-else:
-    has_cms_ref = False
-    if args.mode == "BR":
-        print(f"Warning: CMS reference limits file not found at {cms_ref_path}")
-
-# Load ATLAS reference limits (HEPData ins2654723, Table 9 / Figure 5d).
-# This curve is for mH+ = 160 GeV only; xsec mode skips the overlay.
-atlas_ref_path = "results/yaml/HEPData-ins2654723-v1-Table_9.yaml"
-if args.mode == "BR" and os.path.exists(atlas_ref_path):
-    with open(atlas_ref_path) as f:
-        atlas_yaml = yaml.safe_load(f)
-    x_atlas_ref = array('d', [v["value"] for v in atlas_yaml["independent_variables"][0]["values"]])
-    # dependent_variables[1] is the expected limit, already in absolute B_sig units
-    exp_atlas_ref = array('d', [v["value"] for v in atlas_yaml["dependent_variables"][1]["values"]])
-    g_atlas_ref = ROOT.TGraph(len(x_atlas_ref), x_atlas_ref, exp_atlas_ref)
-    g_atlas_ref.SetLineWidth(2)
-    g_atlas_ref.SetLineStyle(2)
-    g_atlas_ref.SetLineColor(ROOT.kBlue+1)
-    has_atlas_ref = True
-else:
-    has_atlas_ref = False
-    if args.mode == "BR":
-        print(f"Warning: ATLAS reference limits file not found at {atlas_ref_path}")
+# The CMS 2016 (HEPData ins1735729) and ATLAS Run 2 (HEPData ins2654723) reference curves
+# are no longer overlaid on the mH+ = 160 GeV BR plots; the paper figures show this result
+# alone. The HEPData YAML files stay under results/yaml/ for reference.
 
 # Setup CMS style
 CMS.SetExtraText("Preliminary")
@@ -152,10 +117,10 @@ else:
     CMS.SetEnergy(get_CoM_energy(args.era))
 
 if args.mode == "xsec":
-    y_label_full = "95% CL limit on #sigma_{sig} [fb]"
+    y_label_full = "95% CL upper limit on #sigma_{sig} [fb]"
     y_label_median = "95% CL median expected #sigma_{sig} [fb]"
 else:
-    y_label_full = "95% CL limit on #it{B}_{sig}"
+    y_label_full = "95% CL upper limit on #it{B}_{sig}"
     y_label_median = "95% CL median expected #it{B}_{sig}"
 
 # Channel label drawn near MHc text on every plot.
@@ -243,8 +208,6 @@ if args.method == "Baseline":
         if not limits:
             raise RuntimeError(f"No mass points found for MHc{mhc_value} in JSON")
         graphs = create_graphs(limits)
-        draw_cms_ref = has_cms_ref and mhc_value == 160
-        draw_atlas_ref = has_atlas_ref and mhc_value == 160
 
         y_max = _ymax_from(limits)
         x_min = 15.0
@@ -259,12 +222,6 @@ if args.method == "Baseline":
         CMS.cmsObjectDraw(graphs['exp'], "L same")
         if not args.blind:
             CMS.cmsObjectDraw(graphs['obs'], "LP same")
-        if draw_cms_ref:
-            CMS.cmsObjectDraw(g_cms_ref, "L same")
-        if draw_atlas_ref:
-            CMS.cmsObjectDraw(g_atlas_ref, "L same")
-        if not args.blind:
-            CMS.cmsObjectDraw(graphs['obs'], "LP same")
         canv.RedrawAxis()
 
         mhc_label_txt = ROOT.TLatex()
@@ -274,17 +231,13 @@ if args.method == "Baseline":
         mhc_label_txt.DrawLatex(0.20, 0.71, f"m_{{H^{{+}}}} = {mhc_value} GeV")
         mhc_label_txt.DrawLatex(0.20, 0.76, _channel_label_txt)
 
-        n_entries = (4 if not args.blind else 3) + (1 if draw_cms_ref else 0) + (1 if draw_atlas_ref else 0)
+        n_entries = 4 if not args.blind else 3
         leg = CMS.cmsLeg(0.65, 0.90 - 0.05*n_entries, 0.90, 0.90, textSize=0.035)
         if not args.blind:
             leg.AddEntry(graphs['obs'], "Observed", "lp")
         leg.AddEntry(graphs['exp'], "Expected", "l")
         leg.AddEntry(graphs['exp1sigma'], "Expected #pm1#sigma", "f")
         leg.AddEntry(graphs['exp2sigma'], "Expected #pm2#sigma", "f")
-        if draw_cms_ref:
-            leg.AddEntry(g_cms_ref, "CMS 2016", "l")
-        if draw_atlas_ref:
-            leg.AddEntry(g_atlas_ref, "ATLAS Run 2", "l")
 
         print(f"Created Brazilian plot with {len(limits)} mass points (Baseline, MHc{mhc_value})")
 
@@ -294,8 +247,6 @@ elif args.method == "ParticleNet":
         limits_baseline = json.load(f)
     with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.ParticleNet{_cnc_suffix}{_unblind_suffix}.json") as f:
         limits_pnet = json.load(f)
-    draw_cms_ref = has_cms_ref and args.mhc == 160
-    draw_atlas_ref = has_atlas_ref and args.mhc == 160
 
     if args.mhc is not None:
         limits_pnet = _filter_by_mhc(limits_pnet, args.mhc)
@@ -312,28 +263,30 @@ elif args.method == "ParticleNet":
     limits_below = {mp: limits_baseline[mp] for mp in limits_baseline if int(mp.split("_")[1][2:]) < pnet_min}
     limits_above = {mp: limits_baseline[mp] for mp in limits_baseline if int(mp.split("_")[1][2:]) > pnet_max}
 
-    # Expected line and bands are continued onto the ParticleNet window edge using the
-    # Baseline point sitting exactly at m_A = pnet_min / pnet_max, so the two regions meet
-    # instead of leaving a hole. Observed keeps the strict split: only the ParticleNet
-    # observed is drawn at the boundary mass. Skipped when --mhc is omitted, where the
-    # curated list can hold several entries at one m_A (e.g. two at m_A = 95).
+    # Both the expected line/bands and the observed markers are continued onto the
+    # ParticleNet window edge using the Baseline point sitting exactly at
+    # m_A = pnet_min / pnet_max, so the Baseline and ParticleNet regions meet at the
+    # boundary instead of leaving a hole. At the boundary mass the Baseline and
+    # ParticleNet observed points are both drawn. Skipped when --mhc is omitted, where
+    # the curated list can hold several entries at one m_A (e.g. two at m_A = 95).
     def _boundary_anchor(target_ma):
         if args.mhc is None:
             return {}
         return {mp: v for mp, v in limits_baseline.items()
                 if int(mp.split("_")[1][2:]) == target_ma}
 
-    limits_below_exp = {**limits_below, **_boundary_anchor(pnet_min)}
-    limits_above_exp = {**limits_above, **_boundary_anchor(pnet_max)}
-    # A single point draws neither a line nor a band; treat it as absent so it also
-    # stays out of the y_max scan (matters for MHc100, which has no "above" region).
-    if len(limits_below_exp) < 2:
-        limits_below_exp = {}
-    if len(limits_above_exp) < 2:
-        limits_above_exp = {}
+    anchor_below = _boundary_anchor(pnet_min)
+    anchor_above = _boundary_anchor(pnet_max)
+    limits_below = {**limits_below, **anchor_below}
+    limits_above = {**limits_above, **anchor_above}
+    # A single point draws neither a line nor a band, so the expected graphs drop it;
+    # it also stays out of the y_max scan (matters for MHc100, which has no "above"
+    # region). The observed marker at that mass is still drawn from limits_below/above.
+    limits_below_exp = limits_below if len(limits_below) >= 2 else {}
+    limits_above_exp = limits_above if len(limits_above) >= 2 else {}
 
-    # Create graphs. graphs_below/graphs_above feed the observed markers only; the
-    # *_exp graphs carry the boundary-anchored expected line and bands.
+    # Create graphs. graphs_below/graphs_above feed the observed markers; the *_exp
+    # graphs carry the expected line and bands.
     graphs_pnet = create_graphs(limits_pnet)
     graphs_below = create_graphs(limits_below) if limits_below else None
     graphs_above = create_graphs(limits_above) if limits_above else None
@@ -371,10 +324,6 @@ elif args.method == "ParticleNet":
     if graphs_above_exp:
         CMS.cmsObjectDraw(graphs_above_exp['exp'], "L same")
     CMS.cmsObjectDraw(graphs_pnet['exp'], "L same")
-    if draw_cms_ref:
-        CMS.cmsObjectDraw(g_cms_ref, "L same")
-    if draw_atlas_ref:
-        CMS.cmsObjectDraw(g_atlas_ref, "L same")
 
     # Draw observed points
     if not args.blind:
@@ -406,12 +355,7 @@ elif args.method == "ParticleNet":
     ch_label_pn.DrawLatex(0.20, 0.76, _channel_label_txt)
 
     # Legend
-    n_entries = (
-        (4 if not args.blind else 3)
-        + (1 if args.stack_baseline else 0)
-        + (1 if draw_cms_ref else 0)
-        + (1 if draw_atlas_ref else 0)
-    )
+    n_entries = (4 if not args.blind else 3) + (1 if args.stack_baseline else 0)
     leg = CMS.cmsLeg(0.65, 0.90 - 0.05*n_entries, 0.90, 0.90, textSize=0.035)
     if not args.blind:
         leg.AddEntry(graphs_pnet['obs'], "Observed", "lp")
@@ -420,22 +364,16 @@ elif args.method == "ParticleNet":
     leg.AddEntry(graphs_pnet['exp2sigma'], "Expected #pm2#sigma", "f")
     if args.stack_baseline:
         leg.AddEntry(graphs_baseline_at_pnet['exp'], "w/o ParticleNet", "l")
-    if draw_cms_ref:
-        leg.AddEntry(g_cms_ref, "CMS 2016", "l")
-    if draw_atlas_ref:
-        leg.AddEntry(g_atlas_ref, "ATLAS Run 2", "l")
 
     mhc_msg = f", MHc{args.mhc}" if args.mhc is not None else ""
     print(f"Created Brazilian plot with ParticleNet ({pnet_min}-{pnet_max} GeV{mhc_msg})")
     print(f"  ParticleNet: {len(limits_pnet)} mass points")
     if graphs_below:
-        n_anchor = len(limits_below_exp) - len(limits_below)
         print(f"  Baseline (below): {len(limits_below)} mass points"
-              f"{f' (+{n_anchor} boundary anchor at MA{pnet_min})' if n_anchor > 0 else ''}")
+              f"{f' (incl. {len(anchor_below)} boundary anchor at MA{pnet_min})' if anchor_below else ''}")
     if graphs_above:
-        n_anchor = len(limits_above_exp) - len(limits_above)
         print(f"  Baseline (above): {len(limits_above)} mass points"
-              f"{f' (+{n_anchor} boundary anchor at MA{pnet_max})' if n_anchor > 0 else ''}")
+              f"{f' (incl. {len(anchor_above)} boundary anchor at MA{pnet_max})' if anchor_above else ''}")
     if args.stack_baseline:
         print(f"  Baseline at PN points: {len(limits_baseline_at_pnet)} mass points overlay")
 

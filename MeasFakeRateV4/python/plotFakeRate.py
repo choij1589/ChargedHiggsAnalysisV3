@@ -37,11 +37,11 @@ abseta_bins = []
 if args.measure == "muon":
     ptcorr_bins = [10., 12., 14., 17., 20., 30., 50., 100., 200.]
     abseta_bins = [0., 0.9, 1.6, 2.4]
-    title = "misidentification rate (#mu)"
+    title = "Misidentification rate (#mu)"
 elif args.measure == "electron":
     ptcorr_bins = [15., 17., 20., 25., 35., 50., 100., 200.]
     abseta_bins = [0., 0.8, 1.479, 2.5]
-    title = "misidentification rate (e)"
+    title = "Misidentification rate (e)"
 else:
     raise KeyError(f"Wrong measure {args.measure}")
 logging.debug(f"ptcorr_bins: {ptcorr_bins}")

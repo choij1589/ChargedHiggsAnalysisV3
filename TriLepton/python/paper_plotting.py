@@ -52,6 +52,8 @@ BKG_LABELS = {
 }
 
 SIGNAL_LINE_WIDTH = 3
+SIGNAL_FILL_ALPHA = 0.18
+SIGNAL_FILL_STYLE = 1001
 DATA_LABEL = "Data"
 SYST_LABEL = "Stat.+Syst."
 # Uncertainty band style, mirrored from ComparisonCanvas.drawPadUp so the shared
@@ -233,7 +235,8 @@ def build_config(histkey, channel, options):
     config["drawSignalLegend"] = options.draw_legends
     config["signalLineWidth"] = SIGNAL_LINE_WIDTH
     config["signalFill"] = True
-    config["signalFillAlpha"] = 0.18
+    config["signalFillAlpha"] = SIGNAL_FILL_ALPHA
+    config["signalFillStyle"] = SIGNAL_FILL_STYLE
     config["signalColors"] = [ROOT.TColor.GetColor(color) for color in options.signal_colors]
     config["systSrc"] = SYST_LABEL
     config["chi2_test"] = False
@@ -247,10 +250,9 @@ def build_config(histkey, channel, options):
         config["no_ratio"] = True
 
     config["channel"], config["region"] = CHANNEL_LABELS[channel]
-    config["channelPosY"] = 0.75
+    # Same block position as the SignalRegionStudyV3 paper panels.
+    config["channelPosY"] = 0.72
     config["channelPosX"] = 0.22
-    if channel.startswith("ZG"):
-        config["channelPosY"] = 0.70
     return config
 
 
@@ -562,7 +564,11 @@ def build_legend_proxies(options, prefix="legend"):
         proxy.SetLineColor(color)
         proxy.SetLineWidth(SIGNAL_LINE_WIDTH)
         proxy.SetMarkerSize(0)
-        signal_entries.append((proxy, format_signal_label(signal_mass), "L"))
+        # Signals are drawn as a translucent fill with a solid outline, so the
+        # legend shows the same filled box rather than a bare line.
+        proxy.SetFillColorAlpha(color, SIGNAL_FILL_ALPHA)
+        proxy.SetFillStyle(SIGNAL_FILL_STYLE)
+        signal_entries.append((proxy, format_signal_label(signal_mass), "F"))
 
     return bkg_entries, signal_entries, proxies
 

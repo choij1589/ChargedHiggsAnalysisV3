@@ -19,6 +19,7 @@ WORKDIR = Path(os.environ.get("WORKDIR", MODULE_DIR.parent))
 sys.path.insert(0, str(WORKDIR / "Common" / "Tools"))
 from plotter import (ComparisonCanvas, EnergyInfo,  # noqa: E402
                      LumiInfoExact, PALETTE_LONG)
+import cmsstyle as CMS  # noqa: E402
 
 
 ROOT.gROOT.SetBatch(True)
@@ -42,12 +43,51 @@ BKG_COLORS = {
     "conv": PALETTE_LONG[3],
     "others": PALETTE_LONG[4],
 }
+# Legend labels for the paper figures. The internal group names stay as they are
+# everywhere else (template processes, yield tables); only what the reader sees
+# is typeset. Matches TriLepton/python/paper_plotting.py.
+BKG_LABELS = {
+    "nonprompt": "Nonprompt",
+    "diboson": "Diboson",
+    "ttX": "t#bar{t}X",
+    "conv": "Conversions",
+    "others": "Others",
+}
+DATA_LABEL = "Data"
+SYST_LABEL = "Stat.+Syst."
+RATIO_LABEL = "Data / Pred."
+# Uncertainty band style, mirrored from ComparisonCanvas.drawPadUp so the shared
+# legend panel shows the same hatching as the plots.
+SYST_FILL_STYLE = 3004
+SYST_FILL_COLOR = 12
 
-BASE_WIDTH = 0.02
+BASE_WIDTH = 0.04
 ADAPTIVE_MIN_BKG = 10.0
 ADAPTIVE_MAX_WIDTH = 0.20
 SIGNAL_SCALE = 6.0
 SIGNAL_COLOR = ROOT.kBlack
+SIGNAL_LINE_WIDTH = 3
+SIGNAL_FILL_ALPHA = 0.18
+SIGNAL_LABEL = "Signal"
+
+# The legend is identical in every panel, so it is dropped from the plots and
+# published once as its own panel, letting the stack use the freed height.
+Y_HEADROOM = 1.7
+# Mass point moves to the top right, where the in-plot legend used to sit.
+MASS_LABEL_POS = (0.90, 0.80)
+MASS_LABEL_SIZE = 0.052
+# Nudge in PDF points, converted against the panel below so the shift stays the
+# same physical distance whatever the pad geometry.
+MASS_LABEL_OFFSET_PT = (-20.0, -6.0)
+# CropBox ROOT writes for this canvas; used only to size the nudge above.
+PANEL_SIZE_PT = (526.0, 567.0)
+
+# Standalone legend panel geometry, in NDC of a canvas the size of a plot panel.
+LEGEND_KEY = "legend"
+LEGEND_PANEL_ROW_SPACING = 1.55  # row pitch in units of the text size
+LEGEND_PANEL_WIDTH = 0.42
+LEGEND_PANEL_MARGIN = 0.26
+LEGEND_PANEL_TEXT_SIZE = 0.040
 
 
 def parse_args():
@@ -62,9 +102,15 @@ def parse_args():
     )
     parser.add_argument(
         "--region",
-        choices=("all", *REGIONS),
+        choices=("all", LEGEND_KEY, *REGIONS),
         default="all",
-        help="plot region to produce",
+        help=f"plot region to produce ('{LEGEND_KEY}' = shared legend panels only)",
+    )
+    parser.add_argument(
+        "--keep-legends",
+        action="store_true",
+        dest="keep_legends",
+        help="draw the legend inside each plot instead of only in the legend panel",
     )
     parser.add_argument(
         "--output-root",
@@ -77,7 +123,7 @@ def parse_args():
         default=BASE_WIDTH,
         help=("uniform bin width of the starting grid, before adaptive merging "
               "(default: %(default)s). A non-default value writes into a "
-              "bin<width> subdirectory, e.g. --base-width 0.04 -> SR/bin0p04/"),
+              "bin<width> subdirectory, e.g. --base-width 0.02 -> SR/bin0p02/"),
     )
     parser.add_argument("--debug", action="store_true", help="enable debug logging")
     return parser.parse_args()
@@ -371,12 +417,40 @@ def build_plot_objects(region, masspoint, base_width=BASE_WIDTH):
     return data, bkgs, signals, edges
 
 
-def build_config(region, edges):
+def stack_maximum(bkgs):
+    total = None
+    for hist in bkgs.values():
+        if total is None:
+            total = hist.Clone("y_scale_total")
+            total.SetDirectory(0)
+        else:
+            total.Add(hist)
+    return total.GetMaximum() if total is not None else 0.0
+
+
+def data_maximum(data):
+    """Tallest data point including its error bar."""
+    return max((data.GetBinContent(i) + data.GetBinError(i)
+                for i in range(1, data.GetNbinsX() + 1)), default=0.0)
+
+
+def build_y_range(data, bkgs, signals):
+    """Explicit y range so the scale accounts for data as well as the stack.
+
+    ComparisonCanvas sizes the axis from the background stack (and any signals)
+    alone, so a data point above the stack would otherwise run off the top.
+    """
+    y_max = max(stack_maximum(bkgs), data_maximum(data),
+                *(hist.GetMaximum() for hist in signals.values()) if signals else (0.0,))
+    return [0.0, (y_max if y_max > 0 else 1.0) * Y_HEADROOM]
+
+
+def build_config(region, edges, draw_legend=False, y_range=None):
     if region == "SR":
         channel_label = "SR"
         region_label = "e#mu#mu + #mu#mu#mu"
     elif region == "TTZCR":
-        channel_label = "TTZ CR"
+        channel_label = "t#bar{t}Z CR"
         region_label = "ee#mu"
     else:
         raise ValueError(f"Unsupported region: {region}")
@@ -392,17 +466,23 @@ def build_config(region, edges):
                       f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}"),
         "xTitle": "Modified LR Score",
         "yTitle": "Events",
-        "rTitle": "Data / Pred",
+        "rTitle": RATIO_LABEL,
+        "systSrc": SYST_LABEL,
         # Histograms are already adaptively rebinned before construction.
         # Keeping xRange to endpoints avoids a second variable Rebin call.
         "xRange": [edges[0], edges[-1]],
         "rRange": [0.5, 1.5],
+        # No in-plot legend to clear, so the stack can use the vertical space.
+        "yHeadroom": Y_HEADROOM,
+        "yRange": y_range,
         "maxDigits": 3,
         "overflow": False,
         "iPos": 11,
         "legend": (0.72, 0.55, 0.99, 0.89),
         "legendTextSize": 0.038,
         "legendColumns": 1,
+        # The legend lives in the shared panel unless the caller asks for it.
+        "drawLegend": draw_legend,
         "colors": [BKG_COLORS[name] for name in BKG_ORDER],
         "signalLineWidth": 3,
         "signalFill": True,
@@ -419,7 +499,7 @@ def build_config(region, edges):
     }
 
 
-def draw_integrated_signal(plotter, signals):
+def draw_integrated_signal(plotter, signals, draw_legend=False):
     plotter.update_y_scale(signals)
     plotter.canv.cd(1)
     plotter.signals = {}
@@ -429,20 +509,131 @@ def draw_integrated_signal(plotter, signals):
         signal_hist.SetDirectory(0)
         signal_hist.SetStats(0)
         signal_hist.SetLineColor(SIGNAL_COLOR)
-        signal_hist.SetLineWidth(3)
-        signal_hist.SetFillColorAlpha(SIGNAL_COLOR, 0.18)
+        signal_hist.SetLineWidth(SIGNAL_LINE_WIDTH)
+        signal_hist.SetFillColorAlpha(SIGNAL_COLOR, SIGNAL_FILL_ALPHA)
         signal_hist.SetFillStyle(1001)
         signal_hist.Draw("HIST SAME")
         plotter.signals[name] = signal_hist
-        plotter.leg.AddEntry(signal_hist, name, "L")
+        plotter.leg.AddEntry(signal_hist, SIGNAL_LABEL, "F")
 
-    plotter.leg.Draw()
+    if draw_legend:
+        plotter.leg.Draw()
     plotter.canv.cd(1).RedrawAxis()
 
 
-def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH):
+def offset_ndc_by_points(pad, x_ndc, y_ndc, dx_pt, dy_pt):
+    """Nudge a pad-NDC position by an offset given in PDF points."""
+    pad_width_pt = PANEL_SIZE_PT[0] * pad.GetAbsWNDC()
+    pad_height_pt = PANEL_SIZE_PT[1] * pad.GetAbsHNDC()
+    return x_ndc + dx_pt / pad_width_pt, y_ndc + dy_pt / pad_height_pt
+
+
+def legend_output_path(output_root, with_signal=True):
+    """Signal and control regions get their own panel, since only the former
+    overlays a signal."""
+    name = "legend.pdf" if with_signal else "legend_nosignal.pdf"
+    return output_root / name
+
+
+def paper_panel_size():
+    """Pixel size of one paper plot, so the legend panel matches it exactly.
+
+    Taken from a throwaway canvas built the way ComparisonCanvas builds its own,
+    rather than from hardcoded numbers that would silently drift if cmsstyle
+    changed its reference dimensions.
+    """
+    probe = CMS.cmsDiCanvas("panel_size_probe", 0., 1., 0., 1., 0., 1., "", "", "",
+                            square=True, iPos=11, extraSpace=0)
+    size = (probe.GetWindowWidth(), probe.GetWindowHeight())
+    probe.Close()
+    return size
+
+
+def build_legend_proxies(with_signal=True, prefix=LEGEND_KEY):
+    """Dummy objects styled like the drawn ones, plus their legend entries.
+
+    Returns (entries, proxies); the caller must keep `proxies` alive until the
+    canvas is written, since TLegend does not own them. The prefix keeps the
+    ROOT names unique when several panels are built in one process.
+    """
+    proxies = []
+
+    def new_proxy(suffix):
+        hist = ROOT.TH1F(f"{prefix}_{suffix}", "", 1, 0., 1.)
+        hist.SetDirectory(0)
+        hist.SetStats(0)
+        proxies.append(hist)
+        return hist
+
+    data = new_proxy("data")
+    data.SetMarkerStyle(ROOT.kFullCircle)
+    data.SetMarkerSize(1.0)
+    data.SetMarkerColor(ROOT.kBlack)
+    data.SetLineColor(ROOT.kBlack)
+    entries = [(data, DATA_LABEL, "PE")]
+
+    # Same order as the in-plot legend: top of the stack listed first.
+    for name in reversed(BKG_ORDER):
+        proxy = new_proxy(name)
+        proxy.SetFillColor(BKG_COLORS[name])
+        proxy.SetLineColor(BKG_COLORS[name])
+        proxy.SetFillStyle(1001)
+        entries.append((proxy, BKG_LABELS[name], "F"))
+
+    syst = new_proxy("syst")
+    syst.SetFillStyle(SYST_FILL_STYLE)
+    syst.SetFillColor(SYST_FILL_COLOR)
+    syst.SetLineWidth(0)
+    syst.SetMarkerSize(0)
+    entries.append((syst, SYST_LABEL, " FE2"))
+
+    if with_signal:
+        signal = new_proxy("signal")
+        signal.SetLineColor(SIGNAL_COLOR)
+        signal.SetLineWidth(SIGNAL_LINE_WIDTH)
+        signal.SetFillColorAlpha(SIGNAL_COLOR, SIGNAL_FILL_ALPHA)
+        signal.SetFillStyle(1001)
+        signal.SetMarkerSize(0)
+        entries.append((signal, SIGNAL_LABEL, "F"))
+
+    return entries, proxies
+
+
+def render_paper_legend(output_root, with_signal=True):
+    """Write the shared legend as its own panel, sized like a paper plot."""
+    width, height = paper_panel_size()
+    name = "paper_legend" if with_signal else "paper_legend_nosignal"
+    canvas = ROOT.TCanvas(name, name, 50, 50, width, height)
+    canvas.SetFillColor(0)
+    canvas.SetBorderMode(0)
+    canvas.SetFrameFillStyle(0)
+    canvas.SetFrameBorderMode(0)
+    canvas.cd()
+
+    entries, proxies = build_legend_proxies(with_signal=with_signal, prefix=name)
+    row = LEGEND_PANEL_TEXT_SIZE * LEGEND_PANEL_ROW_SPACING
+
+    # A single column, centred on the panel in both directions.
+    block = row * len(entries)
+    x1 = 0.5 * (1.0 - LEGEND_PANEL_WIDTH)
+    legend = CMS.cmsLeg(x1, 0.5 - 0.5 * block, x1 + LEGEND_PANEL_WIDTH, 0.5 + 0.5 * block,
+                        textSize=LEGEND_PANEL_TEXT_SIZE)
+    legend.SetMargin(LEGEND_PANEL_MARGIN)
+    CMS.addToLegend(legend, *entries)
+
+    canvas.Update()
+    out_path = legend_output_path(output_root, with_signal)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.SaveAs(str(out_path))
+    canvas.Close()
+    del proxies, legend
+    return out_path
+
+
+def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH, draw_legend=False):
     data, bkgs, signals, edges = build_plot_objects(region, masspoint, base_width)
-    config = build_config(region, edges)
+    config = build_config(region, edges, draw_legend=draw_legend,
+                          y_range=build_y_range(data, bkgs, signals))
 
     out_path = output_path(output_root, region, masspoint, base_width_tag(base_width))
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -450,13 +641,16 @@ def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH):
     plotter = ComparisonCanvas(data, bkgs, config)
     plotter.drawPadUp()
     if signals:
-        draw_integrated_signal(plotter, signals)
-    plotter.canv.cd(1)
+        draw_integrated_signal(plotter, signals, draw_legend=draw_legend)
+    pad = plotter.canv.cd(1)
+    # Right-aligned in the top corner the legend used to occupy.
     plotter.mass_label = ROOT.TLatex()
     plotter.mass_label.SetNDC(True)
     plotter.mass_label.SetTextFont(42)
-    plotter.mass_label.SetTextSize(0.045)
-    plotter.mass_label.DrawLatex(0.22, 0.62, format_signal_label(masspoint))
+    plotter.mass_label.SetTextSize(MASS_LABEL_SIZE)
+    plotter.mass_label.SetTextAlign(31)
+    label_x, label_y = offset_ndc_by_points(pad, *MASS_LABEL_POS, *MASS_LABEL_OFFSET_PT)
+    plotter.mass_label.DrawLatex(label_x, label_y, format_signal_label(masspoint))
     plotter.drawPadDown()
     plotter.canv.SaveAs(str(out_path))
     return out_path, edges
@@ -467,12 +661,23 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO, format="%(levelname)s - %(message)s")
 
     selected = DEFAULT_MASSPOINTS if args.masspoint == "all" else (args.masspoint,)
-    selected_regions = REGIONS if args.region == "all" else (args.region,)
+    if args.region == "all":
+        selected_regions = REGIONS
+    elif args.region == LEGEND_KEY:
+        selected_regions = ()
+    else:
+        selected_regions = (args.region,)
     output_root = resolve_output_root(args.output_root)
+
+    # Published once each: SR panels overlay a signal, the TTZ CR panels do not.
+    if args.region in ("all", LEGEND_KEY) and not args.keep_legends:
+        for with_signal in (True, False):
+            logging.info("Wrote %s", render_paper_legend(output_root, with_signal))
 
     for region in selected_regions:
         for masspoint in selected:
-            out_path, edges = draw_masspoint(region, masspoint, output_root, args.base_width)
+            out_path, edges = draw_masspoint(region, masspoint, output_root,
+                                             args.base_width, draw_legend=args.keep_legends)
             logging.info("Wrote %s", out_path)
             logging.info(
                 "Adaptive edges for %s/%s (%d bins): %s",
