@@ -8,14 +8,14 @@
 
 # Step 0: Preprocess the integrated baseline + ParticleNet mass-point set.
 # Preprocessing has no blinding mode.
-#./automize/preprocess.sh --mode all
+./automize/preprocess.sh --mode all
 
 # Step 1: Templates, datacards, validation, asymptotic limits, and
 # All+Combined FitDiagnostics/postfit/pull plots. With --mode all, the template
 # workflow always submits downstream datacard/validation/asymptotic targets for:
 #   {Run2, Run3, All} x {SR1E2Mu, SR3Mu, Combined}
-#./automize/makeBinnedTemplates.sh --mode all --method Baseline    --binning extended --unblind  --fitdiag --pull-fit both
-#./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --binning extended --unblind --fitdiag --pull-fit both
+./automize/makeBinnedTemplates.sh --mode all --method Baseline    --binning extended --unblind  --fitdiag --pull-fit both
+./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --binning extended --unblind --fitdiag --pull-fit both
 #./automize/makeBinnedTemplates.sh --mode all --method Baseline    --binning extended --unblind  --fitdiag --pull-fit b
 #./automize/makeBinnedTemplates.sh --mode all --method ParticleNet --binning extended --unblind --fitdiag --pull-fit b
 
@@ -34,10 +34,10 @@
 #./automize/impact.sh --mode all --method ParticleNet --binning extended --unblind --blind-result
 
 # Grouped impact breakdown for selected review mass points.
-./scripts/runImpactBreakdown.sh --era All --channel Combined --masspoint MHc70_MA15    --method Baseline    --binning extended --unblind --condor
-./scripts/runImpactBreakdown.sh --era All --channel Combined --masspoint MHc100_MA60   --method Baseline    --binning extended --unblind --condor
-./scripts/runImpactBreakdown.sh --era All --channel Combined --masspoint MHc130_MA90   --method ParticleNet --binning extended --unblind --condor
-./scripts/runImpactBreakdown.sh --era All --channel Combined --masspoint MHc160_MA155  --method Baseline    --binning extended --unblind --condor
+#./scripts/runImpactBreakdown.sh --era All --channel Combined --masspoint MHc70_MA15    --method Baseline    --binning extended --unblind --condor
+#./scripts/runImpactBreakdown.sh --era All --channel Combined --masspoint MHc100_MA60   --method Baseline    --binning extended --unblind --condor
+#./scripts/runImpactBreakdown.sh --era All --channel Combined --masspoint MHc130_MA90   --method ParticleNet --binning extended --unblind --condor
+#./scripts/runImpactBreakdown.sh --era All --channel Combined --masspoint MHc160_MA155  --method Baseline    --binning extended --unblind --condor
 
 # Step 4: Prefit/postfit mass plots and full-mA summary plots.
 #./automize/plotPostfitMass.sh --method Baseline    --binning extended --unblind --condor
