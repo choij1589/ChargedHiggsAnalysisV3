@@ -33,6 +33,12 @@ from plotter import (ComparisonCanvas, EnergyInfo,  # noqa: E402
                      LumiInfoExact, PALETTE_LONG, build_ratio_uncertainty_band)
 import plotPostfitMass as pfm  # noqa: E402
 import cmsstyle as CMS  # noqa: E402
+# Paper wording is defined once in the LR_modified script; reuse it so the
+# figure sets cannot drift apart. These panels keep their legend in-plot, so
+# only the labels are shared, not the standalone-legend machinery.
+from plotPaperLRModified import (BKG_LABELS, DATA_LABEL,  # noqa: E402
+                                 RATIO_LABEL, SIGNAL_FILL_ALPHA,
+                                 SIGNAL_LINE_WIDTH, SYST_LABEL)
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(0)
@@ -59,6 +65,9 @@ BKG_COLORS = {
     "conv": PALETTE_LONG[3],
     "others": PALETTE_LONG[4],
 }
+# ComparisonCanvas labels the stack with the dict keys, so the merged
+# backgrounds are keyed by legend label and the colours looked up by it too.
+LABEL_COLORS = {BKG_LABELS[group]: BKG_COLORS[group] for group in BKG_ORDER}
 
 CHANNEL_LABELS = {
     "SR1E2Mu": ("SR", "e#mu#mu"),
@@ -91,9 +100,11 @@ SIGNAL_COLOR = ROOT.kBlack
 
 # Main (background) legend, and the separate full-width line the signal entry
 # gets on pre-fit plots so its mass label is not squeezed into one column.
-LEGEND_BOX = (0.50, 0.65, 0.99, 0.89)
+# The right edge stops short of the frame so the longest label ("Nonprompt")
+# clears the right-hand axis ticks.
+LEGEND_BOX = (0.45, 0.65, 0.94, 0.89)
 LEGEND_TEXT_SIZE = 0.038
-SIGNAL_LEGEND_BOX = (0.50, 0.59, 0.99, 0.65)
+SIGNAL_LEGEND_BOX = (0.45, 0.59, 0.94, 0.65)
 SIGNAL_LEGEND_TEXT_SIZE = 0.038
 # TLegend sizes the symbol column as a fraction of the whole box, so a
 # full-width single-entry legend would draw a line twice as long as the
@@ -111,10 +122,10 @@ def parse_args():
     parser.add_argument("--output-root", default="results/paper/templates",
                         help="base output directory, relative to SignalRegionStudyV3 "
                              "unless absolute")
-    parser.add_argument("--ratio-max", type=float, default=5.0,
-                        help="upper edge of the Data/Pred pad. The default contains "
-                             "every point and its error bar for the unblinded "
-                             "templates; lowering it clips points (default: 5.0)")
+    parser.add_argument("--ratio-max", type=float, default=3.5,
+                        help="upper edge of the Data/Pred pad. Points and error bars "
+                             "above this are clipped; pass 5.0 to contain every one "
+                             "of the unblinded templates (default: 3.5)")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
@@ -219,7 +230,7 @@ def build_content(fitdiag, shapes_file, metadata, category, fit_stage):
         raise RuntimeError(f"Missing data_obs for category '{category}'")
     data = pfm.clone_empty_like(edges, f"data_{category}_{fit_stage}")
     pfm.add_binwise(data, cat_data, edges)
-    data.SetTitle("Data")
+    data.SetTitle(DATA_LABEL)
 
     process_names = {meta["name"] for meta in metadata["categories"][category]["processes"]}
     bkgs = {}
@@ -264,8 +275,9 @@ def merge_backgrounds(bkgs, tag):
                 continue
             total = clone_or_add(total, hist, f"{group}_{tag}")
         if total is not None and total.Integral() > 0:
-            total.SetTitle(group)
-            merged[group] = total
+            label = BKG_LABELS[group]
+            total.SetTitle(label)
+            merged[label] = total
     if not merged:
         raise RuntimeError(f"No backgrounds available after paper grouping for {tag}")
     return merged
@@ -289,9 +301,10 @@ def build_config(era_scope, channel_scope, edges, data, bkgs, signal,
         # Exact per-period sum (137.6, not the rounded 138) so every paper
         # figure quotes the same Run2 luminosity.
         "run_label": f"{LumiInfoExact[era_scope]:g} fb^{{#minus1}}",
-        "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
-        "yTitle": "Events / bin",
-        "rTitle": "Data / Pred",
+        "xTitle": "m(#mu^{+}, #mu^{-}) [GeV]",
+        "yTitle": "Events",
+        "rTitle": RATIO_LABEL,
+        "systSrc": SYST_LABEL,
         "xRange": [edges[0], edges[-1]],
         "yRange": [0.0, (y_max if y_max > 0 else 1.0) * 2.0],
         "rRange": [0.0, ratio_max],
@@ -306,7 +319,7 @@ def build_config(era_scope, channel_scope, edges, data, bkgs, signal,
         "legend": LEGEND_BOX,
         "legendTextSize": LEGEND_TEXT_SIZE,
         "legendColumns": 2,
-        "colors": [BKG_COLORS[name] for name in bkgs.keys()],
+        "colors": [LABEL_COLORS[name] for name in bkgs.keys()],
         "channel": channel_label,
         "region": region_label,
         "channelPosX": 0.22,
@@ -339,15 +352,18 @@ def draw_panel(out_path, era_scope, channel_scope, fit_stage,
 
     if show_signal:
         plotter.canv.cd(1)
+        # Shaded band under a heavy line, matching plotPaperLRModified.py.
         signal.SetLineColor(SIGNAL_COLOR)
-        signal.SetLineWidth(2)
+        signal.SetLineWidth(SIGNAL_LINE_WIDTH)
         signal.SetLineStyle(ROOT.kSolid)
+        signal.SetFillColorAlpha(SIGNAL_COLOR, SIGNAL_FILL_ALPHA)
+        signal.SetFillStyle(1001)
         signal.Draw("HIST SAME")
         plotter.signal = signal  # keep alive
         signal_legend = CMS.cmsLeg(*SIGNAL_LEGEND_BOX,
                                    textSize=SIGNAL_LEGEND_TEXT_SIZE, columns=1)
         signal_legend.SetMargin(SIGNAL_LEGEND_MARGIN)
-        signal_legend.AddEntry(signal, pfm.masspoint_label(masspoint), "l")
+        signal_legend.AddEntry(signal, pfm.masspoint_label(masspoint), "F")
         signal_legend.Draw()
         plotter.signal_legend = signal_legend  # keep alive
         plotter.canv.cd(1).RedrawAxis()

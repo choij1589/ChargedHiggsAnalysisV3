@@ -2,6 +2,7 @@
 """Produce paper-style b-only postfit mA summary plots from cached hists."""
 
 import argparse
+import ctypes
 import logging
 import os
 import sys
@@ -12,6 +13,14 @@ from types import SimpleNamespace
 import ROOT
 
 import plotPostfitSummary as summary
+# Paper wording is defined once in the LR_modified script; reuse it so the two
+# figure sets cannot drift apart. These plots keep their legend in-panel, so
+# only the labels are shared, not the standalone-legend machinery.
+from plotPaperLRModified import (BKG_LABELS, DATA_LABEL,  # noqa: E402
+                                 LEGEND_KEY, MASS_LABEL_OFFSET_PT,
+                                 MASS_LABEL_POS, MASS_LABEL_SIZE, RATIO_LABEL,
+                                 SYST_LABEL, Y_HEADROOM, offset_ndc_by_points,
+                                 render_paper_legend)
 
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
@@ -44,6 +53,9 @@ BKG_COLORS = {
     "conv": PALETTE_LONG[3],
     "others": PALETTE_LONG[4],
 }
+# ComparisonCanvas labels the stack with the dict keys, so the merged
+# backgrounds are keyed by legend label and the colours looked up by it too.
+LABEL_COLORS = {BKG_LABELS[group]: BKG_COLORS[group] for group in BKG_ORDER}
 BKG_GROUPS = {
     "others": ("others",),
     "conv": ("conv", "conversion"),
@@ -57,6 +69,13 @@ CHANNEL_LABELS = {
     "Combined": ("SR", "e#mu#mu + #mu#mu#mu"),
 }
 
+# The legend is published once as its own panel, so the mA range and the fit
+# stage take over the top-right corner it used to occupy. Position, size and
+# nudge are the mass-point label's from plotPaperLRModified.py, so the two
+# figure sets carry their annotation in exactly the same place.
+STAGE_LABEL_GAP = 0.06  # drop from the mA range line to the fit-stage line
+FIT_STAGE_LABEL = "B-only Post-fit"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -66,6 +85,9 @@ def parse_args():
     parser.add_argument("--channels", nargs="+", choices=DEFAULT_CHANNELS, default=list(DEFAULT_CHANNELS))
     parser.add_argument("--rebuild-cache", action="store_true",
                         help="allow refilling fine-mass hists if a cache is missing")
+    parser.add_argument("--keep-legends", action="store_true", dest="keep_legends",
+                        help="draw the legend inside each plot instead of only in "
+                             f"the shared '{LEGEND_KEY}' panel")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
@@ -142,7 +164,7 @@ def build_region_content(results, low, high):
 
     edges = summary.build_edges(region_results, BIN_WIDTH)
     _prefit, postfit, data = build_stitched_content_fill_gaps(region_results, FIT_TYPE, edges)
-    data.SetTitle("Data")
+    data.SetTitle(DATA_LABEL)
     return data, merge_backgrounds(postfit), edges, region_results
 
 
@@ -218,8 +240,9 @@ def merge_backgrounds(backgrounds):
                 continue
             total = clone_or_add(total, hist, group)
         if total is not None and total.Integral() > 0:
-            total.SetTitle(group)
-            merged[group] = total
+            label = BKG_LABELS[group]
+            total.SetTitle(label)
+            merged[label] = total
     if not merged:
         raise RuntimeError("No postfit backgrounds available after paper grouping")
     return merged
@@ -249,10 +272,12 @@ def visible_y_range(data, backgrounds, x_min, x_max):
     )
     if max_value <= 0.0:
         max_value = 1.0
-    return [0.0, max_value * 2.0]
+    # No in-plot legend to clear, so the stack can use the vertical space.
+    return [0.0, max_value * Y_HEADROOM]
 
 
-def build_config(channel, edges, data, backgrounds, display_low, display_high):
+def build_config(channel, edges, data, backgrounds, display_low, display_high,
+                 draw_legend=False):
     channel_label, region_label = CHANNEL_LABELS[channel]
     x_min = edges[0] if display_low is None else display_low
     x_max = edges[-1] if display_high is None else display_high
@@ -266,20 +291,25 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high):
         "CoM": f"{EnergyInfo['Run3']:g} TeV",
         "run_label": (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
                       f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}"),
-        "xTitle": "M(#mu^{+}#mu^{-}) [GeV]",
+        "xTitle": "m(#mu^{+}, #mu^{-}) [GeV]",
         "yTitle": f"Events / {BIN_WIDTH:g} GeV",
-        "rTitle": "Data / Pred",
+        "rTitle": RATIO_LABEL,
+        "systSrc": SYST_LABEL,
         "xRange": [x_min, x_max],
         "yRange": y_range,
-        "rRange": [0.0, 5.0],
+        "rRange": [0.0, 3.5],
         "maxDigits": 3,
         "overflow": False,
         "iPos": 11,
-        # Two columns: data + 5 background groups + Stat+Syst fill four rows.
-        "legend": (0.50, 0.65, 0.99, 0.89),
+        # Two columns: data + 5 background groups + Stat.+Syst. fill four rows.
+        # The right edge stops short of the frame so the longest label
+        # ("Nonprompt") clears the right-hand axis ticks.
+        "legend": (0.45, 0.65, 0.94, 0.89),
         "legendTextSize": 0.038,
         "legendColumns": 2,
-        "colors": [BKG_COLORS[name] for name in backgrounds.keys()],
+        # The legend lives in the shared panel unless the caller asks for it.
+        "drawLegend": draw_legend,
+        "colors": [LABEL_COLORS[name] for name in backgrounds.keys()],
         "channel": channel_label,
         "region": region_label,
         "channelPosX": 0.22,
@@ -291,30 +321,48 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high):
     }
 
 
+def ndc_text_width(pad, latex):
+    """Rendered width of an NDC TLatex, in pad NDC.
+
+    TLatex::GetXsize reports axis units, which differ per panel because each mA
+    region spans a different mass range. The bounding box is in pixels, so it
+    converts cleanly and gives equal widths for equal-length labels.
+    """
+    width_px, height_px = ctypes.c_uint(0), ctypes.c_uint(0)
+    latex.GetBoundingBox(width_px, height_px)
+    pad_width_px = pad.GetWw() * pad.GetAbsWNDC()
+    return width_px.value / pad_width_px if pad_width_px else 0.0
+
+
 def draw_region_label(plotter, label):
-    plotter.canv.cd(1)
-    labels = []
+    """mA range in the vacated legend corner, fit stage centred beneath it."""
+    pad = plotter.canv.cd(1)
+    label_x, label_y = offset_ndc_by_points(pad, *MASS_LABEL_POS, *MASS_LABEL_OFFSET_PT)
+
     region = ROOT.TLatex()
     region.SetNDC(True)
     region.SetTextFont(42)
-    region.SetTextSize(0.045)
-    region.DrawLatex(0.22, 0.62, label)
-    labels.append(region)
+    region.SetTextSize(MASS_LABEL_SIZE)
+    region.SetTextAlign(31)
+    region.SetText(label_x, label_y, label)
+    region.DrawLatex(label_x, label_y, label)
 
-    fit_label = ROOT.TLatex()
-    fit_label.SetNDC(True)
-    fit_label.SetTextFont(42)
-    fit_label.SetTextSize(0.04)
-    fit_label.DrawLatex(0.22, 0.57, "B-only Post-fit")
-    labels.append(fit_label)
-    plotter._paper_region_labels = labels
+    stage = ROOT.TLatex()
+    stage.SetNDC(True)
+    stage.SetTextFont(42)
+    stage.SetTextSize(MASS_LABEL_SIZE)
+    stage.SetTextAlign(21)
+    stage.DrawLatex(label_x - 0.5 * ndc_text_width(pad, region),
+                    label_y - STAGE_LABEL_GAP, FIT_STAGE_LABEL)
+
+    plotter._paper_region_labels = [region, stage]
 
 
 def output_path(output_root, channel, region_name):
     return output_root / f"postfit_b_mHc{MHC}_{channel}_{region_name}.pdf"
 
 
-def draw_channel(output_root, channel, plot_only, debug):
+def draw_channel(output_root, channel, plot_only, debug, draw_legend=False):
     results = load_channel_results(channel, plot_only, debug)
     logging.info(
         "%s: loaded %d cached masspoints: %s",
@@ -338,7 +386,8 @@ def draw_channel(output_root, channel, plot_only, debug):
             x_max,
             ", ".join(backgrounds.keys()),
         )
-        config = build_config(channel, edges, data, backgrounds, display_low, display_high)
+        config = build_config(channel, edges, data, backgrounds, display_low, display_high,
+                              draw_legend=draw_legend)
         logging.info(
             "%s/%s: display y-range [%s, %s]",
             channel,
@@ -369,8 +418,14 @@ def main():
     output_root = resolve_output_root(args.output_root)
     plot_only = not args.rebuild_cache
 
+    # These panels carry no signal overlay, so the no-signal variant is the one
+    # they share. Published once, like the LR_modified figures.
+    if not args.keep_legends:
+        logging.info("Wrote %s", render_paper_legend(output_root, with_signal=False))
+
     for channel in args.channels:
-        draw_channel(output_root, channel, plot_only, args.debug)
+        draw_channel(output_root, channel, plot_only, args.debug,
+                     draw_legend=args.keep_legends)
 
 
 if __name__ == "__main__":
