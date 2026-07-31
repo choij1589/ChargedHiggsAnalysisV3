@@ -82,7 +82,7 @@ def setup_cms_style():
 # File Discovery and Data Loading
 # =============================================================================
 
-def find_multiclass_results(signal, channel, fold=None, pilot=False, model_name=None):
+def find_multiclass_results(signal, channel, fold=None, pilot=False, model_name=None, base_dir="LambdaSweep"):
     """Find multi-class classification results files for ParticleNetMD.
 
     Args:
@@ -91,6 +91,7 @@ def find_multiclass_results(signal, channel, fold=None, pilot=False, model_name=
         fold: Test fold number. If None, automatically detect from most recent results.
         pilot: Whether to use pilot mode results
         model_name: Substring to filter model files (e.g., "discoL0p05")
+        base_dir: Results base directory within ParticleNetMD (default: "LambdaSweep")
 
     Returns:
         ga_json_file: GA-compatible JSON file path (for training history)
@@ -99,7 +100,7 @@ def find_multiclass_results(signal, channel, fold=None, pilot=False, model_name=
         detected_fold: The fold number used (useful when auto-detected)
     """
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    base_path = os.path.join(script_dir, "..", "LambdaSweep")
+    base_path = os.path.join(script_dir, "..", base_dir)
     base_path = os.path.abspath(base_path)
 
     signal_base_dir = os.path.join(base_path, channel, signal)
@@ -1320,6 +1321,8 @@ def main():
                         help='p-value threshold for overfitting detection')
     parser.add_argument('--model-name', default=None,
                         help='Substring to select a specific model (e.g., "discoL0p05")')
+    parser.add_argument('--base-dir', default='LambdaSweep',
+                        help='Results base directory within ParticleNetMD (default: LambdaSweep)')
 
     args = parser.parse_args()
 
@@ -1327,7 +1330,7 @@ def main():
         # Find and load training results (do this first to get detected fold)
         logging.info(f"Loading results for multi-class {args.signal}")
         ga_json_file, root_file, result_dir, detected_fold = find_multiclass_results(
-            args.signal, args.channel, args.fold, args.pilot, args.model_name)
+            args.signal, args.channel, args.fold, args.pilot, args.model_name, args.base_dir)
 
         # Use detected fold for output directory if not specified
         fold_for_output = detected_fold if args.fold is None else args.fold
