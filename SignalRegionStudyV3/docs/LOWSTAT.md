@@ -277,11 +277,30 @@ nuisances and slow down fits; 5 is the pragmatic default.
 
 When S1 removes shape histograms:
 
-1. The original `shapes.root` is renamed to `shapes_original.root` (if a
-   previous rewrite already happened, the stale original is removed first).
+1. The original `shapes.root` is renamed to `shapes_original.root`. If
+   `shapes_original.root` already exists, it is the pre-prune archive from an
+   earlier pass and is **kept**; the already-pruned `shapes.root` is discarded
+   instead. Overwriting it would destroy the only unpruned copy.
 2. A new `shapes.root` is written containing only the kept histograms.
 3. The originals are preserved on disk for debugging and for re-runs that
    need the full set.
+
+**Invariant relied on elsewhere:** `makeBinnedTemplates.py` `rmtree`s the output
+directory before rebuilding, so `shapes_original.root` exists **iff** it is the
+pre-prune snapshot of the current `shapes.root`; it can never be stale relative
+to it.
+
+**Why this matters for run-period merges.** This rewrite mutates `shapes.root`
+in place, and component datacard jobs run concurrently with combined merge jobs
+in the DAG. `mergeRunPeriodTemplates.py` therefore reads
+`shapes_original.root` when it exists (see `source_shapes_path()`), not
+`shapes.root`. Reading `shapes.root` makes the merged category inherit whatever
+pruning state the component happened to be in when the merge ran, which is a
+race: the merged category then cannot see the Up/Down histograms it needs to
+compute its own lnN fallbacks, so `precompute_lnn_fallbacks()` returns `"-"` and
+the nuisance is **dropped outright instead of degrading to lnN**. A merged
+category must always start from unpruned component shapes and re-derive its own
+low-stat decisions.
 
 ### S4. `lowstat.json` metadata
 

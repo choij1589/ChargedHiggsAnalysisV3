@@ -28,7 +28,8 @@ def parse_args():
     parser.add_argument("--era", required=True, choices=["Run2", "Run3", "All"])
     parser.add_argument("--channel", default="Combined", choices=["Combined", "SR1E2Mu", "SR3Mu"])
     parser.add_argument("--masspoint", required=True)
-    parser.add_argument("--method", required=True, choices=["Baseline", "ParticleNet"])
+    parser.add_argument("--method", required=True,
+                        choices=["Baseline", "ParticleNet", "PTOptimized"])
     parser.add_argument("--binning", default="extended", choices=["extended", "uniform"])
     parser.add_argument(
         "--sources",
@@ -107,6 +108,28 @@ def parse_sources(args):
     return sources
 
 
+def source_shapes_path(src_dir):
+    """Return the pre-prune shapes file of a source component directory.
+
+    printDatacard.py prunes low-stat shape systematics out of shapes.root in
+    place and keeps the pre-prune content in shapes_original.root.  Component
+    datacard jobs and combined merge jobs are independent DAG nodes, so reading
+    shapes.root here makes the merged category inherit whichever pruning state
+    the component happened to be in when the merge ran.  A merged category must
+    start from the unpruned shapes so it can re-derive its own low-stat
+    fallbacks; otherwise those nuisances are dropped outright instead of
+    degrading to lnN.
+
+    makeBinnedTemplates.py rmtree's the output directory before rebuilding, so
+    shapes_original.root exists iff it is the pre-prune snapshot of the current
+    shapes.root -- it can never be stale relative to it.
+    """
+    original = os.path.join(src_dir, "shapes_original.root")
+    if os.path.exists(original):
+        return original
+    return os.path.join(src_dir, "shapes.root")
+
+
 def copy_root_object(obj, outdir):
     """Recursively copy ROOT directories and objects into outdir."""
     name = obj.GetName()
@@ -131,9 +154,10 @@ def merge_shapes(source_dirs, out_path):
     seen_categories = set()
     try:
         for src_dir in source_dirs:
-            src_path = os.path.join(src_dir, "shapes.root")
+            src_path = source_shapes_path(src_dir)
             if not os.path.exists(src_path):
                 raise FileNotFoundError(f"Missing source shapes.root: {src_path}")
+            logging.debug("Merging shapes from %s", src_path)
             infile = ROOT.TFile.Open(src_path, "READ")
             if not infile or infile.IsZombie():
                 raise OSError(f"Could not open {src_path}")

@@ -332,8 +332,13 @@ class RunPeriodDatacardManager:
 
         self.rtfile.Close()
         if os.path.exists(original_path):
-            os.remove(original_path)
-        os.rename(shapes_path, original_path)
+            # A pre-prune archive is already there, so shapes.root is itself a
+            # pruned file from an earlier pass or re-run.  Renaming over the
+            # archive would destroy the only unpruned copy, which the run-period
+            # merge relies on; keep it and discard the pruned intermediate.
+            os.remove(shapes_path)
+        else:
+            os.rename(shapes_path, original_path)
         outfile = ROOT.TFile.Open(shapes_path, "RECREATE")
         dirs = {}
         for full_name, hist in all_hists.items():

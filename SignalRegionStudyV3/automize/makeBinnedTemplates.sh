@@ -10,6 +10,7 @@ export PATH="${PWD}/python:${PATH}"
 MODE="all"
 SINGLE_ERA=""
 SINGLE_MASSPOINT=""
+MASSPOINT_SET=""
 METHOD="Baseline"
 BINNING="extended"
 NUISANCE="fallback_lnn"
@@ -39,6 +40,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --masspoint)
             SINGLE_MASSPOINT="$2"
+            shift 2
+            ;;
+        --masspoint-set)
+            MASSPOINT_SET="$2"
             shift 2
             ;;
         --binning)
@@ -101,7 +106,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help)
-            echo "Usage: $0 [--mode all|run2|run3] [--era Run2|Run3|All] [--method Baseline|ParticleNet] [OPTIONS]"
+            echo "Usage: $0 [--mode all|run2|run3] [--era Run2|Run3|All] [--method Baseline|ParticleNet|PTOptimized] [OPTIONS]"
             echo ""
             echo "V3 default builds merged Run-period component templates directly."
             echo "No per-subera combineCards.py stage is used."
@@ -111,6 +116,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --era Run2|Run3|All        Build a single Run-period target"
             echo "  --method METHOD            Baseline or ParticleNet [default: Baseline]"
             echo "  --masspoint MP             Build a single mass point only"
+            echo "  --masspoint-set SET        Override the mass-point list:"
+            echo "                             baseline | particlenet | ptoptimized"
+            echo "                             (default: chosen from --method)"
             echo "  --binning BINNING          extended or uniform [default: extended]"
             echo "  --nuisance MODE            fallback_lnn or preserve_shape"
             echo "  --unblind                  Use full real data"
@@ -138,7 +146,7 @@ if [[ -n "$SINGLE_ERA" ]]; then
     esac
 fi
 case "$METHOD" in
-    Baseline|ParticleNet) ;;
+    Baseline|ParticleNet|PTOptimized) ;;
     *) echo "ERROR: Invalid --method '$METHOD'"; exit 1 ;;
 esac
 case "$BINNING" in
@@ -161,10 +169,38 @@ if [[ "$DO_PLOT_SCORE_SET" == "false" && "$METHOD" == "ParticleNet" ]]; then
     DO_PLOT_SCORE=true
 fi
 
-if [[ "$METHOD" == "ParticleNet" ]]; then
-    MASSPOINTs=("${MASSPOINTs_PARTICLENET[@]}")
-else
-    MASSPOINTs=("${MASSPOINTs_BASELINE[@]}")
+case "$MASSPOINT_SET" in
+    "")
+        if [[ "$METHOD" == "ParticleNet" ]]; then
+            MASSPOINTs=("${MASSPOINTs_PARTICLENET[@]}")
+        elif [[ "$METHOD" == "PTOptimized" ]]; then
+            MASSPOINTs=("${MASSPOINTs_PTOPTIMIZED[@]}")
+        else
+            MASSPOINTs=("${MASSPOINTs_BASELINE[@]}")
+        fi
+        ;;
+    baseline)    MASSPOINTs=("${MASSPOINTs_BASELINE[@]}") ;;
+    particlenet) MASSPOINTs=("${MASSPOINTs_PARTICLENET[@]}") ;;
+    ptoptimized) MASSPOINTs=("${MASSPOINTs_PTOPTIMIZED[@]}") ;;
+    *)
+        # Any other value is looked up as a top-level array key in
+        # configs/masspoints.json, so ad-hoc subsets (e.g. "baseline_todo")
+        # can be driven without editing this script.
+        _mp_json="$SCRIPT_DIR/configs/masspoints.json"
+        _mp_list=$(python3 -c "
+import json,sys
+d=json.load(open('$_mp_json'))
+v=d.get('$MASSPOINT_SET')
+if not isinstance(v,list):
+    sys.stderr.write(\"no such array key: $MASSPOINT_SET\n\"); sys.exit(1)
+print(' '.join(v))
+") || { echo "ERROR: --masspoint-set '$MASSPOINT_SET' is not an array key in configs/masspoints.json"; exit 1; }
+        read -ra MASSPOINTs <<< "$_mp_list"
+        ;;
+esac
+if [[ ${#MASSPOINTs[@]} -eq 0 ]]; then
+    echo "ERROR: empty mass-point list for method '$METHOD'${MASSPOINT_SET:+ / set '$MASSPOINT_SET'}"
+    exit 1
 fi
 if [[ -n "$SINGLE_MASSPOINT" ]]; then
     found=false

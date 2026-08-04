@@ -1,6 +1,6 @@
 #!/bin/bash
 export WORKDIR=$PWD/..
-cd $WORKDIR/Common/CMSSW_16_0_0/src
+cd $WORKDIR/Common/CMSSW_14_1_0_pre4/src
 source /cvmfs/cms.cern.ch/cmsset_default.sh
 cmsenv
 cd -

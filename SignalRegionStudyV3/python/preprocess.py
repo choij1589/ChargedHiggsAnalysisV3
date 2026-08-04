@@ -271,7 +271,7 @@ class BasePreprocessor:
 
     def _setup_output_branches(self, out_tree):
         """Setup output branches and return (out_vars, score_vars) arrays."""
-        out_vars = {name: array('d', [0.0]) for name in ['mass', 'mass1', 'mass2', 'weight']}
+        out_vars = {name: array('d', [0.0]) for name in ['mass', 'pT', 'mass1', 'mass2', 'weight']}
         score_vars = {}
         if self.is_trained_sample:
             for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']:
@@ -286,7 +286,8 @@ class BasePreprocessor:
 
     def _setup_input_branches(self, in_tree, include_mass=False):
         """Setup input branch addresses and return (in_vars, in_scores) arrays."""
-        var_names = ['mass', 'mass1', 'mass2', 'weight'] if include_mass else ['mass1', 'mass2', 'weight']
+        var_names = ['mass', 'mass1', 'mass2', 'pT1', 'pT2', 'weight'] if include_mass \
+            else ['mass1', 'mass2', 'pT1', 'pT2', 'weight']
         in_vars = {name: array('d', [0.0]) for name in var_names}
         in_scores = {}
         if self.is_trained_sample:
@@ -300,16 +301,24 @@ class BasePreprocessor:
 
         return in_vars, in_scores
 
-    def _select_mass(self, mass1, mass2):
-        """Select appropriate mass based on channel and mass point."""
+    def _select_pair(self, mass1, mass2, pT1, pT2):
+        """Select the (mass, pT) of the same dimuon pairing.
+
+        pT must follow whichever of mass1/mass2 is chosen, otherwise the stored
+        pT would describe a different pair than the stored mass.
+        """
         if "1E2Mu" in self.channel or "2E1Mu" in self.channel:
-            return mass1
+            return mass1, pT1
         elif "3Mu" in self.channel:
             if self.mHc >= 100 and self.mA >= 60:
-                return max(mass1, mass2)
-            return min(mass1, mass2)
+                return (mass1, pT1) if mass1 >= mass2 else (mass2, pT2)
+            return (mass1, pT1) if mass1 <= mass2 else (mass2, pT2)
         else:
             raise ValueError(f"Unknown channel: {self.channel}")
+
+    def _select_mass(self, mass1, mass2):
+        """Select appropriate mass based on channel and mass point."""
+        return self._select_pair(mass1, mass2, 0.0, 0.0)[0]
 
 
 class SamplePreprocessor(BasePreprocessor):
@@ -351,8 +360,11 @@ class SamplePreprocessor(BasePreprocessor):
             for suffix in score_vars:
                 score_vars[suffix][0] = in_scores[suffix][0]
 
-            # Select mass
-            out_vars['mass'][0] = self._select_mass(in_vars['mass1'][0], in_vars['mass2'][0])
+            # Select mass and the pT of the same dimuon pairing
+            out_vars['mass'][0], out_vars['pT'][0] = self._select_pair(
+                in_vars['mass1'][0], in_vars['mass2'][0],
+                in_vars['pT1'][0], in_vars['pT2'][0]
+            )
 
             out_tree.Fill()
 

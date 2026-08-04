@@ -16,7 +16,8 @@ Target physics:
 
 - Charged Higgs mass points: `MHc 70-160 GeV`, `MA 15-155 GeV`
 - Channels: `SR1E2Mu`, `SR3Mu`, `Combined`, and `TTZ2E1Mu` validation
-- Methods: `Baseline` cut-based and `ParticleNet` MVA
+- Methods: `Baseline` cut-based and `ParticleNet` MVA, plus `PTOptimized`
+  (dimuon-pT threshold, ARC review study only — see `docs/PTOptimize.md`)
 - Main combinations: channel combination `SR1E2Mu + SR3Mu -> Combined`, then
   era combinations `Run2`, `Run3`, and `All`
 
@@ -255,6 +256,26 @@ Expected handling:
   behavior.
 - Focus on the top-ranked nuisance parameters before treating many tiny
   one-sided impacts as a problem.
+
+## PTOptimized (dimuon-pT method)
+
+See `docs/PTOptimize.md` — it is both the method reference and the running
+status board for the study.
+
+`PTOptimized` is the structural analogue of `ParticleNet` with the dimuon pT as
+the discriminant: per-category threshold scan (`pT >= t`, 5 GeV steps)
+maximising the Asimov significance, then templates built with that cut. It
+targets `MHc160` mass points with `mA <= 60`, where ParticleNet has no trained
+model.
+
+Key points before touching it:
+
+- Requires samples preprocessed with the `pT` branch; older samples raise in
+  `_require_pt_branch()`. Re-preprocessing is mandatory for this study.
+- `pT` must stay on the same dimuon pairing as the stored `mass`
+  (`_select_pair()` in `preprocess.py`).
+- Not wired into `collectLimits.py`/`plotLimits.py` by design; read limits from
+  each mass point's `combine_output/asymptotic/` output.
 
 ## Interpolated Signal Templates
 

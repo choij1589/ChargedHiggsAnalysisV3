@@ -70,6 +70,27 @@ def parse_args():
 # Histogram Creation Functions
 # =============================================================================
 
+# Active discriminant for threshold cuts: "PN" (ParticleNet score) or "pT"
+# (PTOptimized). Set once per process in build_run_period_templates().
+DISCRIMINANT = "PN"
+
+PT_SCAN_STEP = 5.0          # GeV
+PT_SCAN_MAX_PERCENTILE = 99.0
+
+
+def _pt_cut_expr(threshold):
+    return f"pT >= {threshold}"
+
+
+def _require_pt_branch(branches, where):
+    if "pT" not in branches:
+        raise RuntimeError(
+            f"pT branch not found in {where}\n"
+            "  PTOptimized requires samples preprocessed with the pT branch; "
+            "re-run preprocess.py for this mass point."
+        )
+
+
 def getHist(basedir, process, bin_edges, mass_min, mass_max, syst="Central",
             threshold=-999., upper_threshold=None, bg_weights=None, masspoint=None):
     """Create histogram from preprocessed tree using RDataFrame."""
@@ -107,8 +128,13 @@ def getHist(basedir, process, bin_edges, mass_min, mass_max, syst="Central",
     rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
     logging.debug(f"  Applied mass window cut: [{mass_min:.2f}, {mass_max:.2f}] GeV")
 
+    # Apply PTOptimized cut on the stored dimuon pT
+    if DISCRIMINANT == "pT" and threshold > -999.:
+        _require_pt_branch(branches, f"{file_path}/{tree_name}")
+        rdf = rdf.Filter(_pt_cut_expr(threshold))
+        logging.debug(f"  Applied PTOptimized cut: pT >= {threshold:.3f}")
     # Apply ParticleNet score cut if threshold is provided
-    if (threshold > -999. or upper_threshold is not None) and masspoint:
+    elif (threshold > -999. or upper_threshold is not None) and masspoint:
         score_sig = f"score_{masspoint}_signal"
         if score_sig in branches:
             score_formula = build_particlenet_score(masspoint, bg_weights)
@@ -218,8 +244,13 @@ def getDataHist(basedir, bin_edges, mass_min, mass_max,
     rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
     logging.debug(f"  Applied mass window cut: [{mass_min:.2f}, {mass_max:.2f}] GeV")
 
+    # Apply PTOptimized cut on the stored dimuon pT
+    if DISCRIMINANT == "pT" and threshold > -999.:
+        _require_pt_branch(branches, f"{file_path}/Central")
+        rdf = rdf.Filter(_pt_cut_expr(threshold))
+        logging.debug(f"  Applied PTOptimized cut: pT >= {threshold:.3f}")
     # Apply ParticleNet score cut if threshold or upper_threshold is provided
-    if (threshold > -999. or upper_threshold is not None) and masspoint:
+    elif (threshold > -999. or upper_threshold is not None) and masspoint:
         score_sig = f"score_{masspoint}_signal"
         if score_sig in branches:
             score_formula = build_particlenet_score(masspoint, bg_weights)
@@ -285,7 +316,14 @@ def validateBackgroundStatistics(basedir, bin_edges, mass_min, mass_max,
             rdf = ROOT.RDataFrame("Central", file_path)
             rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
 
-            if threshold > -999. or upper_threshold is not None:
+            if DISCRIMINANT == "pT" and threshold > -999.:
+                test_file = ROOT.TFile.Open(file_path, "READ")
+                tree = test_file.Get("Central")
+                branches = [b.GetName() for b in tree.GetListOfBranches()] if tree else []
+                test_file.Close()
+                _require_pt_branch(branches, f"{file_path}/Central")
+                rdf = rdf.Filter(_pt_cut_expr(threshold))
+            elif threshold > -999. or upper_threshold is not None:
                 test_file = ROOT.TFile.Open(file_path, "READ")
                 tree = test_file.Get("Central")
                 if tree:
@@ -692,6 +730,105 @@ def getCategoryBackgroundWeights(basedirs, mass_min, mass_max, outdir, category)
     return weights
 
 
+def loadPTDataset(basedir, process, mass_min, mass_max):
+    """Load (pT, weight) inside the mass window from a preprocessed sample."""
+    file_path = f"{basedir}/{process}.root"
+    if not os.path.exists(file_path):
+        logging.warning(f"Sample file not found for pT optimization: {file_path}")
+        return np.array([]), np.array([])
+
+    rfile = ROOT.TFile.Open(file_path, "READ")
+    tree = rfile.Get("Central")
+    if not tree:
+        logging.warning(f"Central tree not found in {file_path}")
+        rfile.Close()
+        return np.array([]), np.array([])
+    branches = [b.GetName() for b in tree.GetListOfBranches()]
+    rfile.Close()
+    _require_pt_branch(branches, f"{file_path}/Central")
+
+    arrays = (ROOT.RDataFrame("Central", file_path)
+              .Filter(f"mass >= {mass_min} && mass <= {mass_max}")
+              .AsNumpy(["pT", "weight"]))
+    return np.asarray(arrays["pT"], dtype=float), np.asarray(arrays["weight"], dtype=float)
+
+
+def getOptimizedPTThreshold(pt_sig, w_sig, pt_bkg, w_bkg):
+    """Find the pT threshold maximising Asimov significance (cut: pT >= t)."""
+    y_pred = np.concatenate([pt_sig, pt_bkg])
+    y_true = np.concatenate([np.ones(len(pt_sig)), np.zeros(len(pt_bkg))])
+    weights = np.concatenate([w_sig, w_bkg])
+
+    # pT is unbounded, so derive the scan ceiling from the data rather than [0, 1],
+    # then step in fixed PT_SCAN_STEP GeV increments.
+    hi = float(np.percentile(y_pred, PT_SCAN_MAX_PERCENTILE)) if len(y_pred) else 0.0
+    thresholds = np.arange(0.0, max(hi, 0.0) + PT_SCAN_STEP, PT_SCAN_STEP)
+    sensitivities = [evalSensitivity(y_true, y_pred, weights, t) for t in thresholds]
+
+    best_idx = int(np.argmax(sensitivities))
+    best_threshold = float(thresholds[best_idx])
+    initial_sensitivity = float(sensitivities[0])
+    max_sensitivity = float(sensitivities[best_idx])
+
+    logging.info("pT threshold optimization:")
+    logging.info(f"  Scan range: [0, {thresholds[-1]:.0f}] GeV in {PT_SCAN_STEP:.0f} GeV steps "
+                 f"({len(thresholds)} points)")
+    logging.info(f"  Best threshold: {best_threshold:.3f} GeV")
+    logging.info(f"  Initial sensitivity (no cut): {initial_sensitivity:.3f}")
+    logging.info(f"  Max sensitivity: {max_sensitivity:.3f}")
+    if initial_sensitivity > 0:
+        logging.info(f"  Improvement: {(max_sensitivity / initial_sensitivity - 1) * 100:.2f}%")
+
+    return (best_threshold, initial_sensitivity, max_sensitivity,
+            float(thresholds[-1]), int(len(thresholds)))
+
+
+def optimizeCategoryPTThreshold(basedirs, masspoint, mass_min, mass_max, outdir, category):
+    """PTOptimized analogue of optimizeCategoryParticleNetThreshold."""
+    sig_pt, sig_w = [], []
+    for basedir in basedirs:
+        pt, w = loadPTDataset(basedir, masspoint, mass_min, mass_max)
+        if len(pt) > 0:
+            sig_pt.append(pt)
+            sig_w.append(w)
+    if not sig_pt:
+        logging.warning("pT signal events not found for %s; no threshold applied", category)
+        return -999., None
+
+    bkg_processes = ["nonprompt", "WZ", "ZZ", "ttW", "ttZ", "ttH", "tZq", "conversion", "others"]
+    bkg_pt, bkg_w = [], []
+    for basedir in basedirs:
+        for process in bkg_processes:
+            pt, w = loadPTDataset(basedir, process, mass_min, mass_max)
+            if len(pt) > 0:
+                bkg_pt.append(pt)
+                bkg_w.append(w)
+    if not bkg_pt:
+        logging.warning("pT background events not found for %s; no threshold applied", category)
+        return -999., None
+
+    (best_threshold, initial_sensitivity, max_sensitivity,
+     scan_max, scan_points) = getOptimizedPTThreshold(
+        np.concatenate(sig_pt), np.concatenate(sig_w),
+        np.concatenate(bkg_pt), np.concatenate(bkg_w),
+    )
+    payload = {
+        "category": category,
+        "masspoint": masspoint,
+        "discriminant": "pT",
+        "cut": "pT >= threshold",
+        "threshold": float(best_threshold),
+        "scan_max": scan_max,
+        "scan_step": PT_SCAN_STEP,
+        "scan_points": scan_points,
+        "initial_sensitivity": float(initial_sensitivity),
+        "max_sensitivity": float(max_sensitivity),
+        "improvement": float(max_sensitivity / initial_sensitivity - 1) if initial_sensitivity > 0 else 0.0,
+    }
+    save_json(payload, f"{outdir}/threshold.{category}.json")
+    return best_threshold, payload
+
+
 def optimizeCategoryParticleNetThreshold(basedirs, masspoint, mass_min, mass_max, bg_weights, outdir, category):
     sig_scores = []
     sig_weights = []
@@ -920,6 +1057,8 @@ def write_run_period_shapes(outdir, categories):
 
 def build_run_period_templates(args, workdir):
     """Build merged Run-period categories with subera component processes."""
+    global DISCRIMINANT
+    DISCRIMINANT = "pT" if args.method == "PTOptimized" else "PN"
     binning_suffix = make_binning_suffix(args)
     outdir = f"{workdir}/SignalRegionStudyV3/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{binning_suffix}"
     periods = resolve_run_periods(args.era)
@@ -974,6 +1113,12 @@ def build_run_period_templates(args, workdir):
                     "upper_threshold": float(upper_threshold),
                     "signal_scale_factor": int(PARTIAL_UNBLIND_SIGNAL_SCALE),
                 }
+            elif args.method == "PTOptimized":
+                best_threshold, threshold_payload = optimizeCategoryPTThreshold(
+                    basedirs, args.masspoint, mass_min, mass_max, outdir, cat
+                )
+                if threshold_payload:
+                    threshold_summary["categories"][cat] = threshold_payload
             elif args.method == "ParticleNet":
                 bg_weights = getCategoryBackgroundWeights(basedirs, mass_min, mass_max, outdir, cat)
                 best_threshold, threshold_payload = optimizeCategoryParticleNetThreshold(
@@ -1217,6 +1362,11 @@ def main():
         raise ValueError("--unblind and --partial-unblind are mutually exclusive")
     if args.partial_unblind and args.method != "ParticleNet":
         raise ValueError("--partial-unblind requires --method ParticleNet")
+    if args.method not in ("Baseline", "ParticleNet", "PTOptimized"):
+        raise ValueError(
+            f"Unknown --method '{args.method}' "
+            "(expected Baseline, ParticleNet or PTOptimized)"
+        )
 
     workdir = os.getenv("WORKDIR")
     if not workdir:

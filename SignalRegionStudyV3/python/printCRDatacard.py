@@ -214,8 +214,11 @@ class CRRunPeriodDatacard:
 
         self.rfile.Close()
         if os.path.exists(original_path):
-            os.remove(original_path)
-        os.rename(shapes_path, original_path)
+            # Already-pruned shapes.root from an earlier pass or re-run: keep
+            # the existing pre-prune archive rather than overwriting it.
+            os.remove(shapes_path)
+        else:
+            os.rename(shapes_path, original_path)
 
         out = ROOT.TFile.Open(shapes_path, "RECREATE")
         dirs = {}

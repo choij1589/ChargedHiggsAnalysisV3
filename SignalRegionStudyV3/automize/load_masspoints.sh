@@ -8,6 +8,7 @@ import json
 d = json.load(open('$MASSPOINTS_JSON'))
 baseline = d.get('baseline', [])
 particlenet = d.get('particlenet', [])
+ptoptimized = d.get('ptoptimized', [])
 impact = d.get('impact', {})
 signal_injection = d.get('signal_injection', {})
 hybridnew = d.get('hybridnew', {})
@@ -26,6 +27,7 @@ print(' '.join(hybridnew.get('particlenet', particlenet)))
 print(' '.join(gof.get('baseline', baseline)))
 print(' '.join(gof.get('particlenet', particlenet)))
 print(' '.join(lee))
+print(' '.join(ptoptimized))
 ")
 
 read -ra MASSPOINTs_BASELINE        <<< "$(sed -n '1p' <<< "$_mp_all")"
@@ -40,4 +42,6 @@ read -ra MASSPOINTs_HYBRIDNEW_PN    <<< "$(sed -n '9p' <<< "$_mp_all")"
 read -ra MASSPOINTs_GOF_BASELINE    <<< "$(sed -n '10p' <<< "$_mp_all")"
 read -ra MASSPOINTs_GOF_PN          <<< "$(sed -n '11p' <<< "$_mp_all")"
 read -ra MASSPOINTs_LEE             <<< "$(sed -n '12p' <<< "$_mp_all")"
+# Appended last on purpose: new entries must not shift the line numbers above.
+read -ra MASSPOINTs_PTOPTIMIZED     <<< "$(sed -n '13p' <<< "$_mp_all")"
 unset _mp_all
