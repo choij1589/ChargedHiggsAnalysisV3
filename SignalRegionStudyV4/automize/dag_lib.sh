@@ -15,7 +15,10 @@ DAG_MODULE_DIR="$(dirname "$DAG_LIB_DIR")"
 dag_new_jobdir() {
     local prefix=$1
     local timestamp
-    timestamp=$(date +%Y%m%d_%H%M%S)
+    # PID suffix: two driver invocations within the same second must never
+    # share a job dir (a reused dir makes submit_all.sh resubmit earlier
+    # DAGs).
+    timestamp="$(date +%Y%m%d_%H%M%S)_$$"
     local job_dir="$DAG_MODULE_DIR/condor/jobs_${prefix}_${timestamp}"
     mkdir -p "$job_dir"
     cp "$DAG_MODULE_DIR/configs/dagman.config" "$job_dir/"
