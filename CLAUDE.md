@@ -33,9 +33,10 @@ Each module has its own `CLAUDE.md` with commands and details.
 | `MeasFakeRate/`, `V2/`, `V3/` | Legacy fake rate modules |
 | `MeasJetTagEff/` | b-tagging (DeepJet) efficiency |
 | `TriggerStrategy/` | Trigger acceptance comparison study |
-| `SignalRegionStudyV2/` | **Current baseline** signal region + limit extraction |
-| `SignalRegionStudyV1/` | Legacy signal region module (deprecated; use V2) |
-| `SignalRegionStudyV3/` | In-progress next-generation signal region study |
+| `SignalRegionStudyV4/` | **Current baseline** signal-region limit chain (simplified V3 port; parametric-signal & interpolation development) |
+| `SignalRegionStudyV3/` | Full-featured unblind signal-region study (frozen reference for the V4 reproduction) |
+| `SignalRegionStudyV2/` | Older signal region + limit extraction |
+| `SignalRegionStudyV1/` | Legacy signal region module (deprecated) |
 | `SignalRegionStudy/` | Legacy limit extraction (C++/CMake) |
 | `ParticleNet/` | GNN classifier for signal/background discrimination |
 | `ParticleNetMD/` | Mass-decorrelated variant (DisCo loss) |

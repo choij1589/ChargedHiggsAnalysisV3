@@ -26,7 +26,6 @@ import argparse
 import logging
 import json
 import subprocess
-from array import array
 import ROOT
 
 from template_utils import (
@@ -240,7 +239,8 @@ class BasePreprocessor:
         self.channel = channel
         self.masspoint = masspoint
         self.in_file = None
-        self.out_file = None
+        self.in_path = None
+        self.out_path = None
 
         # Parse mass point parameters
         self.mHc = int(masspoint.split("_")[0].replace("MHc", ""))
@@ -251,55 +251,28 @@ class BasePreprocessor:
         """Open input ROOT file."""
         if not os.path.exists(path):
             raise FileNotFoundError(f"Input file not found: {path}")
+        self.in_path = path
         self.in_file = ROOT.TFile(path, "READ")
         if self.in_file.IsZombie():
             raise IOError(f"Failed to open input file: {path}")
 
     def set_output_file(self, path):
-        """Open output ROOT file."""
+        """Register (and truncate) the output ROOT file.
+
+        Trees are written by RDataFrame Snapshot in UPDATE mode, so the file
+        is not held open here; RECREATE-and-close truncates any stale file."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        self.out_file = ROOT.TFile(path, "RECREATE")
+        self.out_path = path
+        out = ROOT.TFile(path, "RECREATE")
+        out.Close()
 
     def close_files(self):
-        """Close input and output files."""
+        """Close the input file."""
         if self.in_file:
             self.in_file.Close()
             self.in_file = None
-        if self.out_file:
-            self.out_file.Close()
-            self.out_file = None
-
-    def _setup_output_branches(self, out_tree):
-        """Setup output branches and return (out_vars, score_vars) arrays."""
-        out_vars = {name: array('d', [0.0]) for name in ['mass', 'pT', 'mass1', 'mass2', 'weight']}
-        score_vars = {}
-        if self.is_trained_sample:
-            for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']:
-                score_vars[suffix] = array('d', [0.0])
-
-        for name, arr in out_vars.items():
-            out_tree.Branch(name, arr, f"{name}/D")
-        for suffix, arr in score_vars.items():
-            out_tree.Branch(f"score_{self.masspoint}_{suffix}", arr, f"score_{self.masspoint}_{suffix}/D")
-
-        return out_vars, score_vars
-
-    def _setup_input_branches(self, in_tree, include_mass=False):
-        """Setup input branch addresses and return (in_vars, in_scores) arrays."""
-        var_names = ['mass', 'mass1', 'mass2', 'pT1', 'pT2', 'weight'] if include_mass \
-            else ['mass1', 'mass2', 'pT1', 'pT2', 'weight']
-        in_vars = {name: array('d', [0.0]) for name in var_names}
-        in_scores = {}
-        if self.is_trained_sample:
-            for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']:
-                in_scores[suffix] = array('d', [0.0])
-
-        for name, arr in in_vars.items():
-            in_tree.SetBranchAddress(name, arr)
-        for suffix, arr in in_scores.items():
-            in_tree.SetBranchAddress(f"score_{self.masspoint}_{suffix}", arr)
-
-        return in_vars, in_scores
+        self.in_path = None
+        self.out_path = None
 
     def _select_pair(self, mass1, mass2, pT1, pT2):
         """Select the (mass, pT) of the same dimuon pairing.
@@ -330,47 +303,60 @@ class SamplePreprocessor(BasePreprocessor):
 
     def process_tree(self, input_tree_name, output_tree_name, weight_scale=1.0,
                      is_signal=False, apply_convSF=False, kfactor=1.0):
-        """Process a single tree from input to output."""
+        """Process a single tree from input to output.
+
+        Vectorized with an RDataFrame Snapshot: the Define expressions
+        replicate the exact per-entry operation order of the original python
+        loop (weight multiplications are not associative in floating point),
+        so output values are bitwise identical — just written by a compiled
+        loop instead of a python one."""
         in_tree = self.in_file.Get(input_tree_name)
         if not in_tree:
             raise RuntimeError(f"Tree '{input_tree_name}' not found in input file")
+        n_entries = in_tree.GetEntries()
 
-        out_tree = ROOT.TTree(output_tree_name, "")
+        rdf = ROOT.RDataFrame(input_tree_name, self.in_path)
+        input_columns = {str(c) for c in rdf.GetColumnNames()}
 
-        out_vars, score_vars = self._setup_output_branches(out_tree)
-        in_vars, in_scores = self._setup_input_branches(in_tree, include_mass=False)
+        def define(df, name, expr):
+            return df.Redefine(name, expr) if name in input_columns else df.Define(name, expr)
 
-        for i in range(in_tree.GetEntries()):
-            in_tree.GetEntry(i)
+        # Weight: same operation order as the original loop:
+        # ((weight * scale) [/ 3.0] [* convSF]) * kfactor
+        weight_expr = f"(weight * {weight_scale!r})"
+        if is_signal:
+            weight_expr = f"({weight_expr} / 3.0)"  # signal normalization to 5 fb
+        if apply_convSF:
+            weight_expr = f"({weight_expr} * {self.convSF!r})"
+        weight_expr = f"({weight_expr} * {kfactor!r})"
 
-            # Copy kinematic variables
-            for name in ['mass1', 'mass2']:
-                out_vars[name][0] = in_vars[name][0]
+        # Select mass and the pT of the same dimuon pairing (see _select_pair)
+        if "1E2Mu" in self.channel or "2E1Mu" in self.channel:
+            mass_expr, pt_expr = "mass1", "pT1"
+        elif "3Mu" in self.channel:
+            if self.mHc >= 100 and self.mA >= 60:
+                mass_expr = "(mass1 >= mass2 ? mass1 : mass2)"
+                pt_expr = "(mass1 >= mass2 ? pT1 : pT2)"
+            else:
+                mass_expr = "(mass1 <= mass2 ? mass1 : mass2)"
+                pt_expr = "(mass1 <= mass2 ? pT1 : pT2)"
+        else:
+            raise ValueError(f"Unknown channel: {self.channel}")
 
-            # Calculate weight
-            w = in_vars['weight'][0] * weight_scale
-            if is_signal:
-                w /= 3.0  # Signal cross-section normalization to 5 fb
-            if apply_convSF:
-                w *= self.convSF
-            w *= kfactor  # Apply K-factor
-            out_vars['weight'][0] = w
+        rdf = define(rdf, "mass", mass_expr)
+        rdf = define(rdf, "pT", pt_expr)
+        rdf = define(rdf, "weight", weight_expr)
 
-            # Copy scores
-            for suffix in score_vars:
-                score_vars[suffix][0] = in_scores[suffix][0]
+        columns = ['mass', 'pT', 'mass1', 'mass2', 'weight']
+        if self.is_trained_sample:
+            columns += [f"score_{self.masspoint}_{suffix}"
+                        for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']]
 
-            # Select mass and the pT of the same dimuon pairing
-            out_vars['mass'][0], out_vars['pT'][0] = self._select_pair(
-                in_vars['mass1'][0], in_vars['mass2'][0],
-                in_vars['pT1'][0], in_vars['pT2'][0]
-            )
-
-            out_tree.Fill()
-
-        self.out_file.cd()
-        out_tree.Write()
-        logging.debug(f"Processed {in_tree.GetEntries()} entries for {output_tree_name}")
+        opts = ROOT.RDF.RSnapshotOptions()
+        opts.fMode = "UPDATE"
+        columns_vec = ROOT.std.vector('string')(columns)
+        rdf.Snapshot(output_tree_name, self.out_path, columns_vec, opts)
+        logging.debug(f"Processed {n_entries} entries for {output_tree_name}")
 
     def process_systematics(self, category, syst_categories, **kwargs):
         """Process all shape systematics for a category."""

@@ -45,9 +45,10 @@ module.
 | `MeasFakeRate/`, `MeasFakeRateV2/`, `MeasFakeRateV3/` | Legacy fake-rate modules. |
 | `MeasJetTagEff/` | DeepJet b-tagging efficiency measurement. |
 | `TriggerStrategy/` | Trigger acceptance comparison studies. |
-| `SignalRegionStudyV2/` | Current baseline signal-region and limit-extraction workflow. |
-| `SignalRegionStudyV1/` | Legacy signal-region module; prefer `SignalRegionStudyV2` unless maintaining old results. |
-| `SignalRegionStudyV3/` | In-progress full-unblind signal-region workflow. |
+| `SignalRegionStudyV4/` | Current baseline signal-region limit chain (simplified V3 port; parametric-signal and interpolation development). |
+| `SignalRegionStudyV3/` | Full-featured unblind signal-region workflow; frozen reference for the V4 reproduction. |
+| `SignalRegionStudyV2/` | Older signal-region and limit-extraction workflow. |
+| `SignalRegionStudyV1/` | Legacy signal-region module; kept for maintaining old results. |
 | `SignalRegionStudy/` | Legacy C++/CMake limit-extraction workflow. |
 | `ParticleNet/` | GNN classifier for signal/background discrimination. |
 | `ParticleNetMD/` | Mass-decorrelated ParticleNet variant using DisCo loss. |

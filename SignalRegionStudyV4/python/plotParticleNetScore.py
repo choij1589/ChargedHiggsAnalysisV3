@@ -371,10 +371,13 @@ def style_signal_histogram(hist):
 
 def create_filled_histogram(name, title, values, weights, nbins=DEFAULT_NBINS,
                             xmin=DEFAULT_XMIN, xmax=DEFAULT_XMAX):
-    """Create and fill a histogram from arrays."""
+    """Create and fill a histogram from arrays (single FillN call)."""
     hist = ROOT.TH1D(name, title, nbins, xmin, xmax)
-    for val, wt in zip(values, weights):
-        hist.Fill(val, wt)
+    hist.Sumw2()
+    if len(values) > 0:
+        hist.FillN(len(values),
+                   np.ascontiguousarray(values, dtype=np.float64),
+                   np.ascontiguousarray(weights, dtype=np.float64))
     hist.SetDirectory(0)
     return hist
 
@@ -875,8 +878,10 @@ def create_histograms(era, channel, masspoint, sample_channel, syst_categories,
                                   DEFAULT_NBINS, DEFAULT_XMIN, DEFAULT_XMAX)
         if show_data:
             if len(data_scores['weights']) > 0:
-                for val, wt in zip(data_scores[score_type], data_scores['weights']):
-                    data_obs_200.Fill(val, wt)
+                data_obs_200.FillN(
+                    len(data_scores['weights']),
+                    np.ascontiguousarray(data_scores[score_type], dtype=np.float64),
+                    np.ascontiguousarray(data_scores['weights'], dtype=np.float64))
 
         else:
             # Blinded: sum of backgrounds
