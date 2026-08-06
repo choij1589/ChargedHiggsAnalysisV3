@@ -107,6 +107,40 @@ the JSON disagreement as WARN (`V3 json stale`). Re-collecting V3's
 limits from its rebuilt templates would resolve the inconsistency; that
 is a V3-side decision.
 
+## Extended Verification (2026-08-07)
+
+Five more points, all on the shared-sample layout, vs V3 frozen outputs:
+
+| Point | Method | Samples | Templates | Limits |
+|---|---|---|---|---|
+| MHc70_MA15 (lowM) | Baseline | 352/0 | 81/0 (datacards bitwise) | 9/0 |
+| MHc100_MA60 | Baseline | 352/0 | 81/0 | 9/0 |
+| MHc160_MA155 | Baseline | 352/0 | 81/0 | 9/0 |
+| MHc100_MA95 | ParticleNet | 512/0 | 131/0 | 9/0 |
+| MHc160_MA85 | ParticleNet | see below | see below | see below |
+
+### MHc160_MA85: stale V3 reference (upstream skim regeneration)
+
+The MHc160 NoHistMode input skims in SKNanoOutput were regenerated after
+V3's samples were frozen (2026-07-06): ParticleNet scores differ at ~1e-8
+relative (re-inference wobble) and 2022 `others` gained 3 events. Proof
+that V4 is faithful: V4's sample content equals **today's** input skim
+exactly, while V3's frozen sample carries the old values.
+
+Downstream impact: datacards STILL bitwise identical; a few Run3 shape
+bins shift at the ~1% level (the 3 events), threshold sensitivities at
+~1e-5, and only the observed limits move (<= 1e-5 relative; all expected
+quantiles within tolerance). Not a chain defect — the V3 reference is
+stale for this mass point. Any future full-grid production supersedes the
+V3 numbers here by construction.
+
+### DCB tail-parameter noise
+
+Cross-worker Minuit noise is <= 4e-13 on x0/sigma_eff but up to ~1.5e-9 on
+the DCB tail parameters (alphaL/nL), which do not feed the binning. The
+comparator's `--json-rtol` default is 1e-8 (the measured envelope, still
+six orders below any real change).
+
 ## Drift Triage
 
 Order matters: samples must PASS before template mismatches are meaningful.

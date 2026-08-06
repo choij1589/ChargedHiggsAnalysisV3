@@ -502,9 +502,12 @@ def main():
     parser.add_argument("--no-ttz", dest="ttz", action="store_false",
                         help="Skip TTZ2E1Mu sample dirs (non-ParticleNet mass points)")
     parser.add_argument("--sample-rtol", type=float, default=1e-9)
-    parser.add_argument("--json-rtol", type=float, default=1e-9,
-                        help="Relative tolerance for numeric JSON leaves "
-                             "(cross-worker fit noise measured at <= 4e-13)")
+    parser.add_argument("--json-rtol", type=float, default=1e-8,
+                        help="Relative tolerance for numeric JSON leaves. "
+                             "Measured cross-worker Minuit noise: <=4e-13 for "
+                             "x0/sigma_eff, up to ~1.5e-9 for DCB tail "
+                             "parameters (alphaL/nL) — still 6 orders below "
+                             "any real change.")
     parser.add_argument("--edge-rtol", type=float, default=1e-9,
                         help="Relative tolerance for histogram bin edges")
     parser.add_argument("--stats-trees", nargs="+", default=["Central"],
