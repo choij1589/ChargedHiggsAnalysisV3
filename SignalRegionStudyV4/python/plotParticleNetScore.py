@@ -1515,8 +1515,14 @@ def process_combined_era(region_label, sample_channel, show_data, region_outdir,
                         single_systs, mass_min, mass_max, ordered_bkgs, show_data,
                         bg_weights=bg_weights
                     )
+                    # Concurrent plot_score DAG nodes (e.g. Combined_All and
+                    # SR1E2Mu_All) may generate the same per-subera cache.
+                    # Write to a per-process temp file and atomically rename so
+                    # two writers can never corrupt or clobber each other.
                     os.makedirs(os.path.dirname(hist_file), exist_ok=True)
-                    save_histograms_to_root(hist_file, generated_hists, generated_systs)
+                    tmp_file = f"{hist_file}.tmp.{os.getpid()}"
+                    save_histograms_to_root(tmp_file, generated_hists, generated_systs)
+                    os.replace(tmp_file, hist_file)
                     generated_cache[cache_key] = hist_file
 
             if generated_cache.get(cache_key) is None:
