@@ -53,6 +53,14 @@ and docs make no reference to them:
 
 ## Layout Contract
 
+- Sample layout (shared, the V4 default):
+  `samples/{era}/SR1E2Mu/` and `samples/{era}/SR3Mu_{lowM,highM}/` hold the
+  mass-independent backgrounds/nonprompt/data once, plus every signal as
+  `{masspoint}.root` (SR3Mu: in both pairing variants, for interpolation).
+  ParticleNet keeps per-masspoint dirs `samples/{era}/{channel}/{masspoint}/`
+  (per-masspoint scores, NoHistMode skims, TTZ2E1Mu).
+  `highM` ⇔ `mHc >= 100 && mA >= 60` (the SR3Mu pairing rule).
+
 - Template layout: `templates/{masspoint}/{method}/{era}/{channel}/` —
   mass point first, no binning-suffix level.
 - The only binning scheme is `extended` (adaptive, 15 to 5 core bins driven

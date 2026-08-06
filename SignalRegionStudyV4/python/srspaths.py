@@ -46,8 +46,47 @@ def method_segment(method, blind=False):
     return f"{method}_blind" if blind else method
 
 
-def sample_dir(era, channel, masspoint):
-    return os.path.join(module_dir(), "samples", era, channel, masspoint)
+def masspoint_mhc_ma(masspoint):
+    parts = masspoint.split("_")
+    return (int(parts[0].replace("MHc", "")), int(parts[1].replace("MA", "")))
+
+
+def pairing_variant(masspoint):
+    """SR3Mu dimuon-pairing variant for a mass point.
+
+    'highM' (higher-mass pairing) iff mHc >= 100 && mA >= 60 — the pairing
+    rule, NOT a pure mA threshold (MHc160_MA15 is lowM, MHc70_MA60 is lowM).
+    """
+    mhc, ma = masspoint_mhc_ma(masspoint)
+    return "highM" if (mhc >= 100 and ma >= 60) else "lowM"
+
+
+def shared_channel_dirname(channel, masspoint=None, pairing=None):
+    """Shared-sample directory name for a channel.
+
+    SR3Mu needs the pairing variant (given explicitly or derived from the
+    mass point); SR1E2Mu is mass-independent."""
+    if channel == "SR3Mu":
+        if pairing is None:
+            if masspoint is None:
+                raise ValueError("SR3Mu shared dir needs a pairing or a masspoint")
+            pairing = pairing_variant(masspoint)
+        return f"SR3Mu_{pairing}"
+    return channel
+
+
+def sample_dir(era, channel, masspoint, method):
+    """Directory holding the preprocessed inputs for one (era, channel, mp).
+
+    ParticleNet: per-masspoint dirs (per-masspoint score branches and
+    MHc-specific input skims). Baseline: shared dirs —
+    samples/{era}/SR1E2Mu and samples/{era}/SR3Mu_{lowM,highM} — holding
+    the mass-independent backgrounds/data/nonprompt plus every signal as
+    {masspoint}.root."""
+    if method == "ParticleNet" or channel == "TTZ2E1Mu":
+        return os.path.join(module_dir(), "samples", era, channel, masspoint)
+    return os.path.join(module_dir(), "samples", era,
+                        shared_channel_dirname(channel, masspoint=masspoint))
 
 
 def template_dir(masspoint, method, era, channel, blind=False):

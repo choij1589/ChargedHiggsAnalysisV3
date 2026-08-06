@@ -107,15 +107,62 @@ def matrix_input_dir(channel, masspoint):
 
 
 def parse_args():
-    """Parse command line arguments."""
+    """Parse command line arguments.
+
+    Three production modes:
+      (default)             per-masspoint dir with ParticleNet scores; only
+                            valid for ParticleNet-trained mass points
+                            (samples/{era}/{channel}/{masspoint}/).
+      --shared-backgrounds  mass-independent backgrounds/nonprompt/data into
+                            the shared dir (samples/{era}/SR1E2Mu or
+                            samples/{era}/SR3Mu_{lowM,highM}; --pairing
+                            required for SR3Mu). No --masspoint.
+      --shared-signal       signal only, into the shared dir(s) as
+                            {masspoint}.root, from the standard skims.
+                            SR3Mu writes BOTH lowM and highM variants (the
+                            interpolation study needs signals under both
+                            pairing selections).
+    """
     parser = argparse.ArgumentParser(description="Preprocess samples for SignalRegionStudyV4")
     parser.add_argument("--era", required=True, type=str, help="era (e.g., 2018, 2022EE)")
     parser.add_argument("--channel", required=True, type=str,
                         choices=list(CHANNEL_INPUT_MAP.keys()),
                         help="channel (SR1E2Mu, SR3Mu, or TTZ2E1Mu)")
-    parser.add_argument("--masspoint", required=True, type=str, help="signal mass point (e.g., MHc130_MA90)")
+    parser.add_argument("--masspoint", type=str, default=None,
+                        help="signal mass point (e.g., MHc130_MA90)")
+    parser.add_argument("--shared-backgrounds", action="store_true", dest="shared_backgrounds",
+                        help="produce shared (mass-independent) backgrounds/nonprompt/data")
+    parser.add_argument("--shared-signal", action="store_true", dest="shared_signal",
+                        help="produce only the signal into the shared dir(s)")
+    parser.add_argument("--pairing", choices=["lowM", "highM"], default=None,
+                        help="SR3Mu pairing variant (required for --shared-backgrounds on SR3Mu)")
     parser.add_argument("--debug", action="store_true", help="debug mode")
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.shared_backgrounds and args.shared_signal:
+        parser.error("--shared-backgrounds and --shared-signal are mutually exclusive")
+    if args.shared_backgrounds:
+        if args.masspoint:
+            parser.error("--shared-backgrounds takes no --masspoint")
+        if args.channel == "SR3Mu" and not args.pairing:
+            parser.error("--shared-backgrounds on SR3Mu requires --pairing lowM|highM")
+        if args.channel == "TTZ2E1Mu":
+            parser.error("TTZ2E1Mu has no shared layout (ParticleNet-only channel)")
+    elif args.shared_signal:
+        if not args.masspoint:
+            parser.error("--shared-signal requires --masspoint")
+        if args.channel == "TTZ2E1Mu":
+            parser.error("TTZ2E1Mu has no shared layout (ParticleNet-only channel)")
+    else:
+        if not args.masspoint:
+            parser.error("--masspoint is required (or use a --shared-* mode)")
+        if args.masspoint not in PN_TRAINED_MASSPOINTS:
+            parser.error(
+                f"{args.masspoint} is not ParticleNet-trained; per-masspoint "
+                "production is ParticleNet-only. Use --shared-signal for the "
+                "baseline layout."
+            )
+    return args
 
 
 def is_run3_era(era):
@@ -231,10 +278,30 @@ def hadd_files(output_path, input_files, cleanup=True):
 # Base Preprocessor Class
 # =============================================================================
 
+def pairing_for(channel, masspoint=None, pairing=None):
+    """Resolve the dimuon-pairing rule: 'mass1' | 'low' | 'high'.
+
+    SR1E2Mu/TTZ2E1Mu always store mass1. SR3Mu stores the higher-mass
+    pairing iff mHc >= 100 && mA >= 60 (the pairing rule — not a pure mA
+    threshold), or an explicit lowM/highM override for shared-background
+    production where no mass point exists."""
+    if "1E2Mu" in channel or "2E1Mu" in channel:
+        return "mass1"
+    if "3Mu" in channel:
+        if pairing is not None:
+            return {"lowM": "low", "highM": "high"}[pairing]
+        if masspoint is None:
+            raise ValueError("SR3Mu needs a mass point or an explicit --pairing")
+        mhc = int(masspoint.split("_")[0].replace("MHc", ""))
+        ma = int(masspoint.split("_")[1].replace("MA", ""))
+        return "high" if (mhc >= 100 and ma >= 60) else "low"
+    raise ValueError(f"Unknown channel: {channel}")
+
+
 class BasePreprocessor:
     """Base class with shared file/branch operations."""
 
-    def __init__(self, era, channel, masspoint):
+    def __init__(self, era, channel, masspoint=None, pairing=None):
         self.era = era
         self.channel = channel
         self.masspoint = masspoint
@@ -242,10 +309,9 @@ class BasePreprocessor:
         self.in_path = None
         self.out_path = None
 
-        # Parse mass point parameters
-        self.mHc = int(masspoint.split("_")[0].replace("MHc", ""))
-        self.mA = int(masspoint.split("_")[1].replace("MA", ""))
-        self.is_trained_sample = masspoint in PN_TRAINED_MASSPOINTS
+        self.pairing = pairing_for(channel, masspoint=masspoint, pairing=pairing)
+        self.is_trained_sample = (masspoint in PN_TRAINED_MASSPOINTS
+                                  if masspoint else False)
 
     def set_input_file(self, path):
         """Open input ROOT file."""
@@ -274,32 +340,16 @@ class BasePreprocessor:
         self.in_path = None
         self.out_path = None
 
-    def _select_pair(self, mass1, mass2, pT1, pT2):
-        """Select the (mass, pT) of the same dimuon pairing.
-
-        pT must follow whichever of mass1/mass2 is chosen, otherwise the stored
-        pT would describe a different pair than the stored mass.
-        """
-        if "1E2Mu" in self.channel or "2E1Mu" in self.channel:
-            return mass1, pT1
-        elif "3Mu" in self.channel:
-            if self.mHc >= 100 and self.mA >= 60:
-                return (mass1, pT1) if mass1 >= mass2 else (mass2, pT2)
-            return (mass1, pT1) if mass1 <= mass2 else (mass2, pT2)
-        else:
-            raise ValueError(f"Unknown channel: {self.channel}")
-
-    def _select_mass(self, mass1, mass2):
-        """Select appropriate mass based on channel and mass point."""
-        return self._select_pair(mass1, mass2, 0.0, 0.0)[0]
-
-
 class SamplePreprocessor(BasePreprocessor):
     """Preprocessor for samples with systematic variations."""
 
-    def __init__(self, era, channel, masspoint, convSF=1.0):
-        super().__init__(era, channel, masspoint)
+    def __init__(self, era, channel, masspoint=None, convSF=1.0, pairing=None,
+                 shared=False):
+        super().__init__(era, channel, masspoint, pairing=pairing)
         self.convSF = convSF
+        # Shared-layout production reads the standard (non-NoHistMode) skims,
+        # which carry no ParticleNet score branches.
+        self.include_scores = self.is_trained_sample and not shared
 
     def process_tree(self, input_tree_name, output_tree_name, weight_scale=1.0,
                      is_signal=False, apply_convSF=False, kfactor=1.0):
@@ -330,25 +380,22 @@ class SamplePreprocessor(BasePreprocessor):
             weight_expr = f"({weight_expr} * {self.convSF!r})"
         weight_expr = f"({weight_expr} * {kfactor!r})"
 
-        # Select mass and the pT of the same dimuon pairing (see _select_pair)
-        if "1E2Mu" in self.channel or "2E1Mu" in self.channel:
+        # Select mass and the pT of the same dimuon pairing (see pairing_for)
+        if self.pairing == "mass1":
             mass_expr, pt_expr = "mass1", "pT1"
-        elif "3Mu" in self.channel:
-            if self.mHc >= 100 and self.mA >= 60:
-                mass_expr = "(mass1 >= mass2 ? mass1 : mass2)"
-                pt_expr = "(mass1 >= mass2 ? pT1 : pT2)"
-            else:
-                mass_expr = "(mass1 <= mass2 ? mass1 : mass2)"
-                pt_expr = "(mass1 <= mass2 ? pT1 : pT2)"
+        elif self.pairing == "high":
+            mass_expr = "(mass1 >= mass2 ? mass1 : mass2)"
+            pt_expr = "(mass1 >= mass2 ? pT1 : pT2)"
         else:
-            raise ValueError(f"Unknown channel: {self.channel}")
+            mass_expr = "(mass1 <= mass2 ? mass1 : mass2)"
+            pt_expr = "(mass1 <= mass2 ? pT1 : pT2)"
 
         rdf = define(rdf, "mass", mass_expr)
         rdf = define(rdf, "pT", pt_expr)
         rdf = define(rdf, "weight", weight_expr)
 
         columns = ['mass', 'pT', 'mass1', 'mass2', 'weight']
-        if self.is_trained_sample:
+        if self.include_scores:
             columns += [f"score_{self.masspoint}_{suffix}"
                         for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']]
 
@@ -502,6 +549,38 @@ def process_data(workdir, era, channel, masspoint, basedir, preprocessor, config
 # Main Entry Point
 # =============================================================================
 
+def shared_dirname(channel, pairing):
+    """Shared-layout directory name (mirrors srspaths.shared_channel_dirname)."""
+    return f"SR3Mu_{pairing}" if channel == "SR3Mu" else channel
+
+
+def run_signal(preprocessor, workdir, era, channel, masspoint, basedir,
+               syst_categories, input_masspoint_hint):
+    """Process the signal sample into {basedir}/{masspoint}.root.
+
+    input_masspoint_hint selects the input skim flavor: pass the mass point
+    for per-masspoint (NoHistMode) inputs, or None to force the standard
+    skims (shared layout)."""
+    input_channel = prompt_input_dir(channel, input_masspoint_hint, "_RunSyst_RunTheoryUnc")
+
+    logging.info("=" * 60)
+    logging.info("Processing Signal")
+    logging.info("=" * 60)
+
+    signal_input = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}/{era}/TTToHcToWAToMuMu-{masspoint}.root"
+    if not os.path.exists(signal_input):
+        raise FileNotFoundError(f"Signal file not found: {signal_input}")
+
+    preprocessor.set_input_file(signal_input)
+    preprocessor.set_output_file(f"{basedir}/{masspoint}.root")
+
+    preprocessor.process_tree("Events_Central", "Central", is_signal=True)
+    preprocessor.process_systematics("signal", syst_categories, is_signal=True)
+
+    preprocessor.close_files()
+    logging.info(f"  Output: {basedir}/{masspoint}.root")
+
+
 def main():
     args = parse_args()
 
@@ -512,70 +591,85 @@ def main():
     if not workdir:
         raise EnvironmentError("WORKDIR environment variable is not set. Run 'source setup.sh' first.")
 
-    basedir = f"{workdir}/SignalRegionStudyV4/samples/{args.era}/{args.channel}/{args.masspoint}"
-
-    # Validate TTZ2E1Mu masspoint (only ParticleNet masspoints)
-    if args.channel == "TTZ2E1Mu":
-        mA = int(args.masspoint.split("_")[1].replace("MA", ""))
-        if not (83 < mA < 100):
-            raise ValueError(
-                f"TTZ2E1Mu channel is only for ParticleNet masspoints (83 < mA < 100).\n"
-                f"  Requested masspoint: {args.masspoint} (mA={mA})"
-            )
-
     # Load configurations
     config = load_config(workdir, args.era, args.channel)
     syst_categories = categorize_systematics(config['systematics'])
     convSF = load_convSF(workdir, args.era, args.channel)
     kfactors = load_kfactors(workdir, args.era)
 
-    logging.info(f"Preprocessing {args.masspoint} for {args.era} era and {args.channel} channel")
-    logging.info(f"Input channel: {CHANNEL_INPUT_MAP[args.channel]}")
-    logging.info(f"Input directory channel: {input_channel_dir(args.channel, args.masspoint)}")
-    logging.info(f"Input mode: {input_mode(args.masspoint)}")
     logging.info(f"Config channel: {CHANNEL_CONFIG_MAP[args.channel]}")
     logging.info(f"Found {len(syst_categories['preprocessed_shape'])} preprocessed shape systematics")
     logging.info(f"Found {len(syst_categories['valued_shape'])} valued shape systematics")
     logging.info(f"Found {len(syst_categories['multi_variation'])} multi-variation systematics")
     logging.info(f"Found {len(syst_categories['valued_lnN'])} valued lnN systematics (skipped)")
 
-    # Clean and create output directory
-    ensure_directory(basedir, clean=True)
+    if args.shared_backgrounds:
+        # === Shared layout: mass-independent backgrounds/nonprompt/data ===
+        basedir = (f"{workdir}/SignalRegionStudyV4/samples/{args.era}/"
+                   f"{shared_dirname(args.channel, args.pairing)}")
+        logging.info(f"Shared backgrounds for {args.era}/{shared_dirname(args.channel, args.pairing)}")
+        ensure_directory(basedir, clean=False)
+        preprocessor = SamplePreprocessor(args.era, args.channel, masspoint=None,
+                                          convSF=convSF, pairing=args.pairing,
+                                          shared=True)
+        process_backgrounds(workdir, args.era, args.channel, None, basedir,
+                            preprocessor, config, syst_categories, kfactors)
+        process_nonprompt(workdir, args.era, args.channel, None, basedir,
+                          preprocessor, config)
+        process_data(workdir, args.era, args.channel, None, basedir,
+                     preprocessor, config)
 
-    # Initialize preprocessor
-    preprocessor = SamplePreprocessor(args.era, args.channel, args.masspoint, convSF)
+    elif args.shared_signal:
+        # === Shared layout: signal only, from the standard skims.
+        # SR3Mu stores BOTH pairing variants for the interpolation study. ===
+        pairings = ["lowM", "highM"] if args.channel == "SR3Mu" else [None]
+        for pairing in pairings:
+            basedir = (f"{workdir}/SignalRegionStudyV4/samples/{args.era}/"
+                       f"{shared_dirname(args.channel, pairing)}")
+            logging.info(f"Shared signal {args.masspoint} -> {basedir}")
+            ensure_directory(basedir, clean=False)
+            preprocessor = SamplePreprocessor(args.era, args.channel,
+                                              masspoint=args.masspoint,
+                                              convSF=convSF, pairing=pairing,
+                                              shared=True)
+            run_signal(preprocessor, workdir, args.era, args.channel,
+                       args.masspoint, basedir, syst_categories,
+                       input_masspoint_hint=None)
 
-    # === 1. Process Signal (only for signal channels) ===
-    if args.channel in CHANNELS_WITH_SIGNAL:
-        input_channel = prompt_input_dir(args.channel, args.masspoint, "_RunSyst_RunTheoryUnc")
+    else:
+        # === ParticleNet per-masspoint production (scores + NoHistMode skims) ===
+        basedir = f"{workdir}/SignalRegionStudyV4/samples/{args.era}/{args.channel}/{args.masspoint}"
 
-        logging.info("=" * 60)
-        logging.info("Processing Signal")
-        logging.info("=" * 60)
+        # Validate TTZ2E1Mu masspoint (only ParticleNet masspoints)
+        if args.channel == "TTZ2E1Mu":
+            mA = int(args.masspoint.split("_")[1].replace("MA", ""))
+            if not (83 < mA < 100):
+                raise ValueError(
+                    f"TTZ2E1Mu channel is only for ParticleNet masspoints (83 < mA < 100).\n"
+                    f"  Requested masspoint: {args.masspoint} (mA={mA})"
+                )
 
-        signal_input = f"{workdir}/SKNanoOutput/PromptAnalyzer/{input_channel}/{args.era}/TTToHcToWAToMuMu-{args.masspoint}.root"
-        if not os.path.exists(signal_input):
-            raise FileNotFoundError(f"Signal file not found: {signal_input}")
+        logging.info(f"Preprocessing {args.masspoint} for {args.era} era and {args.channel} channel")
+        logging.info(f"Input directory channel: {input_channel_dir(args.channel, args.masspoint)}")
+        logging.info(f"Input mode: {input_mode(args.masspoint)}")
 
-        preprocessor.set_input_file(signal_input)
-        preprocessor.set_output_file(f"{basedir}/{args.masspoint}.root")
+        ensure_directory(basedir, clean=True)
+        preprocessor = SamplePreprocessor(args.era, args.channel, args.masspoint, convSF)
 
-        preprocessor.process_tree("Events_Central", "Central", is_signal=True)
-        preprocessor.process_systematics("signal", syst_categories, is_signal=True)
+        if args.channel in CHANNELS_WITH_SIGNAL:
+            run_signal(preprocessor, workdir, args.era, args.channel,
+                       args.masspoint, basedir, syst_categories,
+                       input_masspoint_hint=args.masspoint)
 
-        preprocessor.close_files()
-        logging.info(f"  Output: {basedir}/{args.masspoint}.root")
-
-    # === 2. Process Backgrounds, Nonprompt, Data ===
-    process_backgrounds(workdir, args.era, args.channel, args.masspoint, basedir,
-                        preprocessor, config, syst_categories, kfactors)
-    process_nonprompt(workdir, args.era, args.channel, args.masspoint, basedir,
-                      preprocessor, config)
-    process_data(workdir, args.era, args.channel, args.masspoint, basedir,
-                 preprocessor, config)
+        process_backgrounds(workdir, args.era, args.channel, args.masspoint, basedir,
+                            preprocessor, config, syst_categories, kfactors)
+        process_nonprompt(workdir, args.era, args.channel, args.masspoint, basedir,
+                          preprocessor, config)
+        process_data(workdir, args.era, args.channel, args.masspoint, basedir,
+                     preprocessor, config)
 
     logging.info("=" * 60)
-    logging.info(f"Preprocessing complete! Output directory: {basedir}")
+    logging.info("Preprocessing complete!")
     logging.info("=" * 60)
 
 

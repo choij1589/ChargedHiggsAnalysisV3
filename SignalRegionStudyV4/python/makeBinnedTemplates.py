@@ -915,7 +915,7 @@ def build_run_period_templates(args):
             logging.info("Building category %s", cat)
             logging.info("=" * 60)
 
-            basedirs = [srspaths.sample_dir(subera, channel, args.masspoint) for subera in suberas]
+            basedirs = [srspaths.sample_dir(subera, channel, args.masspoint, args.method) for subera in suberas]
             signal_paths = [f"{basedir}/{args.masspoint}.root" for basedir in basedirs]
             fit_result = getFitResultDCBMulti(signal_paths, mA_nominal, outdir, period, args.masspoint, channel)
             x0 = fit_result["x0"]
@@ -939,7 +939,7 @@ def build_run_period_templates(args):
             background_validation[cat] = OrderedDict()
             active_by_subera = OrderedDict()
             for subera, processes in bg_by_subera.items():
-                basedir = srspaths.sample_dir(subera, channel, args.masspoint)
+                basedir = srspaths.sample_dir(subera, channel, args.masspoint, args.method)
                 validation = validateBackgroundStatistics(
                     basedir, calculate_adaptive_bins(x0, sigma_eff, 15), mass_min, mass_max,
                     [p if p != "conversion" else "conv" for p in processes if p not in {"nonprompt", "others"}],
@@ -972,7 +972,7 @@ def build_run_period_templates(args):
                 logging.info("Testing %s with %d core bins", cat, n_core)
                 test_hists = {}
                 for subera in suberas:
-                    basedir = srspaths.sample_dir(subera, channel, args.masspoint)
+                    basedir = srspaths.sample_dir(subera, channel, args.masspoint, args.method)
                     for proc in active_by_subera[subera]:
                         try:
                             comp = component_name(proc, subera)
@@ -1006,7 +1006,7 @@ def build_run_period_templates(args):
             if not args.blind:
                 data_obs = None
                 for subera in suberas:
-                    basedir = srspaths.sample_dir(subera, channel, args.masspoint)
+                    basedir = srspaths.sample_dir(subera, channel, args.masspoint, args.method)
                     h_data = getDataHist(
                         basedir, bin_edges, mass_min, mass_max,
                         best_threshold, upper_threshold, bg_weights, args.masspoint
@@ -1021,7 +1021,7 @@ def build_run_period_templates(args):
                 data_obs.SetDirectory(0)
 
             for subera in suberas:
-                basedir = srspaths.sample_dir(subera, channel, args.masspoint)
+                basedir = srspaths.sample_dir(subera, channel, args.masspoint, args.method)
                 syst_config = load_systematics_block(subera, channel)
                 syst_categories = categorize_systematics(syst_config)
 

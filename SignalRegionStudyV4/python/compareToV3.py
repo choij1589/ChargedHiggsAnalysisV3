@@ -143,20 +143,29 @@ def tree_content_sums(path, tree_name):
 
 
 def compare_sample_file(checker, label, v4_path, v3_path, rtol, stats_trees,
-                        allow_extra_branches):
+                        allow_extra_branches, ignore_score_branches=False):
     m4 = file_metadata(v4_path)
     m3 = file_metadata(v3_path)
     if sorted(m4) != sorted(m3):
         checker.record("samples", label, False,
                        f"tree set differs: {sorted(set(m4) ^ set(m3))[:10]}")
         return
+
+    def waived(branch):
+        # Baseline shared files come from the standard skims, which have no
+        # ParticleNet score branches; V3's per-masspoint reference (built
+        # from NoHistMode skims) carries them. Scores are PN-only, unused by
+        # the Baseline chain.
+        return ignore_score_branches and branch.startswith("score_")
+
     ok = True
     details = []
     for name in sorted(m3):
         if m4[name]["entries"] != m3[name]["entries"]:
             ok = False
             details.append(f"{name}: entries {m4[name]['entries']} != {m3[name]['entries']}")
-        missing_in_v4 = set(m3[name]["branches"]) - set(m4[name]["branches"])
+        missing_in_v4 = {b for b in set(m3[name]["branches"]) - set(m4[name]["branches"])
+                         if not waived(b)}
         extra_in_v4 = (set(m4[name]["branches"]) - set(m3[name]["branches"])
                        - set(allow_extra_branches))
         if missing_in_v4:
@@ -175,6 +184,8 @@ def compare_sample_file(checker, label, v4_path, v3_path, rtol, stats_trees,
         ok = True
         details = []
         for br in sorted(s3):
+            if br not in s4 and waived(br):
+                continue
             for tag, x4, x3 in (("sum", s4[br][0], s3[br][0]),
                                 ("sum2", s4[br][1], s3[br][1])):
                 if not math.isclose(x4, x3, rel_tol=rtol, abs_tol=1e-12):
@@ -184,32 +195,62 @@ def compare_sample_file(checker, label, v4_path, v3_path, rtol, stats_trees,
                        "; ".join(details[:5]))
 
 
+def compare_sample_dirs(checker, label, v4_dir, v3_dir, args, extra_v4_ok,
+                        ignore_score_branches=False):
+    """Compare all V3 .root files of one directory pair.
+
+    extra_v4_ok: shared V4 dirs legitimately hold other mass points'
+    signal files on top of the V3 per-masspoint inventory."""
+    if not os.path.isdir(v3_dir):
+        checker.record("samples", label, False, f"V3 dir missing: {v3_dir}")
+        return
+    if not os.path.isdir(v4_dir):
+        checker.record("samples", label, False, f"V4 dir missing: {v4_dir}")
+        return
+    v3_files = sorted(f for f in os.listdir(v3_dir) if f.endswith(".root"))
+    v4_files = set(f for f in os.listdir(v4_dir) if f.endswith(".root"))
+    missing = [f for f in v3_files if f not in v4_files]
+    if missing:
+        checker.record("samples", label, False, f"missing in V4: {missing}")
+        return
+    if not extra_v4_ok:
+        extra = sorted(v4_files - set(v3_files))
+        if extra:
+            checker.record("samples", label, False, f"unexpected extra in V4: {extra}")
+            return
+    for fname in v3_files:
+        compare_sample_file(
+            checker, f"{label}/{fname}",
+            os.path.join(v4_dir, fname), os.path.join(v3_dir, fname),
+            args.sample_rtol, args.stats_trees, args.allow_extra_branches,
+            ignore_score_branches=ignore_score_branches,
+        )
+
+
 def stage_samples(checker, args):
-    channels = ["SR1E2Mu", "SR3Mu"] + (["TTZ2E1Mu"] if args.ttz else [])
+    """V4 sample layout vs V3 per-masspoint reference.
+
+    Baseline: V4 shared dirs (samples/{era}/SR1E2Mu, SR3Mu_{lowM,highM})
+    against V3's per-masspoint dirs — the V3 inventory must be reproduced
+    inside the shared dir; other mass points' signals may coexist there.
+    ParticleNet: per-masspoint dirs including TTZ2E1Mu, as in V3."""
     v3_samples = os.path.join(args.v3_dir, "samples")
     for era in ERAS_SUB:
-        for channel in channels:
-            v4_dir = srspaths.sample_dir(era, channel, args.masspoint)
-            v3_dir = os.path.join(v3_samples, era, channel, args.masspoint)
-            label = f"samples/{era}/{channel}"
-            if not os.path.isdir(v3_dir):
-                checker.record("samples", label, False, f"V3 dir missing: {v3_dir}")
-                continue
-            if not os.path.isdir(v4_dir):
-                checker.record("samples", label, False, f"V4 dir missing: {v4_dir}")
-                continue
-            v3_files = sorted(f for f in os.listdir(v3_dir) if f.endswith(".root"))
-            v4_files = sorted(f for f in os.listdir(v4_dir) if f.endswith(".root"))
-            if v3_files != v4_files:
-                checker.record("samples", label, False,
-                               f"file inventory differs: {sorted(set(v3_files) ^ set(v4_files))}")
-                continue
-            for fname in v3_files:
-                compare_sample_file(
-                    checker, f"{label}/{fname}",
-                    os.path.join(v4_dir, fname), os.path.join(v3_dir, fname),
-                    args.sample_rtol, args.stats_trees, args.allow_extra_branches,
-                )
+        if "Baseline" in args.methods:
+            for channel in ["SR1E2Mu", "SR3Mu"]:
+                v4_dir = srspaths.sample_dir(era, channel, args.masspoint, "Baseline")
+                v3_dir = os.path.join(v3_samples, era, channel, args.masspoint)
+                label = f"samples/{era}/{os.path.basename(v4_dir)} (shared)"
+                compare_sample_dirs(checker, label, v4_dir, v3_dir, args,
+                                    extra_v4_ok=True, ignore_score_branches=True)
+        if "ParticleNet" in args.methods:
+            channels = ["SR1E2Mu", "SR3Mu"] + (["TTZ2E1Mu"] if args.ttz else [])
+            for channel in channels:
+                v4_dir = srspaths.sample_dir(era, channel, args.masspoint, "ParticleNet")
+                v3_dir = os.path.join(v3_samples, era, channel, args.masspoint)
+                label = f"samples/{era}/{channel}/{args.masspoint} (pnet)"
+                compare_sample_dirs(checker, label, v4_dir, v3_dir, args,
+                                    extra_v4_ok=False)
 
 
 def compare_json_deep(v4_obj, v3_obj, rtol=0.0, path=""):

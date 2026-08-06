@@ -37,10 +37,20 @@ source setup.sh   # module-local; REQUIRED before any work (not the repo root se
 ## Path & Layout Contract
 
 ```
-samples/{era}/{channel}/{masspoint}/{process}.root      (symlink -> pnfs)
+samples/{era}/SR1E2Mu/                       shared bkg/nonprompt/data + ALL signals ({masspoint}.root)
+samples/{era}/SR3Mu_{lowM,highM}/            shared bkg/nonprompt/data + ALL signals in BOTH
+                                             pairing variants (interpolation needs both)
+samples/{era}/{channel}/{masspoint}/         ParticleNet per-masspoint dirs (scores +
+                                             NoHistMode skims; incl. TTZ2E1Mu)
 templates/{masspoint}/{method}/{era}/{channel}/
 results/json/{BR,xsec}/{era}/limits.{era}[.{channel}].Asymptotic.{method}.json
 ```
+
+The SR3Mu pairing rule: `highM` (higher-mass dimuon pairing) iff
+`mHc >= 100 && mA >= 60` — a 2D condition, not a pure mA threshold
+(MHc160_MA15 is lowM, MHc70_MA60 is lowM). `srspaths.pairing_variant()`
+is the only place it is defined for path resolution;
+`preprocess.pairing_for()` mirrors it for production.
 
 - Unblind (real data) is the default everywhere. `--blind` gives Asimov
   data_obs and writes to a `{method}_blind` method segment.
@@ -55,16 +65,26 @@ results/json/{BR,xsec}/{era}/limits.{era}[.{channel}].Asymptotic.{method}.json
 ### 1. Preprocess
 
 Skims SKNanoOutput into flat per-process trees (one TTree per systematic;
-branches `mass`, `mass1`, `mass2`, `pT`, `weight`, `score_{mp}_*`).
+branches `mass`, `mass1`, `mass2`, `pT`, `weight`, and `score_{mp}_*` in
+ParticleNet per-masspoint dirs). Vectorized: RDataFrame Define+Snapshot.
 
 ```bash
-./automize/preprocess.sh --mode all [--masspoint MHc130_MA90] [--dry-run]
+./automize/preprocess.sh [--masspoint MHc130_MA90] [--skip-backgrounds] \
+                         [--backgrounds-only] [--dry-run]
 ```
 
-One DAG per mass point: 8 eras × {SR1E2Mu, SR3Mu} (+TTZ2E1Mu for
-particlenet points). Outputs land on pnfs via xrdcp
-(`$PNFS_USER_BASE/SignalRegionStudyV4/samples/...`). Owning code:
-`python/preprocess.py`, `scripts/preprocess_wrapper.sh`.
+- Shared-background DAG (24 nodes: 8 eras × {SR1E2Mu, SR3Mu:lowM,
+  SR3Mu:highM}) — run ONCE for the whole analysis; backgrounds, nonprompt
+  and data are mass-independent.
+- Per-masspoint DAG: 16 shared-signal nodes (SR3Mu writes both pairing
+  variants), plus 24 full ParticleNet nodes (incl. TTZ2E1Mu) for
+  ParticleNet-trained points.
+- An interpolated mass point needs only its signal: the shared backgrounds
+  are already in place.
+
+Outputs land on pnfs via xrdcp. Owning code: `python/preprocess.py`
+(modes: default per-masspoint ParticleNet / `--shared-backgrounds` /
+`--shared-signal`), `scripts/preprocess_wrapper.sh`.
 
 ### 2. Binned templates
 

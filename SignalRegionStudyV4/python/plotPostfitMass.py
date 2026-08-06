@@ -73,6 +73,7 @@ sys.path.insert(0, f"{WORKDIR}/Common/Tools")
 sys.path.insert(0, f"{WORKDIR}/SignalRegionStudyV4/python")
 from plotter import KinematicCanvas, ComparisonCanvas, get_CoM_energy
 from plotter import PALETTE_LONG as PALETTE
+import srspaths
 from template_utils import build_particlenet_score
 import cmsstyle as CMS
 
@@ -484,7 +485,10 @@ def load_subchannel_config(era, channel):
 # =============================================================================
 
 def sample_path(era, channel, process):
-    return f"{WORKDIR}/SignalRegionStudyV4/samples/{era}/{channel}/{args.masspoint}/{process}.root"
+    base_method = args.method[:-6] if args.method.endswith("_blind") else args.method
+    return os.path.join(
+        srspaths.sample_dir(era, channel, args.masspoint, base_method),
+        f"{process}.root")
 
 
 def build_filtered_rdf(sample_file, cfg):
