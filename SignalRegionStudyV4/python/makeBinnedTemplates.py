@@ -335,7 +335,11 @@ PARTICLENET_CLASS_MAPPING = {
 
 
 def loadDataset(basedir, process, masspoint, mass_min, mass_max, bg_weights=None):
-    """Load events with ParticleNet scores from preprocessed samples."""
+    """Load events with ParticleNet scores from preprocessed samples.
+
+    Vectorized (RDataFrame filter + AsNumpy + elementwise numpy). Every
+    operation is elementwise in the same order as the original per-entry
+    loop, so the returned arrays are bitwise identical — only faster."""
     file_path = f"{basedir}/{process}.root"
     if not os.path.exists(file_path):
         logging.warning(f"Sample file not found for optimization: {file_path}")
@@ -355,45 +359,35 @@ def loadDataset(basedir, process, masspoint, mass_min, mass_max, bg_weights=None
     score_ttZ = f"score_{masspoint}_ttZ"
 
     branches = [b.GetName() for b in tree.GetListOfBranches()]
+    rfile.Close()
     if score_sig not in branches:
         logging.warning(f"ParticleNet scores not found in {file_path}")
-        rfile.Close()
         return np.array([]), np.array([]), np.array([])
 
-    scores_list = []
-    weights_list = []
-    labels_list = []
+    rdf = (ROOT.RDataFrame("Central", file_path)
+           .Filter(f"mass >= {mass_min!r} && mass <= {mass_max!r}"))
+    cols = rdf.AsNumpy([score_sig, score_nonprompt, score_diboson,
+                        score_ttZ, "weight"])
+    s0 = np.asarray(cols[score_sig], dtype=float)
+    s1 = np.asarray(cols[score_nonprompt], dtype=float)
+    s2 = np.asarray(cols[score_diboson], dtype=float)
+    s3 = np.asarray(cols[score_ttZ], dtype=float)
+    weights = np.asarray(cols["weight"], dtype=float)
 
-    for entry in range(tree.GetEntries()):
-        tree.GetEntry(entry)
+    if bg_weights:
+        w1 = bg_weights.get("nonprompt", 1.0)
+        w2 = bg_weights.get("diboson", 1.0)
+        w3 = bg_weights.get("ttX", 1.0)
+        score_denom = s0 + w1 * s1 + w2 * s2 + w3 * s3
+    else:
+        score_denom = s0 + s1 + s2 + s3
 
-        mass = tree.mass
-        s0 = getattr(tree, score_sig)
-        s1 = getattr(tree, score_nonprompt)
-        s2 = getattr(tree, score_diboson)
-        s3 = getattr(tree, score_ttZ)
-        weight = tree.weight
+    scores = np.zeros_like(s0)
+    np.divide(s0, score_denom, out=scores, where=score_denom > 0)
 
-        if not (mass_min <= mass <= mass_max):
-            continue
+    labels = np.full(len(scores), 1 if process == masspoint else 0)
 
-        if bg_weights:
-            w1 = bg_weights.get("nonprompt", 1.0)
-            w2 = bg_weights.get("diboson", 1.0)
-            w3 = bg_weights.get("ttX", 1.0)
-            score_denom = s0 + w1 * s1 + w2 * s2 + w3 * s3
-        else:
-            score_denom = s0 + s1 + s2 + s3
-
-        score_PN = s0 / score_denom if score_denom > 0 else 0.0
-
-        scores_list.append(score_PN)
-        weights_list.append(weight)
-        labels_list.append(1 if process == masspoint else 0)
-
-    rfile.Close()
-
-    return np.array(scores_list), np.array(weights_list), np.array(labels_list)
+    return scores, weights, labels
 
 
 def evalSensitivity(y_true, y_pred, weights, threshold=0.):
@@ -619,7 +613,12 @@ def getFitResultDCBMulti(input_paths, mA_nominal, outdir, era, masspoint, channe
 
 
 def getCategoryBackgroundWeights(basedirs, mass_min, mass_max, outdir, category):
-    """Calculate ParticleNet background weights over all suberas in one category."""
+    """Calculate ParticleNet background weights over all suberas in one category.
+
+    Vectorized reads (RDataFrame filter + AsNumpy); the accumulation stays a
+    sequential python sum in the original file/entry order, so the totals
+    are bitwise identical to the old per-entry loop (numpy's pairwise sum
+    would differ in the last ulp)."""
     logging.info("Calculating category background weights for %s", category)
     weights = {}
     for pn_class, possible_categories in PARTICLENET_CLASS_MAPPING.items():
@@ -631,16 +630,16 @@ def getCategoryBackgroundWeights(basedirs, mass_min, mass_max, outdir, category)
                 if not os.path.exists(file_path):
                     continue
                 rfile = ROOT.TFile.Open(file_path, "READ")
-                tree = rfile.Get("Central")
-                if not tree:
-                    rfile.Close()
+                has_tree = bool(rfile.Get("Central"))
+                rfile.Close()
+                if not has_tree:
                     continue
                 found_any = True
-                for entry in range(tree.GetEntries()):
-                    tree.GetEntry(entry)
-                    if mass_min <= tree.mass <= mass_max:
-                        total_weight += tree.weight
-                rfile.Close()
+                arr = (ROOT.RDataFrame("Central", file_path)
+                       .Filter(f"mass >= {mass_min!r} && mass <= {mass_max!r}")
+                       .AsNumpy(["weight"]))["weight"]
+                for w in arr.tolist():
+                    total_weight += w
         weights[pn_class] = total_weight if found_any else 1.0 / 3.0
 
     total = sum(weights.values())
