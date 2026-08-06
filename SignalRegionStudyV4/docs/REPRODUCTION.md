@@ -50,13 +50,29 @@ nonzero on any failure.
 | `datacard.txt` (18 dirs: {Run2,Run3,All} x {SR1E2Mu,SR3Mu,Combined} x 2 methods) | bitwise | zero diff |
 | `binning.json`, `categories.json`, `process_list.json`, `lowstat.json`, `background_validation.json`, `threshold*.json`, `background_weights*.json` | parsed-JSON deep equality | exact |
 | `shapes.root`, `shapes_original.root` | bin edges exact; per-bin content and error | rtol 1e-12 |
-| AsymptoticLimits (6 entries, BR-converted) vs V3 `results/json/BR/...` | value compare | rtol 1e-6; warn above 1e-10 |
-| `workspace.root`, `validation/summary.json` | existence, nonzero size | — |
+| AsymptoticLimits (6 entries, BR-converted) vs the ROOT outputs inside V3's frozen template dirs | value compare | rtol 1e-6; warn above 1e-10 |
+| V3's own template ROOT vs V3 `results/json/BR/...` | reference self-consistency | WARN only (see below) |
+| `validation/summary.json` | existence, nonzero size | — |
+
+`workspace.root` is deliberately not checked: in V3 it was produced by the
+GoF/impacts workflows (`text2workspace.py`), which are outside V4's scope.
 
 The samples metadata check opens every tree of every file — this is the
 guard against silently lost or truncated pnfs transfers.
 
-### Known, accepted difference: the `pT` branch
+## Verdict For MHc130_MA90 (2026-08-06)
+
+- samples: 512 PASS / 0 FAIL (with the `pT` exception below)
+- templates: 212 PASS / 0 FAIL — all 18 datacards bitwise-identical;
+  Baseline metadata exact to the last digit; ParticleNet Run3 fit metadata
+  within 4e-13 relative (cross-worker noise, below)
+- limits: 18 PASS / 0 FAIL — every limit value exactly identical
+  (max relative deviation 0.0) to V3's frozen template outputs
+- 10 WARN: V3-internal `results/json` staleness (below)
+
+## Known, Accepted Differences
+
+### The `pT` branch
 
 V3's frozen pnfs samples were produced (2026-07-06) before the `pT` branch
 was added to V3's own `preprocess.py` for the PTOptimized study. V4 ports
@@ -65,6 +81,30 @@ reference lacks. The branch is unused by the Baseline and ParticleNet
 template paths, entry counts and all common-branch contents match exactly,
 and the comparator whitelists it via `--allow-extra-branches pT` (the
 default). Any other branch-set difference still fails the check.
+
+### Cross-worker fit noise (ParticleNet Run3 categories)
+
+V4's Baseline templates reproduced V3 bitwise even on different worker
+hosts, but the ParticleNet Run3 categories (low-stat, score-cut fits near
+the numerical noise floor) show Minuit/numpy noise of at most 4e-13
+relative in fit-derived metadata (bin edges, threshold sensitivities).
+Datacards are bitwise-identical and limit values exactly match regardless.
+The comparator therefore uses rtol 1e-9 for numeric JSON leaves and bin
+edges (`--json-rtol`, `--edge-rtol`) — still far below any real change,
+since binning revisions move edges at the percent level.
+
+### V3 `results/json` staleness (WARN, not a V4 failure)
+
+V3's checked-in `results/json` (frozen 2026-07-31) predates V3's final
+MHc130_MA90 template rebuild (2026-08-03/04, which included the
+merge-race fix from commit `da959af4fb`). For every merged target
+(Run2/Run3/All Combined, All SR1E2Mu/SR3Mu) the JSON `obs` values disagree
+with V3's own template ROOT outputs by up to ~0.4%; the unmerged targets
+agree. V4 exactly reproduces the template ROOT outputs — the current V3
+chain — so the comparator's primary limit check uses those, and reports
+the JSON disagreement as WARN (`V3 json stale`). Re-collecting V3's
+limits from its rebuilt templates would resolve the inconsistency; that
+is a V3-side decision.
 
 ## Drift Triage
 

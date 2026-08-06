@@ -47,7 +47,9 @@ METADATA_JSONS = [
     "background_validation.json",
 ]
 
-EXISTENCE_FILES = ["workspace.root", os.path.join("validation", "summary.json")]
+# workspace.root is intentionally absent: in V3 it was written by the GoF /
+# impacts workflows (text2workspace.py), which are out of V4's scope.
+EXISTENCE_FILES = [os.path.join("validation", "summary.json")]
 
 
 class Checker:
@@ -62,8 +64,19 @@ class Checker:
         if not ok:
             print(f"  FAIL {label}: {detail}")
 
+    def warn(self, stage, label, detail=""):
+        """Recorded and printed, but does not fail the run — used for
+        inconsistencies internal to the V3 reference itself."""
+        self.results.append(
+            {"stage": stage, "label": label, "status": "WARN", "detail": detail}
+        )
+        print(f"  WARN {label}: {detail}")
+
     def failed(self):
         return [r for r in self.results if r["status"] == "FAIL"]
+
+    def warned(self):
+        return [r for r in self.results if r["status"] == "WARN"]
 
 
 def open_root(path):
@@ -182,8 +195,12 @@ def stage_samples(checker, args):
                 )
 
 
-def compare_json_deep(v4_obj, v3_obj, path=""):
-    """Return list of leaf-level mismatches (exact comparison)."""
+def compare_json_deep(v4_obj, v3_obj, rtol=0.0, path=""):
+    """Return list of leaf-level mismatches.
+
+    Numeric leaves compare within rtol (fit-derived quantities carry
+    cross-worker Minuit/numpy noise, measured at <= 4e-13 relative);
+    everything else compares exactly."""
     diffs = []
     if isinstance(v3_obj, dict) and isinstance(v4_obj, dict):
         for k in sorted(set(v3_obj) | set(v4_obj)):
@@ -192,20 +209,24 @@ def compare_json_deep(v4_obj, v3_obj, path=""):
             elif k not in v4_obj:
                 diffs.append(f"{path}/{k}: only in V3")
             else:
-                diffs.extend(compare_json_deep(v4_obj[k], v3_obj[k], f"{path}/{k}"))
+                diffs.extend(compare_json_deep(v4_obj[k], v3_obj[k], rtol, f"{path}/{k}"))
     elif isinstance(v3_obj, list) and isinstance(v4_obj, list):
         if len(v3_obj) != len(v4_obj):
             diffs.append(f"{path}: list length {len(v4_obj)} != {len(v3_obj)}")
         else:
             for i, (a, b) in enumerate(zip(v4_obj, v3_obj)):
-                diffs.extend(compare_json_deep(a, b, f"{path}[{i}]"))
+                diffs.extend(compare_json_deep(a, b, rtol, f"{path}[{i}]"))
+    elif (isinstance(v3_obj, (int, float)) and not isinstance(v3_obj, bool)
+          and isinstance(v4_obj, (int, float)) and not isinstance(v4_obj, bool)):
+        if not math.isclose(v4_obj, v3_obj, rel_tol=rtol, abs_tol=0.0):
+            diffs.append(f"{path}: {v4_obj!r} != {v3_obj!r}")
     else:
         if v4_obj != v3_obj:
             diffs.append(f"{path}: {v4_obj!r} != {v3_obj!r}")
     return diffs
 
 
-def compare_shapes_file(checker, label, v4_path, v3_path, rtol):
+def compare_shapes_file(checker, label, v4_path, v3_path, rtol, edge_rtol):
     fv4 = open_root(v4_path)
     fv3 = open_root(v3_path)
 
@@ -239,7 +260,7 @@ def compare_shapes_file(checker, label, v4_path, v3_path, rtol):
                 continue
             for i in range(0, a.GetNbinsX() + 2):
                 ea, eb = a.GetBinLowEdge(i), b.GetBinLowEdge(i)
-                if ea != eb:
+                if not math.isclose(ea, eb, rel_tol=edge_rtol, abs_tol=0.0):
                     ok = False
                     details.append(f"{name}: bin edge {i}: {ea!r} != {eb!r}")
                     break
@@ -303,7 +324,8 @@ def stage_templates(checker, args):
                         checker.record("templates", f"{label}/{name}", False, "missing in V4")
                         continue
                     with open(v4_path) as f4, open(v3_path) as f3:
-                        diffs = compare_json_deep(json.load(f4), json.load(f3))
+                        diffs = compare_json_deep(json.load(f4), json.load(f3),
+                                                  rtol=args.json_rtol)
                     checker.record("templates", f"{label}/{name}", not diffs,
                                    "; ".join(diffs[:5]))
 
@@ -317,7 +339,7 @@ def stage_templates(checker, args):
                         checker.record("templates", f"{label}/{name}", False, "missing in V4")
                         continue
                     compare_shapes_file(checker, f"{label}/{name}", v4_path, v3_path,
-                                        args.shapes_rtol)
+                                        args.shapes_rtol, args.edge_rtol)
 
                 # existence-only artifacts
                 for name in EXISTENCE_FILES:
@@ -331,47 +353,50 @@ def convert_br(r):
     return r * REFERENCE_XSEC / TTBAR_XEC_13TEV / BR_TTBAR_TO_LEPTON
 
 
+def read_limit_values(path):
+    f = open_root(path)
+    try:
+        tree = f.Get("limit")
+        return [convert_br(entry.limit) for entry in tree]
+    finally:
+        f.Close()
+
+
 def stage_limits(checker, args):
+    """Primary check: V4 AsymptoticLimits vs V3's own frozen template ROOT
+    outputs (this is what 'reproduce the chain' means). Secondary: V3's ROOT
+    vs V3's results/json — mismatches there are V3-internal staleness (the
+    frozen JSON predates V3's last template rebuild) and are WARNed, not
+    failed."""
     keys = ["exp-2", "exp-1", "exp0", "exp+1", "exp+2", "obs"]
     for method in args.methods:
         for era in ERAS_TARGET:
             for channel in CHANNELS_TARGET:
                 label = f"limits/{method}/{era}/{channel}"
-                ch_infix = "" if channel == "Combined" else f".{channel}"
-                v3_json = os.path.join(
-                    args.v3_dir, "results", "json", "BR", era,
-                    f"limits.{era}{ch_infix}.Asymptotic.{method}.unblind.json",
+                suffix = srspaths.binning_suffix(True)
+                v3_root = os.path.join(
+                    args.v3_dir, "templates", era, channel, args.masspoint,
+                    method, suffix, "combine_output", "asymptotic",
+                    f"higgsCombine.{args.masspoint}.{method}.{suffix}."
+                    "AsymptoticLimits.mH120.root",
                 )
-                if not os.path.isfile(v3_json):
-                    checker.record("limits", label, False, f"V3 reference missing: {v3_json}")
-                    continue
-                with open(v3_json) as f:
-                    ref_all = json.load(f)
-                if args.masspoint not in ref_all:
-                    checker.record("limits", label, False,
-                                   f"{args.masspoint} not in {v3_json}")
-                    continue
-                ref = ref_all[args.masspoint]
-
                 v4_root = srspaths.asymptotic_root(era, channel, args.masspoint, method)
+                if not os.path.isfile(v3_root):
+                    checker.record("limits", label, False, f"V3 reference missing: {v3_root}")
+                    continue
                 if not os.path.isfile(v4_root):
                     checker.record("limits", label, False, f"V4 output missing: {v4_root}")
                     continue
-                f = open_root(v4_root)
-                try:
-                    tree = f.Get("limit")
-                    values = [convert_br(entry.limit) for entry in tree]
-                finally:
-                    f.Close()
-                if len(values) != 6:
+                v3_vals = read_limit_values(v3_root)
+                v4_vals = read_limit_values(v4_root)
+                if len(v4_vals) != 6 or len(v3_vals) != 6:
                     checker.record("limits", label, False,
-                                   f"expected 6 limit entries, got {len(values)}")
+                                   f"expected 6 limit entries, got V4={len(v4_vals)} V3={len(v3_vals)}")
                     continue
                 ok = True
                 details = []
                 max_dev = 0.0
-                for key, v4_val in zip(keys, values):
-                    v3_val = ref[key]
+                for key, v4_val, v3_val in zip(keys, v4_vals, v3_vals):
                     if not math.isclose(v4_val, v3_val, rel_tol=args.limits_rtol,
                                         abs_tol=0.0):
                         ok = False
@@ -382,6 +407,32 @@ def stage_limits(checker, args):
                 if ok and max_dev > 1e-10:
                     detail += " (WARNING: above 1e-10)"
                 checker.record("limits", label, ok, detail)
+
+                # Reference self-consistency: V3 ROOT vs V3 results/json
+                ch_infix = "" if channel == "Combined" else f".{channel}"
+                v3_json = os.path.join(
+                    args.v3_dir, "results", "json", "BR", era,
+                    f"limits.{era}{ch_infix}.Asymptotic.{method}.unblind.json",
+                )
+                if not os.path.isfile(v3_json):
+                    checker.warn("limits", f"{label} (V3 json)",
+                                 f"V3 results/json missing: {v3_json}")
+                    continue
+                with open(v3_json) as f:
+                    ref_all = json.load(f)
+                if args.masspoint not in ref_all:
+                    checker.warn("limits", f"{label} (V3 json)",
+                                 f"{args.masspoint} not in {v3_json}")
+                    continue
+                ref = ref_all[args.masspoint]
+                stale = [f"{k}: root={rv!r} json={ref[k]!r}"
+                         for k, rv in zip(keys, v3_vals)
+                         if not math.isclose(rv, ref[k], rel_tol=args.limits_rtol,
+                                             abs_tol=0.0)]
+                if stale:
+                    checker.warn("limits", f"{label} (V3 json stale)",
+                                 "V3 results/json disagrees with V3's own template "
+                                 "outputs: " + "; ".join(stale[:3]))
 
 
 def main():
@@ -396,6 +447,11 @@ def main():
     parser.add_argument("--no-ttz", dest="ttz", action="store_false",
                         help="Skip TTZ2E1Mu sample dirs (non-ParticleNet mass points)")
     parser.add_argument("--sample-rtol", type=float, default=1e-9)
+    parser.add_argument("--json-rtol", type=float, default=1e-9,
+                        help="Relative tolerance for numeric JSON leaves "
+                             "(cross-worker fit noise measured at <= 4e-13)")
+    parser.add_argument("--edge-rtol", type=float, default=1e-9,
+                        help="Relative tolerance for histogram bin edges")
     parser.add_argument("--stats-trees", nargs="+", default=["Central"],
                         help="Trees whose branch contents are summed and compared "
                              "(all trees always get the metadata check)")
@@ -427,8 +483,9 @@ def main():
 
     n_pass = sum(1 for r in checker.results if r["status"] == "PASS")
     n_fail = len(checker.failed())
+    n_warn = len(checker.warned())
     print(f"\n{'='*60}")
-    print(f"Result: {n_pass} PASS, {n_fail} FAIL")
+    print(f"Result: {n_pass} PASS, {n_fail} FAIL, {n_warn} WARN")
     for r in checker.failed():
         print(f"  FAIL [{r['stage']}] {r['label']}: {r['detail']}")
 
@@ -440,7 +497,7 @@ def main():
     with open(report_path, "w") as f:
         json.dump({"masspoint": args.masspoint, "stage": args.stage,
                    "root_version": ROOT.gROOT.GetVersion(),
-                   "n_pass": n_pass, "n_fail": n_fail,
+                   "n_pass": n_pass, "n_fail": n_fail, "n_warn": n_warn,
                    "results": checker.results}, f, indent=4)
     print(f"Report written to {report_path}")
 
