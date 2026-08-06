@@ -68,16 +68,16 @@ setup_environment() {
     export LD_LIBRARY_PATH="$SCRATCH_WORKDIR/Common/Tools/cpp/lib:$LD_LIBRARY_PATH"
 }
 
-# Function to copy input files from pnfs to local scratch
-copy_inputs_to_local() {
-    local era=$1
-    local channel=$2
-    local masspoint=$3
-    local local_samples_dir=$4
+# Copy one sample directory (relative to samples/) from pnfs to local
+# scratch via the NFS mount (worker nodes have /pnfs/ mounted; xrootd needs
+# grid auth that is unavailable there). Shared dirs hold every mass point's
+# signal, so signals other than $MASSPOINT are skipped.
+copy_sample_dir_to_local() {
+    local relpath=$1
+    local local_samples_dir=$2
 
-    local pnfs_input_dir="$PNFS_BASE/$era/$channel/$masspoint"
-    local xrootd_input_dir="$XROOTD_BASE/$era/$channel/$masspoint"
-    local local_input_dir="$local_samples_dir/$era/$channel/$masspoint"
+    local pnfs_input_dir="$PNFS_BASE/$relpath"
+    local local_input_dir="$local_samples_dir/$relpath"
 
     mkdir -p "$local_input_dir"
 
@@ -85,18 +85,35 @@ copy_inputs_to_local() {
     echo "  Source: $pnfs_input_dir"
     echo "  Destination: $local_input_dir"
 
-    # Use cp via NFS mount (worker nodes have /pnfs/ mounted)
-    # Note: xrootd requires grid authentication which is not available on worker nodes
-    if [[ -d "$pnfs_input_dir" ]]; then
-        echo "Using cp via NFS mount..."
-        cp -v "$pnfs_input_dir"/*.root "$local_input_dir/"
-    else
+    if [[ ! -d "$pnfs_input_dir" ]]; then
         echo "ERROR: Input directory not found: $pnfs_input_dir"
         exit 1
     fi
 
+    local f base
+    for f in "$pnfs_input_dir"/*.root; do
+        base=$(basename "$f")
+        if [[ "$base" == MHc*_MA*.root && "$base" != "${MASSPOINT}.root" ]]; then
+            continue  # another mass point's signal
+        fi
+        cp "$f" "$local_input_dir/"
+    done
+
     echo "Input files copied successfully"
     ls -lh "$local_input_dir"
+}
+
+# Relative sample path (under samples/) for one era/channel of this job.
+sample_relpath_for() {
+    local era=$1
+    local channel=$2
+    if [[ "$METHOD" == "ParticleNet" ]]; then
+        echo "$era/$channel/$MASSPOINT"
+    elif [[ "$channel" == "SR3Mu" ]]; then
+        echo "$era/SR3Mu_$(srs_pairing_variant "$MASSPOINT")"
+    else
+        echo "$era/$channel"
+    fi
 }
 
 resolve_eras_for_request() {
@@ -147,7 +164,7 @@ run_template_local() {
     read -r -a channels_to_copy <<< "$(resolve_channels_for_request)"
     for era_to_copy in "${eras_to_copy[@]}"; do
         for channel_to_copy in "${channels_to_copy[@]}"; do
-            copy_inputs_to_local "$era_to_copy" "$channel_to_copy" "$MASSPOINT" \
+            copy_sample_dir_to_local "$(sample_relpath_for "$era_to_copy" "$channel_to_copy")" \
                 "$local_workdir/$SRS_MODULE_NAME/samples"
         done
     done

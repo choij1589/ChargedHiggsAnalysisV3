@@ -34,6 +34,20 @@ srs_setup_cmssw() {
     cd - > /dev/null
 }
 
+# SR3Mu pairing variant for a mass point (mirrors srspaths.pairing_variant):
+# highM iff mHc >= 100 && mA >= 60.
+# Usage: srs_pairing_variant MHc130_MA90  ->  highM
+srs_pairing_variant() {
+    local mp=$1
+    local mhc=${mp%%_*}; mhc=${mhc#MHc}
+    local ma=${mp##*_MA}
+    if (( mhc >= 100 && ma >= 60 )); then
+        echo "highM"
+    else
+        echo "lowM"
+    fi
+}
+
 # Method directory segment for template paths ({method} or {method}_blind).
 # The only shell-side construction site; python-side equivalent lives in
 # python/srspaths.py (method_segment).
