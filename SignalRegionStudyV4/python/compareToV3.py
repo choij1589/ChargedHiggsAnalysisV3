@@ -34,6 +34,23 @@ ERAS_SUB = srspaths.RUN2_ERAS + srspaths.RUN3_ERAS
 ERAS_TARGET = ["Run2", "Run3", "All"]
 CHANNELS_TARGET = ["SR1E2Mu", "SR3Mu", "Combined"]
 
+# V3's frozen layout and naming (the reference side never changes):
+#   templates/{era}/{channel}/{masspoint}/{method}/extended_unblind/
+V3_SUFFIX = "extended_unblind"
+
+
+def v3_template_dir(v3_dir, era, channel, masspoint, method):
+    return os.path.join(v3_dir, "templates", era, channel, masspoint,
+                        method, V3_SUFFIX)
+
+
+def v3_asymptotic_root(v3_dir, era, channel, masspoint, method):
+    return os.path.join(
+        v3_template_dir(v3_dir, era, channel, masspoint, method),
+        "combine_output", "asymptotic",
+        f"higgsCombine.{masspoint}.{method}.{V3_SUFFIX}.AsymptoticLimits.mH120.root",
+    )
+
 # BR conversion identical to collectLimits.py
 REFERENCE_XSEC = 5.0
 TTBAR_XEC_13TEV = 833.9e3
@@ -284,11 +301,9 @@ def stage_templates(checker, args):
     for method in args.methods:
         for era in ERAS_TARGET:
             for channel in CHANNELS_TARGET:
-                v4_dir = srspaths.template_dir(era, channel, args.masspoint, method)
-                v3_dir = os.path.join(
-                    args.v3_dir, "templates", era, channel, args.masspoint,
-                    method, srspaths.binning_suffix(True),
-                )
+                v4_dir = srspaths.template_dir(args.masspoint, method, era, channel)
+                v3_dir = v3_template_dir(args.v3_dir, era, channel,
+                                         args.masspoint, method)
                 label = f"{method}/{era}/{channel}"
                 if not os.path.isdir(v3_dir):
                     checker.record("templates", label, False, f"V3 dir missing: {v3_dir}")
@@ -373,14 +388,9 @@ def stage_limits(checker, args):
         for era in ERAS_TARGET:
             for channel in CHANNELS_TARGET:
                 label = f"limits/{method}/{era}/{channel}"
-                suffix = srspaths.binning_suffix(True)
-                v3_root = os.path.join(
-                    args.v3_dir, "templates", era, channel, args.masspoint,
-                    method, suffix, "combine_output", "asymptotic",
-                    f"higgsCombine.{args.masspoint}.{method}.{suffix}."
-                    "AsymptoticLimits.mH120.root",
-                )
-                v4_root = srspaths.asymptotic_root(era, channel, args.masspoint, method)
+                v3_root = v3_asymptotic_root(args.v3_dir, era, channel,
+                                             args.masspoint, method)
+                v4_root = srspaths.asymptotic_root(args.masspoint, method, era, channel)
                 if not os.path.isfile(v3_root):
                     checker.record("limits", label, False, f"V3 reference missing: {v3_root}")
                     continue

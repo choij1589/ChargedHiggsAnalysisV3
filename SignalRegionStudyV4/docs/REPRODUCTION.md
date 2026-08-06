@@ -25,17 +25,18 @@ source setup.sh
 #         --masspoint MHc130_MA90 --v3-dir <V3 dir> --stage samples
 
 # Step 3: templates -> datacards -> validation -> limits -> fitdiag, both methods
+# (V4 defaults: extended binning, unblind)
 ./automize/makeBinnedTemplates.sh --mode all --method Baseline    \
-    --binning extended --unblind --fitdiag --pull-fit both --masspoint MHc130_MA90
+    --fitdiag --pull-fit both --masspoint MHc130_MA90
 ./automize/makeBinnedTemplates.sh --mode all --method ParticleNet \
-    --binning extended --unblind --fitdiag --pull-fit both --masspoint MHc130_MA90
+    --fitdiag --pull-fit both --masspoint MHc130_MA90
 
 # Step 4: compare templates and limits (light; login node is fine)
 python3 python/compareToV3.py --masspoint MHc130_MA90 --v3-dir <V3 dir> --stage templates
 python3 python/compareToV3.py --masspoint MHc130_MA90 --v3-dir <V3 dir> --stage limits
 
 # Step 5: side-effect-free single-point collect (does not touch grid JSONs)
-python3 python/collectLimits.py --era All --method Baseline --unblind \
+python3 python/collectLimits.py --era All --method Baseline \
     --masspoint MHc130_MA90 --output results/repro/limits.single.All.Baseline.json
 ```
 

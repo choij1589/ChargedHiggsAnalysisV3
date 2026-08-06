@@ -51,11 +51,17 @@ and docs make no reference to them:
   nuisance handling
 - Template/datacard transfer helpers (rsync, copyDatacards)
 
-## Binning Contract
+## Layout Contract
 
+- Template layout: `templates/{masspoint}/{method}/{era}/{channel}/` —
+  mass point first, no binning-suffix level.
 - The only binning scheme is `extended` (adaptive, 15 to 5 core bins driven
-  by the DCB fit resolution).
-- Template directory suffixes are exactly `extended` (Asimov) and
-  `extended_unblind` (real data). Suffix construction exists in exactly two
-  places: `python/srspaths.py:binning_suffix()` and
-  `scripts/env.sh:srs_binning_suffix()`. Do not add a third.
+  by the DCB fit resolution); it needs no name in the path.
+- Unblind (real data) is the default. A blinded (Asimov) run writes
+  `{method}_blind` as the method segment (e.g. `Baseline_blind`), so blind
+  and unblind artifacts can never collide.
+- Filenames carry no binning/unblind tokens:
+  `higgsCombine.{mp}.{method}.AsymptoticLimits.mH120.root`,
+  `limits.{era}[.{channel}].Asymptotic.{method}.json`.
+- Path construction exists in exactly two places:
+  `python/srspaths.py` and `scripts/env.sh`. Do not add a third.

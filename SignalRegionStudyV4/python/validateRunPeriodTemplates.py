@@ -20,6 +20,7 @@ if WORKDIR_FOR_IMPORTS:
 else:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Common", "Tools")))
 from plotter import ComparisonCanvas, KinematicCanvas, PALETTE, PALETTE_LONG, get_CoM_energy, _LUMI_CONFIG  # noqa: E402
+import srspaths  # noqa: E402
 
 
 GROUP_ORDER = ["others", "conversion", "WZ", "ZZ", "ttW", "ttH", "tZq", "ttZ", "nonprompt"]
@@ -277,26 +278,12 @@ def parse_args():
     parser.add_argument("--channel", required=True)
     parser.add_argument("--masspoint", required=True)
     parser.add_argument("--method", required=True)
-    parser.add_argument("--binning", default="extended")
-    parser.add_argument("--unblind", action="store_true")
-    parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind")
-    parser.add_argument("--nuisance", default="fallback_lnn", choices=["fallback_lnn", "preserve_shape"])
+    parser.add_argument("--blind", action="store_true")
     parser.add_argument("--max-systematic-plots", type=int, default=-1,
                         help="Maximum number of stacked systematic variation plots to write per validation run; negative means all")
     parser.add_argument("--skip-plots", action="store_true",
                         help="Run validation checks without writing diagnostic plots")
     return parser.parse_args()
-
-
-def binning_suffix(args):
-    suffix = args.binning
-    if args.unblind:
-        suffix = f"{args.binning}_unblind"
-    elif args.partial_unblind:
-        suffix = f"{args.binning}_partial_unblind"
-    if args.nuisance == "preserve_shape":
-        suffix = f"{suffix}_preserve_shape"
-    return suffix
 
 
 def load_json(path):
@@ -636,7 +623,7 @@ def category_signal_hist(directory, category, payload):
 
 
 def validation_uses_real_data(args):
-    return args.unblind or args.partial_unblind or args.method == "CR"
+    return not args.blind
 
 
 def stack_y_range(total_background, signal=None, data=None, include_data=False):
@@ -1311,12 +1298,8 @@ def make_systematic_plots(f, categories, shape_rows, output_dir, args, datacard_
 
 def main():
     args = parse_args()
-    workdir = os.getenv("WORKDIR")
-    if not workdir:
-        raise EnvironmentError("WORKDIR environment variable not set. Please run 'source setup.sh'")
-
-    suffix = binning_suffix(args)
-    tdir = f"{workdir}/SignalRegionStudyV4/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{suffix}"
+    tdir = srspaths.template_dir(args.masspoint, args.method, args.era,
+                                 args.channel, blind=args.blind)
     categories_path = f"{tdir}/categories.json"
     process_path = f"{tdir}/process_list.json"
     binning_path = f"{tdir}/binning.json"
@@ -1377,8 +1360,8 @@ def main():
                 if obj and obj.InheritsFrom("TH1") and hist_edges(obj) != expected_edges:
                     issues.append(f"{cat}/{name}: variation binning does not match category binning")
 
-        uses_real_data = args.method == "CR" or categories_meta.get("data_obs") == "real_data"
-        if not (args.unblind or args.partial_unblind or uses_real_data):
+        uses_real_data = categories_meta.get("data_obs") == "real_data"
+        if args.blind and not uses_real_data:
             diff = abs(data_obs.Integral() - total_bkg)
             tol = max(1e-5, 1e-6 * max(1.0, total_bkg))
             if diff > tol:

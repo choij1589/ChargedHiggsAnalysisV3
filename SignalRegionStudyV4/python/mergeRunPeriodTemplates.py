@@ -18,6 +18,7 @@ from collections import OrderedDict
 import ROOT
 
 from run_period_utils import PHYSICS_PROCESS_ORDER, SR_CHANNELS
+import srspaths
 
 
 ROOT.gROOT.SetBatch(True)
@@ -29,33 +30,15 @@ def parse_args():
     parser.add_argument("--channel", default="Combined", choices=["Combined", "SR1E2Mu", "SR3Mu"])
     parser.add_argument("--masspoint", required=True)
     parser.add_argument("--method", required=True,
-                        choices=["Baseline", "ParticleNet", "PTOptimized"])
-    parser.add_argument("--binning", default="extended", choices=["extended", "uniform"])
+                        choices=["Baseline", "ParticleNet"])
     parser.add_argument(
         "--sources",
         help=("Comma-separated input template directories as ERA:CHANNEL pairs. "
               "Default is <era>:SR1E2Mu,<era>:SR3Mu."),
     )
-    parser.add_argument("--unblind", action="store_true")
-    parser.add_argument("--partial-unblind", action="store_true")
-    parser.add_argument("--nuisance", default="fallback_lnn",
-                        choices=["fallback_lnn", "preserve_shape"])
+    parser.add_argument("--blind", action="store_true")
     parser.add_argument("--debug", action="store_true")
-    args = parser.parse_args()
-    if args.unblind and args.partial_unblind:
-        parser.error("--unblind and --partial-unblind are mutually exclusive")
-    return args
-
-
-def binning_suffix(args):
-    suffix = args.binning
-    if args.partial_unblind:
-        suffix = f"{suffix}_partial_unblind"
-    elif args.unblind:
-        suffix = f"{suffix}_unblind"
-    if args.nuisance == "preserve_shape":
-        suffix = f"{suffix}_preserve_shape"
-    return suffix
+    return parser.parse_args()
 
 
 def load_json(path):
@@ -69,18 +52,14 @@ def save_json(data, path):
         json.dump(data, handle, indent=2)
 
 
-def source_dir(workdir, args, era, channel):
-    return os.path.join(
-        workdir, "SignalRegionStudyV4", "templates", era, channel,
-        args.masspoint, args.method, binning_suffix(args)
-    )
+def source_dir(args, era, channel):
+    return srspaths.template_dir(args.masspoint, args.method, era, channel,
+                                 blind=args.blind)
 
 
-def output_dir(workdir, args):
-    return os.path.join(
-        workdir, "SignalRegionStudyV4", "templates", args.era, args.channel,
-        args.masspoint, args.method, binning_suffix(args)
-    )
+def output_dir(args):
+    return srspaths.template_dir(args.masspoint, args.method, args.era,
+                                 args.channel, blind=args.blind)
 
 
 def parse_sources(args):
@@ -305,17 +284,13 @@ def main():
         format="%(levelname)s: %(message)s",
     )
 
-    workdir = os.environ.get("WORKDIR")
-    if not workdir:
-        raise RuntimeError("WORKDIR is not set")
-
-    src_dirs = [source_dir(workdir, args, era, channel)
+    src_dirs = [source_dir(args, era, channel)
                 for era, channel in parse_sources(args)]
     for src_dir in src_dirs:
         if not os.path.isdir(src_dir):
             raise FileNotFoundError(f"Missing split template directory: {src_dir}")
 
-    out_dir = output_dir(workdir, args)
+    out_dir = output_dir(args)
     if os.path.abspath(out_dir) in {os.path.abspath(src_dir) for src_dir in src_dirs}:
         raise ValueError(f"Refusing to merge a template directory into itself: {out_dir}")
 

@@ -66,18 +66,20 @@ All component processes inside one category use exactly the same final binning.
 
 ## Files
 
-Template generation:
+Template generation (unblind is the default; add `--blind` for Asimov):
 
 ```bash
 python3 python/makeBinnedTemplates.py --era All --channel Combined \
-  --masspoint MHc130_MA90 --method Baseline --unblind
+  --masspoint MHc130_MA90 --method Baseline
 ```
 
 The output directory:
 
 ```text
-templates/{Run2,Run3,All}/{SR1E2Mu,SR3Mu,Combined}/{masspoint}/{method}/{extended,extended_unblind}/
+templates/{masspoint}/{method}/{Run2,Run3,All}/{SR1E2Mu,SR3Mu,Combined}/
 ```
+
+(`{method}` becomes `{method}_blind` for blinded runs.)
 
 Important outputs:
 
@@ -109,7 +111,7 @@ Run:
 
 ```bash
 python3 python/validateRunPeriodTemplates.py --era All --channel Combined \
-  --masspoint MHc130_MA90 --method Baseline --unblind
+  --masspoint MHc130_MA90 --method Baseline
 ```
 
 Required checks:

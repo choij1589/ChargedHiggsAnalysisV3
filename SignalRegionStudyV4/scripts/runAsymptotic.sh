@@ -3,20 +3,19 @@
 # runAsymptotic.sh - Run asymptotic limit calculation using HiggsCombine
 #
 # Usage:
-#   ./runAsymptotic.sh --era 2018 --channel SR1E2Mu --masspoint MHc130_MA90 --method Baseline --binning extended
+#   ./runAsymptotic.sh --era All --channel Combined --masspoint MHc130_MA90 --method Baseline
 #
 
 set -e
+
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
 # Default values
 ERA=""
 CHANNEL=""
 MASSPOINT=""
 METHOD="Baseline"
-BINNING="extended"
-NUISANCE="fallback_lnn"
-PARTIAL_UNBLIND=false
-UNBLIND=false
+BLIND=false
 DRY_RUN=false
 VERBOSE=false
 
@@ -39,20 +38,8 @@ while [[ $# -gt 0 ]]; do
             METHOD="$2"
             shift 2
             ;;
-        --binning)
-            BINNING="$2"
-            shift 2
-            ;;
-        --nuisance)
-            NUISANCE="$2"
-            shift 2
-            ;;
-        --partial-unblind)
-            PARTIAL_UNBLIND=true
-            shift
-            ;;
-        --unblind)
-            UNBLIND=true
+        --blind)
+            BLIND=true
             shift
             ;;
         --dry-run)
@@ -64,17 +51,14 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 --era ERA --channel CHANNEL --masspoint MASSPOINT [--method METHOD] [--binning BINNING] [--dry-run] [--verbose]"
+            echo "Usage: $0 --era ERA --channel CHANNEL --masspoint MASSPOINT [--method METHOD] [--blind] [--dry-run] [--verbose]"
             echo ""
             echo "Options:"
-            echo "  --era        Data-taking period (2016preVFP, 2017, 2018, 2022, Run2, Run3, All, etc.)"
+            echo "  --era        Run-period target (Run2, Run3, All)"
             echo "  --channel    Analysis channel (SR1E2Mu, SR3Mu, Combined)"
             echo "  --masspoint  Signal mass point (e.g., MHc130_MA90)"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (extended or uniform) [default: extended]"
-            echo "  --nuisance   Low-stat nuisance mode: fallback_lnn (default) or preserve_shape"
-            echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
-            echo "  --unblind    Use full unblind templates (real data, full score region)"
+            echo "  --blind      Use the {method}_blind template segment (Asimov data)"
             echo "  --dry-run    Print commands without executing"
             echo "  --verbose    Enable verbose output"
             exit 0
@@ -92,34 +76,10 @@ if [[ -z "$ERA" || -z "$CHANNEL" || -z "$MASSPOINT" ]]; then
     exit 1
 fi
 
-if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
-    echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
-    exit 1
-fi
-case "$NUISANCE" in
-    fallback_lnn|preserve_shape) ;;
-    *)
-        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
-        echo "Valid values: fallback_lnn, preserve_shape"
-        exit 1
-        ;;
-esac
-
-# Get WORKDIR
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKDIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-
-# Template directory
-BINNING_SUFFIX="${BINNING}"
-if [[ "$UNBLIND" == true ]]; then
-    BINNING_SUFFIX="${BINNING}_unblind"
-elif [[ "$PARTIAL_UNBLIND" == true ]]; then
-    BINNING_SUFFIX="${BINNING}_partial_unblind"
-fi
-if [[ "$NUISANCE" == "preserve_shape" ]]; then
-    BINNING_SUFFIX="${BINNING_SUFFIX}_preserve_shape"
-fi
-TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV4/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
+# Template directory (V4 layout: templates/{masspoint}/{method}/{era}/{channel})
+METHOD_SEGMENT="$METHOD"
+[[ "$BLIND" == true ]] && METHOD_SEGMENT="${METHOD}_blind"
+TEMPLATE_DIR="$SRS_MODULE_DIR/templates/${MASSPOINT}/${METHOD_SEGMENT}/${ERA}/${CHANNEL}"
 
 # Check if template directory exists
 if [[ ! -d "$TEMPLATE_DIR" ]]; then
@@ -159,10 +119,10 @@ cd "$TEMPLATE_DIR"
 log "Working directory: $(pwd)"
 
 # Run AsymptoticLimits
-echo "Running AsymptoticLimits for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING_SUFFIX})..."
+echo "Running AsymptoticLimits for ${MASSPOINT} (${METHOD_SEGMENT}/${ERA}/${CHANNEL})..."
 
 COMBINE_CMD="combine -M AsymptoticLimits datacard.txt \
-    -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
+    -n .${MASSPOINT}.${METHOD_SEGMENT} \
     -m 120 \
     --rAbsAcc 0.0001 \
     --rRelAcc 0.01 \
@@ -179,25 +139,20 @@ if [[ "$DRY_RUN" == false ]]; then
     if ls "${OUTPUT_DIR}"/higgsCombine.*.AsymptoticLimits.*.root 1>/dev/null 2>&1; then
         echo "SUCCESS: Output saved to ${OUTPUT_DIR}/"
 
-        # Print limit summary (skip r values for partial-unblind mode)
         echo ""
-        if [[ "$PARTIAL_UNBLIND" == true ]]; then
-            echo "Limit calculation completed (r values hidden for partial-unblind mode)"
-        else
-            echo "Limit summary:"
-            root -l -b -q -e "
-                TFile *f = TFile::Open(\"${OUTPUT_DIR}/higgsCombine.${MASSPOINT}.${METHOD}.${BINNING_SUFFIX}.AsymptoticLimits.mH120.root\");
-                TTree *limit = (TTree*)f->Get(\"limit\");
-                double r;
-                limit->SetBranchAddress(\"limit\", &r);
-                const char* labels[] = {\"Exp -2sigma\", \"Exp -1sigma\", \"Exp median\", \"Exp +1sigma\", \"Exp +2sigma\", \"Observed\"};
-                for (int i = 0; i < limit->GetEntries(); i++) {
-                    limit->GetEntry(i);
-                    printf(\"  %s: %.4f\\n\", labels[i], r);
-                }
-                f->Close();
-            " 2>/dev/null || echo "  (Could not print summary)"
-        fi
+        echo "Limit summary:"
+        root -l -b -q -e "
+            TFile *f = TFile::Open(\"${OUTPUT_DIR}/higgsCombine.${MASSPOINT}.${METHOD_SEGMENT}.AsymptoticLimits.mH120.root\");
+            TTree *limit = (TTree*)f->Get(\"limit\");
+            double r;
+            limit->SetBranchAddress(\"limit\", &r);
+            const char* labels[] = {\"Exp -2sigma\", \"Exp -1sigma\", \"Exp median\", \"Exp +1sigma\", \"Exp +2sigma\", \"Observed\"};
+            for (int i = 0; i < limit->GetEntries(); i++) {
+                limit->GetEntry(i);
+                printf(\"  %s: %.4f\\n\", labels[i], r);
+            }
+            f->Close();
+        " 2>/dev/null || echo "  (Could not print summary)"
     else
         echo "WARNING: No output file created"
     fi

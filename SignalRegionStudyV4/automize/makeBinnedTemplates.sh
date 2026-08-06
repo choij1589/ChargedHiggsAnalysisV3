@@ -13,8 +13,6 @@ SINGLE_ERA=""
 SINGLE_MASSPOINT=""
 MASSPOINT_SET=""
 METHOD="Baseline"
-BINNING="extended"
-NUISANCE="fallback_lnn"
 EXTRA_ARGS=""
 PULL_FIT="b"
 DO_PRINT_DATACARD=true
@@ -47,25 +45,12 @@ while [[ $# -gt 0 ]]; do
             MASSPOINT_SET="$2"
             shift 2
             ;;
-        --binning)
-            BINNING="$2"
-            shift 2
-            ;;
-        --nuisance)
-            NUISANCE="$2"
-            EXTRA_ARGS="$EXTRA_ARGS --nuisance $2"
-            shift 2
-            ;;
         --pull-fit)
             PULL_FIT="$2"
             shift 2
             ;;
-        --unblind)
-            EXTRA_ARGS="$EXTRA_ARGS --unblind"
-            shift
-            ;;
-        --partial-unblind)
-            EXTRA_ARGS="$EXTRA_ARGS --partial-unblind"
+        --blind)
+            EXTRA_ARGS="$EXTRA_ARGS --blind"
             shift
             ;;
         --debug)
@@ -109,7 +94,7 @@ while [[ $# -gt 0 ]]; do
         --help)
             echo "Usage: $0 [--mode all|run2|run3] [--era Run2|Run3|All] [--method Baseline|ParticleNet] [OPTIONS]"
             echo ""
-            echo "V3 default builds merged Run-period component templates directly."
+            echo "Builds merged Run-period component templates directly."
             echo "No per-subera combineCards.py stage is used."
             echo ""
             echo "Options:"
@@ -120,10 +105,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --masspoint-set SET        Override the mass-point list:"
             echo "                             baseline | particlenet"
             echo "                             (default: chosen from --method)"
-            echo "  --binning BINNING          extended or uniform [default: extended]"
-            echo "  --nuisance MODE            fallback_lnn or preserve_shape"
-            echo "  --unblind                  Use full real data"
-            echo "  --partial-unblind          Use ParticleNet sideband data"
+            echo "  --blind                    Asimov data (default is real data; writes {method}_blind)"
             echo "  --start-from STEP          template, merge_template, datacard, validate, asymptotic, fitdiag, plotpostfit, plotpulls"
             echo "  --fitdiag                  Run FitDiagnostics and post-fit plots"
             echo "  --dry-run                  Generate DAGs without submitting"
@@ -143,20 +125,12 @@ esac
 if [[ -n "$SINGLE_ERA" ]]; then
     case "$SINGLE_ERA" in
         Run2|Run3|All) ;;
-        *) echo "ERROR: Invalid --era '$SINGLE_ERA'. V3 template targets are Run2, Run3, or All."; exit 1 ;;
+        *) echo "ERROR: Invalid --era '$SINGLE_ERA'. Template targets are Run2, Run3, or All."; exit 1 ;;
     esac
 fi
 case "$METHOD" in
     Baseline|ParticleNet) ;;
     *) echo "ERROR: Invalid --method '$METHOD'"; exit 1 ;;
-esac
-case "$BINNING" in
-    extended|uniform) ;;
-    *) echo "ERROR: Invalid --binning '$BINNING'"; exit 1 ;;
-esac
-case "$NUISANCE" in
-    fallback_lnn|preserve_shape) ;;
-    *) echo "ERROR: Invalid --nuisance '$NUISANCE'"; exit 1 ;;
 esac
 case "$PULL_FIT" in
     b|both) ;;
@@ -323,10 +297,9 @@ step_to_level() {
 generate_dag_file() {
     local masspoint=$1
     local method=$2
-    local binning=$3
-    local extra_args=${4:-}
-    local dag_file=$5
-    local start_from=${6:-template}
+    local extra_args=${3:-}
+    local dag_file=$4
+    local start_from=${5:-template}
     read -r -a targets <<< "$(targets_for_request)"
     read -r -a template_periods <<< "$(template_periods_for_request)"
 
@@ -359,18 +332,13 @@ generate_dag_file() {
     }
 
     local asymptotic_extra_args=""
-    if [[ "$extra_args" == *"--partial-unblind"* ]]; then
-        asymptotic_extra_args="--partial-unblind"
-    elif [[ "$extra_args" == *"--unblind"* ]]; then
-        asymptotic_extra_args="--unblind"
-    fi
-    if [[ "$extra_args" == *"--nuisance preserve_shape"* ]]; then
-        asymptotic_extra_args="$asymptotic_extra_args --nuisance preserve_shape"
+    if [[ "$extra_args" == *"--blind"* ]]; then
+        asymptotic_extra_args="--blind"
     fi
     local pull_extra_args="$asymptotic_extra_args --pull-fit $PULL_FIT"
 
     cat > "$dag_file" << EOF
-# DAG for $masspoint (Run-period component V3 workflow, start-from: $start_from)
+# DAG for $masspoint (Run-period component workflow, start-from: $start_from)
 CONFIG dagman.config
 
 EOF
@@ -381,9 +349,9 @@ EOF
     done_sfx=$(job_done_suffix template)
     for period in "${template_periods[@]}"; do
         echo "JOB template_SR1E2Mu_${period} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS template_SR1E2Mu_${period} step=\"template\" era=\"${period}\" channel=\"SR1E2Mu\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"6144\"" >> "$dag_file"
+        echo "VARS template_SR1E2Mu_${period} step=\"template\" era=\"${period}\" channel=\"SR1E2Mu\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"6144\"" >> "$dag_file"
         echo "JOB template_SR3Mu_${period} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS template_SR3Mu_${period} step=\"template\" era=\"${period}\" channel=\"SR3Mu\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"6144\"" >> "$dag_file"
+        echo "VARS template_SR3Mu_${period} step=\"template\" era=\"${period}\" channel=\"SR3Mu\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"6144\"" >> "$dag_file"
     done
 
     for target in "${targets[@]}"; do
@@ -391,38 +359,38 @@ EOF
         local merge_sources
         merge_sources=$(merge_sources_for_target "$target")
         echo "JOB merge_template_Combined_${target} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS merge_template_Combined_${target} step=\"merge_template\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args} --sources ${merge_sources}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+        echo "VARS merge_template_Combined_${target} step=\"merge_template\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args} --sources ${merge_sources}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
 
         done_sfx=$(job_done_suffix datacard)
         echo "JOB datacard_Combined_${target} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS datacard_Combined_${target} step=\"datacard\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+        echo "VARS datacard_Combined_${target} step=\"datacard\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
 
         done_sfx=$(job_done_suffix validate)
         echo "JOB validate_Combined_${target} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS validate_Combined_${target} step=\"validate\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+        echo "VARS validate_Combined_${target} step=\"validate\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
 
         done_sfx=$(job_done_suffix asymptotic)
         echo "JOB asymptotic_Combined_${target} jobs.sub${done_sfx}" >> "$dag_file"
-        echo "VARS asymptotic_Combined_${target} step=\"asymptotic\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+        echo "VARS asymptotic_Combined_${target} step=\"asymptotic\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${asymptotic_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
 
         if fitdiag_target_enabled "$target"; then
             done_sfx=$(job_done_suffix fitdiag)
             echo "JOB fitdiag_Combined_${target} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS fitdiag_Combined_${target} step=\"fitdiag\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+            echo "VARS fitdiag_Combined_${target} step=\"fitdiag\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${asymptotic_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
 
             done_sfx=$(job_done_suffix plotpostfit)
             echo "JOB plotpostfit_Combined_${target} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS plotpostfit_Combined_${target} step=\"plotpostfit\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+            echo "VARS plotpostfit_Combined_${target} step=\"plotpostfit\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${asymptotic_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
 
             done_sfx=$(job_done_suffix plotpulls)
             echo "JOB plotpulls_Combined_${target} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS plotpulls_Combined_${target} step=\"plotpulls\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${pull_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+            echo "VARS plotpulls_Combined_${target} step=\"plotpulls\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${pull_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
         fi
 
         if [[ "$method" == "ParticleNet" && "$DO_PLOT_SCORE" == "true" ]]; then
             done_sfx=$(job_done_suffix plot_score)
             echo "JOB plot_score_Combined_${target} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS plot_score_Combined_${target} step=\"plot_score\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+            echo "VARS plot_score_Combined_${target} step=\"plot_score\" era=\"${target}\" channel=\"Combined\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"4096\"" >> "$dag_file"
         fi
 
         for channel in SR1E2Mu SR3Mu; do
@@ -430,25 +398,25 @@ EOF
                 done_sfx=$(job_done_suffix merge_template)
                 merge_sources=$(merge_sources_for_channel_target "$target" "$channel")
                 echo "JOB merge_template_${channel}_${target} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS merge_template_${channel}_${target} step=\"merge_template\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args} --sources ${merge_sources}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+                echo "VARS merge_template_${channel}_${target} step=\"merge_template\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args} --sources ${merge_sources}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
             fi
 
             done_sfx=$(job_done_suffix datacard)
             echo "JOB datacard_${channel}_${target} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS datacard_${channel}_${target} step=\"datacard\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+            echo "VARS datacard_${channel}_${target} step=\"datacard\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
 
             done_sfx=$(job_done_suffix validate)
             echo "JOB validate_${channel}_${target} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS validate_${channel}_${target} step=\"validate\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+            echo "VARS validate_${channel}_${target} step=\"validate\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
 
             done_sfx=$(job_done_suffix asymptotic)
             echo "JOB asymptotic_${channel}_${target} jobs.sub${done_sfx}" >> "$dag_file"
-            echo "VARS asymptotic_${channel}_${target} step=\"asymptotic\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${asymptotic_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+            echo "VARS asymptotic_${channel}_${target} step=\"asymptotic\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${asymptotic_extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
 
             if [[ "$method" == "ParticleNet" && "$DO_PLOT_SCORE" == "true" ]]; then
                 done_sfx=$(job_done_suffix plot_score)
                 echo "JOB plot_score_${channel}_${target} jobs.sub${done_sfx}" >> "$dag_file"
-                echo "VARS plot_score_${channel}_${target} step=\"plot_score\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" binning=\"${binning}\" output_era=\"\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"2048\"" >> "$dag_file"
+                echo "VARS plot_score_${channel}_${target} step=\"plot_score\" era=\"${target}\" channel=\"${channel}\" masspoint=\"${masspoint}\" method=\"${method}\" extra_args=\"${extra_args}\" request_cpus=\"1\" job_request_memory=\"4096\"" >> "$dag_file"
             fi
         done
     done
@@ -498,8 +466,7 @@ EOF
 submit_condor_dags() {
     local -n masspoints_ref=$1
     local method=$2
-    local binning=$3
-    local extra_args=${4:-}
+    local extra_args=${3:-}
 
     local dir_suffix="$MODE"
     [[ -n "$SINGLE_ERA" ]] && dir_suffix="$SINGLE_ERA"
@@ -513,7 +480,7 @@ submit_condor_dags() {
 JobBatchName = ${masspoint}
 universe = vanilla
 executable = $SCRIPT_DIR/scripts/makeBinnedTemplates_wrapper.sh
-arguments = "'\$(step)' '\$(era)' '\$(channel)' '\$(masspoint)' '\$(method)' '\$(binning)' '\$(output_era)' '\$(extra_args)'"
+arguments = "'\$(step)' '\$(era)' '\$(channel)' '\$(masspoint)' '\$(method)' '\$(extra_args)'"
 output = logs/\$(step)_\$(channel)_\$(era).out
 error = logs/\$(step)_\$(channel)_\$(era).err
 log = dag.log
@@ -524,7 +491,7 @@ getenv = True
 should_transfer_files = NO
 queue
 EOF
-        generate_dag_file "$masspoint" "$method" "$binning" "$extra_args" "$mp_dir/dag.dag" "$START_FROM"
+        generate_dag_file "$masspoint" "$method" "$extra_args" "$mp_dir/dag.dag" "$START_FROM"
         echo "Generated DAG: $mp_dir/dag.dag"
     done
 
@@ -540,8 +507,6 @@ echo "Mode: $MODE"
 [[ -n "$SINGLE_ERA" ]] && echo "Single target: $SINGLE_ERA"
 echo "Method: $METHOD"
 [[ -n "$SINGLE_MASSPOINT" ]] && echo "Single mass point: $SINGLE_MASSPOINT"
-echo "Binning: $BINNING"
-echo "Nuisance: $NUISANCE"
 echo "Targets: $(targets_for_request)"
 echo "Downstream datacard/validation/asymptotic grid: $(print_downstream_grid)"
 echo "Mass points: ${MASSPOINTs[*]}"
@@ -549,4 +514,4 @@ echo "FitDiagnostics: $DO_FITDIAG"
 echo "Dry run: $DRY_RUN"
 echo "============================================================"
 
-submit_condor_dags MASSPOINTs "$METHOD" "$BINNING" "$EXTRA_ARGS"
+submit_condor_dags MASSPOINTs "$METHOD" "$EXTRA_ARGS"

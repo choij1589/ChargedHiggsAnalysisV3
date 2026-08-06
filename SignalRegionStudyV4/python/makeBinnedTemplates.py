@@ -30,16 +30,12 @@ from run_period_utils import (
     resolve_run_periods,
 )
 from plotter import FitCanvasWithRatio
+import srspaths
 
 # Bins with total-bkg syst envelope / nominal above this threshold are merged
 # into a neighbour. Addresses a stat-review concern about sudden-dip bins with
 # very large relative systematic uncertainties underestimating backgrounds.
 SYST_MERGE_THRESHOLD = 2.0
-
-# Signal scaling factor for partial-unblind mode
-# When using --partial-unblind, signal is scaled by this factor
-# The resulting limit on r should be interpreted as limit on (PARTIAL_UNBLIND_SIGNAL_SCALE × σ)
-PARTIAL_UNBLIND_SIGNAL_SCALE = 50
 
 MIN_CORE_BINS = 5
 
@@ -50,45 +46,16 @@ def parse_args():
     parser.add_argument("--era", required=True, type=str, help="Run-period target: Run2, Run3, or All")
     parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu, Combined)")
     parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
-    parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet, etc.)")
-    parser.add_argument("--binning", default="extended",
-                        choices=["extended", "uniform"],
-                        help=("Binning method: 'extended' uses adaptive coarser "
-                              "binning down to 5 core bins; 'uniform' keeps the "
-                              "fixed candidate set"))
-    parser.add_argument("--unblind", action="store_true",
-                        help="Use real data for data_obs instead of MC sum")
-    parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
-                        help="Unblind low LR region (score < 0.3). Requires --method ParticleNet")
-    parser.add_argument("--nuisance", default="fallback_lnn",
-                        choices=["fallback_lnn", "preserve_shape"],
-                        help="Low-stat nuisance handling mode used to choose the output suffix")
+    parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet)")
+    parser.add_argument("--blind", action="store_true",
+                        help="Asimov data_obs (MC sum) instead of real data; "
+                             "writes to the {method}_blind template segment")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args()
 
 # =============================================================================
 # Histogram Creation Functions
 # =============================================================================
-
-# Active discriminant for threshold cuts: "PN" (ParticleNet score) or "pT"
-# (PTOptimized). Set once per process in build_run_period_templates().
-DISCRIMINANT = "PN"
-
-PT_SCAN_STEP = 5.0          # GeV
-PT_SCAN_MAX_PERCENTILE = 99.0
-
-
-def _pt_cut_expr(threshold):
-    return f"pT >= {threshold}"
-
-
-def _require_pt_branch(branches, where):
-    if "pT" not in branches:
-        raise RuntimeError(
-            f"pT branch not found in {where}\n"
-            "  PTOptimized requires samples preprocessed with the pT branch; "
-            "re-run preprocess.py for this mass point."
-        )
 
 
 def getHist(basedir, process, bin_edges, mass_min, mass_max, syst="Central",
@@ -128,13 +95,8 @@ def getHist(basedir, process, bin_edges, mass_min, mass_max, syst="Central",
     rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
     logging.debug(f"  Applied mass window cut: [{mass_min:.2f}, {mass_max:.2f}] GeV")
 
-    # Apply PTOptimized cut on the stored dimuon pT
-    if DISCRIMINANT == "pT" and threshold > -999.:
-        _require_pt_branch(branches, f"{file_path}/{tree_name}")
-        rdf = rdf.Filter(_pt_cut_expr(threshold))
-        logging.debug(f"  Applied PTOptimized cut: pT >= {threshold:.3f}")
     # Apply ParticleNet score cut if threshold is provided
-    elif (threshold > -999. or upper_threshold is not None) and masspoint:
+    if (threshold > -999. or upper_threshold is not None) and masspoint:
         score_sig = f"score_{masspoint}_signal"
         if score_sig in branches:
             score_formula = build_particlenet_score(masspoint, bg_weights)
@@ -244,13 +206,8 @@ def getDataHist(basedir, bin_edges, mass_min, mass_max,
     rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
     logging.debug(f"  Applied mass window cut: [{mass_min:.2f}, {mass_max:.2f}] GeV")
 
-    # Apply PTOptimized cut on the stored dimuon pT
-    if DISCRIMINANT == "pT" and threshold > -999.:
-        _require_pt_branch(branches, f"{file_path}/Central")
-        rdf = rdf.Filter(_pt_cut_expr(threshold))
-        logging.debug(f"  Applied PTOptimized cut: pT >= {threshold:.3f}")
     # Apply ParticleNet score cut if threshold or upper_threshold is provided
-    elif (threshold > -999. or upper_threshold is not None) and masspoint:
+    if (threshold > -999. or upper_threshold is not None) and masspoint:
         score_sig = f"score_{masspoint}_signal"
         if score_sig in branches:
             score_formula = build_particlenet_score(masspoint, bg_weights)
@@ -316,14 +273,7 @@ def validateBackgroundStatistics(basedir, bin_edges, mass_min, mass_max,
             rdf = ROOT.RDataFrame("Central", file_path)
             rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
 
-            if DISCRIMINANT == "pT" and threshold > -999.:
-                test_file = ROOT.TFile.Open(file_path, "READ")
-                tree = test_file.Get("Central")
-                branches = [b.GetName() for b in tree.GetListOfBranches()] if tree else []
-                test_file.Close()
-                _require_pt_branch(branches, f"{file_path}/Central")
-                rdf = rdf.Filter(_pt_cut_expr(threshold))
-            elif threshold > -999. or upper_threshold is not None:
+            if threshold > -999. or upper_threshold is not None:
                 test_file = ROOT.TFile.Open(file_path, "READ")
                 tree = test_file.Get("Central")
                 if tree:
@@ -488,40 +438,17 @@ def getOptimizedThreshold(scores_sig, weights_sig, scores_bkg, weights_bkg):
 # Run-period component template construction
 # =============================================================================
 
-def make_binning_suffix(args):
-    suffix = args.binning
-    if args.unblind:
-        suffix = f"{args.binning}_unblind"
-    elif args.partial_unblind:
-        suffix = f"{args.binning}_partial_unblind"
-    if args.nuisance == "preserve_shape":
-        suffix = f"{suffix}_preserve_shape"
-    return suffix
-
-
-def sample_basedir(workdir, era, channel, masspoint):
-    return f"{workdir}/SignalRegionStudyV4/samples/{era}/{channel}/{masspoint}"
-
-
-def load_systematics_block(workdir, era, channel):
-    config_path = f"{workdir}/SignalRegionStudyV4/configs/systematics.{era}.json"
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Systematics config not found: {config_path}")
-    with open(config_path) as f:
-        config = json.load(f)
+def load_systematics_block(era, channel):
+    config = srspaths.systematics_config(era)
     if channel not in config:
-        raise ValueError(f"Channel '{channel}' not found in {config_path}")
+        raise ValueError(f"Channel '{channel}' not found in systematics.{era}.json")
     return config[channel]
 
 
-def load_sample_block(workdir, era, channel):
-    samplegroups_path = f"{workdir}/SignalRegionStudyV4/configs/samplegroups.json"
-    if not os.path.exists(samplegroups_path):
-        raise FileNotFoundError(f"Sample groups config not found: {samplegroups_path}")
-    with open(samplegroups_path) as f:
-        samplegroups = json.load(f)
+def load_sample_block(era, channel):
+    samplegroups = srspaths.samplegroups_config()
     if era not in samplegroups:
-        raise ValueError(f"Era '{era}' not found in {samplegroups_path}")
+        raise ValueError(f"Era '{era}' not found in samplegroups.json")
     if channel not in samplegroups[era]:
         raise ValueError(f"Channel '{channel}' not found for era '{era}'")
     return samplegroups[era][channel]
@@ -730,105 +657,6 @@ def getCategoryBackgroundWeights(basedirs, mass_min, mass_max, outdir, category)
     return weights
 
 
-def loadPTDataset(basedir, process, mass_min, mass_max):
-    """Load (pT, weight) inside the mass window from a preprocessed sample."""
-    file_path = f"{basedir}/{process}.root"
-    if not os.path.exists(file_path):
-        logging.warning(f"Sample file not found for pT optimization: {file_path}")
-        return np.array([]), np.array([])
-
-    rfile = ROOT.TFile.Open(file_path, "READ")
-    tree = rfile.Get("Central")
-    if not tree:
-        logging.warning(f"Central tree not found in {file_path}")
-        rfile.Close()
-        return np.array([]), np.array([])
-    branches = [b.GetName() for b in tree.GetListOfBranches()]
-    rfile.Close()
-    _require_pt_branch(branches, f"{file_path}/Central")
-
-    arrays = (ROOT.RDataFrame("Central", file_path)
-              .Filter(f"mass >= {mass_min} && mass <= {mass_max}")
-              .AsNumpy(["pT", "weight"]))
-    return np.asarray(arrays["pT"], dtype=float), np.asarray(arrays["weight"], dtype=float)
-
-
-def getOptimizedPTThreshold(pt_sig, w_sig, pt_bkg, w_bkg):
-    """Find the pT threshold maximising Asimov significance (cut: pT >= t)."""
-    y_pred = np.concatenate([pt_sig, pt_bkg])
-    y_true = np.concatenate([np.ones(len(pt_sig)), np.zeros(len(pt_bkg))])
-    weights = np.concatenate([w_sig, w_bkg])
-
-    # pT is unbounded, so derive the scan ceiling from the data rather than [0, 1],
-    # then step in fixed PT_SCAN_STEP GeV increments.
-    hi = float(np.percentile(y_pred, PT_SCAN_MAX_PERCENTILE)) if len(y_pred) else 0.0
-    thresholds = np.arange(0.0, max(hi, 0.0) + PT_SCAN_STEP, PT_SCAN_STEP)
-    sensitivities = [evalSensitivity(y_true, y_pred, weights, t) for t in thresholds]
-
-    best_idx = int(np.argmax(sensitivities))
-    best_threshold = float(thresholds[best_idx])
-    initial_sensitivity = float(sensitivities[0])
-    max_sensitivity = float(sensitivities[best_idx])
-
-    logging.info("pT threshold optimization:")
-    logging.info(f"  Scan range: [0, {thresholds[-1]:.0f}] GeV in {PT_SCAN_STEP:.0f} GeV steps "
-                 f"({len(thresholds)} points)")
-    logging.info(f"  Best threshold: {best_threshold:.3f} GeV")
-    logging.info(f"  Initial sensitivity (no cut): {initial_sensitivity:.3f}")
-    logging.info(f"  Max sensitivity: {max_sensitivity:.3f}")
-    if initial_sensitivity > 0:
-        logging.info(f"  Improvement: {(max_sensitivity / initial_sensitivity - 1) * 100:.2f}%")
-
-    return (best_threshold, initial_sensitivity, max_sensitivity,
-            float(thresholds[-1]), int(len(thresholds)))
-
-
-def optimizeCategoryPTThreshold(basedirs, masspoint, mass_min, mass_max, outdir, category):
-    """PTOptimized analogue of optimizeCategoryParticleNetThreshold."""
-    sig_pt, sig_w = [], []
-    for basedir in basedirs:
-        pt, w = loadPTDataset(basedir, masspoint, mass_min, mass_max)
-        if len(pt) > 0:
-            sig_pt.append(pt)
-            sig_w.append(w)
-    if not sig_pt:
-        logging.warning("pT signal events not found for %s; no threshold applied", category)
-        return -999., None
-
-    bkg_processes = ["nonprompt", "WZ", "ZZ", "ttW", "ttZ", "ttH", "tZq", "conversion", "others"]
-    bkg_pt, bkg_w = [], []
-    for basedir in basedirs:
-        for process in bkg_processes:
-            pt, w = loadPTDataset(basedir, process, mass_min, mass_max)
-            if len(pt) > 0:
-                bkg_pt.append(pt)
-                bkg_w.append(w)
-    if not bkg_pt:
-        logging.warning("pT background events not found for %s; no threshold applied", category)
-        return -999., None
-
-    (best_threshold, initial_sensitivity, max_sensitivity,
-     scan_max, scan_points) = getOptimizedPTThreshold(
-        np.concatenate(sig_pt), np.concatenate(sig_w),
-        np.concatenate(bkg_pt), np.concatenate(bkg_w),
-    )
-    payload = {
-        "category": category,
-        "masspoint": masspoint,
-        "discriminant": "pT",
-        "cut": "pT >= threshold",
-        "threshold": float(best_threshold),
-        "scan_max": scan_max,
-        "scan_step": PT_SCAN_STEP,
-        "scan_points": scan_points,
-        "initial_sensitivity": float(initial_sensitivity),
-        "max_sensitivity": float(max_sensitivity),
-        "improvement": float(max_sensitivity / initial_sensitivity - 1) if initial_sensitivity > 0 else 0.0,
-    }
-    save_json(payload, f"{outdir}/threshold.{category}.json")
-    return best_threshold, payload
-
-
 def optimizeCategoryParticleNetThreshold(basedirs, masspoint, mass_min, mass_max, bg_weights, outdir, category):
     sig_scores = []
     sig_weights = []
@@ -873,12 +701,12 @@ def optimizeCategoryParticleNetThreshold(basedirs, masspoint, mass_min, mass_max
     return best_threshold, payload
 
 
-def category_background_processes(workdir, suberas, channel):
+def category_background_processes(suberas, channel):
     """Return stable background process names and per-subera validation metadata."""
     processes = []
     by_subera = {}
     for subera in suberas:
-        samples = load_sample_block(workdir, subera, channel)
+        samples = load_sample_block(subera, channel)
         reserved = {"data"}
         subera_processes = []
         for key in PHYSICS_PROCESS_ORDER:
@@ -961,15 +789,13 @@ def build_component_shape_templates(basedir, base_process, component, bin_edges,
 
 def build_signal_component_templates(basedir, component, bin_edges, mass_min, mass_max,
                                      syst_categories, threshold, upper_threshold,
-                                     bg_weights, masspoint, partial_unblind):
+                                     bg_weights, masspoint):
     proc_map = {}
     central = getHist(
         basedir, masspoint, bin_edges, mass_min, mass_max,
         "Central", threshold, upper_threshold, bg_weights, masspoint
     )
     central.SetName(component)
-    if partial_unblind:
-        central.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
     ensure_positive_integral(central)
     cap_stat_errors(central)
     proc_map["nominal"] = central
@@ -986,8 +812,6 @@ def build_signal_component_templates(basedir, component, bin_edges, mass_min, ma
                     read_tree, threshold, upper_threshold, bg_weights, masspoint
                 )
                 hist.SetName(f"{component}_{combine_suffix}")
-                if partial_unblind:
-                    hist.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
                 ensure_positive_integral(hist)
                 cap_stat_errors(hist)
                 proc_map[combine_suffix] = hist
@@ -1020,9 +844,6 @@ def build_signal_component_templates(basedir, component, bin_edges, mass_min, ma
             )
             hist_up.SetName(f"{component}_{syst_name}Up")
             hist_down.SetName(f"{component}_{syst_name}Down")
-            if partial_unblind:
-                hist_up.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
-                hist_down.Scale(PARTIAL_UNBLIND_SIGNAL_SCALE)
             ensure_positive_integral(hist_up)
             ensure_positive_integral(hist_down)
             cap_stat_errors(hist_up)
@@ -1055,12 +876,10 @@ def write_run_period_shapes(outdir, categories):
     output_file.Close()
 
 
-def build_run_period_templates(args, workdir):
+def build_run_period_templates(args):
     """Build merged Run-period categories with subera component processes."""
-    global DISCRIMINANT
-    DISCRIMINANT = "pT" if args.method == "PTOptimized" else "PN"
-    binning_suffix = make_binning_suffix(args)
-    outdir = f"{workdir}/SignalRegionStudyV4/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{binning_suffix}"
+    outdir = srspaths.template_dir(args.masspoint, args.method, args.era,
+                                   args.channel, blind=args.blind)
     periods = resolve_run_periods(args.era)
     channels = resolve_channels(args.channel)
     mA_nominal = float(args.masspoint.split("_")[1].replace("MA", ""))
@@ -1080,7 +899,7 @@ def build_run_period_templates(args, workdir):
     categories_json = OrderedDict()
     binning_json = {
         "construction": "run_period_components",
-        "binning_type": args.binning,
+        "binning_type": "extended",
         "min_core_bins": MIN_CORE_BINS,
         "categories": OrderedDict(),
     }
@@ -1096,7 +915,7 @@ def build_run_period_templates(args, workdir):
             logging.info("Building category %s", cat)
             logging.info("=" * 60)
 
-            basedirs = [sample_basedir(workdir, subera, channel, args.masspoint) for subera in suberas]
+            basedirs = [srspaths.sample_dir(subera, channel, args.masspoint) for subera in suberas]
             signal_paths = [f"{basedir}/{args.masspoint}.root" for basedir in basedirs]
             fit_result = getFitResultDCBMulti(signal_paths, mA_nominal, outdir, period, args.masspoint, channel)
             x0 = fit_result["x0"]
@@ -1107,19 +926,7 @@ def build_run_period_templates(args, workdir):
             bg_weights = None
             best_threshold = -999.
             upper_threshold = None
-            if args.partial_unblind:
-                upper_threshold = 0.3
-                threshold_summary["categories"][cat] = {
-                    "upper_threshold": float(upper_threshold),
-                    "signal_scale_factor": int(PARTIAL_UNBLIND_SIGNAL_SCALE),
-                }
-            elif args.method == "PTOptimized":
-                best_threshold, threshold_payload = optimizeCategoryPTThreshold(
-                    basedirs, args.masspoint, mass_min, mass_max, outdir, cat
-                )
-                if threshold_payload:
-                    threshold_summary["categories"][cat] = threshold_payload
-            elif args.method == "ParticleNet":
+            if args.method == "ParticleNet":
                 bg_weights = getCategoryBackgroundWeights(basedirs, mass_min, mass_max, outdir, cat)
                 best_threshold, threshold_payload = optimizeCategoryParticleNetThreshold(
                     basedirs, args.masspoint, mass_min, mass_max, bg_weights, outdir, cat
@@ -1128,11 +935,11 @@ def build_run_period_templates(args, workdir):
                     threshold_summary["categories"][cat] = threshold_payload
                 background_weight_summary["categories"][cat] = {"weights": bg_weights}
 
-            all_bg_processes, bg_by_subera = category_background_processes(workdir, suberas, channel)
+            all_bg_processes, bg_by_subera = category_background_processes(suberas, channel)
             background_validation[cat] = OrderedDict()
             active_by_subera = OrderedDict()
             for subera, processes in bg_by_subera.items():
-                basedir = sample_basedir(workdir, subera, channel, args.masspoint)
+                basedir = srspaths.sample_dir(subera, channel, args.masspoint)
                 validation = validateBackgroundStatistics(
                     basedir, calculate_adaptive_bins(x0, sigma_eff, 15), mass_min, mass_max,
                     [p if p != "conversion" else "conv" for p in processes if p not in {"nonprompt", "others"}],
@@ -1155,10 +962,7 @@ def build_run_period_templates(args, workdir):
                     if validation.get(proc, {}).get("status") != "missing_file"
                 ]
 
-            if args.binning == "extended":
-                core_bin_candidates = list(range(15, MIN_CORE_BINS - 1, -1))
-            else:
-                core_bin_candidates = [15, 13, 11, 9, 7, 5]
+            core_bin_candidates = list(range(15, MIN_CORE_BINS - 1, -1))
 
             apply_floor = False
             n_core_final = core_bin_candidates[-1]
@@ -1168,7 +972,7 @@ def build_run_period_templates(args, workdir):
                 logging.info("Testing %s with %d core bins", cat, n_core)
                 test_hists = {}
                 for subera in suberas:
-                    basedir = sample_basedir(workdir, subera, channel, args.masspoint)
+                    basedir = srspaths.sample_dir(subera, channel, args.masspoint)
                     for proc in active_by_subera[subera]:
                         try:
                             comp = component_name(proc, subera)
@@ -1199,10 +1003,10 @@ def build_run_period_templates(args, workdir):
             process_order = []
             category_processes = []
 
-            if args.unblind or args.partial_unblind:
+            if not args.blind:
                 data_obs = None
                 for subera in suberas:
-                    basedir = sample_basedir(workdir, subera, channel, args.masspoint)
+                    basedir = srspaths.sample_dir(subera, channel, args.masspoint)
                     h_data = getDataHist(
                         basedir, bin_edges, mass_min, mass_max,
                         best_threshold, upper_threshold, bg_weights, args.masspoint
@@ -1217,8 +1021,8 @@ def build_run_period_templates(args, workdir):
                 data_obs.SetDirectory(0)
 
             for subera in suberas:
-                basedir = sample_basedir(workdir, subera, channel, args.masspoint)
-                syst_config = load_systematics_block(workdir, subera, channel)
+                basedir = srspaths.sample_dir(subera, channel, args.masspoint)
+                syst_config = load_systematics_block(subera, channel)
                 syst_categories = categorize_systematics(syst_config)
 
                 sig_comp = component_name("signal", subera, is_signal=True)
@@ -1226,7 +1030,7 @@ def build_run_period_templates(args, workdir):
                 sig_map = build_signal_component_templates(
                     basedir, sig_comp, bin_edges, mass_min, mass_max,
                     syst_categories, best_threshold, upper_threshold,
-                    bg_weights, args.masspoint, args.partial_unblind
+                    bg_weights, args.masspoint
                 )
                 templates[sig_comp] = sig_map
                 process_order.append(sig_comp)
@@ -1256,7 +1060,7 @@ def build_run_period_templates(args, workdir):
                         "subera": subera,
                         "is_signal": False,
                     })
-                    if not (args.unblind or args.partial_unblind):
+                    if args.blind:
                         data_obs.Add(proc_map["nominal"])
 
             templates["data_obs"] = data_obs
@@ -1357,22 +1161,12 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
                         format='%(levelname)s - %(message)s')
 
-    # Validate unblind options
-    if args.unblind and args.partial_unblind:
-        raise ValueError("--unblind and --partial-unblind are mutually exclusive")
-    if args.partial_unblind and args.method != "ParticleNet":
-        raise ValueError("--partial-unblind requires --method ParticleNet")
-    if args.method not in ("Baseline", "ParticleNet", "PTOptimized"):
+    if args.method not in ("Baseline", "ParticleNet"):
         raise ValueError(
-            f"Unknown --method '{args.method}' "
-            "(expected Baseline, ParticleNet or PTOptimized)"
+            f"Unknown --method '{args.method}' (expected Baseline or ParticleNet)"
         )
 
-    workdir = os.getenv("WORKDIR")
-    if not workdir:
-        raise EnvironmentError("WORKDIR environment variable not set. Please run 'source setup.sh'")
-
-    build_run_period_templates(args, workdir)
+    build_run_period_templates(args)
 
 if __name__ == "__main__":
     main()

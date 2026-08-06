@@ -27,12 +27,10 @@ parser.add_argument("--channel", type=str, default="Combined",
                     choices=["Combined", "SR1E2Mu", "SR3Mu"],
                     help="Analysis channel (default: Combined)")
 parser.add_argument("--method", type=str, required=True, help="Baseline, ParticleNet")
-parser.add_argument("--limit_type", type=str, required=True, help="Asymptotic / HybridNew")
-parser.add_argument("--unblind", action="store_true", help="Load limits from unblind JSON")
+parser.add_argument("--limit_type", type=str, default="Asymptotic",
+                    choices=["Asymptotic"], help="Limit type (Asymptotic only in V4)")
 parser.add_argument("--blind", action="store_true", help="Hide observed limit (for blinded results)")
 parser.add_argument("--stack_baseline", action="store_true", help="Show baseline expected limit on top (only for ParticleNet method)")
-parser.add_argument("--cnc", action="store_true", help="Load CnC limits (uses .CnC suffix in JSON/plot filenames)")
-parser.add_argument("--nsigma", type=float, default=3.0, help="CnC mass window half-width in sigma_voigt (default: 3.0)")
 parser.add_argument("--mhc", type=int, default=None,
                     help="Plot only this MHc value. Baseline defaults to 160 when omitted; ParticleNet uses all trained points when omitted.")
 parser.add_argument("--compare-mhc", dest="compare_mhc", action="store_true",
@@ -141,9 +139,6 @@ def _ymax_from(limits_dict):
     """Dynamic y-max: 2x the maximum exp+2sigma across all mass points."""
     return 2.0 * max(v["exp+2"] for v in limits_dict.values())
 
-_nsigma_tag = f"{args.nsigma:g}sigma"
-_cnc_suffix = f".CnC_{_nsigma_tag}" if args.cnc else ""
-_unblind_suffix = ".unblind" if args.unblind else ""
 _ch_suffix = "" if args.channel == "Combined" else f".{args.channel}"
 
 def _filter_by_mhc(limits_dict, mhc_value):
@@ -155,7 +150,7 @@ def _filter_by_mhc(limits_dict, mhc_value):
 _json_dir = f"results/json/{args.mode}/{args.era}"
 
 if args.method == "Baseline":
-    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.Baseline{_cnc_suffix}{_unblind_suffix}.json") as f:
+    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.Baseline.json") as f:
         limits = json.load(f)
 
     if args.compare_mhc:
@@ -243,9 +238,9 @@ if args.method == "Baseline":
 
 elif args.method == "ParticleNet":
     # Load limits
-    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.Baseline{_cnc_suffix}{_unblind_suffix}.json") as f:
+    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.Baseline.json") as f:
         limits_baseline = json.load(f)
-    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.ParticleNet{_cnc_suffix}{_unblind_suffix}.json") as f:
+    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.ParticleNet.json") as f:
         limits_pnet = json.load(f)
 
     if args.mhc is not None:
@@ -388,7 +383,7 @@ elif args.compare_mhc:
 else:
     _mode_suffix = f".MHc{args.mhc if args.mhc is not None else 160}"
 
-output_base = f"results/plots/{args.mode}/{args.era}/limit.{args.era}{_ch_suffix}.{args.limit_type}.{args.method}{_mode_suffix}{_cnc_suffix}{_unblind_suffix}"
+output_base = f"results/plots/{args.mode}/{args.era}/limit.{args.era}{_ch_suffix}.{args.limit_type}.{args.method}{_mode_suffix}"
 os.makedirs(os.path.dirname(output_base), exist_ok=True)
 
 canv.SaveAs(f"{output_base}.png")

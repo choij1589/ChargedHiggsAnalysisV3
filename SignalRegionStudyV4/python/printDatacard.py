@@ -6,7 +6,7 @@ This script reads the shapes.root file and systematics configuration to produce
 a properly formatted datacard for limit extraction.
 
 Usage:
-    printDatacard.py --era Run2 --channel Combined --masspoint MHc130_MA90 --method Baseline --binning extended
+    printDatacard.py --era Run2 --channel Combined --masspoint MHc130_MA90 --method Baseline
 """
 import os
 import sys
@@ -15,6 +15,7 @@ import logging
 import argparse
 import ROOT
 from run_period_utils import is_signal_component
+import srspaths
 
 # Argument parsing
 parser = argparse.ArgumentParser(description="Generate HiggsCombine datacard from templates")
@@ -22,42 +23,18 @@ parser.add_argument("--era", required=True, type=str, help="Run-period target: R
 parser.add_argument("--channel", required=True, type=str, help="Analysis channel (SR1E2Mu, SR3Mu, Combined)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
 parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet)")
-parser.add_argument("--binning", default="extended",
-                    choices=["extended", "uniform"],
-                    help="Binning method: 'extended' or 'uniform'")
-parser.add_argument("--unblind", action="store_true",
-                    help="Generate datacard from unblind run")
-parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
-                    help="Generate datacard from partial-unblind run")
-parser.add_argument("--nuisance", default="fallback_lnn",
-                    choices=["fallback_lnn", "preserve_shape"],
-                    help="Low-stat nuisance handling: fallback_lnn keeps current shape?->lnN fallback; preserve_shape keeps shape variations")
+parser.add_argument("--blind", action="store_true",
+                    help="Read from the {method}_blind template segment")
 parser.add_argument("--output", type=str, default=None, help="Output datacard path (default: auto-determined)")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
-
-# Validate unblind options
-if args.unblind and args.partial_unblind:
-    raise ValueError("--unblind and --partial-unblind are mutually exclusive")
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
                     format='%(levelname)s - %(message)s')
 
-# Path setup
-WORKDIR = os.getenv("WORKDIR")
-if not WORKDIR:
-    raise EnvironmentError("WORKDIR environment variable not set. Please run 'source setup.sh'")
-
-# Template directory
-binning_suffix = args.binning
-if args.unblind:
-    binning_suffix = f"{args.binning}_unblind"
-elif args.partial_unblind:
-    binning_suffix = f"{args.binning}_partial_unblind"
-if args.nuisance == "preserve_shape":
-    binning_suffix = f"{binning_suffix}_preserve_shape"
-TEMPLATE_DIR = f"{WORKDIR}/SignalRegionStudyV4/templates/{args.era}/{args.channel}/{args.masspoint}/{args.method}/{binning_suffix}"
+TEMPLATE_DIR = srspaths.template_dir(args.masspoint, args.method, args.era,
+                                     args.channel, blind=args.blind)
 
 # Setup ROOT
 ROOT.gROOT.SetBatch(True)
@@ -91,26 +68,20 @@ def load_categories():
 
 
 def load_systematics_block(era, channel):
-    config_path = f"{WORKDIR}/SignalRegionStudyV4/configs/systematics.{era}.json"
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Systematics config not found: {config_path}")
-    with open(config_path) as f:
-        config = json.load(f)
+    config = srspaths.systematics_config(era)
     if channel not in config:
-        raise ValueError(f"Channel '{channel}' not found in {config_path}")
+        raise ValueError(f"Channel '{channel}' not found in systematics.{era}.json")
     return config[channel]
 
 
 class RunPeriodDatacardManager:
     """Generate datacards for Run-period categories with subera components."""
 
-    def __init__(self, era, channel, masspoint, method, binning, nuisance_mode="fallback_lnn"):
+    def __init__(self, era, channel, masspoint, method):
         self.era = era
         self.channel = channel
         self.signal = masspoint
         self.method = method
-        self.binning = binning
-        self.nuisance_mode = nuisance_mode
         self.categories = load_categories()
         if not self.categories:
             raise FileNotFoundError(f"categories.json not found in {TEMPLATE_DIR}")
@@ -126,7 +97,6 @@ class RunPeriodDatacardManager:
         self.process_yields = {}
         self.process_rel_errors = {}
         self._lnn_fallback_cache = {}
-        self._preserve_shape_invalid = {}
 
         self._load_systematics()
         self._build_columns()
@@ -220,37 +190,6 @@ class RunPeriodDatacardManager:
         lnn = min(1.0 + rate_effect, MAX_LNN_VALUE)
         return f"{lnn:.3f}"
 
-    def find_invalid_shape_pair(self, col, syst_name):
-        cat = col["category"]
-        proc = col["process"]
-        nominal = self.get_hist_integral(cat, proc)
-        up = self.get_hist_integral(cat, f"{proc}_{syst_name}Up")
-        down = self.get_hist_integral(cat, f"{proc}_{syst_name}Down")
-        if nominal is None or nominal <= MIN_YIELD_THRESHOLD:
-            return None
-        reasons = []
-        if up is None:
-            reasons.append("up_missing")
-        elif up <= 0:
-            reasons.append("up_integral <= 0")
-        if down is None:
-            reasons.append("down_missing")
-        elif down <= 0:
-            reasons.append("down_integral <= 0")
-        if not reasons:
-            return None
-        fallback = self.compute_lnn_fallback_value(cat, proc, syst_name)
-        return {
-            "category": cat,
-            "process": proc,
-            "systematic": syst_name,
-            "nominal_integral": nominal,
-            "up_integral": up,
-            "down_integral": down,
-            "fallback": fallback,
-            "reason": ", ".join(reasons),
-        }
-
     def systematic_for_column(self, col, syst_name):
         return self.systematics.get((col["subera"], col["channel"]), {}).get(syst_name)
 
@@ -289,25 +228,6 @@ class RunPeriodDatacardManager:
                 key = (col["category"], col["process"], syst_name)
                 self._lnn_fallback_cache[key] = self.compute_lnn_fallback_value(
                     col["category"], col["process"], syst_name
-                )
-
-    def precompute_preserve_shape_invalid_fallbacks(self):
-        for syst_name in self.all_systematic_names():
-            for col in self.columns:
-                syst_config = self.systematic_for_column(col, syst_name)
-                if not syst_config or syst_config.get("type") != "shape":
-                    continue
-                if not self.process_applies(col, syst_config):
-                    continue
-                invalid = self.find_invalid_shape_pair(col, syst_name)
-                if not invalid:
-                    continue
-                key = (col["category"], col["process"], syst_name)
-                self._preserve_shape_invalid[key] = invalid
-                self._lnn_fallback_cache[key] = invalid["fallback"]
-                logging.warning(
-                    "Preserve-shape fallback %s/%s/%s: %s",
-                    col["category"], col["process"], syst_name, invalid["reason"]
                 )
 
     def rewrite_shapes_root_removing(self, hists_to_remove, reason):
@@ -370,34 +290,29 @@ class RunPeriodDatacardManager:
                 hists_to_remove.add(f"{col['category']}/{col['process']}_{syst_name}Down")
         self.rewrite_shapes_root_removing(hists_to_remove, "low-stat shape")
 
-    def rewrite_preserve_shape_invalid_hists(self):
-        hists_to_remove = set()
-        for cat, proc, syst_name in self._preserve_shape_invalid:
-            hists_to_remove.add(f"{cat}/{proc}_{syst_name}Up")
-            hists_to_remove.add(f"{cat}/{proc}_{syst_name}Down")
-        self.rewrite_shapes_root_removing(hists_to_remove, "invalid preserve-shape")
-
     def write_lowstat_json(self):
         lowstat = [
             col for col in self.columns
             if (not col["is_signal"] and
                 self.process_rel_errors.get((col["category"], col["process"]), float("inf")) > SHAPE_REL_ERR_THRESHOLD)
         ]
-        if not lowstat and not self._preserve_shape_invalid:
+        if not lowstat:
             return
         fallbacks = {}
         for (cat, proc, syst), value in self._lnn_fallback_cache.items():
             fallbacks.setdefault(cat, {}).setdefault(proc, {})[syst] = value
+        # nuisance_mode and preserve_shape_invalid_fallbacks are kept as
+        # literals for artifact compatibility with the frozen V3 outputs.
         payload = {
             "construction": "run_period_components",
             "threshold": SHAPE_REL_ERR_THRESHOLD,
-            "nuisance_mode": self.nuisance_mode,
+            "nuisance_mode": "fallback_lnn",
             "processes": [
                 {"category": col["category"], "process": col["process"]}
                 for col in lowstat
             ],
             "fallbacks": fallbacks,
-            "preserve_shape_invalid_fallbacks": list(self._preserve_shape_invalid.values()),
+            "preserve_shape_invalid_fallbacks": [],
         }
         with open(f"{TEMPLATE_DIR}/lowstat.json", "w") as f:
             json.dump(payload, f, indent=2)
@@ -412,10 +327,8 @@ class RunPeriodDatacardManager:
             key = (col["category"], col["process"], syst_name)
             if not col["is_signal"]:
                 rel = self.process_rel_errors.get((col["category"], col["process"]), float("inf"))
-                if rel > SHAPE_REL_ERR_THRESHOLD and self.nuisance_mode == "fallback_lnn":
+                if rel > SHAPE_REL_ERR_THRESHOLD:
                     return self._lnn_fallback_cache.get(key, "-")
-            if self.nuisance_mode == "preserve_shape" and key in self._preserve_shape_invalid:
-                return self._lnn_fallback_cache.get(key, "-")
             up = f"{col['process']}_{syst_name}Up"
             down = f"{col['process']}_{syst_name}Down"
             if self.check_histogram_exists(col["category"], up) and self.check_histogram_exists(col["category"], down):
@@ -427,7 +340,7 @@ class RunPeriodDatacardManager:
         lines = [
             "# Datacard for B2G-25-013",
             f"# Era: {self.era}, Channel: {self.channel}, Signal: {self.signal}",
-            f"# Method: {self.method}, Binning: {self.binning}",
+            f"# Method: {self.method}, Binning: extended",
             "# Construction: run_period_components",
             "",
             f"imax {len(self.categories['categories'])} number of bins",
@@ -500,15 +413,9 @@ class RunPeriodDatacardManager:
         return "\n".join(f"{cat} autoMCStats {threshold}" for cat in self.categories["categories"])
 
     def generate_datacard(self):
-        if self.nuisance_mode == "fallback_lnn":
-            self.precompute_lnn_fallbacks()
-        else:
-            self.precompute_preserve_shape_invalid_fallbacks()
+        self.precompute_lnn_fallbacks()
         self.write_lowstat_json()
-        if self.nuisance_mode == "fallback_lnn":
-            self.rewrite_shapes_root()
-        else:
-            self.rewrite_preserve_shape_invalid_hists()
+        self.rewrite_shapes_root()
         return "\n".join([
             self.part1_header(),
             self.part2_observation(),
@@ -527,7 +434,6 @@ def main():
     logging.info(f"  Era: {args.era}")
     logging.info(f"  Channel: {args.channel}")
     logging.info(f"  Method: {args.method}")
-    logging.info(f"  Binning: {args.binning}")
     logging.info(f"  Template dir: {TEMPLATE_DIR}")
 
     categories = load_categories()
@@ -540,8 +446,7 @@ def main():
     manager = None
     try:
         manager = RunPeriodDatacardManager(
-            args.era, args.channel, args.masspoint, args.method,
-            args.binning, args.nuisance
+            args.era, args.channel, args.masspoint, args.method
         )
         datacard = manager.generate_datacard()
     except Exception as e:
