@@ -34,15 +34,16 @@ srs_setup_cmssw() {
     cd - > /dev/null
 }
 
-# Binning suffix for template output paths. The only shell-side construction
-# site; python-side equivalent lives in python/srspaths.py.
-# Usage: srs_binning_suffix BINNING "EXTRA_ARGS"
-srs_binning_suffix() {
-    local binning=$1
+# Method directory segment for template paths ({method} or {method}_blind).
+# The only shell-side construction site; python-side equivalent lives in
+# python/srspaths.py (method_segment).
+# Usage: srs_method_segment METHOD "EXTRA_ARGS"
+srs_method_segment() {
+    local method=$1
     local extra_args=${2:-}
-    if [[ "$extra_args" == *"--unblind"* ]]; then
-        echo "${binning}_unblind"
+    if [[ "$extra_args" == *"--blind"* ]]; then
+        echo "${method}_blind"
     else
-        echo "$binning"
+        echo "$method"
     fi
 }

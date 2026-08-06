@@ -35,24 +35,12 @@ parser.add_argument("--era", required=True, type=str,
 parser.add_argument("--channel", required=True, type=str,
                     help="Analysis channel (SR1E2Mu, SR3Mu, Combined)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
-parser.add_argument("--binning", default="extended",
-                    choices=["extended", "uniform"],
-                    help="Binning method: 'extended' or 'uniform'")
-parser.add_argument("--unblind", action="store_true",
-                    help="Show real data distribution")
-parser.add_argument("--partial-unblind", action="store_true", dest="partial_unblind",
-                    help="Show real data only for score < 0.3")
-parser.add_argument("--nuisance", default="fallback_lnn",
-                    choices=["fallback_lnn", "preserve_shape"],
-                    help="Low-stat nuisance handling mode used to choose the template suffix")
+parser.add_argument("--blind", action="store_true",
+                    help="Hide real data; read from the ParticleNet_blind template segment")
 parser.add_argument("--skip-histogram", action="store_true", dest="skip_histogram",
                     help="Load from existing histograms.root instead of reprocessing")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
-
-# Validate unblind options
-if args.unblind and args.partial_unblind:
-    raise ValueError("--unblind and --partial-unblind are mutually exclusive")
 
 # Validate channel (TTZ2E1Mu is included automatically in validation plots,
 # except in Combined-channel mode where per-channel runs already cover it)
@@ -150,14 +138,7 @@ def scope_label(scope):
         return f"{CHANNEL_LATEX['SR1E2Mu']} + {CHANNEL_LATEX['SR3Mu']}"
     return scope
 
-# Determine binning suffix (with unblind suffix if applicable)
-binning_suffix = args.binning
-if args.unblind:
-    binning_suffix = f"{args.binning}_unblind"
-elif args.partial_unblind:
-    binning_suffix = f"{args.binning}_partial_unblind"
-if args.nuisance == "preserve_shape":
-    binning_suffix = f"{binning_suffix}_preserve_shape"
+METHOD_SEGMENT = "ParticleNet_blind" if args.blind else "ParticleNet"
 
 reference_era = era_list[0]
 reference_channel = "SR1E2Mu" if is_combined_channel else args.channel
@@ -165,8 +146,8 @@ reference_channel = "SR1E2Mu" if is_combined_channel else args.channel
 # Input from samples directory (ParticleNet scores are in preprocessed samples)
 # For combined eras/channels, BASEDIR points to reference era/channel (used for config loading)
 BASEDIR = f"{WORKDIR}/SignalRegionStudyV4/samples/{reference_era}/{reference_channel}/{args.masspoint}"
-# Output to ParticleNet template directory (with unblind suffix if applicable)
-OUTDIR = f"{WORKDIR}/SignalRegionStudyV4/templates/{args.era}/{args.channel}/{args.masspoint}/ParticleNet/{binning_suffix}"
+# Output to ParticleNet template directory
+OUTDIR = f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/{METHOD_SEGMENT}/{args.era}/{args.channel}"
 
 # Always generate validation plots
 VALIDATION_OUTDIR = f"{OUTDIR}/scores"
@@ -195,26 +176,25 @@ def run_period_for_era(era):
     return None
 
 
-def template_dir(era, channel, suffix):
+def template_dir(era, channel):
     return (
-        f"{WORKDIR}/SignalRegionStudyV4/templates/{era}/{channel}/"
-        f"{args.masspoint}/ParticleNet/{suffix}"
+        f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/"
+        f"{METHOD_SEGMENT}/{era}/{channel}"
     )
 
 
 def find_config_dir():
-    """Find the most specific V3 template directory with binning metadata."""
+    """Find the most specific template directory with binning metadata."""
     candidates = []
-    for suffix in dict.fromkeys([binning_suffix, args.binning]):
-        candidates.append(template_dir(args.era, args.channel, suffix))
-        period = run_period_for_era(args.era)
-        if period:
-            candidates.append(template_dir(period, args.channel, suffix))
-        if is_combined_era:
-            for period in dict.fromkeys(run_period_for_era(era) for era in era_list):
-                if period:
-                    candidates.append(template_dir(period, args.channel, suffix))
-        candidates.append(template_dir(reference_era, reference_channel, suffix))
+    candidates.append(template_dir(args.era, args.channel))
+    period = run_period_for_era(args.era)
+    if period:
+        candidates.append(template_dir(period, args.channel))
+    if is_combined_era:
+        for period in dict.fromkeys(run_period_for_era(era) for era in era_list):
+            if period:
+                candidates.append(template_dir(period, args.channel))
+    candidates.append(template_dir(reference_era, reference_channel))
 
     for candidate in candidates:
         if os.path.exists(f"{candidate}/binning.json"):
@@ -225,7 +205,7 @@ def find_config_dir():
         f"Binning results not found in any candidate template directory:\n  {checked}\n"
         f"Please run makeBinnedTemplates.py first:\n"
         f"  makeBinnedTemplates.py --era {args.era} --channel {args.channel} "
-        f"--masspoint {args.masspoint} --method ParticleNet --binning {args.binning}"
+        f"--masspoint {args.masspoint} --method ParticleNet"
     )
 
 
@@ -538,96 +518,64 @@ def loadScores(process, masspoint, sample_dir=None, return_raw=False,
             return empty_result
         return np.array([]), np.array([])
 
-    # Load data
-    scores_list = []
-    weights_list = []
-
-    # For return_raw mode
-    raw_signal_list = []
-    raw_nonprompt_list = []
-    raw_diboson_list = []
-    raw_ttZ_list = []
-    LR_nonprompt_list = []
-    LR_diboson_list = []
-    LR_ttZ_list = []
-
-    for entry in range(tree.GetEntries()):
-        tree.GetEntry(entry)
-
-        # Handle mass selection based on channel
-        # TTZ2E1Mu is a control region without resonance - skip mass window cut
-        if sample_channel == "TTZ2E1Mu":
-            pass  # No mass window cut for control region
-        elif sample_channel == "SR3Mu":
-            mass1 = getattr(tree, "mass1")
-            mass2 = getattr(tree, "mass2")
-            # Check if either mass is in the window
-            if not (mass_min <= mass1 <= mass_max or mass_min <= mass2 <= mass_max):
-                continue
-        else:
-            # SR1E2Mu uses single mass variable
-            mass = tree.mass
-            # Apply mass window cut
-            if not (mass_min <= mass <= mass_max):
-                continue
-
-        s0 = getattr(tree, score_sig)
-        s1 = getattr(tree, score_nonprompt)
-        s2 = getattr(tree, score_diboson)
-        s3 = getattr(tree, score_ttZ)
-        weight = getattr(tree, "weight")
-
-        # Calculate ParticleNet likelihood ratio with cross-section weights
-        active_weights = BG_WEIGHTS if bg_weights is None else bg_weights
-        if active_weights:
-            w1 = active_weights.get("nonprompt", 1.0)
-            w2 = active_weights.get("diboson", 1.0)
-            w3 = active_weights.get("ttX", 1.0)
-            score_denom = s0 + w1*s1 + w2*s2 + w3*s3
-        else:
-            # Use unweighted likelihood ratio (equal priors)
-            score_denom = s0 + s1 + s2 + s3
-
-        if score_denom > 0:
-            score_PN = s0 / score_denom
-        else:
-            score_PN = 0.0
-
-        scores_list.append(score_PN)
-        weights_list.append(weight)
-
-        # Calculate additional quantities if requested
-        if return_raw:
-            raw_signal_list.append(s0)
-            raw_nonprompt_list.append(s1)
-            raw_diboson_list.append(s2)
-            raw_ttZ_list.append(s3)
-
-            # Individual LRs
-            LR_np = s0 / (s0 + s1) if (s0 + s1) > 0 else 0.0
-            LR_db = s0 / (s0 + s2) if (s0 + s2) > 0 else 0.0
-            LR_ttZ = s0 / (s0 + s3) if (s0 + s3) > 0 else 0.0
-
-            LR_nonprompt_list.append(LR_np)
-            LR_diboson_list.append(LR_db)
-            LR_ttZ_list.append(LR_ttZ)
-
     rfile.Close()
+
+    # Vectorized load: RDataFrame applies the mass selection in compiled code,
+    # AsNumpy pulls only the needed columns, numpy does the LR arithmetic.
+    # Elementwise double-precision math — identical values to the old
+    # per-entry python loop, orders of magnitude faster.
+    rdf = ROOT.RDataFrame(syst, file_path)
+
+    # Mass selection by channel. TTZ2E1Mu is a control region without a
+    # resonance — no mass window cut.
+    if sample_channel == "SR3Mu":
+        rdf = rdf.Filter(
+            f"(mass1 >= {mass_min} && mass1 <= {mass_max}) || "
+            f"(mass2 >= {mass_min} && mass2 <= {mass_max})"
+        )
+    elif sample_channel != "TTZ2E1Mu":
+        rdf = rdf.Filter(f"mass >= {mass_min} && mass <= {mass_max}")
+
+    columns = rdf.AsNumpy([score_sig, score_nonprompt, score_diboson,
+                           score_ttZ, "weight"])
+    s0 = np.asarray(columns[score_sig], dtype=float)
+    s1 = np.asarray(columns[score_nonprompt], dtype=float)
+    s2 = np.asarray(columns[score_diboson], dtype=float)
+    s3 = np.asarray(columns[score_ttZ], dtype=float)
+    weights = np.asarray(columns["weight"], dtype=float)
+
+    # ParticleNet likelihood ratio with cross-section weights
+    active_weights = BG_WEIGHTS if bg_weights is None else bg_weights
+    if active_weights:
+        w1 = active_weights.get("nonprompt", 1.0)
+        w2 = active_weights.get("diboson", 1.0)
+        w3 = active_weights.get("ttX", 1.0)
+        score_denom = s0 + w1*s1 + w2*s2 + w3*s3
+    else:
+        # Use unweighted likelihood ratio (equal priors)
+        score_denom = s0 + s1 + s2 + s3
+
+    def safe_ratio(num, denom):
+        out = np.zeros_like(num)
+        np.divide(num, denom, out=out, where=denom > 0)
+        return out
+
+    scores = safe_ratio(s0, score_denom)
 
     if return_raw:
         return {
-            'raw_signal': np.array(raw_signal_list),
-            'raw_nonprompt': np.array(raw_nonprompt_list),
-            'raw_diboson': np.array(raw_diboson_list),
-            'raw_ttZ': np.array(raw_ttZ_list),
-            'LR_nonprompt': np.array(LR_nonprompt_list),
-            'LR_diboson': np.array(LR_diboson_list),
-            'LR_ttZ': np.array(LR_ttZ_list),
-            'LR_modified': np.array(scores_list),
-            'weights': np.array(weights_list)
+            'raw_signal': s0,
+            'raw_nonprompt': s1,
+            'raw_diboson': s2,
+            'raw_ttZ': s3,
+            'LR_nonprompt': safe_ratio(s0, s0 + s1),
+            'LR_diboson': safe_ratio(s0, s0 + s2),
+            'LR_ttZ': safe_ratio(s0, s0 + s3),
+            'LR_modified': scores,
+            'weights': weights
         }
 
-    return np.array(scores_list), np.array(weights_list)
+    return scores, weights
 
 
 def load_preprocessed_syst_scores(process, masspoint, sample_dir, mass_min, mass_max,
@@ -930,13 +878,6 @@ def create_histograms(era, channel, masspoint, sample_channel, syst_categories,
                 for val, wt in zip(data_scores[score_type], data_scores['weights']):
                     data_obs_200.Fill(val, wt)
 
-            if args.partial_unblind and sample_channel != "TTZ2E1Mu":
-                # Zero out bins with score >= 0.3 (only for LR plots, only for SR)
-                if score_type.startswith("LR"):
-                    threshold_bin = int(0.3 * DEFAULT_NBINS / (DEFAULT_XMAX - DEFAULT_XMIN)) + 1
-                    for ibin in range(threshold_bin, data_obs_200.GetNbinsX() + 1):
-                        data_obs_200.SetBinContent(ibin, 0)
-                        data_obs_200.SetBinError(ibin, 0)
         else:
             # Blinded: sum of backgrounds
             for proc, hist in stored_hists[score_type].items():
@@ -1349,8 +1290,8 @@ class ScoreComparisonCanvas(ComparisonCanvas):
 def draw_blind_plot(bkg_hists_with_errors, signal_hist, config, output_path, masspoint):
     """
     Blinded-mode plot: single pad, stack + uncertainty band + signal overlay.
-    No data points, no ratio pad. Used when args.unblind is False (i.e. blinded
-    or partial-unblind).
+    No data points, no ratio pad. Used when args.blind is set (i.e. blinded
+    mode).
     """
     # Build total systematics histogram (sum of backgrounds) for the error band
     hists_by_name = {name: h for name, h in bkg_hists_with_errors.items()}
@@ -1542,8 +1483,7 @@ def process_combined_era(region_label, sample_channel, show_data, region_outdir,
 
     def load_or_create_channel_hists(era, input_channel, scores_region):
         hist_file = (
-            f"{WORKDIR}/SignalRegionStudyV4/templates/{era}/{input_channel}/"
-            f"{args.masspoint}/ParticleNet/{binning_suffix}/scores/{scores_region}/histograms.root"
+            f"{template_dir(era, input_channel)}/scores/{scores_region}/histograms.root"
         )
         sample_source_channel = "TTZ2E1Mu" if scores_region == "TTZ2E1Mu" else input_channel
 
@@ -1809,13 +1749,11 @@ if __name__ == "__main__":
             ordered_bkgs.append(bkg)
 
     # Define regions to plot.
-    # show_data=True for --unblind or --partial-unblind (both show data points
-    # + ratio pad; partial-unblind has the high-score region zeroed out).
-    # Only pure blinded mode (neither flag) drops data/ratio.
+    # show_data=True in the default (unblind) mode; --blind drops data/ratio.
     # TTZ2E1Mu control region is skipped in Combined-channel mode — per-channel
     # runs already cover it.
     regions = [
-        (args.channel, args.channel, args.unblind or args.partial_unblind),
+        (args.channel, args.channel, not args.blind),
     ]
     if not is_combined_channel:
         regions.append(("TTZ2E1Mu", "TTZ2E1Mu", True))  # Control region always unblinded
@@ -1889,7 +1827,7 @@ if __name__ == "__main__":
 
                 # Build colors list and configuration
                 colors = build_colors_list(bkg_hists)
-                enable_chi2 = args.unblind or sample_channel == "TTZ2E1Mu"
+                enable_chi2 = (not args.blind) or sample_channel == "TTZ2E1Mu"
                 config = build_canvas_config(
                     args.era, region_label, x_title, plot_key, colors,
                     get_CoM_energy_extended(args.era),
@@ -1992,7 +1930,7 @@ if __name__ == "__main__":
 
                 # Build colors list and configuration
                 colors = build_colors_list(bkg_hists)
-                enable_chi2 = args.unblind or sample_channel == "TTZ2E1Mu"
+                enable_chi2 = (not args.blind) or sample_channel == "TTZ2E1Mu"
                 config = build_canvas_config(
                     args.era, region_label, x_title, plot_key, colors,
                     get_CoM_energy_extended(args.era),
@@ -2094,7 +2032,7 @@ if __name__ == "__main__":
 
             # Build colors list and configuration
             colors = build_colors_list(bkg_hists)
-            enable_chi2 = args.unblind or sample_channel == "TTZ2E1Mu"
+            enable_chi2 = (not args.blind) or sample_channel == "TTZ2E1Mu"
             config = build_canvas_config(
                 args.era, region_label, x_title, plot_key, colors,
                 get_CoM_energy_extended(args.era),

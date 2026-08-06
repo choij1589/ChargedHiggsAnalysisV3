@@ -10,21 +10,20 @@
 #
 # Usage:
 #   ./runPullPlots.sh --era All --channel Combined --masspoint MHc130_MA90 \
-#                     --method ParticleNet --binning extended --partial-unblind
+#                     --method ParticleNet --pull-fit both
 #
 
 set -e
+
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
 # Default values
 ERA=""
 CHANNEL=""
 MASSPOINT=""
 METHOD="Baseline"
-BINNING="extended"
-NUISANCE="fallback_lnn"
 PULL_FIT="b"
-PARTIAL_UNBLIND=false
-UNBLIND=false
+BLIND=false
 DRY_RUN=false
 VERBOSE=false
 
@@ -35,11 +34,8 @@ while [[ $# -gt 0 ]]; do
         --channel)       CHANNEL="$2";       shift 2 ;;
         --masspoint)     MASSPOINT="$2";     shift 2 ;;
         --method)        METHOD="$2";        shift 2 ;;
-        --binning)       BINNING="$2";       shift 2 ;;
-        --nuisance)      NUISANCE="$2";      shift 2 ;;
         --pull-fit)      PULL_FIT="$2";      shift 2 ;;
-        --partial-unblind) PARTIAL_UNBLIND=true; shift ;;
-        --unblind)       UNBLIND=true;       shift ;;
+        --blind)         BLIND=true;         shift ;;
         --dry-run)       DRY_RUN=true;       shift ;;
         --verbose)       VERBOSE=true;       shift ;;
         -h|--help)
@@ -47,11 +43,8 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --method METHOD         Baseline or ParticleNet [default: Baseline]"
-            echo "  --binning BINNING       extended or uniform [default: extended]"
-            echo "  --nuisance MODE         fallback_lnn (default) or preserve_shape"
             echo "  --pull-fit MODE         b or both [default: b]"
-            echo "  --partial-unblind       Use partial-unblind templates"
-            echo "  --unblind               Use fully unblinded templates"
+            echo "  --blind                 Use the {method}_blind template segment"
             echo "  --dry-run               Print commands without executing"
             echo "  --verbose               Enable verbose logging"
             exit 0
@@ -66,18 +59,6 @@ if [[ -z "$ERA" || -z "$CHANNEL" || -z "$MASSPOINT" ]]; then
     echo "ERROR: --era, --channel, and --masspoint are required"
     exit 1
 fi
-if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
-    echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
-    exit 1
-fi
-case "$NUISANCE" in
-    fallback_lnn|preserve_shape) ;;
-    *)
-        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
-        echo "Valid values: fallback_lnn, preserve_shape"
-        exit 1
-        ;;
-esac
 case "$PULL_FIT" in
     b|both) ;;
     *)
@@ -87,20 +68,10 @@ case "$PULL_FIT" in
         ;;
 esac
 
-# Paths
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKDIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-
-# Resolve binning suffix
-BINNING_SUFFIX="${BINNING}"
-if   [[ "$UNBLIND"         == true ]]; then BINNING_SUFFIX="${BINNING}_unblind"
-elif [[ "$PARTIAL_UNBLIND" == true ]]; then BINNING_SUFFIX="${BINNING}_partial_unblind"
-fi
-if [[ "$NUISANCE" == "preserve_shape" ]]; then
-    BINNING_SUFFIX="${BINNING_SUFFIX}_preserve_shape"
-fi
-
-TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV4/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
+# Template directory (V4 layout: templates/{masspoint}/{method}/{era}/{channel})
+METHOD_SEGMENT="$METHOD"
+[[ "$BLIND" == true ]] && METHOD_SEGMENT="${METHOD}_blind"
+TEMPLATE_DIR="$SRS_MODULE_DIR/templates/${MASSPOINT}/${METHOD_SEGMENT}/${ERA}/${CHANNEL}"
 FITDIAG_DIR="${TEMPLATE_DIR}/combine_output/fitdiag"
 
 if [[ ! -d "$FITDIAG_DIR" ]]; then
@@ -331,8 +302,7 @@ echo "============================================================"
 echo "  Era:       ${ERA}"
 echo "  Channel:   ${CHANNEL}"
 echo "  Masspoint: ${MASSPOINT}"
-echo "  Method:    ${METHOD}"
-echo "  Binning:   ${BINNING_SUFFIX}"
+echo "  Method:    ${METHOD_SEGMENT}"
 echo "  Pull fit:  ${PULL_FIT}"
 echo "  Input:     ${FITDIAG_FILE}"
 echo ""

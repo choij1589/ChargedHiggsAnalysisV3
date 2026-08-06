@@ -12,7 +12,7 @@ fine uniform-bin grid (default bin width: auto = sigma_eff of widest sub-channel
 
 Usage:
     python3 plotPostfitMass.py --era All --masspoint MHc130_MA90 \
-        --method ParticleNet --binning extended --partial-unblind \
+        --method ParticleNet \
         --channel-scope Combined --fit-type b
 """
 import os
@@ -36,8 +36,6 @@ def _build_parser():
     p.add_argument("--masspoint", required=True, type=str)
     p.add_argument("--method", required=True, type=str,
                    help="Template method (Baseline, ParticleNet, CR, ...)")
-    p.add_argument("--binning", default="extended", type=str,
-                   help="Binning suffix tag (e.g. extended, uniform, ZWin_adaptive)")
     p.add_argument("--era-scope", default=None, dest="era_scope",
                    help="Filter plots to this era slice (e.g. 2018, Run2, All). "
                         "Default: iterate every era scope applicable to the fit.")
@@ -49,14 +47,10 @@ def _build_parser():
                         "SR uses 'Combined' (default); CR uses 'TTZ2E1Mu'.")
     p.add_argument("--fit-type", default="both", choices=["b", "s", "both"],
                    help="Which post-fit variant(s) to plot [default: both]")
-    p.add_argument("--unblind", action="store_true")
-    p.add_argument("--partial-unblind", action="store_true", dest="partial_unblind")
     p.add_argument("--blind", action="store_true",
-                   help="Asimov mode: data = sum of pre-fit backgrounds; "
-                        "samples/.../data.root is never read.")
-    p.add_argument("--nuisance", default="fallback_lnn",
-                   choices=["fallback_lnn", "preserve_shape"],
-                   help="Low-stat nuisance handling mode used to choose the template suffix")
+                   help="Asimov mode: data = sum of pre-fit backgrounds, "
+                        "samples/.../data.root is never read; reads from the "
+                        "{method}_blind template segment. Default is unblind.")
     p.add_argument("--bin-width", default="auto", type=str,
                    help="Fine-grid bin width in GeV, or 'auto' to derive from "
                         "sigma_eff of the widest sub-channel, snapped to 0.05 GeV (default: auto)")
@@ -85,7 +79,6 @@ import cmsstyle as CMS
 with open(f"{WORKDIR}/Common/Data/Luminosity.json", "r") as _lfh:
     _LUMI_CONFIG = json.load(_lfh)
 
-binning_suffix = None
 TEMPLATE_DIR = None
 FITDIAG_DIR = None
 FITDIAG_PATH = None
@@ -94,19 +87,8 @@ CACHE_DIR = None
 CACHE_PATH = None
 
 
-def _compute_binning_suffix(parsed):
-    # CR mode (method=CR): the binning tag is already final; no _unblind/_partial_unblind suffix.
-    if parsed.method == "CR":
-        return parsed.binning
-    if parsed.unblind:
-        suffix = f"{parsed.binning}_unblind"
-    elif parsed.partial_unblind:
-        suffix = f"{parsed.binning}_partial_unblind"
-    else:
-        suffix = parsed.binning
-    if getattr(parsed, "nuisance", "fallback_lnn") == "preserve_shape":
-        suffix = f"{suffix}_preserve_shape"
-    return suffix
+def _method_segment(parsed):
+    return f"{parsed.method}_blind" if getattr(parsed, "blind", False) else parsed.method
 
 
 def _compute_paths():
@@ -116,15 +98,15 @@ def _compute_paths():
     SimpleNamespace and call this to refresh the derived paths between
     masspoints.
     """
-    global binning_suffix, TEMPLATE_DIR, FITDIAG_DIR, FITDIAG_PATH
+    global TEMPLATE_DIR, FITDIAG_DIR, FITDIAG_PATH
     global OUTPUT_DIR, CACHE_DIR, CACHE_PATH
-    binning_suffix = _compute_binning_suffix(args)
     fit_channel = getattr(args, "fit_channel", "Combined") or "Combined"
+    method_segment = _method_segment(args)
     TEMPLATE_DIR = (f"{WORKDIR}/SignalRegionStudyV4/templates/"
-                    f"{args.era}/{fit_channel}/{args.masspoint}/{args.method}/{binning_suffix}")
+                    f"{args.masspoint}/{method_segment}/{args.era}/{fit_channel}")
     FITDIAG_DIR = f"{TEMPLATE_DIR}/combine_output/fitdiag"
     FITDIAG_PATH = (f"{FITDIAG_DIR}/fitDiagnostics."
-                    f"{args.masspoint}.{args.method}.{binning_suffix}.root")
+                    f"{args.masspoint}.{method_segment}.root")
     OUTPUT_DIR = f"{FITDIAG_DIR}/plots_mass"
     CACHE_DIR = f"{FITDIAG_DIR}/cached"
     CACHE_PATH = f"{CACHE_DIR}/fine_hists_bw{args.bin_width}.root"
@@ -136,8 +118,8 @@ def entry_setup(parsed_args, *, require_fitdiag=True, make_output_dir=True):
     Parameters
     ----------
     parsed_args : argparse.Namespace or SimpleNamespace
-        Must expose .era, .masspoint, .method, .binning, .unblind,
-        .partial_unblind, .bin_width, .debug, .plot_only, and optionally
+        Must expose .era, .masspoint, .method,
+        .blind, .bin_width, .debug, .plot_only, and optionally
         .channel_scope / .era_scope / .fit_type.
     require_fitdiag : bool
         If True, raise when the fitDiagnostics file is missing.
@@ -146,12 +128,6 @@ def entry_setup(parsed_args, *, require_fitdiag=True, make_output_dir=True):
     """
     global args
     args = parsed_args
-
-    # CR mode: real data, no blinding concept — bypass the {blind,unblind,partial-unblind} requirement
-    if args.method != "CR":
-        chosen = sum(bool(x) for x in (args.unblind, args.partial_unblind, args.blind))
-        if chosen != 1:
-            raise ValueError("Exactly one of --blind / --partial-unblind / --unblind is required")
 
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
                         format='%(levelname)s - %(message)s')
@@ -450,7 +426,8 @@ def discover_channels(f):
 
 def load_subchannel_config(era, channel):
     """Load per-(era, channel) binning, threshold, bg-weights, process list."""
-    tdir = f"{WORKDIR}/SignalRegionStudyV4/templates/{era}/{channel}/{args.masspoint}/{args.method}/{binning_suffix}"
+    tdir = (f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/"
+            f"{_method_segment(args)}/{era}/{channel}")
     binning = json.load(open(f"{tdir}/binning.json"))
     plist = json.load(open(f"{tdir}/process_list.json"))
     category_key = f"{channel}_{era}"
@@ -716,9 +693,7 @@ def apply_uncertainty_hist(target, uncertainty):
 
 
 def _blinding_label():
-    if args.partial_unblind:
-        return "Partial-Unblind"
-    # Full unblind: no extra label needed.
+    # Full unblind (default): no extra label needed.
     return ""
 
 

@@ -11,29 +11,22 @@
 #   3. Copy output back to scratch
 #
 # Usage:
-#   ./makeBinnedTemplates_wrapper.sh <STEP> <ERA> <CHANNEL> <MASSPOINT> <METHOD> <BINNING> <OUTPUT_ERA> [EXTRA_ARGS]
-#
-# Notes:
-#   - OUTPUT_ERA is ignored by the Run-period component workflow.
+#   ./makeBinnedTemplates_wrapper.sh <STEP> <ERA> <CHANNEL> <MASSPOINT> <METHOD> [EXTRA_ARGS]
 #
 set -eo pipefail
 
 # Parse arguments
-STEP=$1      # template, merge_template, validate, datacard, asymptotic, fitdiag, plotpostfit, plotpulls
+STEP=$1      # template, merge_template, validate, datacard, asymptotic, fitdiag, plotpostfit, plotpulls, plot_score
 ERA=$2
 CHANNEL=$3
 MASSPOINT=$4
 METHOD=$5
-BINNING=$6
-# jobs.sub uses HTCondor V2 syntax with each positional wrapped in single
-# quotes, so empty values arrive as literal empty args (positions stable).
-OUTPUT_ERA=${7:-}
-EXTRA_ARGS="${*:8}"
+EXTRA_ARGS="${*:6}"
 
 # Validate required arguments
-if [[ -z "$STEP" || -z "$ERA" || -z "$MASSPOINT" || -z "$METHOD" || -z "$BINNING" ]]; then
+if [[ -z "$STEP" || -z "$ERA" || -z "$MASSPOINT" || -z "$METHOD" ]]; then
     echo "ERROR: Missing required arguments"
-    echo "Usage: $0 STEP ERA CHANNEL MASSPOINT METHOD BINNING OUTPUT_ERA [EXTRA_ARGS]"
+    echo "Usage: $0 STEP ERA CHANNEL MASSPOINT METHOD [EXTRA_ARGS]"
     exit 1
 fi
 
@@ -45,8 +38,6 @@ echo "Era: $ERA"
 echo "Channel: $CHANNEL"
 echo "Masspoint: $MASSPOINT"
 echo "Method: $METHOD"
-echo "Binning: $BINNING"
-echo "Output era: $OUTPUT_ERA"
 echo "Extra args: $EXTRA_ARGS"
 echo "Host: $(hostname)"
 echo "Time: $(date)"
@@ -62,15 +53,10 @@ LOCAL_SCRATCH="${_CONDOR_SCRATCH_DIR:-/tmp/condor_$$}"
 PNFS_BASE="$PNFS_USER_BASE/$SRS_MODULE_NAME/samples"
 XROOTD_BASE="$XROOTD_USER_BASE/$SRS_MODULE_NAME/samples"
 
-# Determine binning suffix for output path
-BINNING_SUFFIX="$BINNING"
-if [[ "$EXTRA_ARGS" == *"--partial-unblind"* ]]; then
-    BINNING_SUFFIX="${BINNING}_partial_unblind"
-elif [[ "$EXTRA_ARGS" == *"--unblind"* ]]; then
-    BINNING_SUFFIX="${BINNING}_unblind"
-fi
-if [[ "$EXTRA_ARGS" == *"--nuisance preserve_shape"* ]]; then
-    BINNING_SUFFIX="${BINNING_SUFFIX}_preserve_shape"
+# Method directory segment: {method} or {method}_blind
+METHOD_SEGMENT="$METHOD"
+if [[ "$EXTRA_ARGS" == *"--blind"* ]]; then
+    METHOD_SEGMENT="${METHOD}_blind"
 fi
 
 # Setup environment for KNU cluster using cvmfs
@@ -177,11 +163,11 @@ run_template_local() {
 
     python3 python/makeBinnedTemplates.py \
         --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-        --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
+        --method "$METHOD" $EXTRA_ARGS
 
     # Copy output back to scratch
-    local local_output="$local_workdir/$SRS_MODULE_NAME/templates/$ERA/$CHANNEL/$MASSPOINT/$METHOD/$BINNING_SUFFIX"
-    local scratch_output="$SCRATCH_WORKDIR/$SRS_MODULE_NAME/templates/$ERA/$CHANNEL/$MASSPOINT/$METHOD/$BINNING_SUFFIX"
+    local local_output="$local_workdir/$SRS_MODULE_NAME/templates/$MASSPOINT/$METHOD_SEGMENT/$ERA/$CHANNEL"
+    local scratch_output="$SCRATCH_WORKDIR/$SRS_MODULE_NAME/templates/$MASSPOINT/$METHOD_SEGMENT/$ERA/$CHANNEL"
 
     if [[ -d "$local_output" ]]; then
         echo ""
@@ -218,38 +204,38 @@ run_on_scratch() {
             echo "Running mergeRunPeriodTemplates.py..."
             python3 python/mergeRunPeriodTemplates.py \
                 --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-                --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
+                --method "$METHOD" $EXTRA_ARGS
             ;;
         validate)
-            echo "Running checkTemplates.py..."
-            python3 python/checkTemplates.py \
+            echo "Running validateRunPeriodTemplates.py..."
+            python3 python/validateRunPeriodTemplates.py \
                 --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-                --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
+                --method "$METHOD" $EXTRA_ARGS
             ;;
         datacard)
             echo "Running printDatacard.py..."
             python3 python/printDatacard.py \
                 --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-                --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
+                --method "$METHOD" $EXTRA_ARGS
             ;;
         asymptotic)
             echo "Running runAsymptotic.sh..."
             bash scripts/runAsymptotic.sh \
                 --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-                --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
+                --method "$METHOD" $EXTRA_ARGS
             ;;
         plot_score)
             # Plot ParticleNet scores (only for ParticleNet method)
             echo "Running plotParticleNetScore.py..."
             python3 python/plotParticleNetScore.py \
                 --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-                --binning "$BINNING" $EXTRA_ARGS
+                $EXTRA_ARGS
             ;;
         fitdiag)
             echo "Running runFitDiagnostics.sh..."
             bash scripts/runFitDiagnostics.sh \
                 --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-                --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
+                --method "$METHOD" $EXTRA_ARGS
             ;;
         plotpostfit)
             echo "Running plotPostfitMass.py..."
@@ -257,7 +243,6 @@ run_on_scratch() {
                 --era "$ERA"
                 --masspoint "$MASSPOINT"
                 --method "$METHOD"
-                --binning "$BINNING"
             )
             if [[ "$CHANNEL" != "Combined" ]]; then
                 plot_args+=(--channel-scope "$CHANNEL")
@@ -268,7 +253,7 @@ run_on_scratch() {
             echo "Running runPullPlots.sh..."
             bash scripts/runPullPlots.sh \
                 --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-                --method "$METHOD" --binning "$BINNING" $EXTRA_ARGS
+                --method "$METHOD" $EXTRA_ARGS
             ;;
         *)
             echo "ERROR: Unknown step '$step'"

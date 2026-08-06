@@ -13,10 +13,7 @@ ERA=""
 CHANNEL=""
 MASSPOINT=""
 METHOD="Baseline"
-BINNING="extended"
-NUISANCE="fallback_lnn"
-PARTIAL_UNBLIND=false
-UNBLIND=false
+BLIND=false
 DRY_RUN=false
 VERBOSE=false
 
@@ -39,20 +36,8 @@ while [[ $# -gt 0 ]]; do
             METHOD="$2"
             shift 2
             ;;
-        --binning)
-            BINNING="$2"
-            shift 2
-            ;;
-        --nuisance)
-            NUISANCE="$2"
-            shift 2
-            ;;
-        --partial-unblind)
-            PARTIAL_UNBLIND=true
-            shift
-            ;;
-        --unblind)
-            UNBLIND=true
+        --blind)
+            BLIND=true
             shift
             ;;
         --dry-run)
@@ -64,17 +49,14 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            echo "Usage: $0 --era ERA --channel CHANNEL --masspoint MASSPOINT [--method METHOD] [--binning BINNING] [--dry-run] [--verbose]"
+            echo "Usage: $0 --era ERA --channel CHANNEL --masspoint MASSPOINT [--method METHOD] [--blind] [--dry-run] [--verbose]"
             echo ""
             echo "Options:"
-            echo "  --era        Data-taking period (2016preVFP, 2017, 2018, 2022, Run2, Run3, All, etc.)"
+            echo "  --era        Run-period target (Run2, Run3, All)"
             echo "  --channel    Analysis channel (SR1E2Mu, SR3Mu, Combined)"
             echo "  --masspoint  Signal mass point (e.g., MHc130_MA90)"
             echo "  --method     Template method (Baseline, ParticleNet) [default: Baseline]"
-            echo "  --binning    Binning scheme (extended or uniform) [default: extended]"
-            echo "  --nuisance   Low-stat nuisance mode: fallback_lnn (default) or preserve_shape"
-            echo "  --partial-unblind  Use partial-unblind templates (score < 0.3)"
-            echo "  --unblind    Use full unblind templates (real data, full score region)"
+            echo "  --blind      Use the {method}_blind template segment (Asimov fit: -t -1)"
             echo "  --dry-run    Print commands without executing"
             echo "  --verbose    Enable verbose output"
             exit 0
@@ -92,34 +74,13 @@ if [[ -z "$ERA" || -z "$CHANNEL" || -z "$MASSPOINT" ]]; then
     exit 1
 fi
 
-if [[ "$UNBLIND" == true && "$PARTIAL_UNBLIND" == true ]]; then
-    echo "ERROR: --unblind and --partial-unblind are mutually exclusive"
-    exit 1
-fi
-case "$NUISANCE" in
-    fallback_lnn|preserve_shape) ;;
-    *)
-        echo "ERROR: Invalid --nuisance value '$NUISANCE'"
-        echo "Valid values: fallback_lnn, preserve_shape"
-        exit 1
-        ;;
-esac
 
-# Get WORKDIR
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKDIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
-# Template directory
-BINNING_SUFFIX="${BINNING}"
-if [[ "$UNBLIND" == true ]]; then
-    BINNING_SUFFIX="${BINNING}_unblind"
-elif [[ "$PARTIAL_UNBLIND" == true ]]; then
-    BINNING_SUFFIX="${BINNING}_partial_unblind"
-fi
-if [[ "$NUISANCE" == "preserve_shape" ]]; then
-    BINNING_SUFFIX="${BINNING_SUFFIX}_preserve_shape"
-fi
-TEMPLATE_DIR="${WORKDIR}/SignalRegionStudyV4/templates/${ERA}/${CHANNEL}/${MASSPOINT}/${METHOD}/${BINNING_SUFFIX}"
+# Template directory (V4 layout: templates/{masspoint}/{method}/{era}/{channel})
+METHOD_SEGMENT="$METHOD"
+[[ "$BLIND" == true ]] && METHOD_SEGMENT="${METHOD}_blind"
+TEMPLATE_DIR="$SRS_MODULE_DIR/templates/${MASSPOINT}/${METHOD_SEGMENT}/${ERA}/${CHANNEL}"
 
 # Check if template directory exists
 if [[ ! -d "$TEMPLATE_DIR" ]]; then
@@ -158,19 +119,18 @@ run_cmd() {
 cd "$TEMPLATE_DIR"
 log "Working directory: $(pwd)"
 
-# Determine Asimov options
-# CR mode (method=CR): real data is always used (no blinding concept), so no Asimov.
+# Determine Asimov options (blind mode only)
 ASIMOV_OPTIONS=""
-if [[ "$UNBLIND" == false && "$PARTIAL_UNBLIND" == false && "$METHOD" != "CR" ]]; then
+if [[ "$BLIND" == true ]]; then
     ASIMOV_OPTIONS="-t -1 --expectSignal 1"
 fi
 
 # Run FitDiagnostics
-echo "Running FitDiagnostics for ${MASSPOINT} (${ERA}/${CHANNEL}/${METHOD}/${BINNING_SUFFIX})..."
+echo "Running FitDiagnostics for ${MASSPOINT} (${METHOD_SEGMENT}/${ERA}/${CHANNEL})..."
 
 COMBINE_CMD="combine -M FitDiagnostics datacard.txt \
     --saveShapes --saveWithUncertainties \
-    -n .${MASSPOINT}.${METHOD}.${BINNING_SUFFIX} \
+    -n .${MASSPOINT}.${METHOD_SEGMENT} \
     -m 120 --robustFit 1 \
     --cminDefaultMinimizerStrategy 0 \
     --cminDefaultMinimizerTolerance 0.1 \
@@ -182,7 +142,7 @@ run_cmd "$COMBINE_CMD"
 
 # Move output files to output directory
 if [[ "$DRY_RUN" == false ]]; then
-    mv -f fitDiagnostics.${MASSPOINT}.${METHOD}.${BINNING_SUFFIX}.root "$OUTPUT_DIR/" 2>/dev/null || true
+    mv -f fitDiagnostics.${MASSPOINT}.${METHOD_SEGMENT}.root "$OUTPUT_DIR/" 2>/dev/null || true
     mv -f higgsCombine.*.FitDiagnostics.*.root "$OUTPUT_DIR/" 2>/dev/null || true
     mv -f roostats-*.root "$OUTPUT_DIR/" 2>/dev/null || true
 
@@ -194,7 +154,7 @@ if [[ "$DRY_RUN" == false ]]; then
         echo ""
         echo "Fit summary:"
         root -l -b -q -e "
-            TFile *f = TFile::Open(\"${OUTPUT_DIR}/fitDiagnostics.${MASSPOINT}.${METHOD}.${BINNING_SUFFIX}.root\");
+            TFile *f = TFile::Open(\"${OUTPUT_DIR}/fitDiagnostics.${MASSPOINT}.${METHOD_SEGMENT}.root\");
             if (!f || f->IsZombie()) { printf(\"  Could not open fitDiagnostics file\\n\"); return; }
 
             // Print best-fit r
