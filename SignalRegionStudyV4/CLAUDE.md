@@ -85,6 +85,7 @@ ParticleNet per-masspoint dirs). Vectorized: RDataFrame Define+Snapshot.
 Outputs land on pnfs via xrdcp. Owning code: `python/preprocess.py`
 (modes: default per-masspoint ParticleNet / `--shared-backgrounds` /
 `--shared-signal`), `scripts/preprocess_wrapper.sh`.
+Deep dive (branches, weights, pairing rule, layout): `docs/SAMPLES.md`.
 
 ### 2. Binned templates
 

@@ -4,8 +4,12 @@
 # The production path is unblind by default: no --binning/--unblind flags
 # exist anymore. Layout: templates/{masspoint}/{method}/{era}/{channel}.
 
-# Step 0: Preprocess the integrated baseline + ParticleNet mass-point set.
-./automize/preprocess.sh --mode all
+# Step 0: Preprocess. Shared backgrounds are produced once (24 jobs);
+# per-masspoint DAGs add shared signals (+ ParticleNet dirs for trained
+# points). See docs/SAMPLES.md.
+./automize/preprocess.sh
+# Later signal-only additions (backgrounds already on pnfs):
+#./automize/preprocess.sh --masspoint MHc130_MA90 --skip-backgrounds
 
 # Step 1: Templates, datacards, validation, asymptotic limits, and
 # All/Combined FitDiagnostics + postfit + pull plots. With --mode all the
