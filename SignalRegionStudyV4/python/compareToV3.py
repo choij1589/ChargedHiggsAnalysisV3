@@ -184,7 +184,11 @@ def compare_sample_file(checker, label, v4_path, v3_path, rtol, stats_trees,
         ok = True
         details = []
         for br in sorted(s3):
-            if br not in s4 and waived(br):
+            if br not in s4:
+                if waived(br):
+                    continue
+                ok = False
+                details.append(f"{br}: missing in V4")
                 continue
             for tag, x4, x3 in (("sum", s4[br][0], s3[br][0]),
                                 ("sum2", s4[br][1], s3[br][1])):

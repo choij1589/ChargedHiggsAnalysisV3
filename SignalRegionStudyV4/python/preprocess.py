@@ -399,6 +399,22 @@ class SamplePreprocessor(BasePreprocessor):
             columns += [f"score_{self.masspoint}_{suffix}"
                         for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']]
 
+        if n_entries == 0:
+            # RDF Snapshot writes a BRANCHLESS tree for zero-entry inputs;
+            # downstream readers expect the branch schema to exist (the old
+            # per-entry loop always declared branches before filling).
+            out = ROOT.TFile(self.out_path, "UPDATE")
+            tree = ROOT.TTree(output_tree_name, "")
+            from array import array
+            buf = {name: array('d', [0.0]) for name in columns}
+            for name in columns:
+                tree.Branch(name, buf[name], f"{name}/D")
+            out.cd()
+            tree.Write()
+            out.Close()
+            logging.debug(f"Wrote empty (schema-only) tree for {output_tree_name}")
+            return
+
         opts = ROOT.RDF.RSnapshotOptions()
         opts.fMode = "UPDATE"
         columns_vec = ROOT.std.vector('string')(columns)
