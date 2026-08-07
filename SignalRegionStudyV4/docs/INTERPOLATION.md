@@ -14,8 +14,9 @@ DCB fit function** whose parameters are interpolated between the MC
 points:
 
 1. Fit the production DCB (double-sided `RooCrystalBall`) to signal MC at
-   each available mA, per merged run-period category
-   (SR1E2Mu/SR3Mu × Run2/Run3).
+   each available mA, per merged run-period category — 6 in total:
+   SR1E2Mu / SR3Mu_lowM / SR3Mu_highM × Run2 / Run3 (SR3Mu pairing
+   variants are interpolated separately, see below).
 2. Parametrize each DCB parameter (`x0, sigmaL, sigmaR, alphaL, nL,
    alphaR, nR`) as a low-order polynomial of mA.
 3. For any target mA, evaluate the polynomials, build the DCB, and
@@ -82,16 +83,27 @@ Success criteria: |pull| < 2 for x0/sigmaL/sigmaR at interpolation
 points (tails ≤ ~3); interpolated-vs-MC χ²/ndf ≲ 1.5× the direct fit's;
 polynomial χ²/ndf ∈ ~[0.3, 3].
 
-### SR3Mu pairing variants
+### SR3Mu pairing variants (decision)
 
-The shared sample layout stores every signal in **both** SR3Mu pairing
-variants (`SR3Mu_lowM`, `SR3Mu_highM`) precisely because interpolation
-needs them: at mHc = 145 the production pairing rule
-(`srspaths.pairing_variant`: highM iff mHc ≥ 100 and mA ≥ 60) switches
-variants at mA = 60, which would put a shape discontinuity into a single
-parameter-vs-mA scan. The plan is to parametrize each variant separately
-across the full mA range and let the production rule pick the variant
-when an interpolated template is built.
+**lowM and highM are interpolated separately.** The shared sample layout
+stores every signal in **both** SR3Mu pairing variants
+(`SR3Mu_lowM`, `SR3Mu_highM`) — even for mass points whose production
+templates use only one — precisely because interpolation needs both: at
+mHc = 145 the production pairing rule (`srspaths.pairing_variant`:
+highM iff mHc ≥ 100 and mA ≥ 60) switches variants at mA = 60, which
+would put a shape discontinuity into a single parameter-vs-mA scan.
+
+The study therefore fits **6 categories** over the full mA range:
+
+```
+SR1E2Mu      × {Run2, Run3}
+SR3Mu_lowM   × {Run2, Run3}
+SR3Mu_highM  × {Run2, Run3}
+```
+
+Each variant gets its own parameter polynomials; when an interpolated
+template is built for production, the pairing rule picks which variant's
+polynomials to use at that (mHc, mA).
 
 ## Test chain (`test/interpolation/`)
 
@@ -129,33 +141,31 @@ the shared layout; the old-layout MHc145 sample dirs no longer exist.
 The recorded fits stay valid as results, but nothing MHc145 can be
 re-derived or continued until the signals are re-preprocessed.
 
-**Adaptation needed in `test/interpolation/` before resuming** (scripts
-still assume the pre-refactor contracts):
+**Adaptations done (2026-08-07)** — `test/interpolation/` now targets the
+shared layout: the 6-category scheme above
+(`interp_config.STUDY_CHANNELS`), signal paths via
+`interp_config.signal_path` (built on `srspaths.shared_channel_dirname`),
+`verify_samples.py` rewritten for shared dirs (opens every signal file;
+shared backgrounds existence-checked), `link_samples.sh` removed
+(obsolete — `samples/` is a pnfs symlink). Pre-refactor fits archived as
+`results/dcb_fits.prerefactor.json` (old `SR3Mu_*` categories map to
+`SR3Mu_lowM_*` for MA15/35/45 and `SR3Mu_highM_*` for MA60/95 — the
+production pairing at the time of that preprocessing).
 
-1. `srspaths.sample_dir` now takes `(era, channel, masspoint, method)`
-   and resolves Baseline to the shared dirs — update `fit_all_points.py`
-   and `closure_test.py` call sites (method `"Baseline"`), and decide the
-   SR3Mu variant handling per the pairing plan above.
-2. `verify_samples.py` must check the shared layout (signal files
-   `{mp}.root` inside `SR1E2Mu` / `SR3Mu_{lowM,highM}`) instead of
-   per-masspoint dirs.
-3. `link_samples.sh` is obsolete (`samples/` is already a pnfs symlink).
-4. Preprocessing driver interface changed:
-   `./automize/preprocess.sh [--masspoint MP] [--skip-backgrounds] ...`
-   — an interpolation mass point needs only its 16 shared-signal nodes;
-   shared backgrounds are already in place.
+**In flight**: the 12 signal-only DAGs were submitted 2026-08-07
+(`./automize/preprocess.sh --masspoint MHc145_MA{X} --skip-backgrounds`;
+16 nodes each, 40 for the ParticleNet points 85/90/92/95).
 
-**Resume checklist**:
+**Remaining steps**:
 
-1. Re-preprocess the 12 MHc145 signals (signal-only DAGs, new layout).
-2. Verify with the adapted `verify_samples.py` (open every file — the
-   concurrent-xrdcp truncation hazard is real; see
-   `pnfs` history in the repo memory / docs/SAMPLES.md).
-3. Re-run stage 1 for all 12 points (re-fit the 5 known points as a
-   cross-check against the recorded values — same fit config, same MC
-   events ⇒ identical parameters expected).
-4. Run stage 2 (polynomials) and stage 3 (closure); judge against the
+1. Verify with `verify_samples.py --all` (open every signal file — the
+   concurrent-xrdcp truncation hazard is real; see docs/SAMPLES.md);
+   rescue failed DAGs (`condor_submit_dag dag.dag` picks up rescue001).
+2. Run stage 1 for all 12 points × 6 categories (72 fits); cross-check
+   the archived pre-refactor values (same fit config, same MC events ⇒
+   identical parameters expected for the mapped categories).
+3. Run stage 2 (polynomials) and stage 3 (closure); judge against the
    success criteria above.
-5. If closure holds: promote — template producer that integrates the
+4. If closure holds: promote — template producer that integrates the
    interpolated DCB over adaptive bins, behind a new method segment
    (`test/interpolation` code graduates into `python/` at that point).
