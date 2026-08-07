@@ -345,6 +345,17 @@ JSONs merged by `merge_fits.py`, which fails loudly on missing parts).
 Submit-file gotcha worth remembering: a `queue` variable must not be
 named `output` — it silently overrides condor's stdout attribute.
 
+**Fixed polynomial orders (2026-08-07, ADOPTED)**: order selection by
+F-test ladder is replaced by fixed orders for the physics-motivated
+parameters — x0 pol1, σL/σR pol2, αL/αR pol2, c1/c2 pol2 (single-entry
+lists in `interp_config.POLY_ORDERS`; multi-entry lists still engage the
+F-test, e.g. the floating-n n's). Closure is statistically equivalent to
+the F-test choice everywhere except MHc160 lowM_Run3 (median 2.9 → 4.2:
+its αL genuinely prefers pol1 there) — accepted for determinism and
+inter-category consistency. Only the adopted variant's plots stay under
+`plots/MHc{X}/cheb_fixedn/`; superseded variants are under
+`plots/archive/`.
+
 **Chebychev combinatoric background (2026-08-07, ADOPTED for SR3Mu)**:
 the exponential could not reproduce the *flat* wrong-pairing plateau
 (left-of-peak ratio swings of ±20% for lowM at mA ≳ 50, in the direct
