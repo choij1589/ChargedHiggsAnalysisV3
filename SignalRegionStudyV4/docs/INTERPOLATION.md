@@ -345,6 +345,21 @@ JSONs merged by `merge_fits.py`, which fails loudly on missing parts).
 Submit-file gotcha worth remembering: a `queue` variable must not be
 named `output` — it silently overrides condor's stdout attribute.
 
+**Chebychev combinatoric background (2026-08-07, ADOPTED for SR3Mu)**:
+the exponential could not reproduce the *flat* wrong-pairing plateau
+(left-of-peak ratio swings of ±20% for lowM at mA ≳ 50, in the direct
+fits themselves). Replaced by a 2nd-order Chebychev
+(`--cheb-bkg`, variants `cheb`/`cheb_fixedn`; parameters c1/c2 pol1/2
+replace lam): lowM direct-fit χ²/ndf medians drop 3.8→2.4 (MHc160
+Run2, max 9.3→4.7) and 5.2→2.8 (MHc145 Run2); the MA70 plateau ratio
+flattens to ±10%. One robustness fix proved essential: **points where
+fsig → 1 refit as pure DCB** (`bkg_dropped`) — otherwise the
+unconstrained background parameters inflate all errors and the low-mA
+polynomial anchors lose their weight (this caused interpolated χ²/ndf
+up to ~115 at lowM mA≤35 before the fix; ≤ ~6 after). fsig anchors the
+logistic at 1.0 ± 0.002 at such points; c1/c2 carry zero error there
+and drop out of their parametrizations.
+
 **Uniform [15,155] range with logistic fsig (2026-08-07, ADOPTED)**:
 production uses highM only above the pairing boundary, but at lower mHc
 (e.g. MHc130, boundary mA=60) that region holds too few MC points to
