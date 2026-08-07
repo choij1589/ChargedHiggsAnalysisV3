@@ -25,16 +25,29 @@ points:
    plugs into the existing chain behind a `srspaths.template_dir` method
    segment (see CLAUDE.md "Future Phases").
 
-The current feasibility test uses **mHc = 145 GeV** (12 MC points).
+**Scope: this is a Baseline study.** All fits read the shared-layout
+signals built from the standard skims — including for ParticleNet-trained
+mass points, which enter purely as Baseline signal shapes. A dedicated
+ParticleNet interpolation study follows after the Baseline one is done
+(the PN per-masspoint sample dirs produced alongside the shared signals
+are unused here but will serve that study).
+
+Feasibility tests: **mHc = 145 GeV** (12 MC points) and
+**mHc = 160 GeV** (23 MC points).
 
 ## Method
 
 ### Fit / validation split
 
-| role | mA points |
-|------|-----------|
-| polynomial fit inputs | **15**, 35, 60, 80, 90, 100, 140 |
-| held-out validation   | 45, 85, 92, 95, 120 (15 doubles as an in-sample check) |
+| mHc | role | mA points |
+|-----|------|-----------|
+| 145 | polynomial fit inputs | **15**, 35, 60, 80, 90, 100, 140 |
+| 145 | held-out validation   | 45, 85, 92, 95, 120 (15 doubles as an in-sample check) |
+| 160 | polynomial fit inputs | 15, 20, 30, 40, 50, 70, 90, 115, 135, 155 |
+| 160 | closure               | all 23 points (fit points as in-sample checks) |
+
+Per-study definitions live in `interp_config.STUDIES`; every stage script
+takes `--mhc {145,160}` and writes to `results/MHc{X}/`, `plots/MHc{X}/`.
 
 MA15 was initially validation-only (extrapolation probe): with fit
 points starting at 35, the extrapolated shape at 15 failed badly
