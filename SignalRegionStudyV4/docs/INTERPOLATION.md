@@ -217,8 +217,38 @@ production pairing at the time of that preprocessing).
     (≈ 2–3×, pulls up to ±8). Next lever: constrain the α–n degeneracy
     (fix n per category, interpolate α alone), not higher orders.
 
-**Next**: decide the tail-degeneracy treatment for SR3Mu (fix n per
-category, or add fit points near 92–95), then promote — a template
-producer that integrates the interpolated DCB over adaptive bins behind a
-new method segment (`test/interpolation` code graduates into `python/`
-at that point).
+**MHc160 study ran 2026-08-07** (23 points, fit set
+15/20/30/40/50/70/90/115/135/155, closure on all points; Baseline
+samples throughout):
+
+- Preprocessing: all 23 points verified on pnfs; 138/138 fits (1
+  expected bad: SR3Mu_highM MA15). PN-node failures during preprocessing
+  were all irrelevant to Baseline: the DAG generator adds TTZ2E1Mu nodes
+  for PN points outside preprocess.py's 83 < mA < 100 window
+  (MA70/80/105/115 — driver inconsistency worth fixing), and the
+  MA98 score branches are missing from Run3Mu/2017 and Run3-era
+  TTZ NoHistMode inputs (noted for the future PN study).
+- Closure (median interp/direct χ² ratio per category):
+  - **SR1E2Mu: passes across the full 15–155 range** — median ratio
+    1.03 (Run2) / 1.10 (Run3); worst held-out point 3.8 vs 1.9.
+  - **SR3Mu_highM: median ratio 1.3–1.4**, but nR/alphaR-driven
+    failures cluster at mA 95–105 (χ²/ndf up to 32 vs 6) — same tail
+    pattern as MHc145's 92/95 hot spot, in the region where the W*
+    softens (mA → mHc − 50).
+  - **SR3Mu_lowM: the weak spot** — median ratio 2.2–2.6, nL-driven,
+    worst at high mA (120/125: up to 35 vs 2.6) and even at some
+    in-sample fit points (MA115: 35.6 vs 3.4): a pol2 cannot track the
+    lowM tail evolution over 15–155.
+
+**Interpretation**: parameter-polynomial interpolation is validated for
+SR1E2Mu at both mHc values over the full mA range. For SR3Mu the tails
+(nL for lowM, nR/alphaR for highM) cannot be described by low-order
+polynomials over the *full* range — but production only uses lowM below
+mA 60 and highM above, so the natural fixes are (a) restrict each
+variant's parametrization to its production-relevant mA range, and/or
+(b) break the α–n degeneracy (fix n per category, interpolate α alone).
+
+**Next**: choose the SR3Mu tail treatment ((a)/(b) above), then
+promote — a template producer that integrates the interpolated DCB over
+adaptive bins behind a new method segment (`test/interpolation` code
+graduates into `python/` at that point).
