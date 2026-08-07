@@ -54,7 +54,15 @@ samples/{era}/{channel}/{mp}/     ParticleNet per-masspoint (incl. TTZ2E1Mu)
 - ParticleNet needs per-masspoint dirs regardless: the score branches are
   per-masspoint and the inputs come from `_MHc{X}..._NoHistMode` skims.
   (Standard and NoHistMode skims carry identical events — verified
-  empirically by the reproduction test.)
+  empirically by the reproduction test for MHc130_MA90. **Known
+  exceptions, found 2026-08-07**: 5 MHc145 NoHistMode files are
+  deficient — missing 30–75% of the standard skim's `Events_Central`
+  entries — Run1E2Mu: MA85/2016postVFP (−69%), MA90/2016preVFP (−30%),
+  MA90/2017 (−75%), MA95/2016preVFP (−55%); Run3Mu: MA85/2016preVFP
+  (−46%). Run3 and MA92 are clean. ParticleNet per-masspoint samples for
+  those (point, era) combinations under-count signal MC until the
+  NoHistMode skims are re-produced; the shared-signal dirs use standard
+  skims and are unaffected.)
 - An **interpolated mass point** therefore needs only a signal file dropped
   into the existing shared dirs — no background preprocessing at all.
 
