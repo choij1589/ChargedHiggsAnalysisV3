@@ -1,416 +1,147 @@
 # INTERPOLATION.md — Parametric Signal Templates via DCB Interpolation
 
-Purpose, method, and status of the mA-interpolation development
-(B2G-25-013 next-generation signal modeling). Study code lives in
-`test/interpolation/` (untracked scratch by convention); this document is
-the durable record.
+Purpose, adopted method, results, and decision history of the
+mA-interpolation development (B2G-25-013 next-generation signal
+modeling). Study code lives in `test/interpolation/` (untracked scratch
+by convention); this document is the durable record.
 
 ## Purpose
 
 The analysis needs exclusion limits as a continuous function of mA, but
-signal MC exists only at discrete mass points. The goal is to build
-**binned signal templates at arbitrary mA (fixed mHc) by integrating a
-DCB fit function** whose parameters are interpolated between the MC
-points:
-
-1. Fit the production DCB (double-sided `RooCrystalBall`) to signal MC at
-   each available mA, per merged run-period category — 6 in total:
-   SR1E2Mu / SR3Mu_lowM / SR3Mu_highM × Run2 / Run3 (SR3Mu pairing
-   variants are interpolated separately, see below).
-2. Parametrize each DCB parameter (`x0, sigmaL, sigmaR, alphaL, nL,
-   alphaR, nR`) as a low-order polynomial of mA.
-3. For any target mA, evaluate the polynomials, build the DCB, and
-   integrate it over the adaptive bin edges to produce the binned signal
-   template. Backgrounds stay binned as today; the interpolated point
-   plugs into the existing chain behind a `srspaths.template_dir` method
-   segment (see CLAUDE.md "Future Phases").
+signal MC exists only at discrete mass points. Goal: **binned signal
+templates at arbitrary mA (fixed mHc) by integrating a fitted signal
+model** whose parameters are interpolated between the MC points.
+Backgrounds stay binned as today; the interpolated point plugs into the
+existing chain behind a `srspaths.template_dir` method segment (see
+CLAUDE.md "Future Phases").
 
 **Scope: this is a Baseline study.** All fits read the shared-layout
 signals built from the standard skims — including for ParticleNet-trained
-mass points, which enter purely as Baseline signal shapes. A dedicated
-ParticleNet interpolation study follows after the Baseline one is done
-(the PN per-masspoint sample dirs produced alongside the shared signals
-are unused here but will serve that study).
+mass points. A dedicated ParticleNet interpolation study follows after
+the Baseline one.
 
-Feasibility tests: **mHc = 145 GeV** (12 MC points) and
+Feasibility studies: **mHc = 145 GeV** (12 MC points) and
 **mHc = 160 GeV** (23 MC points).
 
-## Method
+## Adopted method
 
-### Fit / validation split
+Per merged run-period category — 6 in total,
+{SR1E2Mu, SR3Mu_lowM, SR3Mu_highM} × {Run2, Run3}:
 
-| mHc | role | mA points |
-|-----|------|-----------|
-| 145 | polynomial fit inputs | **15**, 35, 60, 80, 90, 100, 140 |
-| 145 | held-out validation   | 45, 85, 92, 95, 120 (15 doubles as an in-sample check) |
-| 160 | polynomial fit inputs | 15, 20, 30, 40, 50, 70, 90, 115, 135, 155 |
-| 160 | closure               | all 23 points (fit points as in-sample checks) |
+**Signal model** (`test/interpolation/dcb_fit_utils.py`):
 
-Per-study definitions live in `interp_config.STUDIES`; every stage script
-takes `--mhc {145,160}` and writes to `results/MHc{X}/`, `plots/MHc{X}/`.
+- SR1E2Mu: pure double-sided Crystal Ball (DCB) — one dimuon pairing,
+  no combinatorics.
+- SR3Mu_lowM / SR3Mu_highM:
+  `S(m) = fsig · DCB(m) + (1 − fsig) · Chebychev₂(m; c1, c2)` — the
+  pairing picks the wrong (combinatoric) dimuon in a mass-dependent
+  fraction of events, producing a near-flat pedestal under the peak that
+  only a shape that *can be flat* describes.
+- **Frozen tails**: nL/nR fixed per category to the median of the good
+  floating-n fits (two-pass: floating-n campaign first, then the
+  frozen-n refit). This breaks the α–n degeneracy — with n floating,
+  each mass point lands elsewhere in the α–n valley and no smooth
+  parametrization can follow.
+- **Background drop**: points where fsig >
+  `FSIG_DROP_THRESHOLD` (0.995) refit as pure DCB — unconstrained
+  background parameters otherwise inflate every error and de-weight the
+  low-mA anchors of the parametrizations. Such points anchor the fsig
+  logistic at 1.0 ± `FSIG_ANCHOR_ERROR` (0.002); their c1/c2 carry zero
+  error and drop out. The same threshold governs the closure-side model
+  build.
+- Two-stage fit structure (wide pre-fit sets a ±10σ window) identical to
+  the production `fit_dcb`; `fit_dcb_with_errors` remains a verbatim
+  mirror of production (frozen reproduction contract),
+  `fit_dcb_bkg` is the study's generalized fit.
 
-MA15 was initially validation-only (extrapolation probe): with fit
-points starting at 35, the extrapolated shape at 15 failed badly
-(χ²/ndf up to ~600 with mixed sigma orders; still 5–46 after fixing
-sigmas to pol2). Moving MA15 into the fit set (2026-08-07) fixed the low
-end — χ²/ndf ≤ 7.5 in every category where MA15 is physical — at the
-cost of a mild systematic degradation of the lowM tails at mid/high mA
-(nL stretches to cover MA15's bias). Residual caveat: the DCB fit window
-is floored at 12 GeV (`fit_dcb`), clipping MA15's left tail; that bias
-lives in the direct MA15 fit parameters themselves, so no polynomial
-choice removes it (lowering the floor in a test-local fit would, at the
-cost of departing from the production fit configuration). SR3Mu_highM
-never fits MA15 (no physical peak — the quality gate drops it), so its
-polynomials are unaffected.
+**Parametrization vs mA** (`fit_polynomials.py`; forms/orders in
+`interp_config.POLY_ORDERS`):
 
-### Fits with uncertainties
+| parameter | form |
+|---|---|
+| x0 | pol1 (fixed) |
+| sigmaL, sigmaR | pol2 (fixed; common form — both widths arise from the same two-muon resolution convolution) |
+| alphaL, alphaR | pol2 (fixed) |
+| nL, nR | frozen per category (constant records) |
+| fsig | 4-parameter logistic `base + amp/(1+exp(−(m−m0)/w))` — sigmoid turn-on/off around the pairing boundary; polynomial fallback below 5 points |
+| c1, c2 | pol2 (fixed) |
 
-`test/interpolation/dcb_fit_utils.py::fit_dcb_with_errors` is a verbatim
-mirror of the production two-stage fit
-(`python/makeBinnedTemplates.py::fit_dcb`) that additionally captures the
-`RooFitResult`: per-parameter errors, Minuit status, covQual, at-bound
-flags, dataset stats. The production function is untouched (datacard
-bytes are frozen by the reproduction contract). Central values reproduce
-production fits exactly.
+Error-weighted fits over the study's fit points (good-quality fits
+only); **uniform mA range** for both SR3Mu variants — production uses
+highM only above the mA = 60 pairing boundary, but at lower mHc (e.g.
+MHc130) that region holds too few MC points, so every mass point
+constrains both variants. Single-entry order lists fix the order;
+multi-entry lists engage an F-test ladder (step up accepted at p < 0.05).
 
-Fit quality gate: `status != 0`, `0 <= covQual < 2`, a shape parameter
-pinned at its bound, or a zero/NaN error ⇒ excluded from polynomial fits
-and pulls (always still recorded). Note `covQual = -1` is common under
-`SumW2Error(True)` and is not treated as a failure.
+**Mass-point splits** (`interp_config.STUDIES`):
 
-### Polynomial parametrization
-
-Error-weighted least squares (`numpy.polyfit`, `w = 1/err`,
-`cov="unscaled"`) over the fit points only; order selection walks upward
-and accepts a higher order only on an F-test p < 0.05:
-
-| parameter | orders | expectation |
-|-----------|--------|-------------|
-| x0 | 1, 2 (F-test) | ≈ mA, slope ≈ 1 |
-| sigmaL, sigmaR | **2 (fixed)** | ~1% of mA, mild curvature |
-| alphaL, alphaR | 1, 2 (F-test) | slowly varying, 1.4–1.7 |
-| nL, nR | 1, 2 (F-test) | noisy; anti-correlated with alpha |
-
-Order-choice history (2026-08-07): tails originally 0/1 — failed closure
-at SR3Mu_lowM MA45 and SR3Mu_highM MA92/95 (tail parameters trend
-strongly with mA in the SR3Mu variants); raised to 1/2, which resolved
-MA45 and halved the remaining excesses. Sigmas were then **fixed to a
-common pol2** (both widths arise from the same two-muon resolution
-convolution — no reason for different functional forms per side, and the
-F-test's per-side pol1/pol2 split was selection noise): improved sigma
-fit χ² everywhere and, as a bonus, tamed the low-mA extrapolation
-(MA15 χ²/ndf e.g. 59→5 in SR1E2Mu_Run2).
-
-The alpha–n degeneracy (earlier tail transition ⇔ slower fall-off) makes
-the n values scatter without the shape changing much; the shape-level
-closure χ² is the meaningful tail metric, not the n pulls.
-
-### Closure
-
-At each held-out mA: evaluate polynomials → predicted DCB; compare with
-(a) per-parameter pulls against the direct fit, (b) overlay canvas
-MC + direct DCB + interpolated DCB, (c) χ²/ndf of each shape vs the MC
-histogram (pdf normalized to the MC integral in the fit window).
-
-Success criteria: |pull| < 2 for x0/sigmaL/sigmaR at interpolation
-points (tails ≤ ~3); interpolated-vs-MC χ²/ndf ≲ 1.5× the direct fit's;
-polynomial χ²/ndf ∈ ~[0.3, 3].
-
-### SR3Mu pairing variants (decision)
-
-**lowM and highM are interpolated separately.** The shared sample layout
-stores every signal in **both** SR3Mu pairing variants
-(`SR3Mu_lowM`, `SR3Mu_highM`) — even for mass points whose production
-templates use only one — precisely because interpolation needs both: at
-mHc = 145 the production pairing rule (`srspaths.pairing_variant`:
-highM iff mHc ≥ 100 and mA ≥ 60) switches variants at mA = 60, which
-would put a shape discontinuity into a single parameter-vs-mA scan.
-
-The study therefore fits **6 categories** over the full mA range:
-
-```
-SR1E2Mu      × {Run2, Run3}
-SR3Mu_lowM   × {Run2, Run3}
-SR3Mu_highM  × {Run2, Run3}
-```
-
-Each variant gets its own parameter polynomials; when an interpolated
-template is built for production, the pairing rule picks which variant's
-polynomials to use at that (mHc, mA).
-
-## Test chain (`test/interpolation/`)
-
-```
-interp_config.py     constants (mass split, poly orders, quality cuts)
-dcb_fit_utils.py     fit_dcb_with_errors + canvas parameter labels
-verify_samples.py    pnfs integrity gate (open every file; anti-truncation)
-fit_all_points.py    stage 1: fits -> results/dcb_fits.json + plots/fits/
-fit_polynomials.py   stage 2: polynomials -> results/polynomials.json + plots/params/
-closure_test.py      stage 3: closure -> results/closure.json + plots/closure/
-```
-
-Stage 1 supports incremental `--masspoints/--categories` reruns (merges
-into the existing JSON). Signal-fit canvases carry the fitted parameters
-± errors; closure canvases carry a direct-vs-interpolated parameter table.
-
-## Status (2026-08-07)
-
-**Done before the shared-layout refactor** (old per-masspoint layout,
-every file verified on pnfs at the time):
-
-- 5 mass points fitted — MA15, 35, 45, 60, 95 × 4 categories = 20 fits,
-  **all quality good** (covQual 2–3), in
-  `test/interpolation/results/dcb_fits.json` (+ labeled canvases).
-- Early trends (strongly supportive of the approach):
-  - `x0` on nominal mA within 0.02 GeV everywhere;
-  - `sigmaL/R` ≈ 1% of mA, cleanly linear (0.14 → 0.37 → 0.49 GeV at
-    15/35/45);
-  - `alphaL/R` stable at 1.4–1.7; `nL/R` noisy as expected.
-- MA100 had 2 transient node failures (input-open, xrdcp destination
-  timeout); its rescue DAG was mid-flight when work was paused.
-
-**Invalidated by the refactor**: the pnfs sample area was rebuilt into
-the shared layout; the old-layout MHc145 sample dirs no longer exist.
-The recorded fits stay valid as results, but nothing MHc145 can be
-re-derived or continued until the signals are re-preprocessed.
-
-**Adaptations done (2026-08-07)** — `test/interpolation/` now targets the
-shared layout: the 6-category scheme above
-(`interp_config.STUDY_CHANNELS`), signal paths via
-`interp_config.signal_path` (built on `srspaths.shared_channel_dirname`),
-`verify_samples.py` rewritten for shared dirs (opens every signal file;
-shared backgrounds existence-checked), `link_samples.sh` removed
-(obsolete — `samples/` is a pnfs symlink). Pre-refactor fits archived as
-`results/dcb_fits.prerefactor.json` (old `SR3Mu_*` categories map to
-`SR3Mu_lowM_*` for MA15/35/45 and `SR3Mu_highM_*` for MA60/95 — the
-production pairing at the time of that preprocessing).
-
-**In flight**: the 12 signal-only DAGs were submitted 2026-08-07
-(`./automize/preprocess.sh --masspoint MHc145_MA{X} --skip-backgrounds`;
-16 nodes each, 40 for the ParticleNet points 85/90/92/95).
-
-**Full chain ran 2026-08-07** (shared layout, 6 categories):
-
-- Preprocessing: all 12 points verified on pnfs. One blocker outside this
-  repo: the **standard** skim
-  `Run1E2Mu_RunSyst_RunTheoryUnc/2023/TTToHcToWAToMuMu-MHc145_MA100.root`
-  is corrupt (truncated, unreadable) ⇒ SR1E2Mu_Run3 has no MA100 fit
-  point until SKNano regenerates it. Separately, 41 NoHistMode files are
-  deficient (affects ParticleNet production only — see docs/SAMPLES.md).
-- Stage 1: 71/72 fits; all good except SR3Mu_highM at MA15 (no physical
-  peak — highM pairing picks the combinatoric dimuon at low mA;
-  structural, not a fit problem). Pre-refactor cross-check: parameters
-  agree to ≤3e-4 (the one exception traced to the deficient MA95
-  NoHistMode input of the old layout).
-- Stage 2: x0 pol1 with slope ≈ 1 everywhere (χ²/ndf 1–6); sigmas
-  common pol2 (χ²/ndf 0.5–7.6).
-- Stage 3 closure, final configuration (MA15 in the fit set, pol2
-  sigmas, pol1/pol2 tails):
-  - **SR1E2Mu: passes** — interp χ²/ndf 1.6–8.2 vs direct 1.4–6.6
-    across 15–120; at several points the interpolated shape matches MC
-    *better* than the direct fit (e.g. Run3 MA45: 5.2 vs 6.6).
-  - **MA15: usable** — 2.2/2.7 (SR1E2Mu), 7.5/5.8 (lowM Run2/Run3);
-    the lowM residual is the 12 GeV window-floor bias (see above).
-  - **SR3Mu_lowM / highM: mostly passes** — remaining hot spots are
-    purely tail-degeneracy driven: alphaR at highM MA92/95
-    (interp/direct ≈ 1.7–3.0, pulls −3…−6) and nL in lowM at 92–120
-    (≈ 2–3×, pulls up to ±8). Next lever: constrain the α–n degeneracy
-    (fix n per category, interpolate α alone), not higher orders.
-
-**MHc160 study ran 2026-08-07** (23 points, fit set
-15/20/30/40/50/70/90/115/135/155, closure on all points; Baseline
-samples throughout):
-
-- Preprocessing: all 23 points verified on pnfs; 138/138 fits (1
-  expected bad: SR3Mu_highM MA15). PN-node failures during preprocessing
-  were all irrelevant to Baseline: the DAG generator adds TTZ2E1Mu nodes
-  for PN points outside preprocess.py's 83 < mA < 100 window
-  (MA70/80/105/115 — driver inconsistency worth fixing), and the
-  MA98 score branches are missing from Run3Mu/2017 and Run3-era
-  TTZ NoHistMode inputs (noted for the future PN study).
-- Closure (median interp/direct χ² ratio per category):
-  - **SR1E2Mu: passes across the full 15–155 range** — median ratio
-    1.03 (Run2) / 1.10 (Run3); worst held-out point 3.8 vs 1.9.
-  - **SR3Mu_highM: median ratio 1.3–1.4**, but nR/alphaR-driven
-    failures cluster at mA 95–105 (χ²/ndf up to 32 vs 6) — same tail
-    pattern as MHc145's 92/95 hot spot, in the region where the W*
-    softens (mA → mHc − 50).
-  - **SR3Mu_lowM: the weak spot** — median ratio 2.2–2.6, nL-driven,
-    worst at high mA (120/125: up to 35 vs 2.6) and even at some
-    in-sample fit points (MA115: 35.6 vs 3.4): a pol2 cannot track the
-    lowM tail evolution over 15–155.
-
-**Range-restricted SR3Mu parametrization (2026-08-07, adopted)**:
-each variant is fit and closure-tested only inside its
-production-relevant mA range — `interp_config.CHANNEL_MA_RANGES`:
-lowM ∈ [15, 70], highM ∈ [50, 155] (overlap covers the mA = 60
-production boundary; SR1E2Mu unrestricted). Out-of-range points are
-excluded entirely from that variant's fits, plots, and closure. With few
-in-range points the order ladder falls back to the highest feasible
-order (MHc145 lowM has 3 fit points → pol1).
-
-Results of the restriction:
-
-- **SR3Mu_lowM: solved.** Median interp/direct ratio 0.93–1.25 across
-  both mHc studies (was 2.2–2.6 full-range at MHc160); worst in-range
-  point 5.2 vs 4.2. The nL polynomial χ²/ndf dropped from 304/7 to 7.4/3
-  (MHc160 Run2).
-- **SR3Mu_highM: NOT fixed by range restriction** — median ratios
-  2.2–3.4, still nR/alphaR-driven, concentrated at mA ≈ 92–105 (both
-  mHc) and 120–125 (MHc160). The highM tail parameters genuinely vary
-  non-polynomially inside [50, 155]: nR polynomial χ²/ndf stays at
-  ~120–130/3–4. This is the α–n degeneracy, not an order or range
-  problem.
-
-**Fixed-n variant (2026-08-07, adopted for ALL categories)**: the α–n
-degeneracy made the floating tail parameters valley-hop between mass
-points, defeating any smooth parametrization (highM nR polynomial
-χ²/ndf ~120 even range-restricted). Fix: freeze nL/nR per category to
-the **median of the good floating-n in-range fits**
-(`interp_config.fixed_n_values`), refit every mass point with only
-x0/σL/σR/αL/αR floating (`dcb_fit_utils.fit_dcb_fixed_n`; 5 free
-parameters), and interpolate those 5 (the frozen n enter the JSON as
-constant order-0 "polynomials"). Run with `--fixed-n` on all three
-stages; outputs under `results/MHc{X}/fixedn/`, `plots/MHc{X}/fixedn/`.
-
-The derived n are remarkably consistent between mHc 145 and 160
-(SR1E2Mu nL≈2.0 nR≈6–8; highM nL≈1.9 nR≈0.65; lowM nL≈1–1.3 nR≈5–6),
-confirming n is a stable per-category property. With n frozen the alphas
-become genuinely smooth functions of mA — highM alphaR rises to a
-maximum near mA≈115 and falls again, which needs pol3 (allowed for
-alphas; F-test selects it where the point count supports it). All
-210 fixed-n fits converge with quality good (including highM MA15,
-unstable when n floated).
-
-**Final closure, fixed-n + range restriction (held-out points, median
-interp/direct χ² ratio | worst point)**:
-
-| category | MHc145 | MHc160 |
+| mHc | fit points (mA) | closure points |
 |---|---|---|
-| SR1E2Mu_Run2 | 1.00 \| 2.4 vs 1.9 | 0.97 \| 3.1 vs 2.7 |
-| SR1E2Mu_Run3 | 1.11 \| 5.5 vs 4.7 | 0.98 \| 2.1 vs 1.9 |
-| SR3Mu_highM_Run2 | 1.04 \| 6.2 vs 5.7 | 1.06 \| 11.2 vs 7.8 |
-| SR3Mu_highM_Run3 | 1.08 \| 3.6 vs 2.6 | 1.03 \| 2.8 vs 2.0 |
-| SR3Mu_lowM_Run2 | 1.03 \| 4.5 vs 4.4 | 1.00 \| 5.5 vs 5.0 |
-| SR3Mu_lowM_Run3 | 0.87 \| 2.1 vs 2.5 | 0.99 \| 4.7 vs 4.3 |
+| 145 | 15, 35, 60, 80, 90, 100, 140 | 15, 45, 85, 92, 95, 120 |
+| 160 | 15, 20, 30, 40, 50, 70, 90, 115, 135, 155 | all 23 points |
 
-No held-out point exceeds 1.5× the direct fit's χ²/ndf. The residual
-absolute χ² (e.g. highM 95: 13 vs 12) is the DCB model's own MC
-mismatch, not interpolation error. Note the α *parameter pulls* vs the
-individually-refit alphas can still be large (−5…−12) — with n frozen
-the per-point α rides the remnant micro-degeneracy — but the
-shape-level closure is the meaningful metric and it passes.
+(Closure points also in the fit set act as in-sample checks. MA15's fit
+window is floored at 12 GeV — clipped left tail; it was moved *into*
+the fit set because extrapolating below the lowest fit point fails.)
 
-**Adopted method (summary)**: per category — fixed nL/nR (median),
-range-restricted mass points (lowM [15,70], highM [50,155], SR1E2Mu
-unrestricted), polynomials: x0 pol1/2, σL/σR common pol2, αL/αR
-pol1/2/3 (F-test); interpolated template = polynomial x0/σ/α + frozen n.
+**Chain** (variant `cheb_fixedn`; one condor job per mass point for
+stage 1): see `test/interpolation/README.md` for the exact commands.
+Quality gate per fit: Minuit status 0, covQual not in [0, 2), no shape
+parameter at a bound, positive errors (frozen parameters exempt);
+covQual = −1 (common under SumW2Error) is not a failure. Bad fits are
+excluded from parametrizations and pulls, always logged.
 
-**DCB + exponential combinatoric background (2026-08-07, adopted for
-SR3Mu)**: the SR3Mu pairing picks the wrong (combinatoric) dimuon in a
-mass-dependent fraction of events, producing a smooth pedestal under the
-peak that a single DCB cannot describe — visible as a plateau mismatch
-for lowM at mA ≳ 50 (direct-fit χ²/ndf up to ~44 at MHc160). The signal
-model for both SR3Mu variants is now
+## Results (final configuration)
 
-    S(m) = fsig · DCB(m) + (1 − fsig) · exp(lam · m)
+Closure = interpolated shape vs MC, χ²/ndf, compared to the per-point
+direct fit's:
 
-(`dcb_fit_utils.fit_dcb_expo`; SR1E2Mu keeps the pure DCB — a single
-pairing has no combinatorics). `fsig` and `lam` are two additional
-interpolated quantities (pol1–3 / pol1–2; `fsig` clipped to [0.05, 1];
-`fsig → 1` at low mA is physical and not a quality failure). Same
-two-step as before: floating-n expo fits derive the per-category median
-n, then the frozen-n refit. Run with `--expo-bkg [--fixed-n]`; variants
-`expo`, `expo_fixedn`. Fit canvases now overlay the signal and
-background components (`FitCanvasWithRatio` gained an optional
-`components` config in Common/Tools/plotter.py).
+- **Direct-fit model quality**: χ²/ndf medians 1.4–2.8 per category
+  (max ≲ 5) across both mHc — the Chebychev background flattened the
+  lowM plateau region that a single DCB (ratio swings ±20–50%) and an
+  exponential could not describe.
+- **Interpolation closure**: interp medians 1.7–4.2 vs direct 1.4–2.8
+  over all 12 category × mHc combinations; the interpolated shapes are
+  statistically close to per-point fits everywhere in the studied
+  ranges, including MA15 (in-sample) and the dense highM 90–105 region.
+- SR3Mu_highM at MA15–25 has no physical peak (the high-mass pairing
+  picks the combinatoric dimuon at low mA) — those direct fits fail the
+  quality gate by construction and are excluded; production never uses
+  highM there.
 
-Results (expo_fixedn vs pure-DCB fixedn):
+**Hand-off artifact**: `results/MHc{X}/cheb_fixedn/polynomials.json`
+(+ frozen n in the same variant's `dcb_fits.json` meta). Remaining
+steps to production: yield (signal-efficiency) interpolation, then a
+template producer integrating the interpolated model over adaptive bins
+(`test/interpolation` code graduates into `python/` at that point).
 
-- **Model quality transformed** — lowM direct-fit χ²/ndf vs MC:
-  MHc160 mA=60: 10.1 → 4.6, mA=70: 17.6 → 5.8 (was up to 44 beyond the
-  range); MHc145 MA45: 4.4 → 2.4. All in-range direct fits now sit at
-  χ²/ndf ≲ 6.
-- **Closure holds** — SR3Mu held-out medians: MHc160 0.98–1.38,
-  MHc145 0.69–1.55; absolute interpolated χ²/ndf ≤ ~4 at every in-range
-  held-out point (ratios are noisier than the pure-DCB variant simply
-  because the direct-fit denominators are now small).
-- The expo parameters interpolate cleanly (`fsig` χ²/ndf ≈ 1–4,
-  `lam` ≈ 0.1–15).
+## Sample production status (2026-08-07)
 
-**Stage-1 fits run on condor** (2026-08-07): one vanilla job per mass
-point via `test/interpolation/submit_fits.sh --mhc {145,160}
-[--fixed-n] [--expo-bkg]` (wrapper `condor_fit_wrapper.sh`, per-job part
-JSONs merged by `merge_fits.py`, which fails loudly on missing parts).
-Submit-file gotcha worth remembering: a `queue` variable must not be
-named `output` — it silently overrides condor's stdout attribute.
+- MHc145 (12 points) and MHc160 (23 points) signals preprocessed into
+  the shared layout and verified file-by-file on pnfs
+  (`verify_samples.py`, the anti-truncation gate — concurrent-xrdcp
+  truncation is a real, observed failure mode).
+- One **corrupt standard skim** blocks SR1E2Mu/2023 for MHc145_MA100:
+  `Run1E2Mu_RunSyst_RunTheoryUnc/2023/TTToHcToWAToMuMu-MHc145_MA100.root`
+  (truncated at 9 MB; needs SKNano regeneration). That category-point is
+  skipped explicitly.
+- 41 deficient NoHistMode files (ParticleNet inputs only — does not
+  affect this Baseline study): see docs/SAMPLES.md.
 
-**Fixed polynomial orders (2026-08-07, ADOPTED)**: order selection by
-F-test ladder is replaced by fixed orders for the physics-motivated
-parameters — x0 pol1, σL/σR pol2, αL/αR pol2, c1/c2 pol2 (single-entry
-lists in `interp_config.POLY_ORDERS`; multi-entry lists still engage the
-F-test, e.g. the floating-n n's). Closure is statistically equivalent to
-the F-test choice everywhere except MHc160 lowM_Run3 (median 2.9 → 4.2:
-its αL genuinely prefers pol1 there) — accepted for determinism and
-inter-category consistency. Only the adopted variant's plots stay under
-`plots/MHc{X}/cheb_fixedn/`; superseded variants are under
-`plots/archive/`.
+## Decision history (chronological; each superseded by the next where applicable)
 
-**Chebychev combinatoric background (2026-08-07, ADOPTED for SR3Mu)**:
-the exponential could not reproduce the *flat* wrong-pairing plateau
-(left-of-peak ratio swings of ±20% for lowM at mA ≳ 50, in the direct
-fits themselves). Replaced by a 2nd-order Chebychev
-(`--cheb-bkg`, variants `cheb`/`cheb_fixedn`; parameters c1/c2 pol1/2
-replace lam): lowM direct-fit χ²/ndf medians drop 3.8→2.4 (MHc160
-Run2, max 9.3→4.7) and 5.2→2.8 (MHc145 Run2); the MA70 plateau ratio
-flattens to ±10%. One robustness fix proved essential: **points where
-fsig → 1 refit as pure DCB** (`bkg_dropped`) — otherwise the
-unconstrained background parameters inflate all errors and the low-mA
-polynomial anchors lose their weight (this caused interpolated χ²/ndf
-up to ~115 at lowM mA≤35 before the fix; ≤ ~6 after). fsig anchors the
-logistic at 1.0 ± 0.002 at such points; c1/c2 carry zero error there
-and drop out of their parametrizations.
+| decision | key evidence |
+|---|---|
+| DCB parameters interpolable in principle; x0 ≈ mA (pol1, slope 1), σ ≈ 1% of mA | first MHc145 pass, 20 fits |
+| MA15 moved from validation into the fit set | extrapolation below 35 GeV failed (χ²/ndf up to ~600) |
+| Tail orders raised 0/1 → 1/2, then σL/σR fixed to common pol2 | lowM MA45 / highM MA92–95 closure failures; F-test's per-side pol1/pol2 split was selection noise; pol2 σ also tamed the MA15 edge |
+| SR3Mu range restriction (lowM [15,70], highM [50,155]) tried, then **reverted to uniform range** | restriction fixed lowM tails but starves low-mHc highM of points (MHc130 use case); uniform range viable once fsig got its logistic form |
+| **Fixed n per category** (median of floating fits) | α–n valley-hopping defeated every parametrization (nR polynomial χ²/ndf ~120); with n frozen, α becomes smooth; per-point fit cost only ~0.2 in χ²/ndf. Simultaneous-fit n cross-checked: agrees with medians (nL within 0.6), lowM nR runs to the flat-likelihood n≈50 bound; no closure winner → median kept |
+| **Exponential background added (SR3Mu), then replaced by Chebychev₂** | single DCB cannot fit peak+pedestal (lowM direct χ²/ndf up to 44); expo halved it but cannot be flat; cheb2 halves it again (lowM medians 3.8→2.4) and flattens the plateau ratio to ±10% |
+| Background dropped when fsig → 1 | unconstrained background parameters inflated errors and broke low-mA anchors (interp χ²/ndf ~115 before, ≤ ~6 after) |
+| **Fixed orders** (x0 pol1, α pol2, c1/c2 pol2) replacing per-parameter F-test choice | closure statistically equivalent (one soft spot: MHc160 lowM_Run3 αL prefers pol1); determinism and inter-category consistency preferred |
 
-**Uniform [15,155] range with logistic fsig (2026-08-07, ADOPTED)**:
-production uses highM only above the pairing boundary, but at lower mHc
-(e.g. MHc130, boundary mA=60) that region holds too few MC points to
-constrain a range-restricted parametrization — so both SR3Mu variants
-are now parametrized over the full range
-(`CHANNEL_MA_RANGES = (15, 155)` for both). The enabler is a **logistic
-form for fsig** (`fsig(m) = base + amp/(1+exp(-(m-m0)/width))`, fit via
-scipy when ≥5 good points): fsig's sigmoid turn-on/off around the
-pairing boundary was the one quantity a polynomial could not track over
-the full range (χ²/ndf up to 887/8 → ~10–230 with the logistic; the
-remaining χ² excess reflects fsig's per-mille errors, not shape).
-Production-region closure (lowM judged at mA<60, highM at mA≥60) is
-within ~0.5 of the restricted config everywhere — e.g. lowM_Run3
-1.61 → 1.58 (MHc145), highM_Run3 worst point 7.9 → 3.8 (MHc160) — the
-one degradation (MHc145 lowM_Run2 3.78 → 5.16) is recovered by
-simfit-n (3.86).
-
-**Simultaneous-fit n (`--n-source simfit`, `expo_simn` variants)**: a
-per-category summed binned NLL across all mass points with one shared
-nL/nR (`derive_shared_n.py`, per-category condor jobs). Results: nL
-within ~0.6 of the medians everywhere; lowM nR runs to the n≈50 bound
-(the likelihood is flat there — a large-n CB tail is already Gaussian),
-which is also why 2 of 12 categories don't converge (median fallback,
-logged). Closure: no clear winner vs median-n (slightly better at
-MHc145, slightly worse at MHc160 highM_Run2). **Median-n stays the
-default** (robust, no convergence machinery); simfit-n remains available
-as a cross-check.
-
-**Full-range check with fixed n (2026-08-07, `--full-range` variant)**:
-could the SR3Mu variants share one [15,155] parametrization? highM: yes
-— full-range closure is equal or better (median ratios 1.01–1.06), its
-fixed-n parameters evolve smoothly over the whole range, so the [50,155]
-restriction is optional there. lowM: no — including the high-mA points
-degrades the production-relevant low-mA closure (MHc145 Run2 in-range
-median 1.03 → 1.51; alphaL polynomial χ²/ndf up to 424/7): the min-mass
-pairing's shape genuinely changes character at high mA. Keep lowM
-restricted to [15,70].
-
-**Next**: promote — a template producer that integrates the
-interpolated fixed-n DCB over adaptive bins behind a new method segment
-(`test/interpolation` code graduates into `python/` at that point), plus
-the yield (signal-efficiency) interpolation which this shape study has
-not covered.
+Superseded variants' outputs are retained under
+`results/MHc{X}/{fixedn,expo*,cheb,…}` and `plots/archive/`; the
+simultaneous-n machinery was retired after its cross-check concluded
+(conclusion recorded above).
