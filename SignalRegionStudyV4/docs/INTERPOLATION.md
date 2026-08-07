@@ -240,15 +240,37 @@ samples throughout):
     in-sample fit points (MA115: 35.6 vs 3.4): a pol2 cannot track the
     lowM tail evolution over 15–155.
 
-**Interpretation**: parameter-polynomial interpolation is validated for
-SR1E2Mu at both mHc values over the full mA range. For SR3Mu the tails
-(nL for lowM, nR/alphaR for highM) cannot be described by low-order
-polynomials over the *full* range — but production only uses lowM below
-mA 60 and highM above, so the natural fixes are (a) restrict each
-variant's parametrization to its production-relevant mA range, and/or
-(b) break the α–n degeneracy (fix n per category, interpolate α alone).
+**Range-restricted SR3Mu parametrization (2026-08-07, adopted)**:
+each variant is fit and closure-tested only inside its
+production-relevant mA range — `interp_config.CHANNEL_MA_RANGES`:
+lowM ∈ [15, 70], highM ∈ [50, 155] (overlap covers the mA = 60
+production boundary; SR1E2Mu unrestricted). Out-of-range points are
+excluded entirely from that variant's fits, plots, and closure. With few
+in-range points the order ladder falls back to the highest feasible
+order (MHc145 lowM has 3 fit points → pol1).
 
-**Next**: choose the SR3Mu tail treatment ((a)/(b) above), then
+Results of the restriction:
+
+- **SR3Mu_lowM: solved.** Median interp/direct ratio 0.93–1.25 across
+  both mHc studies (was 2.2–2.6 full-range at MHc160); worst in-range
+  point 5.2 vs 4.2. The nL polynomial χ²/ndf dropped from 304/7 to 7.4/3
+  (MHc160 Run2).
+- **SR3Mu_highM: NOT fixed by range restriction** — median ratios
+  2.2–3.4, still nR/alphaR-driven, concentrated at mA ≈ 92–105 (both
+  mHc) and 120–125 (MHc160). The highM tail parameters genuinely vary
+  non-polynomially inside [50, 155]: nR polynomial χ²/ndf stays at
+  ~120–130/3–4. This is the α–n degeneracy, not an order or range
+  problem.
+
+**Interpretation**: parameter-polynomial interpolation is validated for
+SR1E2Mu (full range, both mHc) and SR3Mu_lowM (restricted range). The
+one remaining blocker is the SR3Mu_highM tail: the next lever is
+breaking the α–n degeneracy — fix nL/nR per category (e.g. to the
+median of the good direct fits) and refit the mass points with only the
+alphas floating, then interpolate the alphas.
+
+**Next**: implement the fixed-n refit for SR3Mu_highM (test-local fit
+variant), re-run stages 1–3 for that variant; if closure then holds,
 promote — a template producer that integrates the interpolated DCB over
 adaptive bins behind a new method segment (`test/interpolation` code
 graduates into `python/` at that point).
