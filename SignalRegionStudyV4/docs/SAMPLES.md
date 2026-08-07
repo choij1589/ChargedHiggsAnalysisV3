@@ -55,14 +55,29 @@ samples/{era}/{channel}/{mp}/     ParticleNet per-masspoint (incl. TTZ2E1Mu)
   per-masspoint and the inputs come from `_MHc{X}..._NoHistMode` skims.
   (Standard and NoHistMode skims carry identical events — verified
   empirically by the reproduction test for MHc130_MA90. **Known
-  exceptions, found 2026-08-07**: 5 MHc145 NoHistMode files are
-  deficient — missing 30–75% of the standard skim's `Events_Central`
-  entries — Run1E2Mu: MA85/2016postVFP (−69%), MA90/2016preVFP (−30%),
-  MA90/2017 (−75%), MA95/2016preVFP (−55%); Run3Mu: MA85/2016preVFP
-  (−46%). Run3 and MA92 are clean. ParticleNet per-masspoint samples for
-  those (point, era) combinations under-count signal MC until the
-  NoHistMode skims are re-produced; the shared-signal dirs use standard
-  skims and are unaffected.)
+  exceptions, found 2026-08-07** by a full standard-vs-NoHistMode
+  `Events(_Central)` entry comparison — 41 deficient NoHistMode files
+  out of ~4000 checked:
+  - **Signals (5 files, MHc145 only)** — Run1E2Mu: MA85/2016postVFP
+    (−69%), MA90/2016preVFP (−30%), MA90/2017 (−75%), MA95/2016preVFP
+    (−55%); Run3Mu: MA85/2016preVFP (−46%). MA92 and all Run3 eras clean.
+  - **Backgrounds (36 files)** — worst in the MHc115 productions:
+    `Run3Mu_MHc115` 2017 (10 samples, e.g. WWZ −90%, VBFHToZZTo4L −77%,
+    TTTT −56%, WZZ/ZZZ −32/−36%) and 2018 (tWZ_tlepWhad −39%);
+    `Run1E2Mu_MHc115` 2018 (tWZ up to −28%, tHW −27%) and 2017 (tWZ/TTTT
+    /tZq −1…−4%). `Run2E1Mu_MHc{100,115,130,145,160}`: the identical
+    `WZTo3LNu_powheg` deficit in 2022EE/2023/2023BPix (−5/−1/−3%) in all
+    five productions (common bad source), plus `Run2E1Mu_MHc145` 2017
+    TTHToNonbb (−5%).
+
+  Every ParticleNet per-masspoint dir built from an affected (channel,
+  era) under-counts events until those NoHistMode skims are re-produced
+  upstream; V3's ParticleNet results used the same inputs. The
+  shared-signal/shared-background dirs read standard skims and are
+  unaffected. Additionally, one **standard** skim is corrupt (unreadable,
+  truncated at 9 MB): `Run1E2Mu_RunSyst_RunTheoryUnc/2023/`
+  `TTToHcToWAToMuMu-MHc145_MA100.root` — blocks SR1E2Mu/2023 for
+  MHc145_MA100 entirely.)
 - An **interpolated mass point** therefore needs only a signal file dropped
   into the existing shared dirs — no background preprocessing at all.
 
