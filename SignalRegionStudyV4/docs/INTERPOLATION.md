@@ -29,16 +29,26 @@ The current feasibility test uses **mHc = 145 GeV** (12 MC points).
 
 ## Method
 
-### Fit / validation split (fixed by design)
+### Fit / validation split
 
 | role | mA points |
 |------|-----------|
-| polynomial fit inputs | 35, 60, 80, 90, 100, 140 |
-| held-out validation   | 45, 85, 92, 95, 120 (interpolation), **15 (extrapolation)** |
+| polynomial fit inputs | **15**, 35, 60, 80, 90, 100, 140 |
+| held-out validation   | 45, 85, 92, 95, 120 (15 doubles as an in-sample check) |
 
-MA15 is validation-only on purpose: the DCB fit window is floored at
-12 GeV (`fit_dcb`), clipping the left tail, and it lies below the fit
-range — it probes extrapolation and is not a pass/fail gate.
+MA15 was initially validation-only (extrapolation probe): with fit
+points starting at 35, the extrapolated shape at 15 failed badly
+(χ²/ndf up to ~600 with mixed sigma orders; still 5–46 after fixing
+sigmas to pol2). Moving MA15 into the fit set (2026-08-07) fixed the low
+end — χ²/ndf ≤ 7.5 in every category where MA15 is physical — at the
+cost of a mild systematic degradation of the lowM tails at mid/high mA
+(nL stretches to cover MA15's bias). Residual caveat: the DCB fit window
+is floored at 12 GeV (`fit_dcb`), clipping MA15's left tail; that bias
+lives in the direct MA15 fit parameters themselves, so no polynomial
+choice removes it (lowering the floor in a test-local fit would, at the
+cost of departing from the production fit configuration). SR3Mu_highM
+never fits MA15 (no physical peak — the quality gate drops it), so its
+polynomials are unaffected.
 
 ### Fits with uncertainties
 
@@ -181,19 +191,18 @@ production pairing at the time of that preprocessing).
   NoHistMode input of the old layout).
 - Stage 2: x0 pol1 with slope ≈ 1 everywhere (χ²/ndf 1–6); sigmas
   common pol2 (χ²/ndf 0.5–7.6).
-- Stage 3 closure at interpolation points (45/85/92/95/120), final
-  configuration (pol2 sigmas, pol1/pol2 tails):
-  - **SR1E2Mu: passes** — interp χ²/ndf 1.6–7.9 vs direct 1.4–6.6;
-    at several points the interpolated shape matches MC *better* than
-    the direct fit (e.g. Run3 MA45: 5.0 vs 6.6).
+- Stage 3 closure, final configuration (MA15 in the fit set, pol2
+  sigmas, pol1/pol2 tails):
+  - **SR1E2Mu: passes** — interp χ²/ndf 1.6–8.2 vs direct 1.4–6.6
+    across 15–120; at several points the interpolated shape matches MC
+    *better* than the direct fit (e.g. Run3 MA45: 5.2 vs 6.6).
+  - **MA15: usable** — 2.2/2.7 (SR1E2Mu), 7.5/5.8 (lowM Run2/Run3);
+    the lowM residual is the 12 GeV window-floor bias (see above).
   - **SR3Mu_lowM / highM: mostly passes** — remaining hot spots are
     purely tail-degeneracy driven: alphaR at highM MA92/95
-    (interp/direct ≈ 1.7–3.0, pulls −3…−6) and nL in lowM_Run2 at
-    95/120 (≈ 2–3×, pulls ±7). Next lever: constrain the α–n degeneracy
+    (interp/direct ≈ 1.7–3.0, pulls −3…−6) and nL in lowM at 92–120
+    (≈ 2–3×, pulls up to ±8). Next lever: constrain the α–n degeneracy
     (fix n per category, interpolate α alone), not higher orders.
-  - MA15 extrapolation: much improved by the pol2 sigmas (χ²/ndf 5–46 vs
-    21–600 earlier) but still not trustworthy — do not extrapolate below
-    the fit range.
 
 **Next**: decide the tail-degeneracy treatment for SR3Mu (fix n per
 category, or add fit points near 92–95), then promote — a template
