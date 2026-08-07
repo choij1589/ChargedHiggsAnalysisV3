@@ -65,8 +65,13 @@ and accepts a higher order only on an F-test p < 0.05:
 |-----------|--------------|-------------|
 | x0 | 1, 2 | ≈ mA, slope ≈ 1 |
 | sigmaL, sigmaR | 1, 2 | ~linear growth (~1% of mA) |
-| alphaL, alphaR | 0, 1 | slowly varying, 1.4–1.7 |
-| nL, nR | 0, 1 | noisy; anti-correlated with alpha |
+| alphaL, alphaR | 1, 2 | slowly varying, 1.4–1.7 |
+| nL, nR | 1, 2 | noisy; anti-correlated with alpha |
+
+(Tails originally used orders 0/1; that failed closure at SR3Mu_lowM
+MA45 and SR3Mu_highM MA92/95 — the tail parameters trend strongly with
+mA in the SR3Mu variants — and was raised to 1/2 on 2026-08-07, which
+resolved MA45 outright and roughly halved the remaining excesses.)
 
 The alpha–n degeneracy (earlier tail transition ⇔ slower fall-off) makes
 the n values scatter without the shape changing much; the shape-level
@@ -156,16 +161,34 @@ production pairing at the time of that preprocessing).
 (`./automize/preprocess.sh --masspoint MHc145_MA{X} --skip-backgrounds`;
 16 nodes each, 40 for the ParticleNet points 85/90/92/95).
 
-**Remaining steps**:
+**Full chain ran 2026-08-07** (shared layout, 6 categories):
 
-1. Verify with `verify_samples.py --all` (open every signal file — the
-   concurrent-xrdcp truncation hazard is real; see docs/SAMPLES.md);
-   rescue failed DAGs (`condor_submit_dag dag.dag` picks up rescue001).
-2. Run stage 1 for all 12 points × 6 categories (72 fits); cross-check
-   the archived pre-refactor values (same fit config, same MC events ⇒
-   identical parameters expected for the mapped categories).
-3. Run stage 2 (polynomials) and stage 3 (closure); judge against the
-   success criteria above.
-4. If closure holds: promote — template producer that integrates the
-   interpolated DCB over adaptive bins, behind a new method segment
-   (`test/interpolation` code graduates into `python/` at that point).
+- Preprocessing: all 12 points verified on pnfs. One blocker outside this
+  repo: the **standard** skim
+  `Run1E2Mu_RunSyst_RunTheoryUnc/2023/TTToHcToWAToMuMu-MHc145_MA100.root`
+  is corrupt (truncated, unreadable) ⇒ SR1E2Mu_Run3 has no MA100 fit
+  point until SKNano regenerates it. Separately, 41 NoHistMode files are
+  deficient (affects ParticleNet production only — see docs/SAMPLES.md).
+- Stage 1: 71/72 fits; all good except SR3Mu_highM at MA15 (no physical
+  peak — highM pairing picks the combinatoric dimuon at low mA;
+  structural, not a fit problem). Pre-refactor cross-check: parameters
+  agree to ≤3e-4 (the one exception traced to the deficient MA95
+  NoHistMode input of the old layout).
+- Stage 2: x0 pol1 with slope ≈ 1 everywhere (χ²/ndf 1–6); sigmas
+  pol1/pol2.
+- Stage 3 closure at interpolation points (45/85/92/95/120):
+  - **SR1E2Mu: passes** — interp χ²/ndf 1.9–7.1 vs direct 1.4–6.6.
+  - **SR3Mu_lowM / highM: mostly passes**; remaining hot spots are
+    alphaR-driven at highM MA92/95 (interp/direct ≈ 1.7–3.0, pulls up to
+    −6) and nL-driven in lowM_Run2 at 95/120 (≈ 2–3×). Raising tail
+    orders fixed MA45; the α–n degeneracy suggests the next lever is
+    constraining n (or fitting α with n fixed per category) rather than
+    higher orders.
+  - MA15 extrapolation fails everywhere (χ²/ndf 21–106), as expected —
+    do not extrapolate below the fit range.
+
+**Next**: decide the tail-degeneracy treatment for SR3Mu (fix n per
+category, or add fit points near 92–95), then promote — a template
+producer that integrates the interpolated DCB over adaptive bins behind a
+new method segment (`test/interpolation` code graduates into `python/`
+at that point).
