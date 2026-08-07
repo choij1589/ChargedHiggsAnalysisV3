@@ -111,9 +111,95 @@ direct fit's:
 
 **Hand-off artifact**: `results/MHc{X}/cheb_fixedn/polynomials.json`
 (+ frozen n in the same variant's `dcb_fits.json` meta). Remaining
-steps to production: yield (signal-efficiency) interpolation, then a
-template producer integrating the interpolated model over adaptive bins
-(`test/interpolation` code graduates into `python/` at that point).
+steps to production: the template producer integrating the interpolated
+model over adaptive bins (`test/interpolation` code graduates into
+`python/` at that point).
+
+## Yield interpolation (adopted method)
+
+Shapes are shared between the eras of a run period; **yields are
+interpolated per sub-era** — the datacard's signal columns are per-era
+components (`signal_2017`, …) whose `rate = -1` reads the nominal
+histogram integral, so the per-era normalization is the one remaining
+mA-dependent quantity (the `weight` branch is already era-lumi × 5 fb
+reference; the BR/xsec conversion in `collectLimits.py` is a global
+constant).
+
+**Yield definition**: Σw(Central) inside the production mass window
+`[max(x0 − 10σ_eff, 12), x0 + 10σ_eff]`, with x0 and
+σ_eff = √(0.5(σL²+σR²)) evaluated from the **interpolated** shape
+parametrizations (`interp_config.interp_window`) — smooth in mA,
+computable at any mA without MC, and exactly the number the parametric
+template will be normalized to.
+
+**Model** (per sub-era × study channel; `fit_yield_curves.py`): the
+window yield is fit as the product of two log-space polynomials,
+
+    N_win(mA) = N_total(mA) × f_window(mA)
+
+- `N_total` — full-tree Σw = Baseline-selection acceptance × lumi
+  (identical for both SR3Mu pairings). Smooth in mA but carrying
+  **per-sample normalization scatter** beyond MC stat (see below), so it
+  gets orders [1,2,3] with per-period error floors
+  (`REL_YIELD_ERR_FLOOR`: Run2 2%, Run3 8%) — the fit averages through
+  the noise.
+- `f_window = N_win/N_total` — the window-capture fraction. The
+  normalization noise cancels in the ratio, leaving near-noise-free
+  points that carry all the sharp mA structure (the sigmoid-like peak
+  migration through the window around the pairing boundary for
+  SR3Mu_highM; the lowM minimum-then-rise as mA → mHc). Orders
+  [2,3,4,5], binomial-like errors floored at 0.5% (log space).
+
+A direct log-poly fit of N_win was tried first and failed both ways at
+once (Run3 residuals to 40%, the highM turn-on unfittable) — the
+decomposition separates the noisy-but-smooth factor from the
+precise-but-sharp one. F-test ladder (p < 0.05) selects the order;
+prediction errors combine both bands in quadrature.
+
+**Validation** (`yield_closure.py`, all study points): fit points =
+self-consistency test, held-out points = interpolation test; plus a
+**template-level absolute-normalization check** per merged category —
+the interpolated shape model normalized to the summed per-era predicted
+yields (no rescaling to MC) against the 100-bin MC histogram.
+
+Results over the production-relevant regions (lowM: mA < 60,
+highM: mA ≥ 60, SR1E2Mu: all — mHc ≥ 100 pairing rule):
+
+| | held-out median \|rel\| | held-out max \|rel\| |
+|---|---|---|
+| Run2 (both mHc, all channels) | 0.8–3.2% | ≤ 9.3% |
+| Run3 (both mHc, all channels) | 3.1–8.9% | ≤ 25% |
+
+Template-level χ²/ndf medians 2.1–3.5 (Run2) and 2.1–5.8 (Run3) —
+comparable to the shape-only closure (1.7–4.2), i.e. predicting the
+normalization does not degrade the template agreement.
+
+**Run3 per-sample normalization scatter (upstream finding)**: Run3
+signal samples scatter ±10–20% around any smooth acceptance curve,
+nearly identically in SR1E2Mu and SR3Mu for the same (era, mass point)
+— a sample-level effect, not channel physics. Raw-skim sizes/entries
+vary ×4 between adjacent mass points with the mean per-event weight
+tracking 1/N_generated, so the bookkeeping only partially compensates.
+Preprocessing is faithful; the issue is upstream (SKNano / sample
+production) and equally affects the **current production binned
+templates** built from the same samples. Run2 samples are clean at the
+1–2% level. The Run3 closure residuals above are dominated by this
+scatter, not by interpolation error — the smooth fitted curve is
+arguably a better acceptance estimate than any single sample.
+
+**Nuisance structure (design, to be exercised in the template phase)**:
+correlation bookkeeping is unchanged — it lives in nuisance names
+(era-suffixed = uncorrelated; `_13TeV`/`_13p6TeV` = correlated within a
+run period; unsuffixed = fully correlated) and the datacard mechanism
+needs no change for parametric signals. Shape systematics will be
+treated as **shifts of the fit function** (parameter-level variations
+derived from the systematic trees, which exist in every shared signal
+file), with per-era varied yields; `valued lnN` (lumi) and
+`valued shape` (trigger) stay mA-independent config constants.
+
+**Hand-off artifact**: `results/MHc{X}/yields/yield_polynomials.json`
+(per era × channel `total`/`fraction` logpoly records; prediction =
+product of the two `eval_param` evaluations).
 
 ## Sample production status (2026-08-07)
 
@@ -127,6 +213,10 @@ template producer integrating the interpolated model over adaptive bins
   skipped explicitly.
 - 41 deficient NoHistMode files (ParticleNet inputs only — does not
   affect this Baseline study): see docs/SAMPLES.md.
+- Run3 signal samples: ±10–20% per-sample yield normalization scatter,
+  upstream of preprocessing (see "Run3 per-sample normalization
+  scatter" above) — needs follow-up on the SKNano/sample-production
+  side; affects production templates as well as this study.
 
 ## Decision history (chronological; each superseded by the next where applicable)
 
@@ -140,6 +230,8 @@ template producer integrating the interpolated model over adaptive bins
 | **Exponential background added (SR3Mu), then replaced by Chebychev₂** | single DCB cannot fit peak+pedestal (lowM direct χ²/ndf up to 44); expo halved it but cannot be flat; cheb2 halves it again (lowM medians 3.8→2.4) and flattens the plateau ratio to ±10% |
 | Background dropped when fsig → 1 | unconstrained background parameters inflated errors and broke low-mA anchors (interp χ²/ndf ~115 before, ≤ ~6 after) |
 | **Fixed orders** (x0 pol1, α pol2, c1/c2 pol2) replacing per-parameter F-test choice | closure statistically equivalent (one soft spot: MHc160 lowM_Run3 αL prefers pol1); determinism and inter-category consistency preferred |
+| Yield: direct log-poly fit of N_win replaced by the **total × window-fraction decomposition** | direct fit failed twice over: Run3 residuals to 40% (per-sample normalization scatter dragging the curve) and the highM sigmoid turn-on unfittable by any low-order polynomial; the ratio f_window cancels the normalization noise and isolates the sharp structure |
+| Yield: per-period error floors (Run2 2%, Run3 8%) on N_total points | Run3 samples scatter ±10–20% around any smooth curve, channel-correlated, traced to raw skims (upstream); MC-stat-only weights made every fit chase sample noise (χ²/ndf to 400) |
 
 Superseded variants' outputs are retained under
 `results/MHc{X}/{fixedn,expo*,cheb,…}` and `plots/archive/`; the
