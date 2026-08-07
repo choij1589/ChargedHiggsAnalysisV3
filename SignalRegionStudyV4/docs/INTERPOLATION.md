@@ -61,17 +61,22 @@ Error-weighted least squares (`numpy.polyfit`, `w = 1/err`,
 `cov="unscaled"`) over the fit points only; order selection walks upward
 and accepts a higher order only on an F-test p < 0.05:
 
-| parameter | orders tried | expectation |
-|-----------|--------------|-------------|
-| x0 | 1, 2 | ≈ mA, slope ≈ 1 |
-| sigmaL, sigmaR | 1, 2 | ~linear growth (~1% of mA) |
-| alphaL, alphaR | 1, 2 | slowly varying, 1.4–1.7 |
-| nL, nR | 1, 2 | noisy; anti-correlated with alpha |
+| parameter | orders | expectation |
+|-----------|--------|-------------|
+| x0 | 1, 2 (F-test) | ≈ mA, slope ≈ 1 |
+| sigmaL, sigmaR | **2 (fixed)** | ~1% of mA, mild curvature |
+| alphaL, alphaR | 1, 2 (F-test) | slowly varying, 1.4–1.7 |
+| nL, nR | 1, 2 (F-test) | noisy; anti-correlated with alpha |
 
-(Tails originally used orders 0/1; that failed closure at SR3Mu_lowM
-MA45 and SR3Mu_highM MA92/95 — the tail parameters trend strongly with
-mA in the SR3Mu variants — and was raised to 1/2 on 2026-08-07, which
-resolved MA45 outright and roughly halved the remaining excesses.)
+Order-choice history (2026-08-07): tails originally 0/1 — failed closure
+at SR3Mu_lowM MA45 and SR3Mu_highM MA92/95 (tail parameters trend
+strongly with mA in the SR3Mu variants); raised to 1/2, which resolved
+MA45 and halved the remaining excesses. Sigmas were then **fixed to a
+common pol2** (both widths arise from the same two-muon resolution
+convolution — no reason for different functional forms per side, and the
+F-test's per-side pol1/pol2 split was selection noise): improved sigma
+fit χ² everywhere and, as a bonus, tamed the low-mA extrapolation
+(MA15 χ²/ndf e.g. 59→5 in SR1E2Mu_Run2).
 
 The alpha–n degeneracy (earlier tail transition ⇔ slower fall-off) makes
 the n values scatter without the shape changing much; the shape-level
@@ -175,17 +180,20 @@ production pairing at the time of that preprocessing).
   agree to ≤3e-4 (the one exception traced to the deficient MA95
   NoHistMode input of the old layout).
 - Stage 2: x0 pol1 with slope ≈ 1 everywhere (χ²/ndf 1–6); sigmas
-  pol1/pol2.
-- Stage 3 closure at interpolation points (45/85/92/95/120):
-  - **SR1E2Mu: passes** — interp χ²/ndf 1.9–7.1 vs direct 1.4–6.6.
-  - **SR3Mu_lowM / highM: mostly passes**; remaining hot spots are
-    alphaR-driven at highM MA92/95 (interp/direct ≈ 1.7–3.0, pulls up to
-    −6) and nL-driven in lowM_Run2 at 95/120 (≈ 2–3×). Raising tail
-    orders fixed MA45; the α–n degeneracy suggests the next lever is
-    constraining n (or fitting α with n fixed per category) rather than
-    higher orders.
-  - MA15 extrapolation fails everywhere (χ²/ndf 21–106), as expected —
-    do not extrapolate below the fit range.
+  common pol2 (χ²/ndf 0.5–7.6).
+- Stage 3 closure at interpolation points (45/85/92/95/120), final
+  configuration (pol2 sigmas, pol1/pol2 tails):
+  - **SR1E2Mu: passes** — interp χ²/ndf 1.6–7.9 vs direct 1.4–6.6;
+    at several points the interpolated shape matches MC *better* than
+    the direct fit (e.g. Run3 MA45: 5.0 vs 6.6).
+  - **SR3Mu_lowM / highM: mostly passes** — remaining hot spots are
+    purely tail-degeneracy driven: alphaR at highM MA92/95
+    (interp/direct ≈ 1.7–3.0, pulls −3…−6) and nL in lowM_Run2 at
+    95/120 (≈ 2–3×, pulls ±7). Next lever: constrain the α–n degeneracy
+    (fix n per category, interpolate α alone), not higher orders.
+  - MA15 extrapolation: much improved by the pol2 sigmas (χ²/ndf 5–46 vs
+    21–600 earlier) but still not trustworthy — do not extrapolate below
+    the fit range.
 
 **Next**: decide the tail-degeneracy treatment for SR3Mu (fix n per
 category, or add fit points near 92–95), then promote — a template
