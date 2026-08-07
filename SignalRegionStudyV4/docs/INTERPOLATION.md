@@ -345,6 +345,34 @@ JSONs merged by `merge_fits.py`, which fails loudly on missing parts).
 Submit-file gotcha worth remembering: a `queue` variable must not be
 named `output` — it silently overrides condor's stdout attribute.
 
+**Uniform [15,155] range with logistic fsig (2026-08-07, ADOPTED)**:
+production uses highM only above the pairing boundary, but at lower mHc
+(e.g. MHc130, boundary mA=60) that region holds too few MC points to
+constrain a range-restricted parametrization — so both SR3Mu variants
+are now parametrized over the full range
+(`CHANNEL_MA_RANGES = (15, 155)` for both). The enabler is a **logistic
+form for fsig** (`fsig(m) = base + amp/(1+exp(-(m-m0)/width))`, fit via
+scipy when ≥5 good points): fsig's sigmoid turn-on/off around the
+pairing boundary was the one quantity a polynomial could not track over
+the full range (χ²/ndf up to 887/8 → ~10–230 with the logistic; the
+remaining χ² excess reflects fsig's per-mille errors, not shape).
+Production-region closure (lowM judged at mA<60, highM at mA≥60) is
+within ~0.5 of the restricted config everywhere — e.g. lowM_Run3
+1.61 → 1.58 (MHc145), highM_Run3 worst point 7.9 → 3.8 (MHc160) — the
+one degradation (MHc145 lowM_Run2 3.78 → 5.16) is recovered by
+simfit-n (3.86).
+
+**Simultaneous-fit n (`--n-source simfit`, `expo_simn` variants)**: a
+per-category summed binned NLL across all mass points with one shared
+nL/nR (`derive_shared_n.py`, per-category condor jobs). Results: nL
+within ~0.6 of the medians everywhere; lowM nR runs to the n≈50 bound
+(the likelihood is flat there — a large-n CB tail is already Gaussian),
+which is also why 2 of 12 categories don't converge (median fallback,
+logged). Closure: no clear winner vs median-n (slightly better at
+MHc145, slightly worse at MHc160 highM_Run2). **Median-n stays the
+default** (robust, no convergence machinery); simfit-n remains available
+as a cross-check.
+
 **Full-range check with fixed n (2026-08-07, `--full-range` variant)**:
 could the SR3Mu variants share one [15,155] parametrization? highM: yes
 — full-range closure is equal or better (median ratios 1.01–1.06), its
