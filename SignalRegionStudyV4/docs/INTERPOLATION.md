@@ -262,15 +262,52 @@ Results of the restriction:
   ~120–130/3–4. This is the α–n degeneracy, not an order or range
   problem.
 
-**Interpretation**: parameter-polynomial interpolation is validated for
-SR1E2Mu (full range, both mHc) and SR3Mu_lowM (restricted range). The
-one remaining blocker is the SR3Mu_highM tail: the next lever is
-breaking the α–n degeneracy — fix nL/nR per category (e.g. to the
-median of the good direct fits) and refit the mass points with only the
-alphas floating, then interpolate the alphas.
+**Fixed-n variant (2026-08-07, adopted for ALL categories)**: the α–n
+degeneracy made the floating tail parameters valley-hop between mass
+points, defeating any smooth parametrization (highM nR polynomial
+χ²/ndf ~120 even range-restricted). Fix: freeze nL/nR per category to
+the **median of the good floating-n in-range fits**
+(`interp_config.fixed_n_values`), refit every mass point with only
+x0/σL/σR/αL/αR floating (`dcb_fit_utils.fit_dcb_fixed_n`; 5 free
+parameters), and interpolate those 5 (the frozen n enter the JSON as
+constant order-0 "polynomials"). Run with `--fixed-n` on all three
+stages; outputs under `results/MHc{X}/fixedn/`, `plots/MHc{X}/fixedn/`.
 
-**Next**: implement the fixed-n refit for SR3Mu_highM (test-local fit
-variant), re-run stages 1–3 for that variant; if closure then holds,
-promote — a template producer that integrates the interpolated DCB over
-adaptive bins behind a new method segment (`test/interpolation` code
-graduates into `python/` at that point).
+The derived n are remarkably consistent between mHc 145 and 160
+(SR1E2Mu nL≈2.0 nR≈6–8; highM nL≈1.9 nR≈0.65; lowM nL≈1–1.3 nR≈5–6),
+confirming n is a stable per-category property. With n frozen the alphas
+become genuinely smooth functions of mA — highM alphaR rises to a
+maximum near mA≈115 and falls again, which needs pol3 (allowed for
+alphas; F-test selects it where the point count supports it). All
+210 fixed-n fits converge with quality good (including highM MA15,
+unstable when n floated).
+
+**Final closure, fixed-n + range restriction (held-out points, median
+interp/direct χ² ratio | worst point)**:
+
+| category | MHc145 | MHc160 |
+|---|---|---|
+| SR1E2Mu_Run2 | 1.00 \| 2.4 vs 1.9 | 0.97 \| 3.1 vs 2.7 |
+| SR1E2Mu_Run3 | 1.11 \| 5.5 vs 4.7 | 0.98 \| 2.1 vs 1.9 |
+| SR3Mu_highM_Run2 | 1.04 \| 6.2 vs 5.7 | 1.06 \| 11.2 vs 7.8 |
+| SR3Mu_highM_Run3 | 1.08 \| 3.6 vs 2.6 | 1.03 \| 2.8 vs 2.0 |
+| SR3Mu_lowM_Run2 | 1.03 \| 4.5 vs 4.4 | 1.00 \| 5.5 vs 5.0 |
+| SR3Mu_lowM_Run3 | 0.87 \| 2.1 vs 2.5 | 0.99 \| 4.7 vs 4.3 |
+
+No held-out point exceeds 1.5× the direct fit's χ²/ndf. The residual
+absolute χ² (e.g. highM 95: 13 vs 12) is the DCB model's own MC
+mismatch, not interpolation error. Note the α *parameter pulls* vs the
+individually-refit alphas can still be large (−5…−12) — with n frozen
+the per-point α rides the remnant micro-degeneracy — but the
+shape-level closure is the meaningful metric and it passes.
+
+**Adopted method (summary)**: per category — fixed nL/nR (median),
+range-restricted mass points (lowM [15,70], highM [50,155], SR1E2Mu
+unrestricted), polynomials: x0 pol1/2, σL/σR common pol2, αL/αR
+pol1/2/3 (F-test); interpolated template = polynomial x0/σ/α + frozen n.
+
+**Next**: promote — a template producer that integrates the
+interpolated fixed-n DCB over adaptive bins behind a new method segment
+(`test/interpolation` code graduates into `python/` at that point), plus
+the yield (signal-efficiency) interpolation which this shape study has
+not covered.
