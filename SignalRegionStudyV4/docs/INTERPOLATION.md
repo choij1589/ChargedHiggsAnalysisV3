@@ -306,6 +306,45 @@ range-restricted mass points (lowM [15,70], highM [50,155], SR1E2Mu
 unrestricted), polynomials: x0 pol1/2, σL/σR common pol2, αL/αR
 pol1/2/3 (F-test); interpolated template = polynomial x0/σ/α + frozen n.
 
+**DCB + exponential combinatoric background (2026-08-07, adopted for
+SR3Mu)**: the SR3Mu pairing picks the wrong (combinatoric) dimuon in a
+mass-dependent fraction of events, producing a smooth pedestal under the
+peak that a single DCB cannot describe — visible as a plateau mismatch
+for lowM at mA ≳ 50 (direct-fit χ²/ndf up to ~44 at MHc160). The signal
+model for both SR3Mu variants is now
+
+    S(m) = fsig · DCB(m) + (1 − fsig) · exp(lam · m)
+
+(`dcb_fit_utils.fit_dcb_expo`; SR1E2Mu keeps the pure DCB — a single
+pairing has no combinatorics). `fsig` and `lam` are two additional
+interpolated quantities (pol1–3 / pol1–2; `fsig` clipped to [0.05, 1];
+`fsig → 1` at low mA is physical and not a quality failure). Same
+two-step as before: floating-n expo fits derive the per-category median
+n, then the frozen-n refit. Run with `--expo-bkg [--fixed-n]`; variants
+`expo`, `expo_fixedn`. Fit canvases now overlay the signal and
+background components (`FitCanvasWithRatio` gained an optional
+`components` config in Common/Tools/plotter.py).
+
+Results (expo_fixedn vs pure-DCB fixedn):
+
+- **Model quality transformed** — lowM direct-fit χ²/ndf vs MC:
+  MHc160 mA=60: 10.1 → 4.6, mA=70: 17.6 → 5.8 (was up to 44 beyond the
+  range); MHc145 MA45: 4.4 → 2.4. All in-range direct fits now sit at
+  χ²/ndf ≲ 6.
+- **Closure holds** — SR3Mu held-out medians: MHc160 0.98–1.38,
+  MHc145 0.69–1.55; absolute interpolated χ²/ndf ≤ ~4 at every in-range
+  held-out point (ratios are noisier than the pure-DCB variant simply
+  because the direct-fit denominators are now small).
+- The expo parameters interpolate cleanly (`fsig` χ²/ndf ≈ 1–4,
+  `lam` ≈ 0.1–15).
+
+**Stage-1 fits run on condor** (2026-08-07): one vanilla job per mass
+point via `test/interpolation/submit_fits.sh --mhc {145,160}
+[--fixed-n] [--expo-bkg]` (wrapper `condor_fit_wrapper.sh`, per-job part
+JSONs merged by `merge_fits.py`, which fails loudly on missing parts).
+Submit-file gotcha worth remembering: a `queue` variable must not be
+named `output` — it silently overrides condor's stdout attribute.
+
 **Full-range check with fixed n (2026-08-07, `--full-range` variant)**:
 could the SR3Mu variants share one [15,155] parametrization? highM: yes
 — full-range closure is equal or better (median ratios 1.01–1.06), its

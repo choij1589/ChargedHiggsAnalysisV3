@@ -970,6 +970,18 @@ class FitCanvasWithRatio(BaseCanvas):
                          ROOT.RooFit.LineStyle(lstyle),
                          ROOT.RooFit.LineWidth(2))
 
+        # Optional per-model component curves (e.g. signal/background parts
+        # of a RooAddPdf). config["components"] entries:
+        #   {"model": <fit_models key>, "pdf": <component pdf name>,
+        #    "label": <legend label>, "color": ..., "style": ...}
+        for comp in self.config.get("components", []):
+            model = self.fit_models[comp["model"]][0]
+            model.plotOn(frame, ROOT.RooFit.Name(f"comp_{comp['pdf']}"),
+                         ROOT.RooFit.Components(comp["pdf"]),
+                         ROOT.RooFit.LineColor(comp.get("color", ROOT.kGreen + 2)),
+                         ROOT.RooFit.LineStyle(comp.get("style", ROOT.kDashed)),
+                         ROOT.RooFit.LineWidth(comp.get("width", 2)))
+
         frame.SetTitle("")
         frame.GetYaxis().SetTitle(self.config.get("yTitle", "Events"))
         frame.GetXaxis().SetLabelSize(0)
@@ -985,6 +997,9 @@ class FitCanvasWithRatio(BaseCanvas):
             chi2 = self.chi2_values[name]
             CMS.addToLegend(self.leg, (frame.findObject(f"fit_{name}"),
                             f"{name}  #chi^{{2}}/ndf = {chi2:.1f}", "L"))
+        for comp in self.config.get("components", []):
+            CMS.addToLegend(self.leg, (frame.findObject(f"comp_{comp['pdf']}"),
+                            comp["label"], "L"))
         self.leg.Draw()
 
         # Draw channel text
