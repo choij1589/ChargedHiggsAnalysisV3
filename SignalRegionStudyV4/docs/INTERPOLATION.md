@@ -306,6 +306,16 @@ range-restricted mass points (lowM [15,70], highM [50,155], SR1E2Mu
 unrestricted), polynomials: x0 pol1/2, σL/σR common pol2, αL/αR
 pol1/2/3 (F-test); interpolated template = polynomial x0/σ/α + frozen n.
 
+**Full-range check with fixed n (2026-08-07, `--full-range` variant)**:
+could the SR3Mu variants share one [15,155] parametrization? highM: yes
+— full-range closure is equal or better (median ratios 1.01–1.06), its
+fixed-n parameters evolve smoothly over the whole range, so the [50,155]
+restriction is optional there. lowM: no — including the high-mA points
+degrades the production-relevant low-mA closure (MHc145 Run2 in-range
+median 1.03 → 1.51; alphaL polynomial χ²/ndf up to 424/7): the min-mass
+pairing's shape genuinely changes character at high mA. Keep lowM
+restricted to [15,70].
+
 **Next**: promote — a template producer that integrates the
 interpolated fixed-n DCB over adaptive bins behind a new method segment
 (`test/interpolation` code graduates into `python/` at that point), plus
