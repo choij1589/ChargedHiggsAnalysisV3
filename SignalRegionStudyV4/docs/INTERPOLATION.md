@@ -132,29 +132,48 @@ parametrizations (`interp_config.interp_window`) — smooth in mA,
 computable at any mA without MC, and exactly the number the parametric
 template will be normalized to.
 
-**Model** (per sub-era × study channel; `fit_yield_curves.py`): the
-window yield is fit as the product of two log-space polynomials,
+**Model** (`fit_yield_model.py`; physics-structured — each factor is a
+quantity with a physical reason to be simple):
 
-    N_win(mA) = N_total(mA) × f_window(mA)
+    N_win(era, mA) = k_era × G_period(mA) × f_category(mA)
 
-- `N_total` — full-tree Σw = Baseline-selection acceptance × lumi
-  (identical for both SR3Mu pairings). Smooth in mA but carrying
-  **per-sample normalization scatter** beyond MC stat (see below), so it
-  gets orders [1,2,3] with per-period error floors
-  (`REL_YIELD_ERR_FLOOR`: Run2 2%, Run3 8%) — the fit averages through
-  the noise.
-- `f_window = N_win/N_total` — the window-capture fraction. The
-  normalization noise cancels in the ratio, leaving near-noise-free
-  points that carry all the sharp mA structure (the sigmoid-like peak
-  migration through the window around the pairing boundary for
-  SR3Mu_highM; the lowM minimum-then-rise as mA → mHc). Orders
-  [2,3,4,5], binomial-like errors floored at 0.5% (log space).
+- `G_period` — shared baseline-selection yield shape per total-channel
+  (SR1E2Mu / SR3Mu — the two pairings have identical totals) × run
+  period, log-space poly (orders [3,4]) on the **period-summed**
+  full-tree totals. At fixed mHc the b-jet efficiency is flat in mA;
+  what remains is smooth mHc–mA kinematics: a rise to a maximum near
+  mA ≈ mHc − mW and an asymmetric fall as the W* phase space closes —
+  hence the cubic minimum. Summing the four eras halves the per-sample
+  normalization scatter (see below).
+- `k_era` — constant era share. Era shares were measured flat in mA
+  (Run2 rms ≤ 1.3%; the Run3 share deviations are the sample scatter,
+  which a constant deliberately refuses to chase).
+- `f_category` — window fraction per category, **era-independent**
+  (measured era spread ≤ 0.9% abs), fitted on period-merged points:
+  - SR1E2Mu: near-constant peak containment (pol0/1; the ±10σ window
+    always holds the peak — measured 0.93–0.97 with a slow rise from
+    improving tail containment).
+  - SR3Mu: pure pairing combinatorics, **derived from the shape fit's
+    fsig** instead of fitted freely. Exactly one of the two OS pairings
+    is the true A→μμ pair, so p_low + p_high = 1 and
+    f_low·fsig_low + f_high·fsig_high = S, the shared containment
+    (measured 0.93–1.03 while f_high itself spans a factor ~80).
+    S gets a low-order poly, the pairing probability p_high a
+    logit-space poly (bounded in [0,1]), and
+    f_variant = S · p_variant / fsig_variant with fsig evaluated from
+    the adopted shape polynomials — the sigmoid the old fraction fits
+    struggled with is exactly what fsig already measures.
 
-A direct log-poly fit of N_win was tried first and failed both ways at
-once (Run3 residuals to 40%, the highM turn-on unfittable) — the
-decomposition separates the noisy-but-smooth factor from the
-precise-but-sharp one. F-test ladder (p < 0.05) selects the order;
-prediction errors combine both bands in quadrature.
+The redesign replaced a first-generation per-era log-poly product
+(`N_total × f_window` per sub-era × channel, orders [1,2,3] × [2,3,4,5];
+`fit_yield_curves.py`, kept as comparison baseline). Deciding
+experiments in `yield_model_experiments.py` (E1–E4): SR1E2Mu f flat
+(pol1 χ²/ndf ≈ 4/8), S ≈ const while the fractions vary by ×80, Run2
+era shares flat at ~1%, and held-out closure equal or better everywhere
+with ~10× fewer parameters — most dramatically SR3Mu_highM (MHc145
+held-out Run2 max 9.3% → 1.5%). F-test ladder (p < 0.05) selects orders
+within each sub-model; prediction errors combine the component bands in
+quadrature.
 
 **Validation** (`yield_closure.py`, all study points): fit points =
 self-consistency test, held-out points = interpolation test; plus a
@@ -167,12 +186,17 @@ highM: mA ≥ 60, SR1E2Mu: all — mHc ≥ 100 pairing rule):
 
 | | held-out median \|rel\| | held-out max \|rel\| |
 |---|---|---|
-| Run2 (both mHc, all channels) | 0.8–3.2% | ≤ 9.3% |
-| Run3 (both mHc, all channels) | 3.1–8.9% | ≤ 25% |
+| Run2 (both mHc, all channels) | 0.4–1.8% | ≤ 8.8% (SR3Mu ≤ 6.0%) |
+| Run3 (both mHc, all channels) | 2.2–5.2% | ≤ 29% (sample scatter) |
 
-Template-level χ²/ndf medians 2.1–3.5 (Run2) and 2.1–5.8 (Run3) —
+Template-level χ²/ndf medians 2.4–4.0 (Run2) and 2.0–5.6 (Run3) —
 comparable to the shape-only closure (1.7–4.2), i.e. predicting the
-normalization does not degrade the template agreement.
+normalization does not degrade the template agreement. The remaining
+Run2 held-out misses beyond ~4% are localized at sparse fit-grid gaps
+in the steep phase-space fall (e.g. mA=120 between fit points 100/140
+at MHc145) — a grid-density limitation common to both models, and a
+worst case relative to production, where every simulated point anchors
+the fit.
 
 **Run3 per-sample normalization scatter (upstream finding)**: Run3
 signal samples scatter ±10–20% around any smooth acceptance curve,
@@ -197,9 +221,11 @@ derived from the systematic trees, which exist in every shared signal
 file), with per-era varied yields; `valued lnN` (lumi) and
 `valued shape` (trigger) stay mA-independent config constants.
 
-**Hand-off artifact**: `results/MHc{X}/yields/yield_polynomials.json`
-(per era × channel `total`/`fraction` logpoly records; prediction =
-product of the two `eval_param` evaluations).
+**Hand-off artifact**: `results/MHc{X}/yields/yield_model.json`
+(per-period `fractions` {f_sr1e2mu, S, p_high_logit} and `totals`
+{G, k_era} records; prediction via `fit_yield_model.predict_yield`,
+which also needs the shape polynomials for fsig). The legacy per-era
+product records remain in `yield_polynomials.json` for comparison.
 
 ## Sample production status (2026-08-07)
 
@@ -232,6 +258,8 @@ product of the two `eval_param` evaluations).
 | **Fixed orders** (x0 pol1, α pol2, c1/c2 pol2) replacing per-parameter F-test choice | closure statistically equivalent (one soft spot: MHc160 lowM_Run3 αL prefers pol1); determinism and inter-category consistency preferred |
 | Yield: direct log-poly fit of N_win replaced by the **total × window-fraction decomposition** | direct fit failed twice over: Run3 residuals to 40% (per-sample normalization scatter dragging the curve) and the highM sigmoid turn-on unfittable by any low-order polynomial; the ratio f_window cancels the normalization noise and isolates the sharp structure |
 | Yield: per-period error floors (Run2 2%, Run3 8%) on N_total points | Run3 samples scatter ±10–20% around any smooth curve, channel-correlated, traced to raw skims (upstream); MC-stat-only weights made every fit chase sample noise (χ²/ndf to 400) |
+| Yield: per-era log-poly product replaced by the **physics-structured model** k_era · G_period · f, with f_SR3Mu = S·p/fsig | physics argument (b-jet eff. flat in mA; ±10σ window ⇒ SR1E2Mu f const; SR3Mu combinatorics already measured by the Chebychev fraction) confirmed by experiments E1–E4: f era-independent and flat for SR1E2Mu (pol1 χ²/ndf 4/8), S = f_l·fsig_l + f_h·fsig_h flat within ±4% while f_high spans ×80, Run2 era shares flat at ~1%; closure equal or better with ~10× fewer parameters, highM held-out max 9.3% → 1.5% (MHc145 Run2) |
+| Yield: G orders forced to cubic minimum [3,4] | log N_total is a rise + asymmetric fall (W* phase space closing toward mA → mHc); from-pol2 F-test ladders stalled and left 5–9% held-out misses at sparse steep-fall grid gaps |
 
 Superseded variants' outputs are retained under
 `results/MHc{X}/{fixedn,expo*,cheb,…}` and `plots/archive/`; the
