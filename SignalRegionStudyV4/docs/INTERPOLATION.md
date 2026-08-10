@@ -239,6 +239,101 @@ file), with per-era varied yields; `valued lnN` (lumi) and
 which also needs the shape polynomials for fsig). The legacy per-era
 product records remain in `yield_polynomials.json` for comparison.
 
+## Parametric templates and limit closure (2026-08-10)
+
+The models above are only useful if a datacard built from them gives the
+same limit as one built from signal MC. Tested at **MHc160_MA90**,
+`--era All --channel Combined`, unblind, with every model input refitted
+**without** mA=90 (`_ex90` shape variant + `--exclude-ma 90` yield model),
+so the template at the target is a genuine interpolation. Four arms
+(`test/interpolation/param_template_config.py` holds the table):
+
+| arm | method segment | signal | window/binning | interp. nuisances |
+|---|---|---|---|---|
+| A | `Baseline` | direct MC | direct DCB fit | — |
+| B0 | `BaselineParamB0` | parametric | arm A's | — |
+| B | `BaselineParam` | parametric | interpolated | — |
+| C | `BaselineParamNuis` | parametric | interpolated | yes |
+
+Backgrounds, nonprompt and data come from the production code path in all
+four arms — only the signal columns differ.
+
+**Systematics without signal MC**: every signal shape systematic is
+compressed on the *other* mass points of the same mHc into three
+dimensionless deltas relative to Central — `dm` (core-window mean),
+`dsig` (core-window rms), `dN` (window sum) — each parametrized in mA
+with an up-only pol0/pol1 ladder that excludes the target point, and
+applied as `x0 → x0(1+dm)`, `σ_{L,R} → σ(1+dsig)`, `N → N(1+dN)`. Windows
+come from the interpolated parameters, so the recipe is identical at
+donor and target points. Weight-only trees hold the same events as
+Central, so their deltas are paired differences; kinematic trees fall
+back to the uncorrelated error. Closure of the interpolated delta against
+the delta measured on the target's own MC (6576 series): median |Δ|
+1.4e-7 (dm), 7.3e-6 (dsig), 1.7e-5 (dN); worst cases are JES `dN`
+(−6.3% vs −4.5% measured) and ps_isr/fsr.
+
+**Interpolation nuisances** (arm C), decorrelated per (channel, run
+period) because the shape polynomials, G and f/S/p are fitted per
+(channel, period): `CMS_interp_scale_*` (x0 ± 0.05 σ_eff),
+`CMS_interp_res_*` (σ ± 4%), `CMS_interp_norm_*` (lnN 1.020 Run2 /
+1.050 Run3) — 12 lines, each hitting the four signal columns of its
+category. The Run3 yield-error floor is deliberately excluded from the
+norm term: it encodes the upstream per-sample scatter, which the
+direct-MC reference carries with no penalty of its own.
+
+**Results** (`results/MHc160/param_templates/arm_comparison.json`;
+limits from a tight-tolerance rerun, `--rRelAcc 0.0005`, because the
+frozen production command stops at 1%):
+
+| | A | B0 | B | C |
+|---|---|---|---|---|
+| expected median r | 0.9590 | 0.9258 | 0.9258 | 0.9258 |
+| observed r | 0.6378 | 0.6170 | 0.6498 | 0.6519 |
+| signal yield (all categories) | 89.98 | 93.13 | 92.89 | 92.89 |
+
+- **A ↔ B0 (the signal-template method)**: expected limit −3.5%,
+  observed −3.3%, driven entirely by normalization: per-category signal
+  yields are **+1.0% / +2.3%** (Run2 SR1E2Mu / SR3Mu) and **+12.1% /
+  +6.6%** (Run3), while the *shapes* agree to an L1 distance of ≤ 3.1%
+  of the normalized template. The Run3 offsets sit inside the known
+  ±10–20% Run3 per-sample scatter, i.e. the interpolated curve differs
+  from a single noisy MC point, which is the expected — arguably
+  desirable — behaviour. Per-bin ratios above 10% are confined to the
+  Run3 categories and to near-empty ±10σ tail bins (max 39.9% in a bin
+  holding 0.02 events).
+- **B0 ↔ B (window/binning)**: the interpolated window reproduces the
+  direct-fit one closely (x0 to ~0.01 GeV, σ_eff to ~2%) and gives the
+  same 17 bins in every category; the expected limit is unchanged
+  (identical to combine's asymptotic r grid, ~0.2%) and the signal yield
+  moves ≤ 0.5%. The **observed** limit moves +5.3%: with a real dataset,
+  a sub-percent shift of the bin edges reshuffles which events land in
+  which bin, and the observed limit is sensitive to that at the few-%
+  level while the expected limit is not.
+- **B ↔ C (interpolation nuisances)**: expected limit unchanged at the
+  ~0.2% grid resolution, observed +0.3%, despite genuinely non-trivial
+  shape variations (up to 8% per bin for scale, 17% for resolution).
+  The analysis is background-statistics limited, so signal-template
+  nuisances of this size are free.
+
+**Conclusion**: a parametric signal template at a held-out mass point
+reproduces the direct-MC limit to a few percent, and the residual is a
+normalization difference of the size of the known Run3 sample scatter,
+not a shape or method failure. The interpolation nuisances cost nothing.
+
+**Chain**: `submit_shape_deltas.sh` → `merge_shape_deltas.py` →
+`fit_shape_deltas.py` (→ `delta_model.json`), then `submit_arm.sh --arm
+{A,B0,B,C}` (one DAG per arm: four template leaves →
+`mergeRunPeriodTemplates.py` → `printDatacard.py` → `runAsymptotic.sh`)
+and `compare_arms.py`. Templates are built one (period, channel)
+category per job — four categories in one process exceeds 8 GB, and the
+production DAG splits them for the same reason.
+
+**Production touchpoints** (both no-ops for existing methods):
+`printDatacard.py` merges an optional `extra_systematics*.json` from the
+template directory into the per-(subera, channel) systematics blocks,
+which is how a template producer declares nuisances no era config can
+carry; `mergeRunPeriodTemplates.py` accepts any `--method` segment.
+
 ## Sample production status (2026-08-07)
 
 - MHc145 (12 points) and MHc160 (23 points) signals preprocessed into
@@ -276,6 +371,7 @@ product records remain in `yield_polynomials.json` for comparison.
 | Full F-test ladders [0..3] for α/c1/c2 rejected | on the sparse MHc145 grid (7 anchors) the F-test let α stall at pol0/1 — in-sample parsimony, but held-out closure degraded (median 2.52→2.77, worst 5.8→7.8); all MHc160 gains came from orders moving *up* |
 | **Up-only F-test ladders [2,3] for α/c1/c2 adopted** (variant `cheb_fixedn_logitfsig_ftest`; fixed order = ladder minimum) | strict win: MHc145 unchanged, MHc160 held-out production-relevant median 2.66→2.46, worst 7.3→6.3 (pol3 taken by 7 category-parameters, mostly c1/α in highM); the F-test is safe only as an *upgrade* on the physics-motivated minimum — it cannot see interpolation quality |
 | Widened yield ladders (S/G/f_SR1E2Mu +1 order) rejected | F-test took the extra order in 3 places with large in-sample χ² drops (MHc160 Run3 S 22.6/6→1.9/4) but held-out yield closure unchanged (±0.3%) — residuals are per-sample normalization scatter, not model stiffness; G never took pol5 |
+| **Parametric templates validated against direct MC at a held-out point** (MHc160_MA90, four-arm limit comparison) | expected limit −3.5% (A→B0), unchanged for the window/binning shift and for the interpolation nuisances; the −3.5% is a pure normalization effect (yields +1.0/+2.3% Run2, +12.1/+6.6% Run3 — inside the known Run3 sample scatter) with shape L1 ≤ 3.1%. Systematics are carried as fit-function shifts (dm, dsig, dN interpolated in mA); their closure against the target's own MC has median |Δ| ≤ 2e-5 |
 | Positive-definite Bernstein background (deg-2, b₁,b₂ ≥ 0; `bern_fixedn_logitfsig_ftest`) rejected | motivated by rare negative-Chebychev tails (all in production-irrelevant corners; the visible symptom is only a plot-time χ² = nan). Bernstein converges more often (bad direct fits 25→7 at MHc160 floating-n) but describes the combinatoric shape worse where it matters: direct-fit medians degrade in 7/8 SR3Mu categories (lowM_Run2 2.4→4.6 at MHc160) because the positivity bound is active where the data want the Chebychev's freedom, and the b₁=b₂=0 boundary pileup degrades the coefficient-vs-mA interpolation (production-relevant held-out closure MHc160 median 2.46→2.85, worst 6.3→19.8). Negative Chebychev tails are instead rendered inert by the existing `BIN_FLOOR_VALUE` floor at template-construction time |
 
 Superseded variants' outputs are retained under

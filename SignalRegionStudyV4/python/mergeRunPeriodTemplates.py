@@ -29,8 +29,10 @@ def parse_args():
     parser.add_argument("--era", required=True, choices=["Run2", "Run3", "All"])
     parser.add_argument("--channel", default="Combined", choices=["Combined", "SR1E2Mu", "SR3Mu"])
     parser.add_argument("--masspoint", required=True)
-    parser.add_argument("--method", required=True,
-                        choices=["Baseline", "ParticleNet"])
+    # Any method segment: the file-level merge is payload-agnostic, and
+    # template producers beyond Baseline/ParticleNet (parametric signal
+    # models) write the same per-category layout.
+    parser.add_argument("--method", required=True)
     parser.add_argument(
         "--sources",
         help=("Comma-separated input template directories as ERA:CHANNEL pairs. "

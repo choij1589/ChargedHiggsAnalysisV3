@@ -10,6 +10,7 @@ Usage:
 """
 import os
 import sys
+import glob
 import json
 import logging
 import argparse
@@ -74,6 +75,24 @@ def load_systematics_block(era, channel):
     return config[channel]
 
 
+def load_extra_systematics():
+    """Template-directory nuisances that no era config can carry.
+
+    Optional: template producers that add their own nuisances (e.g. the
+    interpolation uncertainties of a parametric-signal template) write
+    extra_systematics*.json next to shapes.root, keyed "{subera}|{channel}".
+    Several such files may be present — one per merged component directory —
+    and are unioned. Absent for every production template: the datacard is
+    then byte-for-byte what it always was.
+    """
+    merged = {}
+    for path in sorted(glob.glob(f"{TEMPLATE_DIR}/extra_systematics*.json")):
+        with open(path) as f:
+            for key, block in json.load(f)["systematics"].items():
+                merged.setdefault(key, {}).update(block)
+    return merged
+
+
 class RunPeriodDatacardManager:
     """Generate datacards for Run-period categories with subera components."""
 
@@ -104,12 +123,18 @@ class RunPeriodDatacardManager:
             raise ValueError("No active process columns found in run-period templates")
 
     def _load_systematics(self):
+        extra = load_extra_systematics()
         for cat, payload in self.categories["categories"].items():
             channel = payload["channel"]
             for subera in payload["suberas"]:
                 key = (subera, channel)
                 if key not in self.systematics:
-                    self.systematics[key] = load_systematics_block(subera, channel)
+                    block = dict(load_systematics_block(subera, channel))
+                    block.update(extra.get(f"{subera}|{channel}", {}))
+                    self.systematics[key] = block
+        if extra:
+            logging.info("Merged %d template-local systematics block(s) from "
+                         "extra_systematics.json", len(extra))
 
     def _build_columns(self):
         for cat, payload in self.categories["categories"].items():
