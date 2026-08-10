@@ -62,10 +62,10 @@ Per merged run-period category — 6 in total,
 |---|---|
 | x0 | pol1 (fixed) |
 | sigmaL, sigmaR | pol2 (fixed; common form — both widths arise from the same two-muon resolution convolution) |
-| alphaL, alphaR | pol2 (fixed) |
+| alphaL, alphaR | **up-only F-test ladder [2,3]**: pol2 minimum, pol3 where the data demand it (p < 0.05) |
 | nL, nR | frozen per category (constant records) |
 | fsig | polynomial in **logit space** (F-test ladder pol2–5): bounded in (0,1) like the earlier logistic but able to **turn over** — the true fsig rises past the plateau and falls again as mA → mHc, where the two OS pairings converge and the combinatoric pair re-enters the window. Anchor points (fsig = 1) pinned at logit(1 − 10⁻³); linear-space polynomial fallback below 5 points |
-| c1, c2 | pol2 (fixed) |
+| c1, c2 | **up-only F-test ladder [2,3]** (as α) |
 
 Error-weighted fits over the study's fit points (good-quality fits
 only); **uniform mA range** for both SR3Mu variants — production uses
@@ -85,9 +85,10 @@ multi-entry lists engage an F-test ladder (step up accepted at p < 0.05).
 window is floored at 12 GeV — clipped left tail; it was moved *into*
 the fit set because extrapolating below the lowest fit point fails.)
 
-**Chain** (variant `cheb_fixedn_logitfsig`; its direct fits are read
-from the `cheb_fixedn` sibling since the fsig parametrization does not
-affect the per-point fits; one condor job per mass point for stage 1):
+**Chain** (variant `cheb_fixedn_logitfsig_ftest`; its direct fits are
+read from the `cheb_fixedn` sibling since the fsig/order parametrization
+does not affect the per-point fits; one condor job per mass point for
+stage 1):
 see `test/interpolation/README.md` for the exact commands.
 Quality gate per fit: Minuit status 0, covQual not in [0, 2), no shape
 parameter at a bound, positive errors (frozen parameters exempt);
@@ -105,19 +106,22 @@ direct fit's:
   exponential could not describe.
 - **Interpolation closure**: interp medians 1.5–5.0 vs direct 1.4–2.8
   over all 12 category × mHc combinations (production-relevant regions:
-  medians 1.6–5.0, SR3Mu worst ≤ 7.3); the interpolated shapes are
+  medians 1.6–5.0, SR3Mu worst ≤ 6.3); the interpolated shapes are
   statistically close to per-point fits everywhere in the studied
   ranges. The logit-space fsig removed the systematic misfit the
   logistic left at its plateau corner and at the mA → mHc endpoint
   (highM MA92–125: e.g. MHc145 Run3 4.3→2.6 / 4.7→2.4, MHc160 Run2
-  worst 10.7→6.1; endpoint fsig pulls +9/+10σ → ≈0).
+  worst 10.7→6.1; endpoint fsig pulls +9/+10σ → ≈0). The up-only
+  order ladders further improved the denser MHc160 grid (held-out
+  production-relevant median 2.66→2.46, worst 7.3→6.3) while leaving
+  MHc145 unchanged.
 - SR3Mu_highM at MA15–25 has no physical peak (the high-mass pairing
   picks the combinatoric dimuon at low mA) — those direct fits fail the
   quality gate by construction and are excluded; production never uses
   highM there.
 
 **Hand-off artifact**:
-`results/MHc{X}/cheb_fixedn_logitfsig/polynomials.json`
+`results/MHc{X}/cheb_fixedn_logitfsig_ftest/polynomials.json`
 (+ frozen n in the `cheb_fixedn` sibling's `dcb_fits.json` meta).
 Remaining steps to production: the template producer integrating the
 interpolated model over adaptive bins (`test/interpolation` code
@@ -269,6 +273,9 @@ product records remain in `yield_polynomials.json` for comparison.
 | Yield: per-era log-poly product replaced by the **physics-structured model** k_era · G_period · f, with f_SR3Mu = S·p/fsig | physics argument (b-jet eff. flat in mA; ±10σ window ⇒ SR1E2Mu f const; SR3Mu combinatorics already measured by the Chebychev fraction) confirmed by experiments E1–E4: f era-independent and flat for SR1E2Mu (pol1 χ²/ndf 4/8), S = f_l·fsig_l + f_h·fsig_h flat within ±4% while f_high spans ×80, Run2 era shares flat at ~1%; closure equal or better with ~10× fewer parameters, highM held-out max 9.3% → 1.5% (MHc145 Run2) |
 | Yield: G orders forced to cubic minimum [3,4] | log N_total is a rise + asymmetric fall (W* phase space closing toward mA → mHc); from-pol2 F-test ladders stalled and left 5–9% held-out misses at sparse steep-fall grid gaps |
 | **fsig logistic replaced by a logit-space polynomial** (variant `cheb_fixedn_logitfsig`; F-test pol2–5, anchors pinned at logit(1 − 10⁻³)) | the true fsig **turns over** — it rises past the logistic's plateau and falls as mA → mHc (pairings converge, combinatoric pair re-enters the window); the monotonic logistic left ±4–10σ fsig pulls at the plateau corner and endpoint, i.e. the MA92–125 closure soft spot. Logit-poly: shape closure equal or better in 7/8 SR3Mu categories (MHc145 highM Run3 MA92/95: 4.3→2.6 / 4.7→2.4; MHc160 Run2 plateau halved), endpoints fixed; direct fits are fsig-form-independent and stay in `cheb_fixedn` |
+| Full F-test ladders [0..3] for α/c1/c2 rejected | on the sparse MHc145 grid (7 anchors) the F-test let α stall at pol0/1 — in-sample parsimony, but held-out closure degraded (median 2.52→2.77, worst 5.8→7.8); all MHc160 gains came from orders moving *up* |
+| **Up-only F-test ladders [2,3] for α/c1/c2 adopted** (variant `cheb_fixedn_logitfsig_ftest`; fixed order = ladder minimum) | strict win: MHc145 unchanged, MHc160 held-out production-relevant median 2.66→2.46, worst 7.3→6.3 (pol3 taken by 7 category-parameters, mostly c1/α in highM); the F-test is safe only as an *upgrade* on the physics-motivated minimum — it cannot see interpolation quality |
+| Widened yield ladders (S/G/f_SR1E2Mu +1 order) rejected | F-test took the extra order in 3 places with large in-sample χ² drops (MHc160 Run3 S 22.6/6→1.9/4) but held-out yield closure unchanged (±0.3%) — residuals are per-sample normalization scatter, not model stiffness; G never took pol5 |
 
 Superseded variants' outputs are retained under
 `results/MHc{X}/{fixedn,expo*,cheb,…}` and `plots/archive/`; the
