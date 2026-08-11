@@ -45,12 +45,36 @@ def weighted_polyfit(x, y, err, deg):
         coeffs = np.array([mean])
         cov = np.array([[var]])
     else:
-        coeffs, cov = np.polyfit(x, y, deg, w=1.0 / err, cov="unscaled")
+        try:
+            coeffs, cov = np.polyfit(x, y, deg, w=1.0 / err, cov="unscaled")
+        except np.linalg.LinAlgError as exc:
+            # Almost always one anchor with a collapsed error dominating the
+            # weights (see credible_error). Report the offending inputs
+            # instead of a bare "Singular matrix" from deep inside numpy.
+            spread = [f"mA={a}: {v:.6g} +- {e:.3g}" for a, v, e in zip(x, y, err)]
+            raise RuntimeError(
+                f"weighted_polyfit(deg={deg}) hit a singular matrix. Anchors:\n  "
+                + "\n  ".join(spread)) from exc
     resid = (y - np.polyval(coeffs, x)) / err
     chi2 = float(np.sum(resid**2))
     ndf = len(x) - (deg + 1)
     return {"coeffs": coeffs.tolist(), "cov": np.asarray(cov).tolist(),
             "chi2": chi2, "ndf": ndf}
+
+
+def credible_error(pv):
+    """False when a parameter's error is too small to be a real uncertainty.
+
+    A collapsed Hesse error (seen down to 1e-13 on an O(0.1) coefficient)
+    would enter the weighted parametrization fit with weight 1/err ~ 1e13 and
+    make the design matrix singular. The relative test is only applied where
+    it is defined; a value consistent with zero is left to the caller's
+    error > 0 check.
+    """
+    value, err = pv["value"], pv["error"]
+    if not abs(value) > 0:
+        return True
+    return err / abs(value) >= interpolation_config.MIN_REL_PARAM_ERROR
 
 
 def select_order(x, y, err, orders):
@@ -183,7 +207,8 @@ def main():
                                   key=lambda kv: kv[1]["mA"]):
                 mA = fit["mA"]
                 pv = fit["params"][param]
-                good = fit["quality"] == "good" and pv["error"] > 0
+                good = (fit["quality"] == "good" and pv["error"] > 0
+                        and credible_error(pv))
                 if mA in fit_ma and mA not in excluded and good:
                     used["mA"].append(mA)
                     used["value"].append(pv["value"])
@@ -226,9 +251,19 @@ def main():
                     detail = (f"[{cat_key}] {param}: only {len(used['mA'])} "
                               f"usable anchor(s) {used['mA']}, requested order "
                               f"{requested} -> fell back to order {chosen}")
-                    if chosen == 0:
+                    if chosen == 0 and param not in interpolation_config.BKG_PARAMS:
                         result["degenerate"] = True
                         degenerate.append(detail + " (CONSTANT in mA)")
+                    elif chosen == 0:
+                        # A constant background shape is tolerable: c1/c2
+                        # carry weight (1-fsig), and a point whose fit dropped
+                        # the background (fsig -> FSIG_DROP_THRESHOLD) has no
+                        # c1/c2 anchor at all by construction. They also never
+                        # enter the mass window, which measInterpYields builds
+                        # from x0/sigma_eff alone.
+                        result["degenerate_bkg"] = True
+                        warnings.append(detail + " (CONSTANT in mA; background "
+                                        "shape, not window-defining)")
                     else:
                         warnings.append(detail)
             result["mhc"] = args.mhc

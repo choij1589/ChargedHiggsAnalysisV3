@@ -53,6 +53,16 @@ POLY_ORDERS = {
 F_TEST_PVALUE = 0.05
 FSIG_LOGISTIC_MIN_POINTS = 5
 
+# Smallest believable relative error on a fitted parameter. A not-fully
+# converged Minuit pass (status=3) can leave a collapsed Hesse error -- values
+# like 1.5e-13 on a Chebychev coefficient of 0.28 have been observed. Those are
+# fit artifacts, not measurements, and since the parametrization is fit with
+# weights 1/err a single such point carries weight ~1e13, swamping every real
+# anchor and driving the weighted design matrix singular. Anchors whose
+# relative error falls below this are skipped per-parameter (the same fit
+# stays usable for its well-determined parameters).
+MIN_REL_PARAM_ERROR = 1e-5
+
 # Canonical parameter ordering for reports/plots (categories carry only the
 # subset present in their fit model: SR1E2Mu has no fsig/c1/c2). nL/nR are
 # frozen constants in the adopted model, but they must stay listed here:
