@@ -434,8 +434,14 @@ def fit_quality(fit):
     low stats) do not make a fit bad — they are reported by the caller.
     """
     reasons = []
-    if fit["status"] != 0:
-        reasons.append(f"status={fit['status']}")
+    # A non-zero Minuit status is only disqualifying when the covariance is
+    # not trustworthy. status=1 (covariance forced pos-def) and status=3 (EDM
+    # above tolerance) routinely accompany covQual>=2, i.e. a full covariance
+    # matrix, and those fits are usable; rejecting them throws away anchors
+    # that sparse mA grids cannot spare. Genuine failures (observed:
+    # status=600/602) carry covQual 0/-1 and are still rejected here.
+    if fit["status"] != 0 and not fit["covQual"] >= 2:
+        reasons.append(f"status={fit['status']} covQual={fit['covQual']}")
     if 0 <= fit["covQual"] < 2:
         reasons.append(f"covQual={fit['covQual']}")
     if fit["at_limit"]:

@@ -150,6 +150,7 @@ def main():
 
     output = {}
     warnings = []
+    degenerate = []
     for cat_key, cat_fits in sorted(fits.items()):
         output[cat_key] = {}
         if not cat_fits:
@@ -214,6 +215,22 @@ def main():
                 result["orders_tried"] = {
                     str(deg): {k: v for k, v in info.items() if k != "cov"}
                     for deg, info in tried.items()}
+                requested = interpolation_config.POLY_ORDERS[param]
+                if chosen < min(requested):
+                    # select_order fell back below the requested ladder for
+                    # lack of points. Order 0 is not a degraded fit but a
+                    # degenerate one: the parameter becomes constant in mA,
+                    # which for a peak position or width is unphysical and
+                    # silently poisons every window built from it. Collect
+                    # and fail at the end rather than emitting garbage.
+                    detail = (f"[{cat_key}] {param}: only {len(used['mA'])} "
+                              f"usable anchor(s) {used['mA']}, requested order "
+                              f"{requested} -> fell back to order {chosen}")
+                    if chosen == 0:
+                        result["degenerate"] = True
+                        degenerate.append(detail + " (CONSTANT in mA)")
+                    else:
+                        warnings.append(detail)
             result["mhc"] = args.mhc
             result["points_used"] = used
             output[cat_key][param] = result
@@ -236,6 +253,7 @@ def main():
         },
         "polynomials": output,
         "warnings": warnings,
+        "degenerate": degenerate,
     }
     os.makedirs(interp_dir, exist_ok=True)
     outpath = os.path.join(interp_dir, f"polynomials{args.suffix}.json")
@@ -253,6 +271,21 @@ def main():
         print("\nWarnings:")
         for w in warnings:
             print(f"  {w}")
+
+    if degenerate:
+        # The payload is written first so the failure is diagnosable, but the
+        # step must not report success: a constant-in-mA parametrization
+        # produces mass windows that miss the peak entirely, and the bad
+        # yields flow all the way into the exported nuisance sizes.
+        raise RuntimeError(
+            f"{len(degenerate)} degenerate parametrization(s) for mHc="
+            f"{args.mhc} - a parameter came out CONSTANT in mA:\n  "
+            + "\n  ".join(degenerate)
+            + "\n\nThe category has too few usable anchors. Either add fit "
+              "anchors for this mHc in configs/interpolation.json, or "
+              "establish why its direct fits are being rejected "
+              f"(see the dropped-anchor warnings above). Wrote {outpath} "
+              "for inspection.")
 
 
 if __name__ == "__main__":
