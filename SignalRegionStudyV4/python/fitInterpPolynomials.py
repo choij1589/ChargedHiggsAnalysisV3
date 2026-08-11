@@ -145,13 +145,19 @@ def main():
     interp_dir = srspaths.interpolation_dir(args.mhc)
     params_plot_base = srspaths.interpolation_plots_dir(args.mhc, "params")
 
-    with open(os.path.join(interp_dir, "fits", "dcb_fits_frozen.json")) as f:
+    with open(os.path.join(interp_dir, "fits", "dcb_fits.json")) as f:
         fits = json.load(f)["results"]
 
     output = {}
     warnings = []
     for cat_key, cat_fits in sorted(fits.items()):
         output[cat_key] = {}
+        if not cat_fits:
+            # Every mass point in this category failed to build a signal
+            # chain (missing samples): report it rather than dying on the
+            # empty iterator below.
+            warnings.append(f"[{cat_key}] no fit records; category skipped")
+            continue
         cat_params = [p for p in ALL_PARAM_ORDER
                       if p in next(iter(cat_fits.values()))["params"]]
         for param in cat_params:

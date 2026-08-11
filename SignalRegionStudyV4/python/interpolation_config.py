@@ -43,7 +43,9 @@ POLY_ORDERS = {
     "sigmaL": [2],
     "sigmaR": [2],
     "alphaL": [2, 3],
+    "nL": [1, 2],       # frozen in the adopted model; ladder unused
     "alphaR": [2, 3],
+    "nR": [1, 2],       # frozen in the adopted model; ladder unused
     "fsig": [1, 2, 3],
     "c1": [2, 3],
     "c2": [2, 3],
@@ -52,8 +54,12 @@ F_TEST_PVALUE = 0.05
 FSIG_LOGISTIC_MIN_POINTS = 5
 
 # Canonical parameter ordering for reports/plots (categories carry only the
-# subset present in their fit model: SR1E2Mu has no fsig/c1/c2).
-ALL_PARAM_ORDER = ["x0", "sigmaL", "sigmaR", "alphaL", "alphaR", "fsig", "c1", "c2"]
+# subset present in their fit model: SR1E2Mu has no fsig/c1/c2). nL/nR are
+# frozen constants in the adopted model, but they must stay listed here:
+# fitInterpPolynomials filters the parameters it records against this list,
+# and build_model requires them.
+ALL_PARAM_ORDER = ["x0", "sigmaL", "sigmaR", "alphaL", "nL",
+                   "alphaR", "nR", "fsig", "c1", "c2"]
 
 # Background-shape parameters (zero weight when fsig -> 1).
 BKG_PARAMS = ("c1", "c2")
