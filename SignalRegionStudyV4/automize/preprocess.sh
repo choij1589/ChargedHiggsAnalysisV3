@@ -25,6 +25,7 @@ ERAs=("2016preVFP" "2016postVFP" "2017" "2018" "2022" "2022EE" "2023" "2023BPix"
 SINGLE_MASSPOINT=""
 DO_BACKGROUNDS=true
 DO_SIGNALS=true
+DO_PARTICLENET=true
 DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
@@ -32,15 +33,20 @@ while [[ $# -gt 0 ]]; do
         --masspoint)        SINGLE_MASSPOINT="$2"; shift 2 ;;
         --skip-backgrounds) DO_BACKGROUNDS=false;  shift ;;
         --backgrounds-only) DO_SIGNALS=false;      shift ;;
+        --skip-particlenet) DO_PARTICLENET=false;  shift ;;
         --dry-run)          DRY_RUN=true;          shift ;;
         --help)
-            echo "Usage: $0 [--masspoint MP] [--skip-backgrounds] [--backgrounds-only] [--dry-run]"
+            echo "Usage: $0 [--masspoint MP] [--skip-backgrounds] [--backgrounds-only]"
+            echo "          [--skip-particlenet] [--dry-run]"
             echo ""
             echo "  Default: shared-background DAG + one DAG per mass point"
             echo "  (baseline+particlenet union from configs/masspoints.json)."
             echo "  --masspoint MP       - signals/ParticleNet production for MP only"
             echo "  --skip-backgrounds   - omit the shared-background DAG (already produced)"
             echo "  --backgrounds-only   - only the shared-background DAG"
+            echo "  --skip-particlenet   - shared backgrounds/signals only; omit the"
+            echo "                         per-masspoint ParticleNet nodes (Baseline-only"
+            echo "                         production, which needs no NoHistMode inputs)"
             echo "  --dry-run            - generate DAGs without submitting"
             exit 0
             ;;
@@ -137,7 +143,7 @@ if [[ "$DO_SIGNALS" == "true" ]]; then
             done
         done
 
-        if is_particlenet "$masspoint"; then
+        if [[ "$DO_PARTICLENET" == "true" ]] && is_particlenet "$masspoint"; then
             for era in "${ERAs[@]}"; do
                 for channel in SR1E2Mu SR3Mu TTZ2E1Mu; do
                     dag_node "$mp_dir/dag.dag" "pnet_${channel}_${era}" "$era" "$channel" \
@@ -154,6 +160,6 @@ dag_write_status_all "$job_dir"
 
 echo ""
 echo "============================================================"
-echo "Shared-background DAG: $DO_BACKGROUNDS | Signal DAGs: $DO_SIGNALS"
+echo "Shared-background DAG: $DO_BACKGROUNDS | Signal DAGs: $DO_SIGNALS | ParticleNet nodes: $DO_PARTICLENET"
 [[ "$DO_SIGNALS" == "true" ]] && echo "Mass points: ${#MASSPOINTs_PREPROCESS[@]}"
 dag_submit_or_dryrun "$job_dir" "$DRY_RUN"
