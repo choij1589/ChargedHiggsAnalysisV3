@@ -61,3 +61,9 @@ srs_method_segment() {
         echo "$method"
     fi
 }
+
+# Interpolation-study output directory for one mHc (mirrors
+# srspaths.interpolation_dir). Usage: srs_interp_dir 160
+srs_interp_dir() {
+    echo "$SRS_MODULE_DIR/tests/interpolation/MHc$1"
+}

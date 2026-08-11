@@ -133,3 +133,26 @@ def samplegroups_config():
 def masspoints_config():
     with open(config_path("masspoints.json")) as f:
         return json.load(f)
+
+
+def interpolation_config():
+    with open(config_path("interpolation.json")) as f:
+        return json.load(f)
+
+
+def interpolation_uncertainties_path():
+    return config_path("interpolation_uncertainties.json")
+
+
+def tests_dir():
+    return os.path.join(module_dir(), "tests")
+
+
+def interpolation_dir(mhc=None):
+    base = os.path.join(tests_dir(), "interpolation")
+    return os.path.join(base, f"MHc{int(mhc)}") if mhc is not None else base
+
+
+def interpolation_plots_dir(mhc, kind):
+    """kind in {fits, params, closure, yields, deltas}."""
+    return os.path.join(interpolation_dir(mhc), "plots", kind)

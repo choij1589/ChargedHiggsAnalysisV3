@@ -2,8 +2,123 @@
 
 Purpose, adopted method, results, and decision history of the
 mA-interpolation development (B2G-25-013 next-generation signal
-modeling). Study code lives in `test/interpolation/` (untracked scratch
-by convention); this document is the durable record.
+modeling). The chain now lives in production (`python/`, `scripts/`,
+`automize/`, outputs in `tests/interpolation/`); the method-development
+study is frozen under `test/archive/interpolation/` (untracked scratch by
+convention). This document is the durable record.
+
+## Graduated layout (2026-08-11)
+
+The method-development study below (`test/interpolation/`, now frozen
+under `test/archive/interpolation/`) concluded, and the chain graduated
+into production:
+
+- Code: `python/interpolation_config.py` (successor of `interp_config.py`
+  — mass-point splits move to `configs/interpolation.json`, everything
+  study-specific like `param_template_config.py`'s delta policy is
+  absorbed), `python/dcb_fit_utils.py`, and the per-stage entry points
+  `fitInterpShapes.py` → `fitInterpPolynomials.py` → `closInterpShapes.py`
+  (shape chain), `measInterpYields.py` → `fitInterpYieldModel.py` →
+  `closInterpYields.py` (yield chain), `measInterpShapeDeltas.py` →
+  `fitInterpShapeDeltas.py` (shape-delta chain), one consolidated
+  `mergeInterpResults.py --stage {fits-floating,fits,closure,yields,
+  yield-closure,shape-deltas}`, `verifyInterpSamples.py`, and the new
+  `exportInterpUncertainties.py` (below) + `interp_plot_utils.py`
+  (cmsstyle plots — matplotlib is gone from the graduated chain).
+- Execution: `scripts/interpolation_wrapper.sh` (condor leaf dispatch) +
+  `automize/interpolation.sh --mhc N|--all [--start-from STEP] [--local]
+  [--dry-run]` (one DAG per mHc; `--local` runs serially without condor).
+- Outputs: `tests/interpolation/MHc{X}/` (fits, polynomials, closure,
+  yields, shape_deltas, uncertainties.json, plots/) — git-tracked, JSON
+  alongside cmsstyle PNGs.
+- **Variant machinery is gone.** The adopted method (Chebychev2
+  background, frozen median n, logit-space fsig, up-only F-test ladders)
+  is hard-coded; `--expo-bkg`/`--bern-bkg`/`--cheb-bkg`/`--logit-fsig`/
+  `--ftest-orders` and the `{variant}` directory level no longer exist.
+  The two-pass floating-n → frozen-n structure is kept
+  (`fitInterpShapes.py --pass floating|frozen`).
+- **Study grid extended to 7 mHc values** (was 2): 70, 85, 100, 115, 130,
+  145, 160, with fit-anchor/held-out splits in
+  `configs/interpolation.json["fit_points"]` (held-out = full baseline
+  grid − fit anchors, computed, never stored). **The MHc145/160 fit
+  anchors changed** from the values below (145: 80,90 → 85,92; 160:
+  90 → 85,95) — both studies are re-run under the new splits, so their
+  `polynomials.json`/`yield_model.json`/closure numbers postdate this
+  section and supersede the "Results" section below where they differ.
+- **New**: `exportInterpUncertainties.py --mhc N [--all]` derives the
+  interpolation nuisance sizes directly from the held-out closure
+  residuals (max envelope, conservative by design) instead of the fixed
+  arm-C constants (`INTERP_SCALE_NSIGMA`/`INTERP_RES_REL`/
+  `INTERP_NORM_LNN` below) — scale/res per (channel, run period),
+  decorrelated-per-era norm (`CMS_interp_norm_{channel}_{era}`, replacing
+  the arm-C `_13TeV`/`_13p6TeV` norm token). Output:
+  `tests/interpolation/MHc{X}/uncertainties.json` (per-point detail) and
+  the consolidated `configs/interpolation_uncertainties.json` consumed by
+  the (future) production template producer.
+- **Not yet graduated**: the parametric-template producer
+  (`make_param_templates.py`) and the one-off arm-comparison validation
+  (`compare_arms.py`, `param_template_config.py`'s `ARMS` table) — a
+  separate follow-up phase once the exported uncertainties are validated
+  against the new grid. The decision history and variant comparisons
+  below remain the durable record of *how* the method was chosen; they
+  are not reproducible from the graduated code (variant flags removed).
+
+Verified at graduation (static only — no physics rerun yet): every entry
+point imports under CMSSW (numpy 1.24.3 / scipy 1.10.0 / ROOT 6.30/07 /
+cmsstyle), all 7 splits satisfy fit ⊂ grid and held_out = grid − fit, and
+`--mhc 160 --dry-run` emits a 148-node DAG (6 fan-out stages × 23 mass
+points + 10 spine nodes) with the expected fan-in/fan-out edges.
+
+## Next steps (as of 2026-08-11)
+
+Ordered; each depends on the one before it.
+
+1. **Samples for the five new mHc values.** MHc70/85/100/115/130 signals
+   were never preprocessed for this study (only 145/160 were). Run
+   `./automize/preprocess.sh --masspoint MHc{X}_MA{Y} --skip-backgrounds`
+   (shared backgrounds are already in place, and both SR3Mu pairing
+   variants are written per point), then gate on
+   `python3 python/verifyInterpSamples.py --all --mhc {X}` — the
+   anti-truncation check is not optional, concurrent-xrdcp truncation is
+   an observed failure mode.
+2. **Run the seven studies.** `./automize/interpolation.sh --all`
+   (or `--mhc N` per point; `--local` for serial execution if condor is
+   unavailable on the current server). MHc145/160 **must** be re-run:
+   their fit anchors changed, so the archived `polynomials.json` /
+   `yield_model.json` no longer match `configs/interpolation.json`.
+   Regression check on MHc160: closure medians should land near the
+   archived record (production-relevant medians 1.6–5.0) — compare
+   medians, not bitwise, since covQual can flip on marginal fits across
+   machines.
+3. **Review the derived uncertainties.** `exportInterpUncertainties.py
+   --all` writes `configs/interpolation_uncertainties.json`. Check the
+   `n_points` field (a per-era norm envelope resting on 3 points is thin)
+   and any `> 0.10` warnings: for Run3 those are expected (the upstream
+   per-sample scatter, absorbed deliberately by the max envelope), but on
+   Run2 they flag a sparse fit-grid gap in the steep phase-space fall and
+   may argue for adding a fit anchor there.
+4. **Graduate the template producer** (`make_param_templates.py` →
+   `python/`), behind a new `srspaths.template_dir` method segment,
+   reading the exported uncertainties instead of the hard-coded
+   `INTERP_*` constants, and declaring them through `printDatacard.py`'s
+   existing `extra_systematics*.json` mechanism (already a no-op for
+   existing methods). **In production the shape/yield/delta models are
+   refit over the FULL mass-point grid** — the fit/held-out splits exist
+   only for this closure study and for deriving the uncertainties, so no
+   model export is needed from the study chain.
+5. **Re-validate the limit closure** on the new grid: repeat the four-arm
+   comparison (direct MC vs parametric, window/binning, nuisances) at a
+   held-out point, now with derived rather than assumed nuisance sizes.
+6. **ParticleNet interpolation study** — the whole chain above is a
+   Baseline study; the ParticleNet variant follows once Baseline is
+   production-ready.
+
+Open upstream items (not blockers, but they bound the achievable closure):
+the corrupt `MHc145_MA100` / 2023 / SR1E2Mu raw skim needs SKNano
+regeneration (carried as `known_missing_samples`), and the Run3
+per-sample normalization scatter (±10–20%, channel-correlated) still
+wants a fix on the sample-production side — it inflates the derived Run3
+norm nuisances and equally affects the current production templates.
 
 ## Purpose
 

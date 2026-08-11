@@ -44,6 +44,9 @@ samples/{era}/{channel}/{masspoint}/         ParticleNet per-masspoint dirs (sco
                                              NoHistMode skims; incl. TTZ2E1Mu)
 templates/{masspoint}/{method}/{era}/{channel}/
 results/json/{BR,xsec}/{era}/limits.{era}[.{channel}].Asymptotic.{method}.json
+tests/interpolation/MHc{X}/                  mA-interpolation chain outputs (fits, polynomials,
+                                             closure, yields, shape_deltas, uncertainties.json,
+                                             plots/) — see docs/INTERPOLATION.md
 ```
 
 The SR3Mu pairing rule: `highM` (higher-mass dimuon pairing) iff
@@ -223,12 +226,46 @@ MHc130_MA90 (datacards bitwise, limits identical to the last bit). V3 is
 never re-run; `python/compareToV3.py --v3-dir <path>` compares against its
 frozen outputs.
 
+## mA Interpolation Chain
+
+Production-graduated development chain for parametric signal templates
+(fixed mHc, arbitrary mA): per-point DCB(+Chebychev2) fits →
+`fitInterpShapes.py` (floating/frozen-n passes) → shape parametrizations
+`fitInterpPolynomials.py` → shape closure `closInterpShapes.py`; window
+yields `measInterpYields.py` → yield model `fitInterpYieldModel.py` →
+yield closure `closInterpYields.py`; shape-systematic deltas
+`measInterpShapeDeltas.py` → `fitInterpShapeDeltas.py`; derived nuisance
+sizes `exportInterpUncertainties.py`. Config: `configs/interpolation.json`
+(mass-point fit/held-out splits), constants in `python/interpolation_config.py`.
+One-liner driver: `automize/interpolation.sh --mhc N|--all
+[--start-from STEP] [--local] [--dry-run]` (condor DAG; `--local` for
+serial execution). Outputs under `tests/interpolation/MHc{X}/`; merge any
+sharded stage with `python3 python/mergeInterpResults.py --mhc N --stage
+{fits-floating,fits,closure,yields,yield-closure,shape-deltas}`.
+
+Uncertainties are **derived from the closure tests**, not assumed:
+`exportInterpUncertainties.py` takes the max envelope over held-out
+points — scale/res per (channel, run period), correlated within a period
+(`CMS_interp_{scale,res}_{ch}_{13TeV,13p6TeV}`), and norm per
+(channel, era), decorrelated between eras (`CMS_interp_norm_{ch}_{era}`)
+— into `configs/interpolation_uncertainties.json`.
+
+Mass-point splits are fit anchors only; held-out = full baseline grid −
+anchors, computed at runtime. **The splits are a closure-study device: in
+production every model is refit over the full grid.** Full method record,
+decision history and the ordered next-step list: `docs/INTERPOLATION.md`.
+
 ## Future Phases
 
-Parametric signal models + binned backgrounds, and mA interpolation, slot
-in as new template producers behind `srspaths.template_dir` method
-segments. Nothing in V4 may hard-assume the template payload is binned
-histograms beyond the existing per-step contracts.
+Next: run the seven mHc studies (MHc70–130 signals still need
+preprocessing; MHc145/160 must be re-run under the new anchors), review
+the derived uncertainties, then graduate the interpolation template
+producer behind a `srspaths.template_dir` method segment, consuming
+`configs/interpolation_uncertainties.json` and declaring the nuisances via
+`printDatacard.py`'s `extra_systematics*.json` hook. See
+docs/INTERPOLATION.md "Next steps" for the ordered list. Nothing in V4 may
+hard-assume the template payload is binned histograms beyond the existing
+per-step contracts.
 
 ## Troubleshooting
 
