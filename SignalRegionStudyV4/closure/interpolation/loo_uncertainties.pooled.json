@@ -1,0 +1,4163 @@
+{
+  "meta": {
+    "strategy": "leave-one-out, POOLED over mHc; the norm envelope is binned in mA",
+    "mhc_pooled": [
+      70,
+      85,
+      100,
+      115,
+      130,
+      145,
+      160
+    ],
+    "grid_ma": {
+      "MHc70": [
+        15,
+        18,
+        30,
+        40,
+        55,
+        65
+      ],
+      "MHc85": [
+        15,
+        21,
+        30,
+        42,
+        55,
+        70,
+        80
+      ],
+      "MHc100": [
+        15,
+        24,
+        40,
+        60,
+        75,
+        85,
+        90,
+        95
+      ],
+      "MHc115": [
+        15,
+        27,
+        42,
+        57,
+        70,
+        83,
+        85,
+        87,
+        90,
+        95,
+        100,
+        110
+      ],
+      "MHc130": [
+        15,
+        30,
+        55,
+        83,
+        85,
+        90,
+        95,
+        100,
+        112,
+        125
+      ],
+      "MHc145": [
+        15,
+        35,
+        45,
+        60,
+        80,
+        85,
+        90,
+        92,
+        95,
+        100,
+        120,
+        140
+      ],
+      "MHc160": [
+        15,
+        17,
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50,
+        60,
+        70,
+        80,
+        85,
+        90,
+        95,
+        98,
+        105,
+        115,
+        120,
+        125,
+        135,
+        145,
+        155
+      ]
+    },
+    "channels": [
+      "SR1E2Mu",
+      "SR3Mu_lowM",
+      "SR3Mu_highM"
+    ],
+    "norm_ma_bins": [
+      [
+        "belowZ",
+        15.0,
+        80.0
+      ],
+      [
+        "onZ",
+        80.0,
+        100.0
+      ],
+      [
+        "aboveZ",
+        100.0,
+        155.0
+      ]
+    ],
+    "rules": {
+      "norm": "per (channel, era, mA bin), pooled over mHc: the rms WITHIN each study, then the MAX over studies holding >= 2 mass points; floored by the pooled rms and by 0.01, warn above 0.1. per_study_detail keeps every input visible: the per-study rms and point counts, the studies skipped for having too few points, the pooled rms, the old plain max, and which study drove the value",
+      "scale_res": "same rms-then-max rule, per (channel, period), NOT binned in mA and with no mHc dependence (the rule already pools studies). The shape parametrizations are themselves (mHc, mA) surfaces, so a per-study envelope would be measuring one slice of a global model.",
+      "excluded": "extrapolation (grid endpoints), non-good direct fit (shape only), missing records",
+      "empty_bins": "a (channel, era, mA bin) with no usable point takes the channel's worst populated bin and is listed in warnings \u2014 never the bare floor"
+    },
+    "command": "python/exportInterpUncertainties.py --loo --all --pooled --write-config",
+    "date": "2026-08-13T00:53:01"
+  },
+  "norm": {
+    "SR1E2Mu": {
+      "2016preVFP": {
+        "belowZ": 1.0892268134419123,
+        "onZ": 1.0496033101632503,
+        "aboveZ": 1.0260477903447596
+      },
+      "2016postVFP": {
+        "belowZ": 1.0944760431091423,
+        "onZ": 1.0335404191481232,
+        "aboveZ": 1.026553412326659
+      },
+      "2017": {
+        "belowZ": 1.0927762738873197,
+        "onZ": 1.0350039223148424,
+        "aboveZ": 1.0352044319552796
+      },
+      "2018": {
+        "belowZ": 1.1081892881956148,
+        "onZ": 1.0280263105406697,
+        "aboveZ": 1.0351609934600832
+      },
+      "2022": {
+        "belowZ": 1.0700177758385605,
+        "onZ": 1.0801829507738256,
+        "aboveZ": 1.1504368875079882
+      },
+      "2022EE": {
+        "belowZ": 1.0888818484422416,
+        "onZ": 1.077349506383701,
+        "aboveZ": 1.2343995476294434
+      },
+      "2023": {
+        "belowZ": 1.0917810259133818,
+        "onZ": 1.166773574668121,
+        "aboveZ": 1.2121967942909873
+      },
+      "2023BPix": {
+        "belowZ": 1.074366299243225,
+        "onZ": 1.1011484073929134,
+        "aboveZ": 1.1214714502627574
+      }
+    },
+    "SR3Mu_lowM": {
+      "2016preVFP": {
+        "belowZ": 1.1603919737534014,
+        "onZ": 1.046651744281022,
+        "aboveZ": 1.156100834913595
+      },
+      "2016postVFP": {
+        "belowZ": 1.1612984902919612,
+        "onZ": 1.039862086333407,
+        "aboveZ": 1.1604487397669463
+      },
+      "2017": {
+        "belowZ": 1.1620163391730949,
+        "onZ": 1.0465460679902163,
+        "aboveZ": 1.1587773258058678
+      },
+      "2018": {
+        "belowZ": 1.1623366328878044,
+        "onZ": 1.0481164609431908,
+        "aboveZ": 1.1622590970241005
+      },
+      "2022": {
+        "belowZ": 1.1336882712378595,
+        "onZ": 1.0823276539831503,
+        "aboveZ": 1.220569983780877
+      },
+      "2022EE": {
+        "belowZ": 1.1514742566414249,
+        "onZ": 1.098961397154156,
+        "aboveZ": 1.1386736089518863
+      },
+      "2023": {
+        "belowZ": 1.1436233375935456,
+        "onZ": 1.1428160332430382,
+        "aboveZ": 1.1406123183531827
+      },
+      "2023BPix": {
+        "belowZ": 1.1601603206812032,
+        "onZ": 1.1137255654814082,
+        "aboveZ": 1.2227059171179495
+      }
+    },
+    "SR3Mu_highM": {
+      "2016preVFP": {
+        "belowZ": 1.1697433832810946,
+        "onZ": 1.0206096919853174,
+        "aboveZ": 1.0425795453411277
+      },
+      "2016postVFP": {
+        "belowZ": 1.1697399743189603,
+        "onZ": 1.0236259152717064,
+        "aboveZ": 1.0400169017852463
+      },
+      "2017": {
+        "belowZ": 1.1774265255383383,
+        "onZ": 1.019314120707951,
+        "aboveZ": 1.031157735883666
+      },
+      "2018": {
+        "belowZ": 1.1933679969404773,
+        "onZ": 1.0221236684843609,
+        "aboveZ": 1.036352756398836
+      },
+      "2022": {
+        "belowZ": 1.1708655910478876,
+        "onZ": 1.0621140498769033,
+        "aboveZ": 1.1051226561107932
+      },
+      "2022EE": {
+        "belowZ": 1.2092149990742411,
+        "onZ": 1.105836775118016,
+        "aboveZ": 1.1926625394293255
+      },
+      "2023": {
+        "belowZ": 1.1449692230436372,
+        "onZ": 1.0861720442288612,
+        "aboveZ": 1.087739961376555
+      },
+      "2023BPix": {
+        "belowZ": 1.1782414932896361,
+        "onZ": 1.0823738592654715,
+        "aboveZ": 1.087126469936292
+      }
+    }
+  },
+  "scale": {
+    "SR1E2Mu": {
+      "Run2": 0.043100404255765605,
+      "Run3": 0.04648471935683083
+    },
+    "SR3Mu_lowM": {
+      "Run2": 0.03149732489461016,
+      "Run3": 0.049051817047188286
+    },
+    "SR3Mu_highM": {
+      "Run2": 0.05684022445889434,
+      "Run3": 0.06322266580233875
+    }
+  },
+  "res": {
+    "SR1E2Mu": {
+      "Run2": 0.019080952347333178,
+      "Run3": 0.017910896931344643
+    },
+    "SR3Mu_lowM": {
+      "Run2": 0.026458687894290976,
+      "Run3": 0.023756684028162035
+    },
+    "SR3Mu_highM": {
+      "Run2": 0.056804591154763225,
+      "Run3": 0.0504181344792521
+    }
+  },
+  "nuisances": {
+    "scale": {
+      "SR1E2Mu": {
+        "Run2": "CMS_interp_scale_SR1E2Mu_13TeV",
+        "Run3": "CMS_interp_scale_SR1E2Mu_13p6TeV"
+      },
+      "SR3Mu_lowM": {
+        "Run2": "CMS_interp_scale_SR3Mu_13TeV",
+        "Run3": "CMS_interp_scale_SR3Mu_13p6TeV"
+      },
+      "SR3Mu_highM": {
+        "Run2": "CMS_interp_scale_SR3Mu_13TeV",
+        "Run3": "CMS_interp_scale_SR3Mu_13p6TeV"
+      }
+    },
+    "res": {
+      "SR1E2Mu": {
+        "Run2": "CMS_interp_res_SR1E2Mu_13TeV",
+        "Run3": "CMS_interp_res_SR1E2Mu_13p6TeV"
+      },
+      "SR3Mu_lowM": {
+        "Run2": "CMS_interp_res_SR3Mu_13TeV",
+        "Run3": "CMS_interp_res_SR3Mu_13p6TeV"
+      },
+      "SR3Mu_highM": {
+        "Run2": "CMS_interp_res_SR3Mu_13TeV",
+        "Run3": "CMS_interp_res_SR3Mu_13p6TeV"
+      }
+    },
+    "norm": {
+      "SR1E2Mu": {
+        "Run2": "CMS_interp_norm_SR1E2Mu_13TeV",
+        "Run3": "CMS_interp_norm_SR1E2Mu_13p6TeV"
+      },
+      "SR3Mu_lowM": {
+        "Run2": "CMS_interp_norm_SR3Mu_13TeV",
+        "Run3": "CMS_interp_norm_SR3Mu_13p6TeV"
+      },
+      "SR3Mu_highM": {
+        "Run2": "CMS_interp_norm_SR3Mu_13TeV",
+        "Run3": "CMS_interp_norm_SR3Mu_13p6TeV"
+      }
+    }
+  },
+  "n_points": {
+    "norm": {
+      "SR1E2Mu/2016preVFP/belowZ": 32,
+      "SR1E2Mu/2016postVFP/belowZ": 32,
+      "SR1E2Mu/2017/belowZ": 32,
+      "SR1E2Mu/2018/belowZ": 32,
+      "SR3Mu_lowM/2016preVFP/belowZ": 32,
+      "SR3Mu_lowM/2016postVFP/belowZ": 32,
+      "SR3Mu_lowM/2017/belowZ": 32,
+      "SR3Mu_lowM/2018/belowZ": 32,
+      "SR3Mu_highM/2016preVFP/belowZ": 32,
+      "SR3Mu_highM/2016postVFP/belowZ": 32,
+      "SR3Mu_highM/2017/belowZ": 32,
+      "SR3Mu_highM/2018/belowZ": 32,
+      "SR1E2Mu/2022/belowZ": 32,
+      "SR1E2Mu/2022EE/belowZ": 32,
+      "SR1E2Mu/2023/belowZ": 32,
+      "SR1E2Mu/2023BPix/belowZ": 32,
+      "SR3Mu_lowM/2022/belowZ": 32,
+      "SR3Mu_lowM/2022EE/belowZ": 32,
+      "SR3Mu_lowM/2023/belowZ": 32,
+      "SR3Mu_lowM/2023BPix/belowZ": 32,
+      "SR3Mu_highM/2022/belowZ": 32,
+      "SR3Mu_highM/2022EE/belowZ": 32,
+      "SR3Mu_highM/2023/belowZ": 32,
+      "SR3Mu_highM/2023BPix/belowZ": 32,
+      "SR1E2Mu/2016preVFP/onZ": 21,
+      "SR1E2Mu/2016postVFP/onZ": 21,
+      "SR1E2Mu/2017/onZ": 21,
+      "SR1E2Mu/2018/onZ": 21,
+      "SR3Mu_lowM/2016preVFP/onZ": 21,
+      "SR3Mu_lowM/2016postVFP/onZ": 21,
+      "SR3Mu_lowM/2017/onZ": 21,
+      "SR3Mu_lowM/2018/onZ": 21,
+      "SR3Mu_highM/2016preVFP/onZ": 21,
+      "SR3Mu_highM/2016postVFP/onZ": 21,
+      "SR3Mu_highM/2017/onZ": 21,
+      "SR3Mu_highM/2018/onZ": 21,
+      "SR1E2Mu/2022/onZ": 21,
+      "SR1E2Mu/2022EE/onZ": 21,
+      "SR1E2Mu/2023/onZ": 21,
+      "SR1E2Mu/2023BPix/onZ": 21,
+      "SR3Mu_lowM/2022/onZ": 21,
+      "SR3Mu_lowM/2022EE/onZ": 21,
+      "SR3Mu_lowM/2023/onZ": 21,
+      "SR3Mu_lowM/2023BPix/onZ": 21,
+      "SR3Mu_highM/2022/onZ": 21,
+      "SR3Mu_highM/2022EE/onZ": 21,
+      "SR3Mu_highM/2023/onZ": 21,
+      "SR3Mu_highM/2023BPix/onZ": 21,
+      "SR1E2Mu/2016preVFP/aboveZ": 11,
+      "SR1E2Mu/2016postVFP/aboveZ": 11,
+      "SR1E2Mu/2017/aboveZ": 11,
+      "SR1E2Mu/2018/aboveZ": 11,
+      "SR3Mu_lowM/2016preVFP/aboveZ": 11,
+      "SR3Mu_lowM/2016postVFP/aboveZ": 11,
+      "SR3Mu_lowM/2017/aboveZ": 11,
+      "SR3Mu_lowM/2018/aboveZ": 11,
+      "SR3Mu_highM/2016preVFP/aboveZ": 11,
+      "SR3Mu_highM/2016postVFP/aboveZ": 11,
+      "SR3Mu_highM/2017/aboveZ": 11,
+      "SR3Mu_highM/2018/aboveZ": 11,
+      "SR1E2Mu/2022/aboveZ": 11,
+      "SR1E2Mu/2022EE/aboveZ": 11,
+      "SR1E2Mu/2023/aboveZ": 11,
+      "SR1E2Mu/2023BPix/aboveZ": 11,
+      "SR3Mu_lowM/2022/aboveZ": 11,
+      "SR3Mu_lowM/2022EE/aboveZ": 11,
+      "SR3Mu_lowM/2023/aboveZ": 11,
+      "SR3Mu_lowM/2023BPix/aboveZ": 11,
+      "SR3Mu_highM/2022/aboveZ": 11,
+      "SR3Mu_highM/2022EE/aboveZ": 11,
+      "SR3Mu_highM/2023/aboveZ": 11,
+      "SR3Mu_highM/2023BPix/aboveZ": 11
+    },
+    "scale/SR1E2Mu/Run2": 64,
+    "res/SR1E2Mu/Run2": 64,
+    "scale/SR3Mu_lowM/Run2": 64,
+    "res/SR3Mu_lowM/Run2": 64,
+    "scale/SR3Mu_highM/Run2": 59,
+    "res/SR3Mu_highM/Run2": 59,
+    "scale/SR1E2Mu/Run3": 64,
+    "res/SR1E2Mu/Run3": 64,
+    "scale/SR3Mu_lowM/Run3": 64,
+    "res/SR3Mu_lowM/Run3": 64,
+    "scale/SR3Mu_highM/Run3": 61,
+    "res/SR3Mu_highM/Run3": 61
+  },
+  "per_study_detail": {
+    "SR1E2Mu/2016preVFP/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.041220411636892086,
+        "MHc85": 0.036511090518512784,
+        "MHc100": 0.06515479196874134,
+        "MHc115": 0.08922681344191227,
+        "MHc130": 0.031697132141782346,
+        "MHc145": 0.012962949456961526,
+        "MHc160": 0.021488933221211856
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.04657633038492469,
+      "pooled_max": 0.1440929801833324,
+      "driver": 115
+    },
+    "SR1E2Mu/2016postVFP/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.02790215861281763,
+        "MHc85": 0.04108985512165965,
+        "MHc100": 0.07139640260695462,
+        "MHc115": 0.09447604310914223,
+        "MHc130": 0.039838967330720974,
+        "MHc145": 0.012265289102182235,
+        "MHc160": 0.02276725496126444
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.0488805164625509,
+      "pooled_max": 0.1614976643018422,
+      "driver": 115
+    },
+    "SR1E2Mu/2017/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.02646326111672725,
+        "MHc85": 0.03297067309409853,
+        "MHc100": 0.05853949564353892,
+        "MHc115": 0.0927762738873197,
+        "MHc130": 0.03093644336973489,
+        "MHc145": 0.005947722461080665,
+        "MHc160": 0.016598067274815317
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.04371391118694729,
+      "pooled_max": 0.1736516926507059,
+      "driver": 115
+    },
+    "SR1E2Mu/2018/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.03638715912532013,
+        "MHc85": 0.04110166636669967,
+        "MHc100": 0.05802086022493991,
+        "MHc115": 0.10818928819561474,
+        "MHc130": 0.03393957169672861,
+        "MHc145": 0.025987760115783982,
+        "MHc160": 0.019741729408962988
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.05069992738391453,
+      "pooled_max": 0.2022440877351328,
+      "driver": 115
+    },
+    "SR3Mu_lowM/2016preVFP/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.04751346705561895,
+        "MHc85": 0.07976594691061623,
+        "MHc100": 0.03780843494134671,
+        "MHc115": 0.15788536416995233,
+        "MHc130": 0.16039197375340147,
+        "MHc145": 0.033476170425242445,
+        "MHc160": 0.022787573561662604
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.08028816870008249,
+      "pooled_max": 0.29012409655539284,
+      "driver": 130
+    },
+    "SR3Mu_lowM/2016postVFP/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.04351532686456522,
+        "MHc85": 0.08345452438069292,
+        "MHc100": 0.04173613398471461,
+        "MHc115": 0.1612984902919613,
+        "MHc130": 0.15705990702581604,
+        "MHc145": 0.04270323939611184,
+        "MHc160": 0.023863472676411944
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.08176472274245965,
+      "pooled_max": 0.3026268493034341,
+      "driver": 115
+    },
+    "SR3Mu_lowM/2017/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.03328030500838447,
+        "MHc85": 0.08035213784525626,
+        "MHc100": 0.04559926044534455,
+        "MHc115": 0.156673909358049,
+        "MHc130": 0.16201633917309485,
+        "MHc145": 0.04055492660493553,
+        "MHc160": 0.021961570128112177
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.08013123434266353,
+      "pooled_max": 0.29507206109665773,
+      "driver": 130
+    },
+    "SR3Mu_lowM/2018/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.033844234350353705,
+        "MHc85": 0.08346241409677814,
+        "MHc100": 0.04115350335711698,
+        "MHc115": 0.1623366328878044,
+        "MHc130": 0.1608748155209876,
+        "MHc145": 0.06012977355630485,
+        "MHc160": 0.021462051085929884
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.08269166229183582,
+      "pooled_max": 0.30496445146419626,
+      "driver": 115
+    },
+    "SR3Mu_highM/2016preVFP/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.10306267042131032,
+        "MHc85": 0.06953718095312786,
+        "MHc100": 0.10453299694841141,
+        "MHc115": 0.04455916106453558,
+        "MHc130": 0.16974338328109453,
+        "MHc145": 0.15652362798655417,
+        "MHc160": 0.07631796259511843
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.09805679218435381,
+      "pooled_max": 0.23987484446682472,
+      "driver": 130
+    },
+    "SR3Mu_highM/2016postVFP/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.10785669629378877,
+        "MHc85": 0.06904030859333093,
+        "MHc100": 0.10898341725370275,
+        "MHc115": 0.041394499452345496,
+        "MHc130": 0.13909265609176152,
+        "MHc145": 0.16973997431896018,
+        "MHc160": 0.0576194064366948
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.09405070418789901,
+      "pooled_max": 0.26541831552807205,
+      "driver": 145
+    },
+    "SR3Mu_highM/2017/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.0922516967469711,
+        "MHc85": 0.06994876131297341,
+        "MHc100": 0.09555822162319028,
+        "MHc115": 0.03918251726858979,
+        "MHc130": 0.15279739003434967,
+        "MHc145": 0.17742652553833838,
+        "MHc160": 0.05409684322330977
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.09212279626566199,
+      "pooled_max": 0.27821043857719197,
+      "driver": 145
+    },
+    "SR3Mu_highM/2018/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.10558853539697072,
+        "MHc85": 0.0724816538767003,
+        "MHc100": 0.08541331108266001,
+        "MHc115": 0.041009297528139275,
+        "MHc130": 0.1410759088356923,
+        "MHc145": 0.19336799694047743,
+        "MHc160": 0.04344479938213167
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.09314393557680037,
+      "pooled_max": 0.30892357864724107,
+      "driver": 145
+    },
+    "SR1E2Mu/2022/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.032671003902960384,
+        "MHc85": 0.03426759383348482,
+        "MHc100": 0.07001777583856052,
+        "MHc115": 0.06348654085014903,
+        "MHc130": 0.05535176969254836,
+        "MHc145": 0.020520733534438198,
+        "MHc160": 0.048277260747661414
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.048916674851643006,
+      "pooled_max": 0.1134055864839465,
+      "driver": 100
+    },
+    "SR1E2Mu/2022EE/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.04216292104178234,
+        "MHc85": 0.04514770115948749,
+        "MHc100": 0.061892750133170936,
+        "MHc115": 0.087754121011244,
+        "MHc130": 0.059429740045140095,
+        "MHc145": 0.08888184844224163,
+        "MHc160": 0.03161906453720159
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.05706076933583585,
+      "pooled_max": 0.13934107043394306,
+      "driver": 145
+    },
+    "SR1E2Mu/2023/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.03491060433190678,
+        "MHc85": 0.04112864757225567,
+        "MHc100": 0.07776552103463867,
+        "MHc115": 0.09178102591338187,
+        "MHc130": 0.02072492651756451,
+        "MHc145": 0.05865987453608319,
+        "MHc160": 0.05390328949351403
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.05901678663079588,
+      "pooled_max": 0.16914609864144126,
+      "driver": 115
+    },
+    "SR1E2Mu/2023BPix/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.03835410596399069,
+        "MHc85": 0.06142855663354374,
+        "MHc100": 0.07436629924322505,
+        "MHc115": 0.04445913665507284,
+        "MHc130": 0.05102359085667398,
+        "MHc145": 0.05243199380511629,
+        "MHc160": 0.06812096594943351
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.05985350564043233,
+      "pooled_max": 0.11238901711450588,
+      "driver": 100
+    },
+    "SR3Mu_lowM/2022/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.02806785224969306,
+        "MHc85": 0.0619027259420967,
+        "MHc100": 0.0534331217200237,
+        "MHc115": 0.11593018924882838,
+        "MHc130": 0.13368827123785954,
+        "MHc145": 0.04999729749296914,
+        "MHc160": 0.0572189486433464
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.07147441886359888,
+      "pooled_max": 0.2186125580965339,
+      "driver": 130
+    },
+    "SR3Mu_lowM/2022EE/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.042708274345562396,
+        "MHc85": 0.06857002955940272,
+        "MHc100": 0.06541467111631055,
+        "MHc115": 0.13419978453067774,
+        "MHc130": 0.15147425664142483,
+        "MHc145": 0.10442398898610533,
+        "MHc160": 0.04721683780818105
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.08307680633456527,
+      "pooled_max": 0.2640367325998023,
+      "driver": 130
+    },
+    "SR3Mu_lowM/2023/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.025625272865029004,
+        "MHc85": 0.06096114564190029,
+        "MHc100": 0.04501197720341908,
+        "MHc115": 0.14362333759354554,
+        "MHc130": 0.12244219820427923,
+        "MHc145": 0.09598163947306396,
+        "MHc160": 0.0505515721121312
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.07806229747384857,
+      "pooled_max": 0.2624811520661918,
+      "driver": 115
+    },
+    "SR3Mu_lowM/2023BPix/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.043474250979343536,
+        "MHc85": 0.07376749912946239,
+        "MHc100": 0.06316138448139626,
+        "MHc115": 0.13655083739061671,
+        "MHc130": 0.16016032068120323,
+        "MHc145": 0.08962658285277253,
+        "MHc160": 0.08222570606915365
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.0915700424278105,
+      "pooled_max": 0.25450772895317986,
+      "driver": 130
+    },
+    "SR3Mu_highM/2022/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.07675066784321724,
+        "MHc85": 0.0774971295740616,
+        "MHc100": 0.07813102867279224,
+        "MHc115": 0.04961785833818784,
+        "MHc130": 0.07260986198062079,
+        "MHc145": 0.06607274591909487,
+        "MHc160": 0.17086559104788746
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.11228437015060232,
+      "pooled_max": 0.4786601505246679,
+      "driver": 160
+    },
+    "SR3Mu_highM/2022EE/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.0885919479508206,
+        "MHc85": 0.06475492088898677,
+        "MHc100": 0.05836046018528026,
+        "MHc115": 0.10265793001871931,
+        "MHc130": 0.0323091802908943,
+        "MHc145": 0.10704119295445991,
+        "MHc160": 0.2092149990742411
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.13489682204193948,
+      "pooled_max": 0.5665675417329654,
+      "driver": 160
+    },
+    "SR3Mu_highM/2023/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.07144494736550973,
+        "MHc85": 0.07815394090779895,
+        "MHc100": 0.09675904167492631,
+        "MHc115": 0.027850555924734767,
+        "MHc130": 0.08007971897225069,
+        "MHc145": 0.05272131521423742,
+        "MHc160": 0.14496922304363716
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.10044190907744145,
+      "pooled_max": 0.3419056571337873,
+      "driver": 160
+    },
+    "SR3Mu_highM/2023BPix/belowZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.07031363872817241,
+        "MHc85": 0.09094985730989844,
+        "MHc100": 0.10596300268679953,
+        "MHc115": 0.06800534397925533,
+        "MHc130": 0.06863338996723292,
+        "MHc145": 0.047918665871884536,
+        "MHc160": 0.17824149328963615
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 4,
+        "MHc115": 4,
+        "MHc130": 2,
+        "MHc145": 3,
+        "MHc160": 10
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.11970757758956861,
+      "pooled_max": 0.45659600406720524,
+      "driver": 160
+    },
+    "SR1E2Mu/2016preVFP/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.049603310163250355,
+        "MHc115": 0.020451764200735384,
+        "MHc130": 0.014072003569764294,
+        "MHc145": 0.011579821491558567,
+        "MHc160": 0.008281645332005089
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.020491374220914668,
+      "pooled_max": 0.049608744282998885,
+      "driver": 100
+    },
+    "SR1E2Mu/2016postVFP/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.03354041914812325,
+        "MHc115": 0.017873996528387524,
+        "MHc130": 0.016277561314723292,
+        "MHc145": 0.008673664474732867,
+        "MHc160": 0.016651889567709636
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.01782152739184396,
+      "pooled_max": 0.03629774851481948,
+      "driver": 100
+    },
+    "SR1E2Mu/2017/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.03500392231484231,
+        "MHc115": 0.017310684597526917,
+        "MHc130": 0.013562532689502317,
+        "MHc145": 0.00727586139234459,
+        "MHc160": 0.014182704738853738
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.016839655149149976,
+      "pooled_max": 0.04416592716657464,
+      "driver": 100
+    },
+    "SR1E2Mu/2018/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.0280263105406698,
+        "MHc115": 0.010580614859455684,
+        "MHc130": 0.01961080186065325,
+        "MHc145": 0.006382839258745286,
+        "MHc160": 0.010530600944874497
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.014519609701975715,
+      "pooled_max": 0.03405048674479061,
+      "driver": 100
+    },
+    "SR3Mu_lowM/2016preVFP/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.003868129039711381,
+        "MHc115": 0.029183506741899706,
+        "MHc130": 0.02979634430885117,
+        "MHc145": 0.046651744281021895,
+        "MHc160": 0.02492376675311177
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.03223979770564678,
+      "pooled_max": 0.08016599750227082,
+      "driver": 145
+    },
+    "SR3Mu_lowM/2016postVFP/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.00891244968539708,
+        "MHc115": 0.025534416788065915,
+        "MHc130": 0.02434784396231755,
+        "MHc145": 0.03986208633340692,
+        "MHc160": 0.023317136509141956
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.027991103734652797,
+      "pooled_max": 0.05849312320662636,
+      "driver": 145
+    },
+    "SR3Mu_lowM/2017/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.014034369501900741,
+        "MHc115": 0.02147804730986428,
+        "MHc130": 0.01711609665575447,
+        "MHc145": 0.04654606799021623,
+        "MHc160": 0.024014693693010385
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.028940425250575285,
+      "pooled_max": 0.06877065918432301,
+      "driver": 145
+    },
+    "SR3Mu_lowM/2018/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.02741463531103972,
+        "MHc115": 0.025591535354602072,
+        "MHc130": 0.01640563289504816,
+        "MHc145": 0.04811646094319085,
+        "MHc160": 0.03455235850257324
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.03338065699458437,
+      "pooled_max": 0.07044011778552284,
+      "driver": 145
+    },
+    "SR3Mu_highM/2016preVFP/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.02049103675785491,
+        "MHc115": 0.018867026263393073,
+        "MHc130": 0.009527472780271686,
+        "MHc145": 0.020609691985317372,
+        "MHc160": 0.011786616169847228
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.016620552606109344,
+      "pooled_max": 0.03663332679988485,
+      "driver": 145
+    },
+    "SR3Mu_highM/2016postVFP/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.023625915271706346,
+        "MHc115": 0.016900556010007617,
+        "MHc130": 0.001971755956660686,
+        "MHc145": 0.014012324952584978,
+        "MHc160": 0.012412436079209076
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.014329676330185845,
+      "pooled_max": 0.027654910930985266,
+      "driver": 100
+    },
+    "SR3Mu_highM/2017/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.014313697090877339,
+        "MHc115": 0.006244927762428606,
+        "MHc130": 0.00696983930891369,
+        "MHc145": 0.01757278980024739,
+        "MHc160": 0.019314120707951087
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.014156043809391719,
+      "pooled_max": 0.02758867110123131,
+      "driver": 160
+    },
+    "SR3Mu_highM/2018/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.022123668484360835,
+        "MHc115": 0.008127336056330887,
+        "MHc130": 0.00768138217434153,
+        "MHc145": 0.02002642231863897,
+        "MHc160": 0.017173576854224982
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.015469082165603311,
+      "pooled_max": 0.03306803723594531,
+      "driver": 100
+    },
+    "SR1E2Mu/2022/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.08018295077382569,
+        "MHc115": 0.037280377992736945,
+        "MHc130": 0.07629701962969608,
+        "MHc145": 0.044832025908608415,
+        "MHc160": 0.0724050724780905
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.061471910062602116,
+      "pooled_max": 0.11119781422335806,
+      "driver": 100
+    },
+    "SR1E2Mu/2022EE/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.059878524202627445,
+        "MHc115": 0.05430691904582357,
+        "MHc130": 0.07734950638370114,
+        "MHc145": 0.07311948709497923,
+        "MHc160": 0.05309207057324441
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.06424469735678481,
+      "pooled_max": 0.10897123724470448,
+      "driver": 130
+    },
+    "SR1E2Mu/2023/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.16677357466812093,
+        "MHc115": 0.06917033617853864,
+        "MHc130": 0.04964080819025123,
+        "MHc145": 0.06899997032534923,
+        "MHc160": 0.09372278955742547
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.08650107424000579,
+      "pooled_max": 0.1740381777048825,
+      "driver": 100
+    },
+    "SR1E2Mu/2023BPix/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.08528338146515949,
+        "MHc115": 0.09924774835646483,
+        "MHc130": 0.050545506748088866,
+        "MHc145": 0.06609979121201925,
+        "MHc160": 0.10114840739291343
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.08367095265129085,
+      "pooled_max": 0.17110066393189038,
+      "driver": 160
+    },
+    "SR3Mu_lowM/2022/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.04421052563288422,
+        "MHc115": 0.06656209794555736,
+        "MHc130": 0.07530941230324265,
+        "MHc145": 0.04513185413685111,
+        "MHc160": 0.08232765398315034
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.06648357127350998,
+      "pooled_max": 0.12531432420642596,
+      "driver": 160
+    },
+    "SR3Mu_lowM/2022EE/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.0657340818414599,
+        "MHc115": 0.09896139715415617,
+        "MHc130": 0.07814240286895997,
+        "MHc145": 0.08927249487666139,
+        "MHc160": 0.0865540575136626
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.08710682719868194,
+      "pooled_max": 0.15456921535428214,
+      "driver": 115
+    },
+    "SR3Mu_lowM/2023/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.14281603324303815,
+        "MHc115": 0.11260666826895559,
+        "MHc130": 0.1369430654072669,
+        "MHc145": 0.10617973749625753,
+        "MHc160": 0.09991596169111167
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.11659748431604781,
+      "pooled_max": 0.2681254888495803,
+      "driver": 100
+    },
+    "SR3Mu_lowM/2023BPix/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.0534567987014692,
+        "MHc115": 0.09239129491097839,
+        "MHc130": 0.04138726382381107,
+        "MHc145": 0.09885065916117247,
+        "MHc160": 0.11372556548140823
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.08964810126320752,
+      "pooled_max": 0.19916362106017316,
+      "driver": 160
+    },
+    "SR3Mu_highM/2022/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.03493809099327984,
+        "MHc115": 0.06211404987690335,
+        "MHc130": 0.05640044332206301,
+        "MHc145": 0.041601596728177447,
+        "MHc160": 0.052833490000507834
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.05212919343533995,
+      "pooled_max": 0.08000460377143914,
+      "driver": 115
+    },
+    "SR3Mu_highM/2022EE/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.05933129243265298,
+        "MHc115": 0.03963191671757359,
+        "MHc130": 0.024040456953129435,
+        "MHc145": 0.10583677511801609,
+        "MHc160": 0.03525437621707626
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.06149993920564002,
+      "pooled_max": 0.15244685097612853,
+      "driver": 145
+    },
+    "SR3Mu_highM/2023/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.08617204422886121,
+        "MHc115": 0.05461278171869702,
+        "MHc130": 0.035748152199041656,
+        "MHc145": 0.08033764430456262,
+        "MHc160": 0.049569599741208274
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.061501898981740834,
+      "pooled_max": 0.13198290015198455,
+      "driver": 100
+    },
+    "SR3Mu_highM/2023BPix/onZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc100": 0.06369972324417857,
+        "MHc115": 0.07991306837045203,
+        "MHc130": 0.03463116260469642,
+        "MHc145": 0.06310653015062427,
+        "MHc160": 0.08237385926547139
+      },
+      "per_study_npoints": {
+        "MHc100": 2,
+        "MHc115": 5,
+        "MHc130": 4,
+        "MHc145": 5,
+        "MHc160": 5
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.06855047005770586,
+      "pooled_max": 0.1597977008007303,
+      "driver": 160
+    },
+    "SR1E2Mu/2016preVFP/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.010805390192658748,
+        "MHc145": 0.02067172077722673,
+        "MHc160": 0.02604779034475968
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.024169654226034395,
+      "pooled_max": 0.060206557705513086,
+      "driver": 160
+    },
+    "SR1E2Mu/2016postVFP/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.020204919892738274,
+        "MHc145": 0.014408559063221603,
+        "MHc160": 0.026553412326659098
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.0260330420212507,
+      "pooled_max": 0.050593782134384924,
+      "driver": 160
+    },
+    "SR1E2Mu/2017/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.03339226080207833,
+        "MHc145": 0.01468271235294417,
+        "MHc160": 0.03520443195527954
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.033038105937053794,
+      "pooled_max": 0.08077502325799468,
+      "driver": 160
+    },
+    "SR1E2Mu/2018/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.031417049917091315,
+        "MHc145": 0.012025139542328377,
+        "MHc160": 0.035160993460083265
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.032363049723631104,
+      "pooled_max": 0.08139216783335379,
+      "driver": 160
+    },
+    "SR3Mu_lowM/2016preVFP/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.049816380652922106,
+        "MHc145": 0.15610083491359497,
+        "MHc160": 0.045024062565116076
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.07793102074006635,
+      "pooled_max": 0.19943831804692547,
+      "driver": 145
+    },
+    "SR3Mu_lowM/2016postVFP/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.03710556350370113,
+        "MHc145": 0.1604487397669462,
+        "MHc160": 0.03944481549150028
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.07626763258330971,
+      "pooled_max": 0.21344696493673154,
+      "driver": 145
+    },
+    "SR3Mu_lowM/2017/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.03028870586658137,
+        "MHc145": 0.15877732580586776,
+        "MHc160": 0.04282760223235332
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.07629001320593004,
+      "pooled_max": 0.21460811176848504,
+      "driver": 145
+    },
+    "SR3Mu_lowM/2018/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.017740990810159438,
+        "MHc145": 0.1622590970241004,
+        "MHc160": 0.042381378740809036
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.07712252979174722,
+      "pooled_max": 0.21954960527818923,
+      "driver": 145
+    },
+    "SR3Mu_highM/2016preVFP/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.042579545341127824,
+        "MHc145": 0.03042186420952084,
+        "MHc160": 0.028918891884124276
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.031083183587544645,
+      "pooled_max": 0.05520742134145096,
+      "driver": 130
+    },
+    "SR3Mu_highM/2016postVFP/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.040016901785246396,
+        "MHc145": 0.02007287472317367,
+        "MHc160": 0.027106432959903566
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.02771917521261839,
+      "pooled_max": 0.05542315330567016,
+      "driver": 130
+    },
+    "SR3Mu_highM/2017/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.031157735883666018,
+        "MHc145": 0.02384110409420633,
+        "MHc160": 0.023635351372640438
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.02482562584821579,
+      "pooled_max": 0.04389570012223343,
+      "driver": 130
+    },
+    "SR3Mu_highM/2018/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.03189411948654412,
+        "MHc145": 0.017800021038904566,
+        "MHc160": 0.036352756398836
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.031744102850910935,
+      "pooled_max": 0.05846587551078808,
+      "driver": 160
+    },
+    "SR1E2Mu/2022/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.09968796960960254,
+        "MHc145": 0.15043688750798814,
+        "MHc160": 0.12560633651880893
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.14158057539938532,
+      "pooled_max": 0.24935385070634997,
+      "driver": 145
+    },
+    "SR1E2Mu/2022EE/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.07267263034389267,
+        "MHc145": 0.2343995476294433,
+        "MHc160": 0.06148028975905906
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.1143685601094974,
+      "pooled_max": 0.31530440684513583,
+      "driver": 145
+    },
+    "SR1E2Mu/2023/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.0965030577544788,
+        "MHc145": 0.21219679429098734,
+        "MHc160": 0.08560214542304317
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.11833671196203663,
+      "pooled_max": 0.2933454729746021,
+      "driver": 145
+    },
+    "SR1E2Mu/2023BPix/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.07948898901365983,
+        "MHc145": 0.08685574239459304,
+        "MHc160": 0.12147145026275746
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.10670154453455193,
+      "pooled_max": 0.22572055544246106,
+      "driver": 160
+    },
+    "SR3Mu_lowM/2022/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.10227262715523955,
+        "MHc145": 0.08372160636748341,
+        "MHc160": 0.22056998378087694
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.17667133312739622,
+      "pooled_max": 0.4762007565960775,
+      "driver": 160
+    },
+    "SR3Mu_lowM/2022EE/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.13066670096606897,
+        "MHc145": 0.13354032209930009,
+        "MHc160": 0.13867360895188632
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.13295874551995715,
+      "pooled_max": 0.19094214172045731,
+      "driver": 160
+    },
+    "SR3Mu_lowM/2023/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.11361499356884978,
+        "MHc145": 0.0961841105007596,
+        "MHc160": 0.14061231835318275
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.12195627029228305,
+      "pooled_max": 0.22741235442735452,
+      "driver": 160
+    },
+    "SR3Mu_lowM/2023BPix/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.1574181259531275,
+        "MHc145": 0.18545631478108415,
+        "MHc160": 0.2227059171179495
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.19467644402951412,
+      "pooled_max": 0.4041170371317879,
+      "driver": 160
+    },
+    "SR3Mu_highM/2022/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.06072636135423278,
+        "MHc145": 0.05127861596586171,
+        "MHc160": 0.10512265611079318
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.09076558014061895,
+      "pooled_max": 0.20675388279056595,
+      "driver": 160
+    },
+    "SR3Mu_highM/2022EE/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.04956928443721492,
+        "MHc145": 0.19266253942932546,
+        "MHc160": 0.06858707434407083
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.0988186020785648,
+      "pooled_max": 0.24958835627934595,
+      "driver": 145
+    },
+    "SR3Mu_highM/2023/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.043241199172349094,
+        "MHc145": 0.08773996137655503,
+        "MHc160": 0.08752654141201699
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.07694702806257434,
+      "pooled_max": 0.15444681350012113,
+      "driver": 145
+    },
+    "SR3Mu_highM/2023BPix/aboveZ": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc130": 0.017812026341562814,
+        "MHc145": 0.08712646993629185,
+        "MHc160": 0.06747454511330614
+      },
+      "per_study_npoints": {
+        "MHc115": 1,
+        "MHc130": 2,
+        "MHc145": 2,
+        "MHc160": 6
+      },
+      "studies_below_min_points": [
+        "MHc115"
+      ],
+      "pooled_rms": 0.06262025951410231,
+      "pooled_max": 0.11793824595468005,
+      "driver": 145
+    },
+    "scale/SR1E2Mu/Run2": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.027859192480336917,
+        "MHc85": 0.043100404255765605,
+        "MHc100": 0.01311325877404121,
+        "MHc115": 0.012601286530767105,
+        "MHc130": 0.010004141637648315,
+        "MHc145": 0.020876113404109112,
+        "MHc160": 0.013391670773324482
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 8,
+        "MHc145": 10,
+        "MHc160": 21
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.019339600681801076,
+      "pooled_max": 0.0690161251195983,
+      "driver": 85
+    },
+    "res/SR1E2Mu/Run2": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.008433590472408053,
+        "MHc85": 0.019080952347333178,
+        "MHc100": 0.009282664341967062,
+        "MHc115": 0.011211870862020681,
+        "MHc130": 0.008630931129818172,
+        "MHc145": 0.012150980313622382,
+        "MHc160": 0.010899624757745762
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 8,
+        "MHc145": 10,
+        "MHc160": 21
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.011487920525236674,
+      "pooled_max": 0.03937093299722294,
+      "driver": 85
+    },
+    "scale/SR3Mu_lowM/Run2": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.02687197221055136,
+        "MHc85": 0.02730301412106829,
+        "MHc100": 0.023561937279570625,
+        "MHc115": 0.027147121591413224,
+        "MHc130": 0.014860063017976122,
+        "MHc145": 0.03149732489461016,
+        "MHc160": 0.023182998515565753
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 8,
+        "MHc145": 10,
+        "MHc160": 21
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.02509052431371701,
+      "pooled_max": 0.06552770679797193,
+      "driver": 145
+    },
+    "res/SR3Mu_lowM/Run2": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.026458687894290976,
+        "MHc85": 0.01301827202979003,
+        "MHc100": 0.018022620950932718,
+        "MHc115": 0.012963199352174454,
+        "MHc130": 0.010051101900056966,
+        "MHc145": 0.01356503568892178,
+        "MHc160": 0.011369462917662908
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 8,
+        "MHc145": 10,
+        "MHc160": 21
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.014053368045521384,
+      "pooled_max": 0.046921449653636094,
+      "driver": 70
+    },
+    "scale/SR3Mu_highM/Run2": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.054316617189050495,
+        "MHc85": 0.05684022445889434,
+        "MHc100": 0.04207653712899847,
+        "MHc115": 0.034067601052005826,
+        "MHc130": 0.023726797915096094,
+        "MHc145": 0.016150138867431593,
+        "MHc160": 0.05419491654973836
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 5,
+        "MHc115": 9,
+        "MHc130": 7,
+        "MHc145": 9,
+        "MHc160": 20
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.043624509533768015,
+      "pooled_max": 0.1871895539260374,
+      "driver": 85
+    },
+    "res/SR3Mu_highM/Run2": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.056804591154763225,
+        "MHc85": 0.027181933145205433,
+        "MHc100": 0.008689674526782251,
+        "MHc115": 0.009019991104874142,
+        "MHc130": 0.0058690211231871405,
+        "MHc145": 0.021594054065308576,
+        "MHc160": 0.03082773665534842
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 5,
+        "MHc115": 9,
+        "MHc130": 7,
+        "MHc145": 9,
+        "MHc160": 20
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.026411335994711415,
+      "pooled_max": 0.10648900576491216,
+      "driver": 70
+    },
+    "scale/SR1E2Mu/Run3": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.00753021678301143,
+        "MHc85": 0.010407332586963695,
+        "MHc100": 0.04648471935683083,
+        "MHc115": 0.011664747344366424,
+        "MHc130": 0.011617010870580842,
+        "MHc145": 0.010210470058406777,
+        "MHc160": 0.013023732757893808
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 8,
+        "MHc145": 10,
+        "MHc160": 21
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.018018291079768715,
+      "pooled_max": 0.08513505586162072,
+      "driver": 100
+    },
+    "res/SR1E2Mu/Run3": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.015124037886174103,
+        "MHc85": 0.014884884647322285,
+        "MHc100": 0.017910896931344643,
+        "MHc115": 0.013296637052828464,
+        "MHc130": 0.006626167502655533,
+        "MHc145": 0.012677316856923705,
+        "MHc160": 0.01103465189819269
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 8,
+        "MHc145": 10,
+        "MHc160": 21
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.0126435376101184,
+      "pooled_max": 0.03532118479541124,
+      "driver": 100
+    },
+    "scale/SR3Mu_lowM/Run3": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.04258070172251382,
+        "MHc85": 0.033955132936474126,
+        "MHc100": 0.028757773616908757,
+        "MHc115": 0.022100101629311728,
+        "MHc130": 0.03402823358625991,
+        "MHc145": 0.02274289745901942,
+        "MHc160": 0.049051817047188286
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 8,
+        "MHc145": 10,
+        "MHc160": 21
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.037044499685689035,
+      "pooled_max": 0.17590633366036473,
+      "driver": 160
+    },
+    "res/SR3Mu_lowM/Run3": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.023756684028162035,
+        "MHc85": 0.01206587128287514,
+        "MHc100": 0.0106549686854071,
+        "MHc115": 0.01767240609795811,
+        "MHc130": 0.020661686759801096,
+        "MHc145": 0.014607045602947469,
+        "MHc160": 0.013805435915386167
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 8,
+        "MHc145": 10,
+        "MHc160": 21
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.015979013286867717,
+      "pooled_max": 0.04405960900569439,
+      "driver": 70
+    },
+    "scale/SR3Mu_highM/Run3": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.05523471649441133,
+        "MHc85": 0.06322266580233875,
+        "MHc100": 0.0330037235671817,
+        "MHc115": 0.02445003640858668,
+        "MHc130": 0.01715093190246288,
+        "MHc145": 0.02739643232330753,
+        "MHc160": 0.05683404882708689
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 7,
+        "MHc145": 9,
+        "MHc160": 20
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.044004262892251504,
+      "pooled_max": 0.21777970750344655,
+      "driver": 85
+    },
+    "res/SR3Mu_highM/Run3": {
+      "rule": "max over studies of the per-study rms",
+      "per_study_rms": {
+        "MHc70": 0.03141153674091968,
+        "MHc85": 0.025509213002741202,
+        "MHc100": 0.0504181344792521,
+        "MHc115": 0.013675261941643565,
+        "MHc130": 0.016447084151473067,
+        "MHc145": 0.01389033417766542,
+        "MHc160": 0.03821309947307772
+      },
+      "per_study_npoints": {
+        "MHc70": 4,
+        "MHc85": 5,
+        "MHc100": 6,
+        "MHc115": 10,
+        "MHc130": 7,
+        "MHc145": 9,
+        "MHc160": 20
+      },
+      "studies_below_min_points": [],
+      "pooled_rms": 0.030610518340689005,
+      "pooled_max": 0.11677006299402892,
+      "driver": 100
+    }
+  },
+  "production_restricted": {
+    "norm": {
+      "SR1E2Mu": {
+        "2016preVFP": {
+          "belowZ": 1.0892268134419123,
+          "onZ": 1.0496033101632503,
+          "aboveZ": 1.0260477903447596
+        },
+        "2016postVFP": {
+          "belowZ": 1.0944760431091423,
+          "onZ": 1.0335404191481232,
+          "aboveZ": 1.026553412326659
+        },
+        "2017": {
+          "belowZ": 1.0927762738873197,
+          "onZ": 1.0350039223148424,
+          "aboveZ": 1.0352044319552796
+        },
+        "2018": {
+          "belowZ": 1.1081892881956148,
+          "onZ": 1.0280263105406697,
+          "aboveZ": 1.0351609934600832
+        },
+        "2022": {
+          "belowZ": 1.0700177758385605,
+          "onZ": 1.0801829507738256,
+          "aboveZ": 1.1504368875079882
+        },
+        "2022EE": {
+          "belowZ": 1.0888818484422416,
+          "onZ": 1.077349506383701,
+          "aboveZ": 1.2343995476294434
+        },
+        "2023": {
+          "belowZ": 1.0917810259133818,
+          "onZ": 1.166773574668121,
+          "aboveZ": 1.2121967942909873
+        },
+        "2023BPix": {
+          "belowZ": 1.074366299243225,
+          "onZ": 1.1011484073929134,
+          "aboveZ": 1.1214714502627574
+        }
+      },
+      "SR3Mu_lowM": {
+        "2016preVFP": {
+          "belowZ": 1.1787422311686067,
+          "onZ": 1.1787422311686067
+        },
+        "2016postVFP": {
+          "belowZ": 1.1850030084346448,
+          "onZ": 1.1850030084346448
+        },
+        "2017": {
+          "belowZ": 1.1799938349053887,
+          "onZ": 1.1799938349053887
+        },
+        "2018": {
+          "belowZ": 1.1847505929756692,
+          "onZ": 1.1847505929756692
+        },
+        "2022": {
+          "belowZ": 1.1336882712378595,
+          "onZ": 1.1336882712378595
+        },
+        "2022EE": {
+          "belowZ": 1.1531741563438689,
+          "onZ": 1.1531741563438689
+        },
+        "2023": {
+          "belowZ": 1.1657912660511884,
+          "onZ": 1.1657912660511884
+        },
+        "2023BPix": {
+          "belowZ": 1.1601603206812032,
+          "onZ": 1.1601603206812032
+        }
+      },
+      "SR3Mu_highM": {
+        "2016preVFP": {
+          "belowZ": 1.0664350784579952,
+          "onZ": 1.0206096919853174,
+          "aboveZ": 1.0425795453411277
+        },
+        "2016postVFP": {
+          "belowZ": 1.0716770251194554,
+          "onZ": 1.0236259152717064,
+          "aboveZ": 1.0400169017852463
+        },
+        "2017": {
+          "belowZ": 1.053103547386529,
+          "onZ": 1.019314120707951,
+          "aboveZ": 1.031157735883666
+        },
+        "2018": {
+          "belowZ": 1.0578637527542196,
+          "onZ": 1.0221236684843609,
+          "aboveZ": 1.036352756398836
+        },
+        "2022": {
+          "belowZ": 1.1062641275034713,
+          "onZ": 1.0621140498769033,
+          "aboveZ": 1.1051226561107932
+        },
+        "2022EE": {
+          "belowZ": 1.0781267392897111,
+          "onZ": 1.105836775118016,
+          "aboveZ": 1.1926625394293255
+        },
+        "2023": {
+          "belowZ": 1.1336598077409656,
+          "onZ": 1.0861720442288612,
+          "aboveZ": 1.087739961376555
+        },
+        "2023BPix": {
+          "belowZ": 1.1234538574291666,
+          "onZ": 1.0823738592654715,
+          "aboveZ": 1.087126469936292
+        }
+      }
+    },
+    "scale": {
+      "SR1E2Mu": {
+        "Run2": 0.043100404255765605,
+        "Run3": 0.04648471935683083
+      },
+      "SR3Mu_lowM": {
+        "Run2": 0.04435294202119701,
+        "Run3": 0.05520392322867935
+      },
+      "SR3Mu_highM": {
+        "Run2": 0.04056519635243311,
+        "Run3": 0.022341586555769167
+      }
+    },
+    "res": {
+      "SR1E2Mu": {
+        "Run2": 0.019080952347333178,
+        "Run3": 0.017910896931344643
+      },
+      "SR3Mu_lowM": {
+        "Run2": 0.026458687894290976,
+        "Run3": 0.028387958057241088
+      },
+      "SR3Mu_highM": {
+        "Run2": 0.013154745891044331,
+        "Run3": 0.014785180609805763
+      }
+    },
+    "n_points": {
+      "norm": {
+        "SR1E2Mu/2016preVFP/belowZ": 32,
+        "SR1E2Mu/2016postVFP/belowZ": 32,
+        "SR1E2Mu/2017/belowZ": 32,
+        "SR1E2Mu/2018/belowZ": 32,
+        "SR3Mu_lowM/2016preVFP/belowZ": 26,
+        "SR3Mu_lowM/2016postVFP/belowZ": 26,
+        "SR3Mu_lowM/2017/belowZ": 26,
+        "SR3Mu_lowM/2018/belowZ": 26,
+        "SR3Mu_highM/2016preVFP/belowZ": 6,
+        "SR3Mu_highM/2016postVFP/belowZ": 6,
+        "SR3Mu_highM/2017/belowZ": 6,
+        "SR3Mu_highM/2018/belowZ": 6,
+        "SR1E2Mu/2022/belowZ": 32,
+        "SR1E2Mu/2022EE/belowZ": 32,
+        "SR1E2Mu/2023/belowZ": 32,
+        "SR1E2Mu/2023BPix/belowZ": 32,
+        "SR3Mu_lowM/2022/belowZ": 26,
+        "SR3Mu_lowM/2022EE/belowZ": 26,
+        "SR3Mu_lowM/2023/belowZ": 26,
+        "SR3Mu_lowM/2023BPix/belowZ": 26,
+        "SR3Mu_highM/2022/belowZ": 6,
+        "SR3Mu_highM/2022EE/belowZ": 6,
+        "SR3Mu_highM/2023/belowZ": 6,
+        "SR3Mu_highM/2023BPix/belowZ": 6,
+        "SR1E2Mu/2016preVFP/onZ": 21,
+        "SR1E2Mu/2016postVFP/onZ": 21,
+        "SR1E2Mu/2017/onZ": 21,
+        "SR1E2Mu/2018/onZ": 21,
+        "SR3Mu_lowM/2016preVFP/onZ": 0,
+        "SR3Mu_lowM/2016postVFP/onZ": 0,
+        "SR3Mu_lowM/2017/onZ": 0,
+        "SR3Mu_lowM/2018/onZ": 0,
+        "SR3Mu_highM/2016preVFP/onZ": 21,
+        "SR3Mu_highM/2016postVFP/onZ": 21,
+        "SR3Mu_highM/2017/onZ": 21,
+        "SR3Mu_highM/2018/onZ": 21,
+        "SR1E2Mu/2022/onZ": 21,
+        "SR1E2Mu/2022EE/onZ": 21,
+        "SR1E2Mu/2023/onZ": 21,
+        "SR1E2Mu/2023BPix/onZ": 21,
+        "SR3Mu_lowM/2022/onZ": 0,
+        "SR3Mu_lowM/2022EE/onZ": 0,
+        "SR3Mu_lowM/2023/onZ": 0,
+        "SR3Mu_lowM/2023BPix/onZ": 0,
+        "SR3Mu_highM/2022/onZ": 21,
+        "SR3Mu_highM/2022EE/onZ": 21,
+        "SR3Mu_highM/2023/onZ": 21,
+        "SR3Mu_highM/2023BPix/onZ": 21,
+        "SR1E2Mu/2016preVFP/aboveZ": 11,
+        "SR1E2Mu/2016postVFP/aboveZ": 11,
+        "SR1E2Mu/2017/aboveZ": 11,
+        "SR1E2Mu/2018/aboveZ": 11,
+        "SR3Mu_lowM/2016preVFP/aboveZ": 0,
+        "SR3Mu_lowM/2016postVFP/aboveZ": 0,
+        "SR3Mu_lowM/2017/aboveZ": 0,
+        "SR3Mu_lowM/2018/aboveZ": 0,
+        "SR3Mu_highM/2016preVFP/aboveZ": 11,
+        "SR3Mu_highM/2016postVFP/aboveZ": 11,
+        "SR3Mu_highM/2017/aboveZ": 11,
+        "SR3Mu_highM/2018/aboveZ": 11,
+        "SR1E2Mu/2022/aboveZ": 11,
+        "SR1E2Mu/2022EE/aboveZ": 11,
+        "SR1E2Mu/2023/aboveZ": 11,
+        "SR1E2Mu/2023BPix/aboveZ": 11,
+        "SR3Mu_lowM/2022/aboveZ": 0,
+        "SR3Mu_lowM/2022EE/aboveZ": 0,
+        "SR3Mu_lowM/2023/aboveZ": 0,
+        "SR3Mu_lowM/2023BPix/aboveZ": 0,
+        "SR3Mu_highM/2022/aboveZ": 11,
+        "SR3Mu_highM/2022EE/aboveZ": 11,
+        "SR3Mu_highM/2023/aboveZ": 11,
+        "SR3Mu_highM/2023BPix/aboveZ": 11
+      },
+      "scale/SR1E2Mu/Run2": 64,
+      "res/SR1E2Mu/Run2": 64,
+      "scale/SR3Mu_lowM/Run2": 26,
+      "res/SR3Mu_lowM/Run2": 26,
+      "scale/SR3Mu_highM/Run2": 38,
+      "res/SR3Mu_highM/Run2": 38,
+      "scale/SR1E2Mu/Run3": 64,
+      "res/SR1E2Mu/Run3": 64,
+      "scale/SR3Mu_lowM/Run3": 26,
+      "res/SR3Mu_lowM/Run3": 26,
+      "scale/SR3Mu_highM/Run3": 38,
+      "res/SR3Mu_highM/Run3": 38
+    },
+    "per_study_detail": {
+      "SR1E2Mu/2016preVFP/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.041220411636892086,
+          "MHc85": 0.036511090518512784,
+          "MHc100": 0.06515479196874134,
+          "MHc115": 0.08922681344191227,
+          "MHc130": 0.031697132141782346,
+          "MHc145": 0.012962949456961526,
+          "MHc160": 0.021488933221211856
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 4,
+          "MHc115": 4,
+          "MHc130": 2,
+          "MHc145": 3,
+          "MHc160": 10
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.04657633038492469,
+        "pooled_max": 0.1440929801833324,
+        "driver": 115
+      },
+      "SR1E2Mu/2016postVFP/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.02790215861281763,
+          "MHc85": 0.04108985512165965,
+          "MHc100": 0.07139640260695462,
+          "MHc115": 0.09447604310914223,
+          "MHc130": 0.039838967330720974,
+          "MHc145": 0.012265289102182235,
+          "MHc160": 0.02276725496126444
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 4,
+          "MHc115": 4,
+          "MHc130": 2,
+          "MHc145": 3,
+          "MHc160": 10
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.0488805164625509,
+        "pooled_max": 0.1614976643018422,
+        "driver": 115
+      },
+      "SR1E2Mu/2017/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.02646326111672725,
+          "MHc85": 0.03297067309409853,
+          "MHc100": 0.05853949564353892,
+          "MHc115": 0.0927762738873197,
+          "MHc130": 0.03093644336973489,
+          "MHc145": 0.005947722461080665,
+          "MHc160": 0.016598067274815317
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 4,
+          "MHc115": 4,
+          "MHc130": 2,
+          "MHc145": 3,
+          "MHc160": 10
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.04371391118694729,
+        "pooled_max": 0.1736516926507059,
+        "driver": 115
+      },
+      "SR1E2Mu/2018/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.03638715912532013,
+          "MHc85": 0.04110166636669967,
+          "MHc100": 0.05802086022493991,
+          "MHc115": 0.10818928819561474,
+          "MHc130": 0.03393957169672861,
+          "MHc145": 0.025987760115783982,
+          "MHc160": 0.019741729408962988
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 4,
+          "MHc115": 4,
+          "MHc130": 2,
+          "MHc145": 3,
+          "MHc160": 10
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.05069992738391453,
+        "pooled_max": 0.2022440877351328,
+        "driver": 115
+      },
+      "SR3Mu_lowM/2016preVFP/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.04751346705561895,
+          "MHc85": 0.07976594691061623,
+          "MHc100": 0.05109452727521148,
+          "MHc115": 0.17874223116860666,
+          "MHc130": 0.16039197375340147,
+          "MHc145": 0.0022277781305783725,
+          "MHc160": 0.022181924411917808
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.08711358750514213,
+        "pooled_max": 0.29012409655539284,
+        "driver": 115
+      },
+      "SR3Mu_lowM/2016postVFP/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.04351532686456522,
+          "MHc85": 0.08345452438069292,
+          "MHc100": 0.05700582812815502,
+          "MHc115": 0.1850030084346447,
+          "MHc130": 0.15705990702581604,
+          "MHc145": 0.003659540457763578,
+          "MHc160": 0.02457331446189917
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.08896163535460457,
+        "pooled_max": 0.3026268493034341,
+        "driver": 115
+      },
+      "SR3Mu_lowM/2017/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.03328030500838447,
+          "MHc85": 0.08035213784525626,
+          "MHc100": 0.06412802389189885,
+          "MHc115": 0.17999383490538876,
+          "MHc130": 0.16201633917309485,
+          "MHc145": 0.008532247846364483,
+          "MHc160": 0.019263941412216268
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.0872096889752856,
+        "pooled_max": 0.29507206109665773,
+        "driver": 115
+      },
+      "SR3Mu_lowM/2018/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.033844234350353705,
+          "MHc85": 0.08346241409677814,
+          "MHc100": 0.056944258249229086,
+          "MHc115": 0.1847505929756692,
+          "MHc130": 0.1608748155209876,
+          "MHc145": 0.00588348180557568,
+          "MHc160": 0.019633431941459632
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.0884067653153455,
+        "pooled_max": 0.30496445146419626,
+        "driver": 115
+      },
+      "SR3Mu_highM/2016preVFP/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.03070953646092857,
+          "MHc160": 0.06643507845799533
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 1,
+          "MHc145": 1,
+          "MHc160": 2
+        },
+        "studies_below_min_points": [
+          "MHc115",
+          "MHc145"
+        ],
+        "pooled_rms": 0.05586264396859492,
+        "pooled_max": 0.08448668842142881,
+        "driver": 160
+      },
+      "SR3Mu_highM/2016postVFP/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.032893154811254134,
+          "MHc160": 0.0716770251194553
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 1,
+          "MHc145": 1,
+          "MHc160": 2
+        },
+        "studies_below_min_points": [
+          "MHc115",
+          "MHc145"
+        ],
+        "pooled_rms": 0.056262751619548065,
+        "pooled_max": 0.08613525473052452,
+        "driver": 160
+      },
+      "SR3Mu_highM/2017/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.017731293541871713,
+          "MHc160": 0.05310354738652894
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 1,
+          "MHc145": 1,
+          "MHc160": 2
+        },
+        "studies_below_min_points": [
+          "MHc115",
+          "MHc145"
+        ],
+        "pooled_rms": 0.04467267730539386,
+        "pooled_max": 0.07553142446849581,
+        "driver": 160
+      },
+      "SR3Mu_highM/2018/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.020223963275898676,
+          "MHc160": 0.057863752754219566
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 1,
+          "MHc145": 1,
+          "MHc160": 2
+        },
+        "studies_below_min_points": [
+          "MHc115",
+          "MHc145"
+        ],
+        "pooled_rms": 0.04019656574954228,
+        "pooled_max": 0.07695191220226372,
+        "driver": 160
+      },
+      "SR1E2Mu/2022/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.032671003902960384,
+          "MHc85": 0.03426759383348482,
+          "MHc100": 0.07001777583856052,
+          "MHc115": 0.06348654085014903,
+          "MHc130": 0.05535176969254836,
+          "MHc145": 0.020520733534438198,
+          "MHc160": 0.048277260747661414
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 4,
+          "MHc115": 4,
+          "MHc130": 2,
+          "MHc145": 3,
+          "MHc160": 10
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.048916674851643006,
+        "pooled_max": 0.1134055864839465,
+        "driver": 100
+      },
+      "SR1E2Mu/2022EE/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.04216292104178234,
+          "MHc85": 0.04514770115948749,
+          "MHc100": 0.061892750133170936,
+          "MHc115": 0.087754121011244,
+          "MHc130": 0.059429740045140095,
+          "MHc145": 0.08888184844224163,
+          "MHc160": 0.03161906453720159
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 4,
+          "MHc115": 4,
+          "MHc130": 2,
+          "MHc145": 3,
+          "MHc160": 10
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.05706076933583585,
+        "pooled_max": 0.13934107043394306,
+        "driver": 145
+      },
+      "SR1E2Mu/2023/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.03491060433190678,
+          "MHc85": 0.04112864757225567,
+          "MHc100": 0.07776552103463867,
+          "MHc115": 0.09178102591338187,
+          "MHc130": 0.02072492651756451,
+          "MHc145": 0.05865987453608319,
+          "MHc160": 0.05390328949351403
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 4,
+          "MHc115": 4,
+          "MHc130": 2,
+          "MHc145": 3,
+          "MHc160": 10
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.05901678663079588,
+        "pooled_max": 0.16914609864144126,
+        "driver": 115
+      },
+      "SR1E2Mu/2023BPix/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.03835410596399069,
+          "MHc85": 0.06142855663354374,
+          "MHc100": 0.07436629924322505,
+          "MHc115": 0.04445913665507284,
+          "MHc130": 0.05102359085667398,
+          "MHc145": 0.05243199380511629,
+          "MHc160": 0.06812096594943351
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 4,
+          "MHc115": 4,
+          "MHc130": 2,
+          "MHc145": 3,
+          "MHc160": 10
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.05985350564043233,
+        "pooled_max": 0.11238901711450588,
+        "driver": 100
+      },
+      "SR3Mu_lowM/2022/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.02806785224969306,
+          "MHc85": 0.0619027259420967,
+          "MHc100": 0.03551167194557382,
+          "MHc115": 0.1334251682218262,
+          "MHc130": 0.13368827123785954,
+          "MHc145": 0.05001500721237186,
+          "MHc160": 0.04972432158761518
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.0730563833449609,
+        "pooled_max": 0.2186125580965339,
+        "driver": 130
+      },
+      "SR3Mu_lowM/2022EE/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.042708274345562396,
+          "MHc85": 0.06857002955940272,
+          "MHc100": 0.0558306064281672,
+          "MHc115": 0.153174156343869,
+          "MHc130": 0.15147425664142483,
+          "MHc145": 0.09055290494166943,
+          "MHc160": 0.04534247224288777
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.0846173258427208,
+        "pooled_max": 0.2640367325998023,
+        "driver": 115
+      },
+      "SR3Mu_lowM/2023/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.025625272865029004,
+          "MHc85": 0.06096114564190029,
+          "MHc100": 0.05224295511353898,
+          "MHc115": 0.16579126605118846,
+          "MHc130": 0.12244219820427923,
+          "MHc145": 0.08426995921391156,
+          "MHc160": 0.02925846360765171
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.078486232657884,
+        "pooled_max": 0.2624811520661918,
+        "driver": 115
+      },
+      "SR3Mu_lowM/2023BPix/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.043474250979343536,
+          "MHc85": 0.07376749912946239,
+          "MHc100": 0.06958331550194208,
+          "MHc115": 0.15611447442346196,
+          "MHc130": 0.16016032068120323,
+          "MHc145": 0.08339081901896185,
+          "MHc160": 0.0741075084606588
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.0933795441927221,
+        "pooled_max": 0.25450772895317986,
+        "driver": 130
+      },
+      "SR3Mu_highM/2022/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.07909297333495448,
+          "MHc160": 0.10626412750347126
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 1,
+          "MHc145": 1,
+          "MHc160": 2
+        },
+        "studies_below_min_points": [
+          "MHc115",
+          "MHc145"
+        ],
+        "pooled_rms": 0.07723672913331357,
+        "pooled_max": 0.12523951138061218,
+        "driver": 160
+      },
+      "SR3Mu_highM/2022EE/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.034423674860472826,
+          "MHc160": 0.07812673928971106
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 1,
+          "MHc145": 1,
+          "MHc160": 2
+        },
+        "studies_below_min_points": [
+          "MHc115",
+          "MHc145"
+        ],
+        "pooled_rms": 0.05900746662963968,
+        "pooled_max": 0.09477365359938328,
+        "driver": 160
+      },
+      "SR3Mu_highM/2023/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.0593667264437503,
+          "MHc160": 0.13365980774096556
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 1,
+          "MHc145": 1,
+          "MHc160": 2
+        },
+        "studies_below_min_points": [
+          "MHc115",
+          "MHc145"
+        ],
+        "pooled_rms": 0.08558478745047855,
+        "pooled_max": 0.16418773013482446,
+        "driver": 160
+      },
+      "SR3Mu_highM/2023BPix/belowZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.06653228475313558,
+          "MHc160": 0.12345385742916666
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 1,
+          "MHc145": 1,
+          "MHc160": 2
+        },
+        "studies_below_min_points": [
+          "MHc115",
+          "MHc145"
+        ],
+        "pooled_rms": 0.08218250230106375,
+        "pooled_max": 0.15016792466330142,
+        "driver": 160
+      },
+      "SR1E2Mu/2016preVFP/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.049603310163250355,
+          "MHc115": 0.020451764200735384,
+          "MHc130": 0.014072003569764294,
+          "MHc145": 0.011579821491558567,
+          "MHc160": 0.008281645332005089
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.020491374220914668,
+        "pooled_max": 0.049608744282998885,
+        "driver": 100
+      },
+      "SR1E2Mu/2016postVFP/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.03354041914812325,
+          "MHc115": 0.017873996528387524,
+          "MHc130": 0.016277561314723292,
+          "MHc145": 0.008673664474732867,
+          "MHc160": 0.016651889567709636
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.01782152739184396,
+        "pooled_max": 0.03629774851481948,
+        "driver": 100
+      },
+      "SR1E2Mu/2017/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.03500392231484231,
+          "MHc115": 0.017310684597526917,
+          "MHc130": 0.013562532689502317,
+          "MHc145": 0.00727586139234459,
+          "MHc160": 0.014182704738853738
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.016839655149149976,
+        "pooled_max": 0.04416592716657464,
+        "driver": 100
+      },
+      "SR1E2Mu/2018/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.0280263105406698,
+          "MHc115": 0.010580614859455684,
+          "MHc130": 0.01961080186065325,
+          "MHc145": 0.006382839258745286,
+          "MHc160": 0.010530600944874497
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.014519609701975715,
+        "pooled_max": 0.03405048674479061,
+        "driver": 100
+      },
+      "SR3Mu_highM/2016preVFP/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.02049103675785491,
+          "MHc115": 0.018867026263393073,
+          "MHc130": 0.009527472780271686,
+          "MHc145": 0.020609691985317372,
+          "MHc160": 0.011786616169847228
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.016620552606109344,
+        "pooled_max": 0.03663332679988485,
+        "driver": 145
+      },
+      "SR3Mu_highM/2016postVFP/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.023625915271706346,
+          "MHc115": 0.016900556010007617,
+          "MHc130": 0.001971755956660686,
+          "MHc145": 0.014012324952584978,
+          "MHc160": 0.012412436079209076
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.014329676330185845,
+        "pooled_max": 0.027654910930985266,
+        "driver": 100
+      },
+      "SR3Mu_highM/2017/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.014313697090877339,
+          "MHc115": 0.006244927762428606,
+          "MHc130": 0.00696983930891369,
+          "MHc145": 0.01757278980024739,
+          "MHc160": 0.019314120707951087
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.014156043809391719,
+        "pooled_max": 0.02758867110123131,
+        "driver": 160
+      },
+      "SR3Mu_highM/2018/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.022123668484360835,
+          "MHc115": 0.008127336056330887,
+          "MHc130": 0.00768138217434153,
+          "MHc145": 0.02002642231863897,
+          "MHc160": 0.017173576854224982
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.015469082165603311,
+        "pooled_max": 0.03306803723594531,
+        "driver": 100
+      },
+      "SR1E2Mu/2022/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.08018295077382569,
+          "MHc115": 0.037280377992736945,
+          "MHc130": 0.07629701962969608,
+          "MHc145": 0.044832025908608415,
+          "MHc160": 0.0724050724780905
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.061471910062602116,
+        "pooled_max": 0.11119781422335806,
+        "driver": 100
+      },
+      "SR1E2Mu/2022EE/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.059878524202627445,
+          "MHc115": 0.05430691904582357,
+          "MHc130": 0.07734950638370114,
+          "MHc145": 0.07311948709497923,
+          "MHc160": 0.05309207057324441
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.06424469735678481,
+        "pooled_max": 0.10897123724470448,
+        "driver": 130
+      },
+      "SR1E2Mu/2023/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.16677357466812093,
+          "MHc115": 0.06917033617853864,
+          "MHc130": 0.04964080819025123,
+          "MHc145": 0.06899997032534923,
+          "MHc160": 0.09372278955742547
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.08650107424000579,
+        "pooled_max": 0.1740381777048825,
+        "driver": 100
+      },
+      "SR1E2Mu/2023BPix/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.08528338146515949,
+          "MHc115": 0.09924774835646483,
+          "MHc130": 0.050545506748088866,
+          "MHc145": 0.06609979121201925,
+          "MHc160": 0.10114840739291343
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.08367095265129085,
+        "pooled_max": 0.17110066393189038,
+        "driver": 160
+      },
+      "SR3Mu_highM/2022/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.03493809099327984,
+          "MHc115": 0.06211404987690335,
+          "MHc130": 0.05640044332206301,
+          "MHc145": 0.041601596728177447,
+          "MHc160": 0.052833490000507834
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.05212919343533995,
+        "pooled_max": 0.08000460377143914,
+        "driver": 115
+      },
+      "SR3Mu_highM/2022EE/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.05933129243265298,
+          "MHc115": 0.03963191671757359,
+          "MHc130": 0.024040456953129435,
+          "MHc145": 0.10583677511801609,
+          "MHc160": 0.03525437621707626
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.06149993920564002,
+        "pooled_max": 0.15244685097612853,
+        "driver": 145
+      },
+      "SR3Mu_highM/2023/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.08617204422886121,
+          "MHc115": 0.05461278171869702,
+          "MHc130": 0.035748152199041656,
+          "MHc145": 0.08033764430456262,
+          "MHc160": 0.049569599741208274
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.061501898981740834,
+        "pooled_max": 0.13198290015198455,
+        "driver": 100
+      },
+      "SR3Mu_highM/2023BPix/onZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.06369972324417857,
+          "MHc115": 0.07991306837045203,
+          "MHc130": 0.03463116260469642,
+          "MHc145": 0.06310653015062427,
+          "MHc160": 0.08237385926547139
+        },
+        "per_study_npoints": {
+          "MHc100": 2,
+          "MHc115": 5,
+          "MHc130": 4,
+          "MHc145": 5,
+          "MHc160": 5
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.06855047005770586,
+        "pooled_max": 0.1597977008007303,
+        "driver": 160
+      },
+      "SR1E2Mu/2016preVFP/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.010805390192658748,
+          "MHc145": 0.02067172077722673,
+          "MHc160": 0.02604779034475968
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.024169654226034395,
+        "pooled_max": 0.060206557705513086,
+        "driver": 160
+      },
+      "SR1E2Mu/2016postVFP/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.020204919892738274,
+          "MHc145": 0.014408559063221603,
+          "MHc160": 0.026553412326659098
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.0260330420212507,
+        "pooled_max": 0.050593782134384924,
+        "driver": 160
+      },
+      "SR1E2Mu/2017/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.03339226080207833,
+          "MHc145": 0.01468271235294417,
+          "MHc160": 0.03520443195527954
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.033038105937053794,
+        "pooled_max": 0.08077502325799468,
+        "driver": 160
+      },
+      "SR1E2Mu/2018/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.031417049917091315,
+          "MHc145": 0.012025139542328377,
+          "MHc160": 0.035160993460083265
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.032363049723631104,
+        "pooled_max": 0.08139216783335379,
+        "driver": 160
+      },
+      "SR3Mu_highM/2016preVFP/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.042579545341127824,
+          "MHc145": 0.03042186420952084,
+          "MHc160": 0.028918891884124276
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.031083183587544645,
+        "pooled_max": 0.05520742134145096,
+        "driver": 130
+      },
+      "SR3Mu_highM/2016postVFP/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.040016901785246396,
+          "MHc145": 0.02007287472317367,
+          "MHc160": 0.027106432959903566
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.02771917521261839,
+        "pooled_max": 0.05542315330567016,
+        "driver": 130
+      },
+      "SR3Mu_highM/2017/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.031157735883666018,
+          "MHc145": 0.02384110409420633,
+          "MHc160": 0.023635351372640438
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.02482562584821579,
+        "pooled_max": 0.04389570012223343,
+        "driver": 130
+      },
+      "SR3Mu_highM/2018/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.03189411948654412,
+          "MHc145": 0.017800021038904566,
+          "MHc160": 0.036352756398836
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.031744102850910935,
+        "pooled_max": 0.05846587551078808,
+        "driver": 160
+      },
+      "SR1E2Mu/2022/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.09968796960960254,
+          "MHc145": 0.15043688750798814,
+          "MHc160": 0.12560633651880893
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.14158057539938532,
+        "pooled_max": 0.24935385070634997,
+        "driver": 145
+      },
+      "SR1E2Mu/2022EE/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.07267263034389267,
+          "MHc145": 0.2343995476294433,
+          "MHc160": 0.06148028975905906
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.1143685601094974,
+        "pooled_max": 0.31530440684513583,
+        "driver": 145
+      },
+      "SR1E2Mu/2023/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.0965030577544788,
+          "MHc145": 0.21219679429098734,
+          "MHc160": 0.08560214542304317
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.11833671196203663,
+        "pooled_max": 0.2933454729746021,
+        "driver": 145
+      },
+      "SR1E2Mu/2023BPix/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.07948898901365983,
+          "MHc145": 0.08685574239459304,
+          "MHc160": 0.12147145026275746
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.10670154453455193,
+        "pooled_max": 0.22572055544246106,
+        "driver": 160
+      },
+      "SR3Mu_highM/2022/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.06072636135423278,
+          "MHc145": 0.05127861596586171,
+          "MHc160": 0.10512265611079318
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.09076558014061895,
+        "pooled_max": 0.20675388279056595,
+        "driver": 160
+      },
+      "SR3Mu_highM/2022EE/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.04956928443721492,
+          "MHc145": 0.19266253942932546,
+          "MHc160": 0.06858707434407083
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.0988186020785648,
+        "pooled_max": 0.24958835627934595,
+        "driver": 145
+      },
+      "SR3Mu_highM/2023/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.043241199172349094,
+          "MHc145": 0.08773996137655503,
+          "MHc160": 0.08752654141201699
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.07694702806257434,
+        "pooled_max": 0.15444681350012113,
+        "driver": 145
+      },
+      "SR3Mu_highM/2023BPix/aboveZ": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc130": 0.017812026341562814,
+          "MHc145": 0.08712646993629185,
+          "MHc160": 0.06747454511330614
+        },
+        "per_study_npoints": {
+          "MHc115": 1,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 6
+        },
+        "studies_below_min_points": [
+          "MHc115"
+        ],
+        "pooled_rms": 0.06262025951410231,
+        "pooled_max": 0.11793824595468005,
+        "driver": 145
+      },
+      "SR3Mu_lowM/2016postVFP/aboveZ": {
+        "unreachable": "no production point of this channel lies in this mA bin"
+      },
+      "SR3Mu_lowM/2016postVFP/onZ": {
+        "fallback_from": [
+          "belowZ",
+          "onZ"
+        ]
+      },
+      "SR3Mu_lowM/2016preVFP/aboveZ": {
+        "unreachable": "no production point of this channel lies in this mA bin"
+      },
+      "SR3Mu_lowM/2016preVFP/onZ": {
+        "fallback_from": [
+          "belowZ",
+          "onZ"
+        ]
+      },
+      "SR3Mu_lowM/2017/aboveZ": {
+        "unreachable": "no production point of this channel lies in this mA bin"
+      },
+      "SR3Mu_lowM/2017/onZ": {
+        "fallback_from": [
+          "belowZ",
+          "onZ"
+        ]
+      },
+      "SR3Mu_lowM/2018/aboveZ": {
+        "unreachable": "no production point of this channel lies in this mA bin"
+      },
+      "SR3Mu_lowM/2018/onZ": {
+        "fallback_from": [
+          "belowZ",
+          "onZ"
+        ]
+      },
+      "SR3Mu_lowM/2022/aboveZ": {
+        "unreachable": "no production point of this channel lies in this mA bin"
+      },
+      "SR3Mu_lowM/2022/onZ": {
+        "fallback_from": [
+          "belowZ",
+          "onZ"
+        ]
+      },
+      "SR3Mu_lowM/2022EE/aboveZ": {
+        "unreachable": "no production point of this channel lies in this mA bin"
+      },
+      "SR3Mu_lowM/2022EE/onZ": {
+        "fallback_from": [
+          "belowZ",
+          "onZ"
+        ]
+      },
+      "SR3Mu_lowM/2023/aboveZ": {
+        "unreachable": "no production point of this channel lies in this mA bin"
+      },
+      "SR3Mu_lowM/2023/onZ": {
+        "fallback_from": [
+          "belowZ",
+          "onZ"
+        ]
+      },
+      "SR3Mu_lowM/2023BPix/aboveZ": {
+        "unreachable": "no production point of this channel lies in this mA bin"
+      },
+      "SR3Mu_lowM/2023BPix/onZ": {
+        "fallback_from": [
+          "belowZ",
+          "onZ"
+        ]
+      },
+      "scale/SR1E2Mu/Run2": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.027859192480336917,
+          "MHc85": 0.043100404255765605,
+          "MHc100": 0.01311325877404121,
+          "MHc115": 0.012601286530767105,
+          "MHc130": 0.010004141637648315,
+          "MHc145": 0.020876113404109112,
+          "MHc160": 0.013391670773324482
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 6,
+          "MHc115": 10,
+          "MHc130": 8,
+          "MHc145": 10,
+          "MHc160": 21
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.019339600681801076,
+        "pooled_max": 0.0690161251195983,
+        "driver": 85
+      },
+      "res/SR1E2Mu/Run2": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.008433590472408053,
+          "MHc85": 0.019080952347333178,
+          "MHc100": 0.009282664341967062,
+          "MHc115": 0.011211870862020681,
+          "MHc130": 0.008630931129818172,
+          "MHc145": 0.012150980313622382,
+          "MHc160": 0.010899624757745762
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 6,
+          "MHc115": 10,
+          "MHc130": 8,
+          "MHc145": 10,
+          "MHc160": 21
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.011487920525236674,
+        "pooled_max": 0.03937093299722294,
+        "driver": 85
+      },
+      "scale/SR3Mu_lowM/Run2": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.02687197221055136,
+          "MHc85": 0.02730301412106829,
+          "MHc100": 0.035478550977867444,
+          "MHc115": 0.04019258671425021,
+          "MHc130": 0.018043001129670947,
+          "MHc145": 0.04435294202119701,
+          "MHc160": 0.020098885065800206
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.028953981963592224,
+        "pooled_max": 0.06532395990506087,
+        "driver": 145
+      },
+      "res/SR3Mu_lowM/Run2": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.026458687894290976,
+          "MHc85": 0.01301827202979003,
+          "MHc100": 0.023990910422144837,
+          "MHc115": 0.02033871618227471,
+          "MHc130": 0.015785303759731445,
+          "MHc145": 0.00594435383725573,
+          "MHc160": 0.007497298757358682
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.01647660533916767,
+        "pooled_max": 0.046921449653636094,
+        "driver": 70
+      },
+      "scale/SR3Mu_highM/Run2": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.04056519635243311,
+          "MHc115": 0.03347506397401142,
+          "MHc130": 0.012517321751306917,
+          "MHc145": 0.0170683025725117,
+          "MHc160": 0.022197017203302208
+        },
+        "per_study_npoints": {
+          "MHc100": 4,
+          "MHc115": 7,
+          "MHc130": 6,
+          "MHc145": 8,
+          "MHc160": 13
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.02518464136548715,
+        "pooled_max": 0.0746401001052241,
+        "driver": 100
+      },
+      "res/SR3Mu_highM/Run2": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.003939019902636205,
+          "MHc115": 0.009048326293507684,
+          "MHc130": 0.004823967192869129,
+          "MHc145": 0.013154745891044331,
+          "MHc160": 0.009432694666977432
+        },
+        "per_study_npoints": {
+          "MHc100": 4,
+          "MHc115": 7,
+          "MHc130": 6,
+          "MHc145": 8,
+          "MHc160": 13
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.009341272478328437,
+        "pooled_max": 0.02556473103122192,
+        "driver": 145
+      },
+      "scale/SR1E2Mu/Run3": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.00753021678301143,
+          "MHc85": 0.010407332586963695,
+          "MHc100": 0.04648471935683083,
+          "MHc115": 0.011664747344366424,
+          "MHc130": 0.011617010870580842,
+          "MHc145": 0.010210470058406777,
+          "MHc160": 0.013023732757893808
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 6,
+          "MHc115": 10,
+          "MHc130": 8,
+          "MHc145": 10,
+          "MHc160": 21
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.018018291079768715,
+        "pooled_max": 0.08513505586162072,
+        "driver": 100
+      },
+      "res/SR1E2Mu/Run3": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.015124037886174103,
+          "MHc85": 0.014884884647322285,
+          "MHc100": 0.017910896931344643,
+          "MHc115": 0.013296637052828464,
+          "MHc130": 0.006626167502655533,
+          "MHc145": 0.012677316856923705,
+          "MHc160": 0.01103465189819269
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 6,
+          "MHc115": 10,
+          "MHc130": 8,
+          "MHc145": 10,
+          "MHc160": 21
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.0126435376101184,
+        "pooled_max": 0.03532118479541124,
+        "driver": 100
+      },
+      "scale/SR3Mu_lowM/Run3": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.04258070172251382,
+          "MHc85": 0.033955132936474126,
+          "MHc100": 0.04975174745225593,
+          "MHc115": 0.02185838811667277,
+          "MHc130": 0.05520392322867935,
+          "MHc145": 0.040037987389479064,
+          "MHc160": 0.031050235080334443
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.037424294854415806,
+        "pooled_max": 0.06885592304225618,
+        "driver": 130
+      },
+      "res/SR3Mu_lowM/Run3": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc70": 0.023756684028162035,
+          "MHc85": 0.01206587128287514,
+          "MHc100": 0.015260031005423369,
+          "MHc115": 0.028387958057241088,
+          "MHc130": 0.021381757215066334,
+          "MHc145": 0.00688795308804807,
+          "MHc160": 0.012376622653901964
+        },
+        "per_study_npoints": {
+          "MHc70": 4,
+          "MHc85": 5,
+          "MHc100": 2,
+          "MHc115": 3,
+          "MHc130": 2,
+          "MHc145": 2,
+          "MHc160": 8
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.017654270739478846,
+        "pooled_max": 0.04405960900569439,
+        "driver": 115
+      },
+      "scale/SR3Mu_highM/Run3": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.017386191157499654,
+          "MHc115": 0.014335876491078516,
+          "MHc130": 0.017481619164910745,
+          "MHc145": 0.022341586555769167,
+          "MHc160": 0.005474880081441124
+        },
+        "per_study_npoints": {
+          "MHc100": 4,
+          "MHc115": 7,
+          "MHc130": 6,
+          "MHc145": 8,
+          "MHc160": 13
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.015273144714968458,
+        "pooled_max": 0.049550888566088726,
+        "driver": 145
+      },
+      "res/SR3Mu_highM/Run3": {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {
+          "MHc100": 0.014785180609805763,
+          "MHc115": 0.01369687882225102,
+          "MHc130": 0.009884799121887663,
+          "MHc145": 0.010888818345388658,
+          "MHc160": 0.010487839652188581
+        },
+        "per_study_npoints": {
+          "MHc100": 4,
+          "MHc115": 7,
+          "MHc130": 6,
+          "MHc145": 8,
+          "MHc160": 13
+        },
+        "studies_below_min_points": [],
+        "pooled_rms": 0.011644239911150062,
+        "pooled_max": 0.02748895189218925,
+        "driver": 100
+      }
+    }
+  },
+  "warnings": [
+    "[norm/SR3Mu_lowM/2016postVFP/onZ] no usable LOO point in this mA bin; falling back to the channel's worst populated bin (0.185)",
+    "[norm/SR3Mu_lowM/2016preVFP/onZ] no usable LOO point in this mA bin; falling back to the channel's worst populated bin (0.179)",
+    "[norm/SR3Mu_lowM/2017/onZ] no usable LOO point in this mA bin; falling back to the channel's worst populated bin (0.180)",
+    "[norm/SR3Mu_lowM/2018/onZ] no usable LOO point in this mA bin; falling back to the channel's worst populated bin (0.185)",
+    "[norm/SR3Mu_lowM/2022/onZ] no usable LOO point in this mA bin; falling back to the channel's worst populated bin (0.134)",
+    "[norm/SR3Mu_lowM/2022EE/onZ] no usable LOO point in this mA bin; falling back to the channel's worst populated bin (0.153)",
+    "[norm/SR3Mu_lowM/2023/onZ] no usable LOO point in this mA bin; falling back to the channel's worst populated bin (0.166)",
+    "[norm/SR3Mu_lowM/2023BPix/onZ] no usable LOO point in this mA bin; falling back to the channel's worst populated bin (0.160)",
+    "[norm/SR1E2Mu/2018/belowZ] pooled envelope 0.108 exceeds the 0.1 warn threshold",
+    "[norm/SR1E2Mu/2022/aboveZ] pooled envelope 0.150 exceeds the 0.1 warn threshold",
+    "[norm/SR1E2Mu/2022EE/aboveZ] pooled envelope 0.234 exceeds the 0.1 warn threshold",
+    "[norm/SR1E2Mu/2023/onZ] pooled envelope 0.167 exceeds the 0.1 warn threshold",
+    "[norm/SR1E2Mu/2023/aboveZ] pooled envelope 0.212 exceeds the 0.1 warn threshold",
+    "[norm/SR1E2Mu/2023BPix/onZ] pooled envelope 0.101 exceeds the 0.1 warn threshold",
+    "[norm/SR1E2Mu/2023BPix/aboveZ] pooled envelope 0.121 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2016preVFP/belowZ] pooled envelope 0.179 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2016preVFP/onZ] pooled envelope 0.179 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2016postVFP/belowZ] pooled envelope 0.185 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2016postVFP/onZ] pooled envelope 0.185 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2017/belowZ] pooled envelope 0.180 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2017/onZ] pooled envelope 0.180 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2018/belowZ] pooled envelope 0.185 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2018/onZ] pooled envelope 0.185 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2022/belowZ] pooled envelope 0.134 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2022/onZ] pooled envelope 0.134 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2022EE/belowZ] pooled envelope 0.153 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2022EE/onZ] pooled envelope 0.153 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2023/belowZ] pooled envelope 0.166 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2023/onZ] pooled envelope 0.166 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2023BPix/belowZ] pooled envelope 0.160 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2023BPix/onZ] pooled envelope 0.160 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2022/belowZ] pooled envelope 0.106 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2022/aboveZ] pooled envelope 0.105 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2022EE/onZ] pooled envelope 0.106 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2022EE/aboveZ] pooled envelope 0.193 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2023/belowZ] pooled envelope 0.134 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2023BPix/belowZ] pooled envelope 0.123 exceeds the 0.1 warn threshold"
+  ]
+}

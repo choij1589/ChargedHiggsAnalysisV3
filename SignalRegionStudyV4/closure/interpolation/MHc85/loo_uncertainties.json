@@ -1,0 +1,1850 @@
+{
+  "meta": {
+    "mhc": 85,
+    "strategy": "leave-one-out: every grid point closed against models refit on the full grid minus that point",
+    "grid_ma": [
+      15,
+      21,
+      30,
+      42,
+      55,
+      70,
+      80
+    ],
+    "endpoint_ma": [
+      15,
+      80
+    ],
+    "channels": [
+      "SR1E2Mu",
+      "SR3Mu_lowM",
+      "SR3Mu_highM"
+    ],
+    "rules": {
+      "scale": "max(|x0_pred-x0_direct|/sigma_eff_direct) over usable LOO points, floor 0.02",
+      "res": "max(|sigma_eff_pred/sigma_eff_direct-1|) over usable LOO points, floor 0.01",
+      "norm": "max(|N_pred/N_meas-1|) over usable LOO points per era, floor 0.01, warn above 0.1",
+      "excluded": "extrapolation (grid endpoints), non-good direct fit (shape only), missing records",
+      "keying": "SR3Mu pairing variants SPLIT, evaluated over the full mA grid; the production_restricted block limits each variant to its production pairing range (informational)"
+    },
+    "command": "python/exportInterpUncertainties.py --loo --all --pooled --write-config",
+    "date": "2026-08-13T00:53:00"
+  },
+  "scale": {
+    "SR1E2Mu": {
+      "Run2": 0.0690161251195983,
+      "Run3": 0.02
+    },
+    "SR3Mu_lowM": {
+      "Run2": 0.03617104828816137,
+      "Run3": 0.05187336055769129
+    },
+    "SR3Mu_highM": {
+      "Run2": 0.07476316552855151,
+      "Run3": 0.10690711917656592
+    }
+  },
+  "res": {
+    "SR1E2Mu": {
+      "Run2": 0.03937093299722294,
+      "Run3": 0.02606195157024449
+    },
+    "SR3Mu_lowM": {
+      "Run2": 0.025776672881888785,
+      "Run3": 0.016688027780423664
+    },
+    "SR3Mu_highM": {
+      "Run2": 0.045924121213639424,
+      "Run3": 0.038641887606941205
+    }
+  },
+  "norm": {
+    "SR1E2Mu": {
+      "2016preVFP": 1.0670956996474528,
+      "2016postVFP": 1.069101870377891,
+      "2017": 1.0650458410285184,
+      "2018": 1.0780205678874974,
+      "2022": 1.062340052966238,
+      "2022EE": 1.0971197711573648,
+      "2023": 1.0819728108020548,
+      "2023BPix": 1.095628302221426
+    },
+    "SR3Mu_lowM": {
+      "2016preVFP": 1.1076572100316628,
+      "2016postVFP": 1.1123413773860926,
+      "2017": 1.1047362353096393,
+      "2018": 1.1207516483006676,
+      "2022": 1.0825164633584219,
+      "2022EE": 1.1069425255167369,
+      "2023": 1.0870374611036286,
+      "2023BPix": 1.126146352319226
+    },
+    "SR3Mu_highM": {
+      "2016preVFP": 1.1052244860905756,
+      "2016postVFP": 1.119355422543994,
+      "2017": 1.1079218602737333,
+      "2018": 1.1083328479348322,
+      "2022": 1.1096155318872585,
+      "2022EE": 1.095334769691085,
+      "2023": 1.1214884203806335,
+      "2023BPix": 1.1250553041092717
+    }
+  },
+  "n_points": {
+    "scale": {
+      "SR1E2Mu/Run2": 5,
+      "SR3Mu_lowM/Run2": 5,
+      "SR3Mu_highM/Run2": 5,
+      "SR1E2Mu/Run3": 5,
+      "SR3Mu_lowM/Run3": 5,
+      "SR3Mu_highM/Run3": 5
+    },
+    "res": {
+      "SR1E2Mu/Run2": 5,
+      "SR3Mu_lowM/Run2": 5,
+      "SR3Mu_highM/Run2": 5,
+      "SR1E2Mu/Run3": 5,
+      "SR3Mu_lowM/Run3": 5,
+      "SR3Mu_highM/Run3": 5
+    },
+    "norm": {
+      "SR1E2Mu/2016preVFP": 5,
+      "SR1E2Mu/2016postVFP": 5,
+      "SR1E2Mu/2017": 5,
+      "SR1E2Mu/2018": 5,
+      "SR3Mu_lowM/2016preVFP": 5,
+      "SR3Mu_lowM/2016postVFP": 5,
+      "SR3Mu_lowM/2017": 5,
+      "SR3Mu_lowM/2018": 5,
+      "SR3Mu_highM/2016preVFP": 5,
+      "SR3Mu_highM/2016postVFP": 5,
+      "SR3Mu_highM/2017": 5,
+      "SR3Mu_highM/2018": 5,
+      "SR1E2Mu/2022": 5,
+      "SR1E2Mu/2022EE": 5,
+      "SR1E2Mu/2023": 5,
+      "SR1E2Mu/2023BPix": 5,
+      "SR3Mu_lowM/2022": 5,
+      "SR3Mu_lowM/2022EE": 5,
+      "SR3Mu_lowM/2023": 5,
+      "SR3Mu_lowM/2023BPix": 5,
+      "SR3Mu_highM/2022": 5,
+      "SR3Mu_highM/2022EE": 5,
+      "SR3Mu_highM/2023": 5,
+      "SR3Mu_highM/2023BPix": 5
+    }
+  },
+  "production_restricted": {
+    "scale": {
+      "SR1E2Mu": {
+        "Run2": 0.0690161251195983,
+        "Run3": 0.02
+      },
+      "SR3Mu_lowM": {
+        "Run2": 0.03617104828816137,
+        "Run3": 0.05187336055769129
+      },
+      "SR3Mu_highM": {
+        "Run2": 0.02,
+        "Run3": 0.02
+      }
+    },
+    "res": {
+      "SR1E2Mu": {
+        "Run2": 0.03937093299722294,
+        "Run3": 0.02606195157024449
+      },
+      "SR3Mu_lowM": {
+        "Run2": 0.025776672881888785,
+        "Run3": 0.016688027780423664
+      },
+      "SR3Mu_highM": {
+        "Run2": 0.01,
+        "Run3": 0.01
+      }
+    },
+    "norm": {
+      "SR1E2Mu": {
+        "2016preVFP": 1.0670956996474528,
+        "2016postVFP": 1.069101870377891,
+        "2017": 1.0650458410285184,
+        "2018": 1.0780205678874974,
+        "2022": 1.062340052966238,
+        "2022EE": 1.0971197711573648,
+        "2023": 1.0819728108020548,
+        "2023BPix": 1.095628302221426
+      },
+      "SR3Mu_lowM": {
+        "2016preVFP": 1.1076572100316628,
+        "2016postVFP": 1.1123413773860926,
+        "2017": 1.1047362353096393,
+        "2018": 1.1207516483006676,
+        "2022": 1.0825164633584219,
+        "2022EE": 1.1069425255167369,
+        "2023": 1.0870374611036286,
+        "2023BPix": 1.126146352319226
+      },
+      "SR3Mu_highM": {
+        "2016preVFP": 1.01,
+        "2016postVFP": 1.01,
+        "2017": 1.01,
+        "2018": 1.01,
+        "2022": 1.01,
+        "2022EE": 1.01,
+        "2023": 1.01,
+        "2023BPix": 1.01
+      }
+    },
+    "n_points": {
+      "scale": {
+        "SR1E2Mu/Run2": 5,
+        "SR3Mu_lowM/Run2": 5,
+        "SR3Mu_highM/Run2": 0,
+        "SR1E2Mu/Run3": 5,
+        "SR3Mu_lowM/Run3": 5,
+        "SR3Mu_highM/Run3": 0
+      },
+      "res": {
+        "SR1E2Mu/Run2": 5,
+        "SR3Mu_lowM/Run2": 5,
+        "SR3Mu_highM/Run2": 0,
+        "SR1E2Mu/Run3": 5,
+        "SR3Mu_lowM/Run3": 5,
+        "SR3Mu_highM/Run3": 0
+      },
+      "norm": {
+        "SR1E2Mu/2016preVFP": 5,
+        "SR1E2Mu/2016postVFP": 5,
+        "SR1E2Mu/2017": 5,
+        "SR1E2Mu/2018": 5,
+        "SR3Mu_lowM/2016preVFP": 5,
+        "SR3Mu_lowM/2016postVFP": 5,
+        "SR3Mu_lowM/2017": 5,
+        "SR3Mu_lowM/2018": 5,
+        "SR3Mu_highM/2016preVFP": 0,
+        "SR3Mu_highM/2016postVFP": 0,
+        "SR3Mu_highM/2017": 0,
+        "SR3Mu_highM/2018": 0,
+        "SR1E2Mu/2022": 5,
+        "SR1E2Mu/2022EE": 5,
+        "SR1E2Mu/2023": 5,
+        "SR1E2Mu/2023BPix": 5,
+        "SR3Mu_lowM/2022": 5,
+        "SR3Mu_lowM/2022EE": 5,
+        "SR3Mu_lowM/2023": 5,
+        "SR3Mu_lowM/2023BPix": 5,
+        "SR3Mu_highM/2022": 0,
+        "SR3Mu_highM/2022EE": 0,
+        "SR3Mu_highM/2023": 0,
+        "SR3Mu_highM/2023BPix": 0
+      }
+    }
+  },
+  "point_detail": {
+    "scale": {
+      "SR1E2Mu/Run2": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.04722964768412177
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.02640890312184046
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.0690161251195983
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.01152957530093967
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.038262224418386594
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/Run2": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.0031449806439502927
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.03617104828816137
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.03476726730238716
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.006311112012824259
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.03406529395802854
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/Run2": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.07476316552855151
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.012355147242535646
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.07451234985228257
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.056577124579943926
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.04072853659548396
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR1E2Mu/Run3": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.011079333315854768
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.0007881700620324815
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.008955144275210285
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.002125097457990322
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.01826141754936073
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/Run3": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.03169452091804628
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.018241453251913245
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.05187336055769129
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.03838975844873715
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.016212430459413313
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/Run3": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.10690711917656592
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.06466860241312368
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.019642767443717492
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.06294682173106945
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.005121172539656104
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ]
+    },
+    "res": {
+      "SR1E2Mu/Run2": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.03937093299722294
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.008079477676517732
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.012189163496545419
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.007487478290271743
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.0006537200593714765
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/Run2": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.025776672881888785
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.0032645907692353537
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.0009782526849544393
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.00857322557305662
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.009890674416613732
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/Run2": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.045924121213639424
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.028553872006633396
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.02707243841927398
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.004390171331553949
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.004212885644075737
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR1E2Mu/Run3": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.01605542673570426
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.0033006554151367995
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.004778568590370957
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.02606195157024449
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.011707598539528297
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/Run3": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.016688027780423664
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.01228782217453439
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.00888660478667358
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.004152524031858951
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "excluded": null,
+          "value": 0.014220766632347503
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/Run3": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.016738603378873673
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.011482076504433003
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.027508733550027475
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.024323957671672725
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "excluded": null,
+          "value": 0.038641887606941205
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ]
+    },
+    "norm": {
+      "SR1E2Mu/2016preVFP": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.06709569964745277,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.03506971761578637,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.014365181362556823,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.01686623364993567,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.021041681879298668,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR1E2Mu/2016postVFP": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.06910187037789106,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.03534196066271045,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.026015482388855427,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.0187817446502776,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.037258543186152515,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR1E2Mu/2017": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.0650458410285184,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.020803422200476263,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.02647356443930393,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.006751859586765274,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.0050145178262354095,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR1E2Mu/2018": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.07802056788749756,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.04648359299173854,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.013368573271660411,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.0004630513604521047,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.004457386207865177,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/2016preVFP": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.07208439736914951,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.052630066387230556,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.10765721003166284,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.0974225663983872,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.05259007401866589,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/2016postVFP": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.09905408322634113,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.04307910352527011,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.09721710730498268,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.11234137738609262,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.03292440748037062,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/2017": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.08361865754096853,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.04376651358856121,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.10473623530963916,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.09918806561494642,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.05066351086919263,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/2018": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.09034895618600036,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.02642064283520429,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.12075164830066765,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.08674154628016062,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.0621597310498021,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/2016preVFP": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "value": 0.08436879681154519,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "value": 0.10522448609057544,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "value": 0.033380331683700915,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "value": 0.004363596520647661,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "value": 0.06966723626051086,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/2016postVFP": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "value": 0.1193554225439939,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "value": 0.06752818921097914,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "value": 0.012435781118327882,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "value": 0.03561886645099932,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "value": 0.060030788144631364,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/2017": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "value": 0.1079218602737333,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "value": 0.0844231534627774,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "value": 0.01288136969864806,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "value": 0.001849233081285373,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "value": 0.07429939388885742,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/2018": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "value": 0.10833284793483222,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "value": 0.06255153425099391,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "value": 0.04231246340671946,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "value": 0.010437753338558453,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "value": 0.09338072129932717,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR1E2Mu/2022": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.0035425111245888097,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.03835374088404797,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.0623400529662379,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.02174900210856756,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.005336648223659091,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR1E2Mu/2022EE": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.09711977115736481,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.01669151571969918,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.015933849737406858,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.012889885600446904,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.0077898161085612205,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR1E2Mu/2023": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.08197281080205487,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.007628428369419016,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.03328048130209316,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.022108539787860648,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.009149626122789356,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR1E2Mu/2023BPix": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.07995658616698542,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.04491114781325478,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.09562830222142593,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.017260864602106962,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.031852179649989765,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/2022": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.06186902624680646,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.07126576675756535,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.082516463358422,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.05347368121286866,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.024181608040050206,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/2022EE": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.10694252551673689,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.036490587821167875,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.0584453333030297,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.050087071940322136,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.06940033317641414,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/2023": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.08703746110362853,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.0589754611317439,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.06395198511674871,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.04698699106174531,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.0350720402798016,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_lowM/2023BPix": [
+        {
+          "mA": 15,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": true,
+          "value": 0.08061942257837629,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": true,
+          "value": 0.05382871985523319,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": true,
+          "value": 0.12614635231922622,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": true,
+          "value": 0.03319188433913456,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": true,
+          "value": 0.028223994606067948,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": true,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/2022": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "value": 0.04112964255806739,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "value": 0.10961553188725859,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "value": 0.10723377380574639,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "value": 0.02323478700618742,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "value": 0.06544368236406473,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/2022EE": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "value": 0.0953347696910849,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "value": 0.03753065245720688,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "value": 0.057614365234369025,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "value": 0.040886662302049626,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "value": 0.07401078620861767,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/2023": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "value": 0.021443365553529103,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "value": 0.12148842038063346,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "value": 0.11736107599806,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "value": 0.006061685685488927,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "value": 0.0388660776446863,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ],
+      "SR3Mu_highM/2023BPix": [
+        {
+          "mA": 15,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        },
+        {
+          "mA": 21,
+          "production_pairing": false,
+          "value": 0.027321677907375497,
+          "excluded": null
+        },
+        {
+          "mA": 30,
+          "production_pairing": false,
+          "value": 0.12505530410927168,
+          "excluded": null
+        },
+        {
+          "mA": 42,
+          "production_pairing": false,
+          "value": 0.12426424877488496,
+          "excluded": null
+        },
+        {
+          "mA": 55,
+          "production_pairing": false,
+          "value": 0.043525281328125276,
+          "excluded": null
+        },
+        {
+          "mA": 70,
+          "production_pairing": false,
+          "value": 0.08739580033181626,
+          "excluded": null
+        },
+        {
+          "mA": 80,
+          "production_pairing": false,
+          "value": null,
+          "excluded": "extrapolation"
+        }
+      ]
+    }
+  },
+  "warnings": [
+    "[norm/SR3Mu_lowM/2016preVFP] LOO envelope 0.108 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2016postVFP] LOO envelope 0.112 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2017] LOO envelope 0.105 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2018] LOO envelope 0.121 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2022EE] LOO envelope 0.107 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_lowM/2023BPix] LOO envelope 0.126 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2016preVFP] LOO envelope 0.105 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2016postVFP] LOO envelope 0.119 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2017] LOO envelope 0.108 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2018] LOO envelope 0.108 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2022] LOO envelope 0.110 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2023] LOO envelope 0.121 exceeds the 0.1 warn threshold",
+    "[norm/SR3Mu_highM/2023BPix] LOO envelope 0.125 exceeds the 0.1 warn threshold"
+  ]
+}

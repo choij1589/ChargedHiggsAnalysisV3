@@ -1,0 +1,399 @@
+{
+  "meta": {
+    "mhc": 85,
+    "fit_pass": "frozen",
+    "fit_ma": [
+      15,
+      21,
+      30,
+      42,
+      55,
+      70,
+      80
+    ],
+    "held_out_ma": [],
+    "fixed_n": {
+      "SR1E2Mu_Run2": {
+        "nL": 1.9553903094185947,
+        "nR": 7.403764263764773
+      },
+      "SR1E2Mu_Run3": {
+        "nL": 2.314768115541691,
+        "nR": 5.943419716721224
+      },
+      "SR3Mu_lowM_Run2": {
+        "nL": 0.6871730513588917,
+        "nR": 6.7886588681281115
+      },
+      "SR3Mu_lowM_Run3": {
+        "nL": 0.6389471532946495,
+        "nR": 5.83885299937341
+      },
+      "SR3Mu_highM_Run2": {
+        "nL": 4.3397952000542395,
+        "nR": 2.0961493008551964
+      },
+      "SR3Mu_highM_Run3": {
+        "nL": 2.446473575693594,
+        "nR": 1.1088175971833039
+      }
+    },
+    "command": "python/fitInterpShapes.py --mhc 85 --pass frozen --masspoints MHc85_MA21 --output /u/user/choij/scratch/ChargedHiggsAnalysisV3/SignalRegionStudyV4/fits/MHc85/parts/dcb_fits.MHc85_MA21.json",
+    "date": "2026-08-13T00:23:20"
+  },
+  "results": {
+    "SR1E2Mu_Run2": {
+      "MHc85_MA21": {
+        "params": {
+          "x0": {
+            "value": 21.001481671713183,
+            "error": 0.005826029744915511
+          },
+          "sigmaL": {
+            "value": 0.22050179622356364,
+            "error": 0.004966083105102013
+          },
+          "sigmaR": {
+            "value": 0.19171887693670586,
+            "error": 0.005618921501492608
+          },
+          "alphaL": {
+            "value": 1.5923290430559274,
+            "error": 0.023929092552498216
+          },
+          "alphaR": {
+            "value": 1.4388229626978657,
+            "error": 0.04687496209600459
+          },
+          "nL": {
+            "value": 1.9553903094185947,
+            "error": 0.0
+          },
+          "nR": {
+            "value": 7.403764263764773,
+            "error": 0.0
+          }
+        },
+        "sigma_eff": 0.2066121607162678,
+        "fit_lo": 18.82174395618314,
+        "fit_hi": 23.116039301182816,
+        "wide_lo": 14.0,
+        "wide_hi": 28.0,
+        "status": 0,
+        "covQual": 3,
+        "pre_status": 0,
+        "entries": 29179,
+        "sumw": 18.611628250503767,
+        "at_limit": [],
+        "window_floored": false,
+        "fixed_n": {
+          "nL": 1.9553903094185947,
+          "nR": 7.403764263764773
+        },
+        "quality": "good",
+        "quality_reasons": [],
+        "low_stat": false,
+        "mA": 21
+      }
+    },
+    "SR1E2Mu_Run3": {
+      "MHc85_MA21": {
+        "params": {
+          "x0": {
+            "value": 20.99142512666381,
+            "error": 0.004872126991755344
+          },
+          "sigmaL": {
+            "value": 0.19501312466203002,
+            "error": 0.004794153027175331
+          },
+          "sigmaR": {
+            "value": 0.19343858170479225,
+            "error": 0.004275791357808662
+          },
+          "alphaL": {
+            "value": 1.3903182310769242,
+            "error": 0.024579401040614988
+          },
+          "alphaR": {
+            "value": 1.5329545919666974,
+            "error": 0.03633947422454945
+          },
+          "nL": {
+            "value": 2.314768115541691,
+            "error": 0.0
+          },
+          "nR": {
+            "value": 5.943419716721224,
+            "error": 0.0
+          }
+        },
+        "sigma_eff": 0.19422744873267792,
+        "fit_lo": 18.97469564257603,
+        "fit_hi": 22.96691988785083,
+        "wide_lo": 14.0,
+        "wide_hi": 28.0,
+        "status": 0,
+        "covQual": 3,
+        "pre_status": 0,
+        "entries": 46700,
+        "sumw": 7.135179158343252,
+        "at_limit": [],
+        "window_floored": false,
+        "fixed_n": {
+          "nL": 2.314768115541691,
+          "nR": 5.943419716721224
+        },
+        "quality": "good",
+        "quality_reasons": [],
+        "low_stat": false,
+        "mA": 21
+      }
+    },
+    "SR3Mu_lowM_Run2": {
+      "MHc85_MA21": {
+        "params": {
+          "x0": {
+            "value": 21.020277278882418,
+            "error": 0.004619685529863992
+          },
+          "sigmaL": {
+            "value": 0.24693653188539913,
+            "error": 0.00352321769976324
+          },
+          "sigmaR": {
+            "value": 0.178423740543567,
+            "error": 0.004955862064582746
+          },
+          "alphaL": {
+            "value": 2.052223635211701,
+            "error": 0.012193747040966778
+          },
+          "alphaR": {
+            "value": 1.3173318730129238,
+            "error": 0.038493310097232135
+          },
+          "nL": {
+            "value": 0.6871730513588917,
+            "error": 0.0
+          },
+          "nR": {
+            "value": 6.7886588681281115,
+            "error": 0.0
+          }
+        },
+        "sigma_eff": 0.2154213104234895,
+        "fit_lo": 18.746054731106224,
+        "fit_hi": 23.19244519263562,
+        "wide_lo": 14.0,
+        "wide_hi": 28.0,
+        "status": 0,
+        "covQual": 3,
+        "pre_status": 0,
+        "entries": 42261,
+        "sumw": 28.2096456864023,
+        "at_limit": [],
+        "window_floored": false,
+        "fixed_n": {
+          "nL": 0.6871730513588917,
+          "nR": 6.7886588681281115
+        },
+        "quality": "good",
+        "quality_reasons": [],
+        "low_stat": false,
+        "mA": 21
+      }
+    },
+    "SR3Mu_lowM_Run3": {
+      "MHc85_MA21": {
+        "params": {
+          "x0": {
+            "value": 21.021899055263845,
+            "error": 0.0036924371983377263
+          },
+          "sigmaL": {
+            "value": 0.24430754295947646,
+            "error": 0.0024031943290723254
+          },
+          "sigmaR": {
+            "value": 0.17368689652424169,
+            "error": 0.00413613538349241
+          },
+          "alphaL": {
+            "value": 2.0785428250402567,
+            "error": 0.007426471978393996
+          },
+          "alphaR": {
+            "value": 1.3468737778268487,
+            "error": 0.03392845218196451
+          },
+          "nL": {
+            "value": 0.6389471532946495,
+            "error": 0.0
+          },
+          "nR": {
+            "value": 5.83885299937341,
+            "error": 0.0
+          }
+        },
+        "sigma_eff": 0.21195909224555462,
+        "fit_lo": 18.8072966571297,
+        "fit_hi": 23.13896976705279,
+        "wide_lo": 14.0,
+        "wide_hi": 28.0,
+        "status": 0,
+        "covQual": 3,
+        "pre_status": 0,
+        "entries": 67260,
+        "sumw": 10.15266125892529,
+        "at_limit": [],
+        "window_floored": false,
+        "fixed_n": {
+          "nL": 0.6389471532946495,
+          "nR": 5.83885299937341
+        },
+        "quality": "good",
+        "quality_reasons": [],
+        "low_stat": false,
+        "mA": 21
+      }
+    },
+    "SR3Mu_highM_Run2": {
+      "MHc85_MA21": {
+        "params": {
+          "x0": {
+            "value": 20.990697076226006,
+            "error": 0.12881954184787645
+          },
+          "sigmaL": {
+            "value": 0.17264207364680187,
+            "error": 0.19139599386029968
+          },
+          "sigmaR": {
+            "value": 0.19507990767443667,
+            "error": 0.09493013336894872
+          },
+          "alphaL": {
+            "value": 1.135195514253213,
+            "error": 1.3610766214815184
+          },
+          "alphaR": {
+            "value": 1.3158455819047068,
+            "error": 0.328922941850554
+          },
+          "nL": {
+            "value": 4.3397952000542395,
+            "error": 0.0
+          },
+          "nR": {
+            "value": 2.0961493008551964,
+            "error": 0.0
+          },
+          "fsig": {
+            "value": 0.8105110917873061,
+            "error": 0.06003634060796917
+          },
+          "c1": {
+            "value": 1.2212697803718906,
+            "error": 0.2818226526888289
+          },
+          "c2": {
+            "value": 0.39150356464651465,
+            "error": 0.3493942243514986
+          }
+        },
+        "sigma_eff": 0.18420295324903793,
+        "fit_lo": 18.959437386675397,
+        "fit_hi": 23.035797879650765,
+        "wide_lo": 14.0,
+        "wide_hi": 28.0,
+        "status": 0,
+        "covQual": 3,
+        "pre_status": 0,
+        "entries": 4415,
+        "sumw": 2.9143772156410317,
+        "at_limit": [],
+        "window_floored": false,
+        "bkg_shape": "cheb2",
+        "no_resolvable_bkg": false,
+        "fixed_n": {
+          "nL": 4.3397952000542395,
+          "nR": 2.0961493008551964
+        },
+        "quality": "good",
+        "quality_reasons": [],
+        "low_stat": false,
+        "mA": 21
+      }
+    },
+    "SR3Mu_highM_Run3": {
+      "MHc85_MA21": {
+        "params": {
+          "x0": {
+            "value": 20.98934958966872,
+            "error": 0.014143796071650727
+          },
+          "sigmaL": {
+            "value": 0.17554810972610713,
+            "error": 0.01441343393362479
+          },
+          "sigmaR": {
+            "value": 0.20651905985773164,
+            "error": 0.015132895346885463
+          },
+          "alphaL": {
+            "value": 1.3784852846181879,
+            "error": 0.1062130538603278
+          },
+          "alphaR": {
+            "value": 1.5122581780918918,
+            "error": 0.0991739952168818
+          },
+          "nL": {
+            "value": 2.446473575693594,
+            "error": 0.0
+          },
+          "nR": {
+            "value": 1.1088175971833039,
+            "error": 0.0
+          },
+          "fsig": {
+            "value": 0.8362185782341282,
+            "error": 0.020385426720029364
+          },
+          "c1": {
+            "value": 1.2057041897070573,
+            "error": 0.0804489873498619
+          },
+          "c2": {
+            "value": 0.29206477077359644,
+            "error": 0.0953699810574644
+          }
+        },
+        "sigma_eff": 0.1916601952844287,
+        "fit_lo": 18.93741970899452,
+        "fit_hi": 23.068270996037448,
+        "wide_lo": 14.0,
+        "wide_hi": 28.0,
+        "status": 0,
+        "covQual": 3,
+        "pre_status": 0,
+        "entries": 7287,
+        "sumw": 1.0866790204199792,
+        "at_limit": [],
+        "window_floored": false,
+        "bkg_shape": "cheb2",
+        "no_resolvable_bkg": false,
+        "fixed_n": {
+          "nL": 2.446473575693594,
+          "nR": 1.1088175971833039
+        },
+        "quality": "good",
+        "quality_reasons": [],
+        "low_stat": false,
+        "mA": 21
+      }
+    }
+  },
+  "warnings": []
+}

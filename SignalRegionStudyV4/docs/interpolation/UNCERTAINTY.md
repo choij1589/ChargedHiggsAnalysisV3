@@ -66,51 +66,60 @@ Details:
 - With the frozen model **no cell sits on any floor** — all three floors
   are pure safety nets.
 
-## Current values (rebuild of 2026-08-12, 78-point LOO)
+## Current values (production run of 2026-08-13, 78-point LOO)
+
+Config values are **ceil-rounded to 3 decimals** (never down; 0.0233 →
+0.024) — conservative by construction. Full precision lives in
+`closure/interpolation/loo_uncertainties.pooled.json` and in the config's
+`per_study_detail` audit block.
 
 scale (σ_eff units) and res (relative):
 
 | channel | scale Run2 | scale Run3 | res Run2 | res Run3 |
 |---|---|---|---|---|
-| SR1E2Mu | 0.043 | 0.046 | 0.019 | 0.018 |
-| SR3Mu_lowM | 0.044 | 0.055 | 0.026 | 0.028 |
-| SR3Mu_highM | 0.041 | 0.022 | 0.013 | 0.015 |
+| SR1E2Mu | 0.044 | 0.047 | 0.020 | 0.018 |
+| SR3Mu_lowM | 0.045 | 0.056 | 0.027 | 0.029 |
+| SR3Mu_highM | 0.041 | 0.023 | 0.014 | 0.015 |
 
 norm (lnN):
 
 | channel | era | belowZ | onZ | aboveZ |
 |---|---|---|---|---|
-| SR1E2Mu | 2016preVFP | 1.089 | 1.050 | 1.026 |
-| SR1E2Mu | 2016postVFP | 1.094 | 1.034 | 1.027 |
-| SR1E2Mu | 2017 | 1.093 | 1.035 | 1.035 |
-| SR1E2Mu | 2018 | 1.108 | 1.028 | 1.035 |
-| SR1E2Mu | 2022 | 1.070 | 1.080 | 1.150 |
-| SR1E2Mu | 2022EE | 1.089 | 1.077 | 1.234 |
-| SR1E2Mu | 2023 | 1.092 | 1.167 | 1.212 |
-| SR1E2Mu | 2023BPix | 1.074 | 1.101 | 1.121 |
+| SR1E2Mu | 2016preVFP | 1.090 | 1.050 | 1.027 |
+| SR1E2Mu | 2016postVFP | 1.095 | 1.034 | 1.027 |
+| SR1E2Mu | 2017 | 1.093 | 1.036 | 1.036 |
+| SR1E2Mu | 2018 | 1.109 | 1.029 | 1.036 |
+| SR1E2Mu | 2022 | 1.071 | 1.081 | 1.151 |
+| SR1E2Mu | 2022EE | 1.089 | 1.078 | 1.235 |
+| SR1E2Mu | 2023 | 1.092 | 1.167 | 1.213 |
+| SR1E2Mu | 2023BPix | 1.075 | 1.102 | 1.122 |
 | SR3Mu_lowM | 2016preVFP | 1.179 | 1.179* | — |
-| SR3Mu_lowM | 2016postVFP | 1.185 | 1.185* | — |
+| SR3Mu_lowM | 2016postVFP | 1.186 | 1.186* | — |
 | SR3Mu_lowM | 2017 | 1.180 | 1.180* | — |
 | SR3Mu_lowM | 2018 | 1.185 | 1.185* | — |
 | SR3Mu_lowM | 2022 | 1.134 | 1.134* | — |
-| SR3Mu_lowM | 2022EE | 1.153 | 1.153* | — |
+| SR3Mu_lowM | 2022EE | 1.154 | 1.154* | — |
 | SR3Mu_lowM | 2023 | 1.166 | 1.166* | — |
-| SR3Mu_lowM | 2023BPix | 1.160 | 1.160* | — |
-| SR3Mu_highM | 2016preVFP | 1.066 | 1.021 | 1.043 |
-| SR3Mu_highM | 2016postVFP | 1.072 | 1.024 | 1.040 |
-| SR3Mu_highM | 2017 | 1.053 | 1.019 | 1.031 |
-| SR3Mu_highM | 2018 | 1.058 | 1.022 | 1.036 |
-| SR3Mu_highM | 2022 | 1.106 | 1.062 | 1.105 |
-| SR3Mu_highM | 2022EE | 1.078 | 1.106 | 1.193 |
-| SR3Mu_highM | 2023 | 1.134 | 1.086 | 1.088 |
-| SR3Mu_highM | 2023BPix | 1.123 | 1.082 | 1.087 |
+| SR3Mu_lowM | 2023BPix | 1.161 | 1.161* | — |
+| SR3Mu_highM | 2016preVFP | 1.067 | 1.021 | 1.043 |
+| SR3Mu_highM | 2016postVFP | 1.072 | 1.024 | 1.041 |
+| SR3Mu_highM | 2017 | 1.054 | 1.020 | 1.032 |
+| SR3Mu_highM | 2018 | 1.058 | 1.023 | 1.037 |
+| SR3Mu_highM | 2022 | 1.107 | 1.063 | 1.106 |
+| SR3Mu_highM | 2022EE | 1.079 | 1.106 | 1.193 |
+| SR3Mu_highM | 2023 | 1.134 | 1.087 | 1.088 |
+| SR3Mu_highM | 2023BPix | 1.124 | 1.083 | 1.088 |
 
 \* inherited from belowZ (empty-but-reachable bin). — = structurally
 unreachable, no nuisance emitted.
 
-64 norm cells: mean 10.2%, median 9.1%, max 23.4%. Run3 cells above 10%
-carry the upstream per-sample scatter ([EXPERIMENTS.md](EXPERIMENTS.md)
-Y6) — the REFERENCE's error, not the model's.
+64 norm cells: unrounded mean 10.2%, median 9.1%, max 23.4%. Run3 cells
+above 10% carry the upstream per-sample scatter
+([EXPERIMENTS.md](EXPERIMENTS.md) Y6) — the REFERENCE's error, not the
+model's. The 2026-08-13 re-run reproduced the 2026-08-12 envelopes within
+Minuit reconvergence noise (max 2.6e-4 absolute across 76 cells); one
+cell (SR3Mu_lowM/2017) sat on a rounding boundary and reads 1.180 where
+the earlier fit would have rounded to 1.181.
 
 Diagnostic plots: `python3 python/plotInterpNuisances.py` → per-cell
 per-study rms vs mHc with the adopted value and the pooled rms.
