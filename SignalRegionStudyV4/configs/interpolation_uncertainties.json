@@ -39,8 +39,8 @@
       "empty_bins": "a (channel, era, mA bin) with no usable point takes the channel's worst populated bin and is listed in warnings \u2014 never the bare floor"
     },
     "command": "python/exportInterpUncertainties.py --loo --all --pooled --write-config",
-    "date": "2026-08-12T17:51:59",
-    "keying": "scale/res per (study channel, run period); norm per (study channel, era, mA bin). NO mHc dependence in any of them \u2014 the rule pools studies and both the shape and yield models are (mHc, mA) surfaces. Values are keyed by STUDY channel (SR3Mu_lowM/highM) because one mA bin can hold both pairings; the nuisance NAMES use the production channel SR3Mu, which is safe because one datacard holds one mass point.",
+    "date": "2026-08-12T23:42:59",
+    "keying": "scale/res VALUES per (study channel, run period); norm VALUES per (study channel, era, mA bin). NO mHc dependence in any of them \u2014 the rule pools studies and both the shape and yield models are (mHc, mA) surfaces. NAMES are period-level for all three families (CMS_interp_{scale,res,norm}_{ch}_{13TeV|13p6TeV}): the residual is common-mode across a period's eras (r=+0.99 Run2 / +0.80 Run3), so one nuisance spans the four era columns, carrying each era's own lnN value; the target mA selects the norm bin, which never appears in the name. Values are keyed by STUDY channel (SR3Mu_lowM/highM) because one mA bin can hold both pairings; the nuisance NAMES use the production channel SR3Mu, which is safe because one datacard holds one mass point.",
     "floors": {
       "scale": 0.02,
       "res": 0.01,
@@ -228,122 +228,16 @@
     },
     "norm": {
       "SR1E2Mu": {
-        "2016preVFP": {
-          "belowZ": "CMS_interp_norm_SR1E2Mu_2016preVFP_belowZ",
-          "onZ": "CMS_interp_norm_SR1E2Mu_2016preVFP_onZ",
-          "aboveZ": "CMS_interp_norm_SR1E2Mu_2016preVFP_aboveZ"
-        },
-        "2016postVFP": {
-          "belowZ": "CMS_interp_norm_SR1E2Mu_2016postVFP_belowZ",
-          "onZ": "CMS_interp_norm_SR1E2Mu_2016postVFP_onZ",
-          "aboveZ": "CMS_interp_norm_SR1E2Mu_2016postVFP_aboveZ"
-        },
-        "2017": {
-          "belowZ": "CMS_interp_norm_SR1E2Mu_2017_belowZ",
-          "onZ": "CMS_interp_norm_SR1E2Mu_2017_onZ",
-          "aboveZ": "CMS_interp_norm_SR1E2Mu_2017_aboveZ"
-        },
-        "2018": {
-          "belowZ": "CMS_interp_norm_SR1E2Mu_2018_belowZ",
-          "onZ": "CMS_interp_norm_SR1E2Mu_2018_onZ",
-          "aboveZ": "CMS_interp_norm_SR1E2Mu_2018_aboveZ"
-        },
-        "2022": {
-          "belowZ": "CMS_interp_norm_SR1E2Mu_2022_belowZ",
-          "onZ": "CMS_interp_norm_SR1E2Mu_2022_onZ",
-          "aboveZ": "CMS_interp_norm_SR1E2Mu_2022_aboveZ"
-        },
-        "2022EE": {
-          "belowZ": "CMS_interp_norm_SR1E2Mu_2022EE_belowZ",
-          "onZ": "CMS_interp_norm_SR1E2Mu_2022EE_onZ",
-          "aboveZ": "CMS_interp_norm_SR1E2Mu_2022EE_aboveZ"
-        },
-        "2023": {
-          "belowZ": "CMS_interp_norm_SR1E2Mu_2023_belowZ",
-          "onZ": "CMS_interp_norm_SR1E2Mu_2023_onZ",
-          "aboveZ": "CMS_interp_norm_SR1E2Mu_2023_aboveZ"
-        },
-        "2023BPix": {
-          "belowZ": "CMS_interp_norm_SR1E2Mu_2023BPix_belowZ",
-          "onZ": "CMS_interp_norm_SR1E2Mu_2023BPix_onZ",
-          "aboveZ": "CMS_interp_norm_SR1E2Mu_2023BPix_aboveZ"
-        }
+        "Run2": "CMS_interp_norm_SR1E2Mu_13TeV",
+        "Run3": "CMS_interp_norm_SR1E2Mu_13p6TeV"
       },
       "SR3Mu_lowM": {
-        "2016preVFP": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2016preVFP_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2016preVFP_onZ"
-        },
-        "2016postVFP": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2016postVFP_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2016postVFP_onZ"
-        },
-        "2017": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2017_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2017_onZ"
-        },
-        "2018": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2018_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2018_onZ"
-        },
-        "2022": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2022_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2022_onZ"
-        },
-        "2022EE": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2022EE_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2022EE_onZ"
-        },
-        "2023": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2023_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2023_onZ"
-        },
-        "2023BPix": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2023BPix_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2023BPix_onZ"
-        }
+        "Run2": "CMS_interp_norm_SR3Mu_13TeV",
+        "Run3": "CMS_interp_norm_SR3Mu_13p6TeV"
       },
       "SR3Mu_highM": {
-        "2016preVFP": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2016preVFP_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2016preVFP_onZ",
-          "aboveZ": "CMS_interp_norm_SR3Mu_2016preVFP_aboveZ"
-        },
-        "2016postVFP": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2016postVFP_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2016postVFP_onZ",
-          "aboveZ": "CMS_interp_norm_SR3Mu_2016postVFP_aboveZ"
-        },
-        "2017": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2017_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2017_onZ",
-          "aboveZ": "CMS_interp_norm_SR3Mu_2017_aboveZ"
-        },
-        "2018": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2018_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2018_onZ",
-          "aboveZ": "CMS_interp_norm_SR3Mu_2018_aboveZ"
-        },
-        "2022": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2022_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2022_onZ",
-          "aboveZ": "CMS_interp_norm_SR3Mu_2022_aboveZ"
-        },
-        "2022EE": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2022EE_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2022EE_onZ",
-          "aboveZ": "CMS_interp_norm_SR3Mu_2022EE_aboveZ"
-        },
-        "2023": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2023_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2023_onZ",
-          "aboveZ": "CMS_interp_norm_SR3Mu_2023_aboveZ"
-        },
-        "2023BPix": {
-          "belowZ": "CMS_interp_norm_SR3Mu_2023BPix_belowZ",
-          "onZ": "CMS_interp_norm_SR3Mu_2023BPix_onZ",
-          "aboveZ": "CMS_interp_norm_SR3Mu_2023BPix_aboveZ"
-        }
+        "Run2": "CMS_interp_norm_SR3Mu_13TeV",
+        "Run3": "CMS_interp_norm_SR3Mu_13p6TeV"
       }
     }
   },

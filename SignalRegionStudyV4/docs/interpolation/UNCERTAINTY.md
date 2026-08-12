@@ -19,13 +19,20 @@ one-point-removed predictions. Source of record:
 |---|---|---|---|
 | scale | \|x0_pred − x0_direct\| / σ_eff_direct | x0 shift by ±value·σ_eff | `CMS_interp_scale_{ch}_{13TeV\|13p6TeV}` |
 | res | \|σ_eff_pred/σ_eff_direct − 1\| | σL,σR scaled by (1 ± value) | `CMS_interp_res_{ch}_{13TeV\|13p6TeV}` |
-| norm | \|N_pred/N_meas − 1\| per era | lnN (1 + value) on the era's signal column | `CMS_interp_norm_{ch}_{era}_{belowZ\|onZ\|aboveZ}` |
+| norm | \|N_pred/N_meas − 1\| per era | lnN (1 + value) on each era's signal column | `CMS_interp_norm_{ch}_{13TeV\|13p6TeV}` |
 
-- scale/res: per (channel, run period), correlated within the period
-  (`_13TeV`/`_13p6TeV`), NOT binned in mA, no mHc dependence.
-- norm: per (channel, era), binned in mA at **15 / 80 / 100 / 155**
+- **All three names are period-level** — one nuisance spans the four era
+  columns of its run period, decorrelated between periods (adopted
+  2026-08-12; the measured cross-era correlation below is the evidence).
+  A single lnN row carries per-era values in its columns, so norm keeps
+  the measured per-era sizes under one coherent parameter.
+- scale/res values: per (channel, run period), NOT binned in mA, no mHc
+  dependence.
+- norm values: per (channel, era), binned in mA at **15 / 80 / 100 / 155**
   (belowZ / onZ / aboveZ; `NORM_MA_BINS`), no mHc dependence. mA outside
-  [15, 155] raises.
+  [15, 155] raises. The target mA selects the bin; the bin never appears
+  in the name — one datacard holds one mass point, so only one bin per
+  channel can occur in a workspace.
 - **Keying asymmetry**: values are keyed by STUDY channel
   (SR3Mu_lowM/SR3Mu_highM) because a single mA bin can contain both
   pairings, while the nuisance NAME uses the production channel `SR3Mu` —
@@ -169,15 +176,16 @@ Consequences:
 - The per-era norm *sizes* are right — each era's rms measures the
   same common residual, which is why a period's rows are so alike in the
   table above.
-- The current per-era norm nuisance names treat the four eras of a
-  period as independent, which lets them partially cancel in the
-  period-summed signal yield (~×2 understatement for four equal shares)
-  even though the measured error moves all four eras together. **Open
-  design question for the production phase**: promote norm to
-  period-level correlation (`CMS_interp_norm_{ch}_{13TeV|13p6TeV}_{bin}`),
-  matching what scale/res already do — supported by r = +0.99/+0.80.
-  V1 showed interpolation nuisances cost ~nothing in the limit, so the
-  choice is about correctness, not sensitivity.
+- Per-era nuisance names would treat the four eras of a period as
+  independent, letting them partially cancel in the period-summed signal
+  yield (~×2 understatement for four equal shares) even though the
+  measured error moves all four eras together. **Adopted (2026-08-12)**:
+  norm is period-correlated, `CMS_interp_norm_{ch}_{13TeV|13p6TeV}`,
+  matching scale/res; the per-era values survive as the per-column lnN
+  entries of the one row. Run2 and Run3 stay decorrelated — their mutual
+  correlation is only partial (+0.65) and the mechanisms differ (Run3
+  carries the sample scatter). V1 showed interpolation nuisances cost
+  ~nothing in the limit, so this is correctness, not sensitivity.
 
 ### Why max across studies (not the pooled rms alone)
 

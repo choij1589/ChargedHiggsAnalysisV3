@@ -272,10 +272,12 @@ assumed, by one rule for all three families: the rms WITHIN each mHc
 study, then the MAX across studies holding at least 2 mass points,
 floored by the cell's pooled rms and then by an absolute floor (scale
 0.02, res 0.01, norm 0.01). Nothing carries an mHc dependence — the rule
-already pools studies and both models are global surfaces. norm alone is
-binned in mA at 15/80/100/155
-(`CMS_interp_norm_{ch}_{era}_{belowZ|onZ|aboveZ}`); scale/res stay per
-(channel, run period) (`CMS_interp_{scale,res}_{ch}_{13TeV,13p6TeV}`).
+already pools studies and both models are global surfaces. norm VALUES
+alone are binned in mA at 15/80/100/155 (the target mA selects the bin);
+all three nuisance NAMES are period-level,
+`CMS_interp_{scale,res,norm}_{ch}_{13TeV|13p6TeV}` — the LOO residual is
+common-mode across a period's eras (r = +0.99 Run2 / +0.80 Run3), so one
+nuisance spans the era columns, carrying each era's own lnN value.
 Values land in `configs/interpolation_uncertainties.json`, keyed by STUDY
 channel (lowM/highM) while the nuisance names use the production channel
 SR3Mu — safe because one datacard holds one mass point.

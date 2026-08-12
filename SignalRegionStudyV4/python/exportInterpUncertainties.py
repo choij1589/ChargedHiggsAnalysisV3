@@ -45,12 +45,15 @@ def _run_periods():
 
 
 def build_nuisance_names(scale, res, norm):
-    """Nuisance names for the three families.
+    """Nuisance names for the three families — all period-level:
+    {channel: {period: name}}.
 
     Values are keyed by STUDY channel (SR3Mu_lowM / SR3Mu_highM) because a
     single mA bin at fixed mHc can contain both pairings; the names use the
     production channel SR3Mu, which is safe because one datacard holds one
-    mass point and therefore exactly one pairing."""
+    mass point and therefore exactly one pairing. norm VALUES stay keyed
+    per (era, mA bin) — one period-level nuisance carries per-era lnN
+    values in its datacard columns, and the target mA selects the bin."""
     names = {"scale": {}, "res": {}, "norm": {}}
     for kind, block in (("scale", scale), ("res", res)):
         for channel, per_period in block.items():
@@ -60,13 +63,10 @@ def build_nuisance_names(scale, res, norm):
                 names[kind].setdefault(channel, {})[period] = n[kind]
     for channel, per_era in norm.items():
         prod = interpolation_config.production_channel(channel)
-        for era, per_bin in per_era.items():
+        for era in per_era:
             period = interpolation_config.period_of(era)
-            for bin_label in per_bin:
-                n = interpolation_config.interp_nuisance_names(
-                    prod, period, era=era, ma_bin=bin_label)
-                names["norm"].setdefault(channel, {}).setdefault(
-                    era, {})[bin_label] = n["norm"]
+            n = interpolation_config.interp_nuisance_names(prod, period)
+            names["norm"].setdefault(channel, {})[period] = n["norm"]
     return names
 
 
@@ -561,14 +561,21 @@ def write_production_config(payload):
             **{k: payload["meta"][k] for k in
                ("strategy", "mhc_pooled", "channels", "norm_ma_bins",
                 "rules", "command", "date")},
-            "keying": "scale/res per (study channel, run period); norm per "
-                      "(study channel, era, mA bin). NO mHc dependence in "
-                      "any of them — the rule pools studies and both the "
-                      "shape and yield models are (mHc, mA) surfaces. Values "
-                      "are keyed by STUDY channel (SR3Mu_lowM/highM) because "
-                      "one mA bin can hold both pairings; the nuisance NAMES "
-                      "use the production channel SR3Mu, which is safe "
-                      "because one datacard holds one mass point.",
+            "keying": "scale/res VALUES per (study channel, run period); "
+                      "norm VALUES per (study channel, era, mA bin). NO mHc "
+                      "dependence in any of them — the rule pools studies "
+                      "and both the shape and yield models are (mHc, mA) "
+                      "surfaces. NAMES are period-level for all three "
+                      "families (CMS_interp_{scale,res,norm}_{ch}_"
+                      "{13TeV|13p6TeV}): the residual is common-mode across "
+                      "a period's eras (r=+0.99 Run2 / +0.80 Run3), so one "
+                      "nuisance spans the four era columns, carrying each "
+                      "era's own lnN value; the target mA selects the norm "
+                      "bin, which never appears in the name. Values are "
+                      "keyed by STUDY channel (SR3Mu_lowM/highM) because "
+                      "one mA bin can hold both pairings; the nuisance "
+                      "NAMES use the production channel SR3Mu, which is "
+                      "safe because one datacard holds one mass point.",
             "floors": {
                 "scale": interpolation_config.UNCERTAINTY_SCALE_FLOOR,
                 "res": interpolation_config.UNCERTAINTY_RES_FLOOR,

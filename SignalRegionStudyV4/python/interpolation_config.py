@@ -335,19 +335,21 @@ def norm_ma_bin(mA):
     raise ValueError(f"mA={mA} falls outside NORM_MA_BINS {NORM_MA_BINS}")
 
 
-def interp_nuisance_names(prod_channel, period, era=None, ma_bin=None):
-    """Scale/res nuisance names are correlated within a run period; norm is
-    decorrelated between eras and between mA bins. Pass era=None for
-    scale/res, an era string (and the point's ma_bin) for norm."""
+def interp_nuisance_names(prod_channel, period):
+    """All three families are correlated across the eras of a run period and
+    decorrelated between periods (the measured cross-era residual
+    correlation is +0.99 Run2 / +0.80 Run3 while Run2 x Run3 is only
+    partial — docs/interpolation/UNCERTAINTY.md). One nuisance name may
+    still carry per-era lnN values in its datacard columns. Neither the era
+    nor the norm mA bin appears in the name: the bin only selects the VALUE
+    (norm_ma_bin), and one datacard holds one mass point, so only one bin
+    per channel can ever occur in a workspace."""
     tok = period_token(period)
-    names = {
+    return {
         "scale": f"CMS_interp_scale_{prod_channel}_{tok}",
         "res": f"CMS_interp_res_{prod_channel}_{tok}",
+        "norm": f"CMS_interp_norm_{prod_channel}_{tok}",
     }
-    if era is not None:
-        suffix = f"_{ma_bin}" if ma_bin is not None else ""
-        names["norm"] = f"CMS_interp_norm_{prod_channel}_{era}{suffix}"
-    return names
 
 
 def production_channel(study_channel):
