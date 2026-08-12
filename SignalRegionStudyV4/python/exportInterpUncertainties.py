@@ -70,6 +70,12 @@ def build_nuisance_names(scale, res, norm):
     return names
 
 
+# The SR3Mu pairing variants stay SPLIT here: every mass point constrains
+# both, and only the production_restricted block narrows each to the mA
+# range where it is the production pairing.
+LOO_CHANNELS = list(interpolation_config.STUDY_CHANNELS)
+
+
 def _loo_point_files(mhc, grid):
     """{mA: (closure, yield_closure)} from the per-point LOO dirs; a
     partial sweep is a hard error, never a silently partial envelope."""
@@ -247,7 +253,10 @@ def export_loo_one(mhc):
             "date": datetime.datetime.now().isoformat(timespec="seconds"),
         },
         "scale": scale, "res": res, "norm": norm,
-        "nuisances": build_nuisance_names(scale, res, norm),
+        # No nuisance names here on purpose: this file is a per-study
+        # DIAGNOSTIC under the old plain-max rule. The production values,
+        # their mA binning and their names live in
+        # loo_uncertainties.pooled.json / configs/interpolation_uncertainties.json.
         "n_points": n_points,
         "production_restricted": {
             "scale": ps, "res": pr, "norm": pn, "n_points": pnp,
