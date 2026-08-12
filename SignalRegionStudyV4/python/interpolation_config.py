@@ -33,6 +33,42 @@ def channel_has_bkg(channel):
     return channel.startswith("SR3Mu")
 
 
+# ---- Fit-model variant tests ---------------------------------------------
+# Alternative background policies for the SR3Mu_lowM pathology: the adopted
+# per-point drop/pin rule (FSIG_DROP_THRESHOLD) makes lowM a MIXED category
+# (pinned fsig=1 anchors next to free fsig~0.9 points, c1/c2 with partial
+# mA support) whose fsig/c1/c2 parametrizations oscillate and extrapolate
+# (e.g. MHc145_MA35 lowM_Run3: predicted fsig 0.916 where the direct fit is
+# a pure DCB, c1=-6). Each variant refits ONLY the categories it lists;
+# every other category keeps the adopted model, so comparisons read the
+# adopted tests/interpolation/MHc{X} outputs for those.
+#
+#  nodrop  — DCB+cheb2 with the drop/pin rule disabled: fsig fitted freely
+#            at every point, c1/c2 measured everywhere (homogeneous
+#            parametrization inputs).
+#  puredcb — pure DCB (no background component at all), lowM continuum
+#            absorbed by the DCB tails.
+#
+# Outputs land under tests/interpolation/variants/{name}/MHc{X}/
+# (srspaths.interpolation_dir(mhc, variant=name)).
+FIT_VARIANTS = {
+    "nodrop": {"bkg": {"SR3Mu_lowM": "cheb2"}, "allow_drop": False},
+    "puredcb": {"bkg": {"SR3Mu_lowM": None}, "allow_drop": True},
+}
+
+
+def variant_config(name):
+    if name not in FIT_VARIANTS:
+        raise ValueError(f"Unknown fit variant '{name}' "
+                         f"(known: {sorted(FIT_VARIANTS)})")
+    return FIT_VARIANTS[name]
+
+
+def variant_channels(name):
+    """Study channels a variant refits; all others keep the adopted model."""
+    return sorted(variant_config(name)["bkg"])
+
+
 # Parametrization forms per parameter. Single-entry order lists FIX the
 # order (no F-test); multi-entry lists engage the F-test ladder in
 # fitInterpPolynomials.select_order (higher order accepted at p < 0.05).
@@ -130,13 +166,17 @@ REL_YIELD_ERR_FLOOR = {"Run2": 0.02, "Run3": 0.08}
 FRACTION_LOGERR_FLOOR = 0.005   # log-space floor for f_window points
 
 # Numerical guards when building a DCB(+Chebychev2) from interpolated
-# parameters.
+# parameters. c1/c2 are clipped to the direct-fit bounds (dcb_fit_utils
+# fits them in [-1.5, 1.5]): an extrapolated background shape outside that
+# range goes negative over part of the window and produces a lopsided
+# pedestal after RooFit clips it to zero.
 PARAM_FLOORS = {
     "sigmaL": 0.01, "sigmaR": 0.01,
     "alphaL": 0.05, "alphaR": 0.05,
     "fsig": 0.05,
+    "c1": -1.5, "c2": -1.5,
 }
-PARAM_CEILINGS = {"fsig": 1.0}
+PARAM_CEILINGS = {"fsig": 1.0, "c1": 1.5, "c2": 1.5}
 
 # ---- Shape-systematic delta policy ---------------------------------------
 # Every signal shape systematic is compressed into three dimensionless
@@ -326,12 +366,14 @@ def known_missing_samples():
     return {tuple(entry) for entry in srspaths.interpolation_config()["known_missing_samples"]}
 
 
-def fixed_n_values(mhc):
+def fixed_n_values(mhc, variant=None):
     """Per-category fixed nL/nR: median of the good floating-n direct fits
-    (reads the floating-n dcb_fits.json)."""
+    (reads the floating-n dcb_fits.json; a variant reads its own floating
+    pass)."""
     import json
     from statistics import median
-    path = os.path.join(srspaths.interpolation_dir(mhc), "fits", "dcb_fits_floating.json")
+    path = os.path.join(srspaths.interpolation_dir(mhc, variant=variant),
+                        "fits", "dcb_fits_floating.json")
     with open(path) as f:
         fits = json.load(f)["results"]
     out = {}
@@ -360,14 +402,17 @@ def eval_param(info, x):
     return np.polyval(np.asarray(info["coeffs"]), x)
 
 
-def load_shape_polynomials(mhc, suffix="", loo_ma=None):
+def load_shape_polynomials(mhc, suffix="", loo_ma=None, variant=None):
     """Per-category shape parametrizations (the yield/closure/export
     steps' window and template source). suffix selects an anchor-exclusion
     sibling file, e.g. '_ex90'; loo_ma selects the leave-one-out per-point
-    directory instead (tests/interpolation/MHc{X}_MA{Y}/)."""
+    directory instead (tests/interpolation/MHc{X}_MA{Y}/); variant selects
+    a fit-model variant tree (FIT_VARIANTS)."""
     import json
+    if loo_ma is not None and variant is not None:
+        raise ValueError("loo_ma and variant are mutually exclusive")
     base = (srspaths.interpolation_loo_dir(mhc, loo_ma) if loo_ma is not None
-            else srspaths.interpolation_dir(mhc))
+            else srspaths.interpolation_dir(mhc, variant=variant))
     path = os.path.join(base, f"polynomials{suffix}.json")
     if not os.path.exists(path):
         raise FileNotFoundError(

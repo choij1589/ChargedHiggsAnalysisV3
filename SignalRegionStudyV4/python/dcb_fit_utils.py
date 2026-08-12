@@ -134,11 +134,15 @@ def fit_dcb_with_errors(chain, mA_nominal):
     }
 
 
-def fit_dcb_bkg(chain, mA_nominal, nL_fixed=None, nR_fixed=None, bkg=None):
+def fit_dcb_bkg(chain, mA_nominal, nL_fixed=None, nR_fixed=None, bkg=None,
+                allow_drop=True):
     """Two-stage fit: DCB with optionally frozen nL/nR and an optional
     2nd-order Chebychev combinatoric background (see module docstring).
 
     bkg: None (pure DCB, SR1E2Mu) or "cheb2" (SR3Mu).
+    allow_drop: False disables the FSIG_DROP_THRESHOLD refit-as-pure-DCB
+    rule (fit-model variant 'nodrop'): fsig keeps its fitted value and
+    error, and c1/c2 stay measured, however small the background is.
     """
     if chain.GetEntries() <= 0:
         raise RuntimeError("No signal entries found for DCB fit")
@@ -228,7 +232,7 @@ def fit_dcb_bkg(chain, mA_nominal, nL_fixed=None, nR_fixed=None, bkg=None):
                              ROOT.RooFit.Save(), ROOT.RooFit.PrintLevel(-1))
 
     # No-background points: refit as pure DCB (see module docstring).
-    bkg_dropped = (fsig is not None
+    bkg_dropped = (allow_drop and fsig is not None
                    and fsig.getVal() > interpolation_config.FSIG_DROP_THRESHOLD)
     if bkg_dropped:
         fit_result = dcb.fitTo(ds_narrow, ROOT.RooFit.SumW2Error(True),

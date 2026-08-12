@@ -24,6 +24,7 @@ START_FROM_SET=false
 DRY_RUN=false
 LOCAL_RUN=false
 LOO_MODE=false
+VARIANT=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -52,6 +53,10 @@ while [[ $# -gt 0 ]]; do
             LOO_MODE=true
             shift
             ;;
+        --variant)
+            VARIANT="$2"
+            shift 2
+            ;;
         --help)
             echo "Usage: $0 --mhc N [--mhc N ...] | --all [OPTIONS]"
             echo ""
@@ -65,6 +70,11 @@ while [[ $# -gt 0 ]]; do
             echo "                       (models refit on the grid minus that point,"
             echo "                       closure at that point) + per-mHc aggregation."
             echo "                       Needs the adopted chain outputs (fits, yields)."
+            echo "  --variant NAME       Fit-model variant test (interpolation_config"
+            echo "                       FIT_VARIANTS: nodrop, puredcb): refit the"
+            echo "                       variant's categories, then polynomials +"
+            echo "                       shape closure, under tests/interpolation/"
+            echo "                       variants/NAME/. No yields/deltas/export."
             echo "  --local              Serial execution without condor (insurance for"
             echo "                       local-server condor availability)"
             echo "  --dry-run            Generate DAGs without submitting (condor mode only)"
@@ -85,6 +95,22 @@ fi
 if [[ "$LOO_MODE" == "true" && "$START_FROM_SET" == "true" ]]; then
     echo "ERROR: --start-from does not apply to the --loo sweep (flat DAG)"
     exit 1
+fi
+
+if [[ -n "$VARIANT" ]]; then
+    if [[ "$LOO_MODE" == "true" ]]; then
+        echo "ERROR: --variant and --loo are mutually exclusive"
+        exit 1
+    fi
+    if [[ "$START_FROM_SET" == "true" ]]; then
+        echo "ERROR: --start-from does not apply to a --variant test (the"
+        echo "       refit IS the test; the sub-chain always runs in full)"
+        exit 1
+    fi
+    case "$VARIANT" in
+        nodrop|puredcb) ;;
+        *) echo "ERROR: unknown variant '$VARIANT' (known: nodrop, puredcb)"; exit 1 ;;
+    esac
 fi
 
 if [[ "$ALL_MHC" == "true" ]]; then
@@ -289,6 +315,66 @@ EOF
     echo "PARENT merge_yield_closure CHILD export_uncertainties" >> "$dag_file"
 }
 
+# Fit-model variant DAG: the standard chain's fits -> polynomials -> shape
+# closure prefix, every node carrying "--variant NAME". Only the variant's
+# categories are refit (fitInterpShapes restricts itself); no yields/deltas/
+# export — the test's verdict is the shape closure.
+generate_variant_dag_file() {
+    local mhc=$1
+    local dag_file=$2
+    local masspoints mp_list
+    mp_list=$(study_masspoints_for "$mhc") || exit 1
+    read -r -a masspoints <<< "$mp_list"
+
+    local extra="--variant $VARIANT"
+
+    cat > "$dag_file" << EOF
+# Fit-model variant '$VARIANT' DAG for MHc${mhc}
+CONFIG dagman.config
+
+EOF
+
+    local mp
+    for mp in "${masspoints[@]}"; do
+        echo "JOB fit_float_${mp} jobs.sub" >> "$dag_file"
+        echo "VARS fit_float_${mp} step=\"fit_float\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
+    done
+    echo "JOB merge_float jobs.sub" >> "$dag_file"
+    echo "VARS merge_float step=\"merge_float\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
+
+    for mp in "${masspoints[@]}"; do
+        echo "JOB fit_frozen_${mp} jobs.sub" >> "$dag_file"
+        echo "VARS fit_frozen_${mp} step=\"fit_frozen\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
+    done
+    echo "JOB merge_frozen jobs.sub" >> "$dag_file"
+    echo "VARS merge_frozen step=\"merge_frozen\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
+
+    echo "JOB polynomials jobs.sub" >> "$dag_file"
+    echo "VARS polynomials step=\"polynomials\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
+
+    for mp in "${masspoints[@]}"; do
+        echo "JOB closure_${mp} jobs.sub" >> "$dag_file"
+        echo "VARS closure_${mp} step=\"closure\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
+    done
+    echo "JOB merge_closure jobs.sub" >> "$dag_file"
+    echo "VARS merge_closure step=\"merge_closure\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
+
+    echo "" >> "$dag_file"
+    echo "# Dependencies" >> "$dag_file"
+    for mp in "${masspoints[@]}"; do
+        echo "PARENT fit_float_${mp} CHILD merge_float" >> "$dag_file"
+    done
+    echo "PARENT merge_float CHILD ${masspoints[*]/#/fit_frozen_}" >> "$dag_file"
+    for mp in "${masspoints[@]}"; do
+        echo "PARENT fit_frozen_${mp} CHILD merge_frozen" >> "$dag_file"
+    done
+    echo "PARENT merge_frozen CHILD polynomials" >> "$dag_file"
+    echo "PARENT polynomials CHILD ${masspoints[*]/#/closure_}" >> "$dag_file"
+    for mp in "${masspoints[@]}"; do
+        echo "PARENT closure_${mp} CHILD merge_closure" >> "$dag_file"
+    done
+}
+
 # Leave-one-out sweep DAG: one flat `loo_{mp}` node per grid point (shape
 # polynomials + yield model refit on the grid minus that point, both
 # closures evaluated at that point; outputs in tests/interpolation/{mp}/),
@@ -337,6 +423,7 @@ submit_condor_dags() {
     local job_dir jobdir_prefix
     jobdir_prefix="interp"
     [[ "$LOO_MODE" == "true" ]] && jobdir_prefix="interp_loo"
+    [[ -n "$VARIANT" ]] && jobdir_prefix="interp_variant_${VARIANT}"
     job_dir=$(dag_new_jobdir "$jobdir_prefix")
 
     local mhc
@@ -360,6 +447,8 @@ queue
 EOF
         if [[ "$LOO_MODE" == "true" ]]; then
             generate_loo_dag_file "$mhc" "$mp_dir/dag.dag"
+        elif [[ -n "$VARIANT" ]]; then
+            generate_variant_dag_file "$mhc" "$mp_dir/dag.dag"
         else
             generate_dag_file "$mhc" "$mp_dir/dag.dag"
         fi
@@ -386,6 +475,19 @@ run_local() {
         return
     fi
 
+    if [[ -n "$VARIANT" ]]; then
+        echo "=== MHc${mhc}: local serial variant '$VARIANT' test (${#masspoints[@]} mass points) ==="
+        local extra="--variant $VARIANT"
+        for mp in "${masspoints[@]}"; do "$wrapper" fit_float "$mhc" "$mp" "$extra"; done
+        "$wrapper" merge_float "$mhc" - "$extra"
+        for mp in "${masspoints[@]}"; do "$wrapper" fit_frozen "$mhc" "$mp" "$extra"; done
+        "$wrapper" merge_frozen "$mhc" - "$extra"
+        "$wrapper" polynomials "$mhc" - "$extra"
+        for mp in "${masspoints[@]}"; do "$wrapper" closure "$mhc" "$mp" "$extra"; done
+        "$wrapper" merge_closure "$mhc" - "$extra"
+        return
+    fi
+
     echo "=== MHc${mhc}: local serial run (${#masspoints[@]} mass points) ==="
     for mp in "${masspoints[@]}"; do "$wrapper" fit_float "$mhc" "$mp"; done
     "$wrapper" merge_float "$mhc" -
@@ -408,7 +510,14 @@ run_local() {
 echo "============================================================"
 echo "SignalRegionStudyV4 mA-interpolation chain"
 echo "mHc values: ${MHCS[*]}"
-echo "Mode: $([[ "$LOO_MODE" == "true" ]] && echo "leave-one-out sweep" || echo "standard chain (start from: $START_FROM)")"
+if [[ "$LOO_MODE" == "true" ]]; then
+    _mode="leave-one-out sweep"
+elif [[ -n "$VARIANT" ]]; then
+    _mode="fit-model variant test: $VARIANT"
+else
+    _mode="standard chain (start from: $START_FROM)"
+fi
+echo "Mode: $_mode"
 echo "Local: $LOCAL_RUN"
 echo "Dry run: $DRY_RUN"
 echo "============================================================"

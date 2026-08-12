@@ -108,12 +108,14 @@ def select_order(x, y, err, orders):
     return chosen, tried
 
 
-def fit_logit_poly(x, y, err):
+def fit_logit_poly(x, y, err, pin_anchors=True):
     """Adopted fsig form: F-test polynomial fit of logit(fsig) — kept in
     (0,1) but able to turn over (the true fsig falls again as mA -> mHc).
     Anchor points (fsig = 1, background dropped) are pinned at
     logit(1 - FSIG_LOGIT_CLIP) with a fixed logit-space error so the anchor
-    region stays above the drop threshold without dominating the fit."""
+    region stays above the drop threshold without dominating the fit.
+    pin_anchors=False (fit variants without the drop/pin rule) keeps the
+    natural error propagation instead: every fsig is a real measurement."""
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     err = np.asarray(err, dtype=float)
@@ -121,8 +123,9 @@ def fit_logit_poly(x, y, err):
     p = np.clip(y, eps, 1.0 - eps)
     z = np.log(p / (1.0 - p))
     zerr = err / (p * (1.0 - p))
-    anchor = y >= interpolation_config.FSIG_DROP_THRESHOLD
-    zerr[anchor] = interpolation_config.FSIG_LOGIT_ANCHOR_SIGMA
+    if pin_anchors:
+        anchor = y >= interpolation_config.FSIG_DROP_THRESHOLD
+        zerr[anchor] = interpolation_config.FSIG_LOGIT_ANCHOR_SIGMA
     chosen, tried = select_order(x, z, zerr,
                                  interpolation_config.FSIG_LOGIT_ORDERS)
     if chosen is None:
@@ -165,18 +168,28 @@ def main():
                         help="leave-one-out mode: fit anchors = full grid "
                              "minus this mA; outputs go to the per-point dir "
                              "tests/interpolation/MHc{X}_MA{Y}/")
+    parser.add_argument("--variant", default=None,
+                        choices=sorted(interpolation_config.FIT_VARIANTS),
+                        help="fit-model variant test: read/write the "
+                             "tests/interpolation/variants/{variant}/MHc{X}/ "
+                             "tree (fsig anchor pinning disabled — the "
+                             "variant fits carry no pinned points)")
     args = parser.parse_args()
     excluded = {int(m) for m in args.exclude_ma.split(",") if m.strip()}
     if args.loo_ma is not None and (excluded or args.suffix):
         raise ValueError("--loo-ma is a complete mode of its own; "
                          "do not combine with --exclude-ma/--suffix")
+    if args.variant is not None and (args.loo_ma is not None
+                                     or excluded or args.suffix):
+        raise ValueError("--variant is a complete mode of its own; "
+                         "do not combine with --loo-ma/--exclude-ma/--suffix")
     if excluded and not args.suffix:
         raise ValueError("--exclude-ma would overwrite the adopted "
                          "polynomials.json; pass a --suffix (e.g. '_ex90')")
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = study["fit"]
     all_ma = study["all"]
-    interp_dir = srspaths.interpolation_dir(args.mhc)
+    interp_dir = srspaths.interpolation_dir(args.mhc, variant=args.variant)
     out_dir = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
                if args.loo_ma is not None else interp_dir)
     params_plot_base = os.path.join(out_dir, "plots", "params")
@@ -254,7 +267,9 @@ def main():
                     f"(mA={used['mA'][0]}); using a CONSTANT background shape")
             if (param == "fsig"
                     and len(used["mA"]) >= interpolation_config.FSIG_LOGISTIC_MIN_POINTS):
-                result = fit_logit_poly(used["mA"], used["value"], used["error"])
+                result = fit_logit_poly(used["mA"], used["value"],
+                                        used["error"],
+                                        pin_anchors=args.variant is None)
             if result is None:
                 chosen, tried = select_order(
                     used["mA"], used["value"], used["error"],
@@ -332,6 +347,7 @@ def main():
             "fit_ma": [m for m in fit_ma if m not in excluded],
             "excluded_ma": sorted(excluded),
             "loo_ma": args.loo_ma,
+            "variant": args.variant,
             "f_test_pvalue": F_TEST_PVALUE,
             "poly_orders": {p: interpolation_config.POLY_ORDERS[p]
                             for p in ALL_PARAM_ORDER},

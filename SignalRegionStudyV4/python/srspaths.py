@@ -148,14 +148,19 @@ def tests_dir():
     return os.path.join(module_dir(), "tests")
 
 
-def interpolation_dir(mhc=None):
+def interpolation_dir(mhc=None, variant=None):
+    """variant selects a fit-model variant test tree
+    (tests/interpolation/variants/{variant}/MHc{X}) instead of the adopted
+    chain outputs; see interpolation_config.FIT_VARIANTS."""
     base = os.path.join(tests_dir(), "interpolation")
+    if variant is not None:
+        base = os.path.join(base, "variants", variant)
     return os.path.join(base, f"MHc{int(mhc)}") if mhc is not None else base
 
 
-def interpolation_plots_dir(mhc, kind):
+def interpolation_plots_dir(mhc, kind, variant=None):
     """kind in {fits, params, closure, yields, deltas}."""
-    return os.path.join(interpolation_dir(mhc), "plots", kind)
+    return os.path.join(interpolation_dir(mhc, variant=variant), "plots", kind)
 
 
 def interpolation_loo_dir(mhc, ma):

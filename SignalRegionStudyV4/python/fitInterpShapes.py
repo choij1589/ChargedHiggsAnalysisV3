@@ -92,16 +92,26 @@ def main():
                         help="write results to this explicit path instead of "
                              "fits/dcb_fits_{pass}.json (no merging; used by "
                              "per-masspoint condor jobs)")
+    parser.add_argument("--variant", default=None,
+                        choices=sorted(interpolation_config.FIT_VARIANTS),
+                        help="fit-model variant test: refit only the "
+                             "variant's categories under its background "
+                             "policy, outputs to tests/interpolation/"
+                             "variants/{variant}/MHc{X}/")
     args = parser.parse_args()
 
+    variant = (interpolation_config.variant_config(args.variant)
+               if args.variant else None)
     study = interpolation_config.study(args.mhc)
-    fixed_n = (interpolation_config.fixed_n_values(args.mhc)
+    fixed_n = (interpolation_config.fixed_n_values(args.mhc, variant=args.variant)
                if args.fit_pass == "frozen" else {})
 
     masspoints = interpolation_config.filter_csv(
         [masspoint_name(m, args.mhc) for m in study["all"]],
         args.masspoints, "masspoint")
     cats = interpolation_config.categories()
+    if variant is not None:
+        cats = [(ch, p, s) for ch, p, s in cats if ch in variant["bkg"]]
     known_keys = {interpolation_config.category_key(ch, p) for ch, p, _ in cats}
     requested = set(interpolation_config.filter_csv(sorted(known_keys),
                                              args.categories, "category"))
@@ -125,14 +135,21 @@ def main():
 
             print(f"[{cat_key}/{mp}] fitting (mA nominal = {mA} GeV, "
                   f"{chain.GetEntries()} entries)...")
-            use_bkg = ("cheb2" if interpolation_config.channel_has_bkg(channel)
-                       else None)
+            if variant is not None:
+                use_bkg = variant["bkg"][channel]
+                allow_drop = variant["allow_drop"]
+            else:
+                use_bkg = ("cheb2"
+                           if interpolation_config.channel_has_bkg(channel)
+                           else None)
+                allow_drop = True
             if use_bkg or args.fit_pass == "frozen":
                 nfix = fixed_n[cat_key] if args.fit_pass == "frozen" else {}
                 fit = fit_dcb_bkg(chain, float(mA),
                                   nL_fixed=nfix.get("nL"),
                                   nR_fixed=nfix.get("nR"),
-                                  bkg=use_bkg)
+                                  bkg=use_bkg,
+                                  allow_drop=allow_drop)
             else:
                 fit = fit_dcb_with_errors(chain, float(mA))
             quality, reasons = fit_quality(fit)
@@ -145,7 +162,8 @@ def main():
                 print(f"WARNING: {warnings[-1]}")
 
             make_fit_plot(chain, fit, period, channel, mp,
-                          srspaths.interpolation_plots_dir(args.mhc, "fits"))
+                          srspaths.interpolation_plots_dir(
+                              args.mhc, "fits", variant=args.variant))
             results[cat_key][mp] = fit
 
     # The frozen pass is the adopted direct fit (dcb_fits.json); the
@@ -157,7 +175,8 @@ def main():
         outpath = args.output
         os.makedirs(os.path.dirname(outpath) or ".", exist_ok=True)
     else:
-        fits_dir = os.path.join(srspaths.interpolation_dir(args.mhc), "fits")
+        fits_dir = os.path.join(
+            srspaths.interpolation_dir(args.mhc, variant=args.variant), "fits")
         os.makedirs(fits_dir, exist_ok=True)
         outpath = os.path.join(fits_dir, basename)
         # A filtered rerun merges into the existing JSON instead of
@@ -173,6 +192,7 @@ def main():
         "meta": {
             "mhc": args.mhc,
             "fit_pass": args.fit_pass,
+            "variant": args.variant,
             "fit_ma": study["fit"],
             "held_out_ma": study["held_out"],
             "fixed_n": fixed_n or None,

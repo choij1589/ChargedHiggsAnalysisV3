@@ -87,13 +87,20 @@ def main():
                              "against the LOO polynomials in the per-point "
                              "dir tests/interpolation/MHc{X}_MA{Y}/ (where "
                              "closure.json and plots are written too)")
+    parser.add_argument("--variant", default=None,
+                        choices=sorted(interpolation_config.FIT_VARIANTS),
+                        help="fit-model variant test: read fits/polynomials "
+                             "from and write closure to the tests/"
+                             "interpolation/variants/{variant}/MHc{X}/ tree")
     args = parser.parse_args()
 
     if args.loo_ma is not None and args.masspoints:
         raise ValueError("--loo-ma already selects its single mass point; "
                          "do not combine with --masspoints")
+    if args.variant is not None and args.loo_ma is not None:
+        raise ValueError("--variant and --loo-ma are mutually exclusive")
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
-    interp_dir = srspaths.interpolation_dir(args.mhc)
+    interp_dir = srspaths.interpolation_dir(args.mhc, variant=args.variant)
     loo_dir = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
                if args.loo_ma is not None else None)
 
@@ -107,6 +114,10 @@ def main():
         raise RuntimeError(
             f"{poly_path} was not produced with --loo-ma {args.loo_ma} "
             f"(meta.loo_ma={poly_payload['meta'].get('loo_ma')})")
+    if poly_payload["meta"].get("variant") != args.variant:
+        raise RuntimeError(
+            f"{poly_path} was produced for variant="
+            f"{poly_payload['meta'].get('variant')}, not {args.variant}")
 
     if args.loo_ma is not None:
         closure_points = [masspoint_name(args.loo_ma, args.mhc)]
@@ -228,7 +239,8 @@ def main():
             draw_dcb_param_comparison(direct["params"], predicted)
             outdir = (os.path.join(loo_dir, "plots", "closure")
                       if loo_dir is not None
-                      else srspaths.interpolation_plots_dir(args.mhc, "closure"))
+                      else srspaths.interpolation_plots_dir(
+                          args.mhc, "closure", variant=args.variant))
             os.makedirs(outdir, exist_ok=True)
             canvas.canv.SaveAs(
                 os.path.join(outdir, f"closure.{cat_key}.{mp}.png"))
@@ -273,6 +285,7 @@ def main():
             "fit_ma": poly_payload["meta"]["fit_ma"],
             "held_out_ma": study["held_out"],
             "loo_ma": args.loo_ma,
+            "variant": args.variant,
             "command": " ".join(sys.argv),
             "date": datetime.datetime.now().isoformat(timespec="seconds"),
         },

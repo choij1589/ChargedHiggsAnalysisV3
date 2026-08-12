@@ -46,7 +46,17 @@ export WORKDIR="$SRS_REPO_DIR"
 cd "$SRS_MODULE_DIR"
 export PATH="${PWD}/python:${PATH}"
 
-INTERP_DIR="$(srs_interp_dir "$MHC")"
+# Fit-model variant runs carry "--variant NAME" in EXTRA_ARGS; their part
+# outputs must land in the variant tree (the shell mirror of
+# srspaths.interpolation_dir(mhc, variant=...)).
+VARIANT=""
+_prev=""
+for _arg in $EXTRA_ARGS; do
+    [[ "$_prev" == "--variant" ]] && VARIANT="$_arg"
+    _prev="$_arg"
+done
+
+INTERP_DIR="$(srs_interp_dir "$MHC" "$VARIANT")"
 
 part_output() {
     # $1 = subdir under $INTERP_DIR, $2 = file basename prefix
