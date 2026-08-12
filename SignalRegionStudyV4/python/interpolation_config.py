@@ -299,14 +299,13 @@ def period_token(period):
 # per-study max is not an estimator once mA is binned (53% of split cells
 # hold <= 2 points, and MHc70/MHc130 hold NONE in [60, 80) — MHc130's grid
 # jumps 55 -> 83 and MHc70's only point there is a grid endpoint).
-# Edges 15 / 60 / 120 / 155 split the grid into below-Z, on-Z and above-Z:
-# [60, 120) brackets the Z pole at 91.2 GeV, 60 is also the SR3Mu
-# production pairing switch, and 155 is the largest mA in the baseline
-# grid. The last bin is closed; an mA outside [15, 155] is an error rather
-# than a silent extra bin.
-NORM_MA_BINS = (("belowZ", 15.0, 60.0),
-                ("onZ", 60.0, 120.0),
-                ("aboveZ", 120.0, 155.0))
+# Edges 15 / 80 / 100 / 155 split the grid into below-Z, on-Z and above-Z,
+# with [80, 100) a tight window on the Z pole at 91.2 GeV. 155 is the
+# largest mA in the baseline grid. The last bin is closed; an mA outside
+# [15, 155] is an error rather than a silent extra bin.
+NORM_MA_BINS = (("belowZ", 15.0, 80.0),
+                ("onZ", 80.0, 100.0),
+                ("aboveZ", 100.0, 155.0))
 
 
 def norm_ma_bin(mA):

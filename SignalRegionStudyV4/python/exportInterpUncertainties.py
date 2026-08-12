@@ -348,7 +348,11 @@ def _collect_loo_points(mhc, yield_variant=None):
 
 def export_loo_one(mhc, yield_variant=None):
     """Aggregate the per-point LOO closures of one mHc into
-    tests/interpolation/MHc{X}/loo_uncertainties.json."""
+    tests/interpolation/MHc{X}/loo_uncertainties.json.
+
+    Its norm block keeps the plain per-study max and is a DIAGNOSTIC: the
+    production norm nuisance is mA-binned, pooled over mHc and set by the
+    per-study rms rule in loo_uncertainties.pooled.json (--pooled)."""
     shape_detail, norm_detail, grid, warnings = _collect_loo_points(
         mhc, yield_variant)
 
@@ -454,6 +458,62 @@ def export_loo_one(mhc, yield_variant=None):
 # quoting it as if it were measured.
 MIN_ENVELOPE_POINTS = 3
 
+# Norm-nuisance rule: the rms WITHIN each mHc study, then the MAX over
+# studies (user decision 2026-08-12).
+#
+# The max over all pooled points was a ~3 sigma order statistic used as a
+# 1 sigma lnN width: the residuals are unbiased (|mean| < 2% everywhere)
+# and Gaussian-like (max/rms 1.8-3.6, against sqrt(2 ln N) = 1.8-2.9
+# expected), so the max scaled with how many points a cell happened to
+# hold rather than with model accuracy, and one mass point (MHc115_MA27)
+# set 15 of 16 below-Z cells. The plain pooled rms is the right 1 sigma
+# but hides a real effect: below the Z the per-study rms genuinely varies
+# with mHc (observed spread 69-77% against 41% expected from statistics),
+# tracking low-mA grid density — MHc160 samples it every 5 GeV and closes
+# to 2.2%, MHc115/MHc130 have 15-25 GeV gaps and close to 11-18%.
+#
+# Taking the rms inside a study makes no single mass point set the value;
+# taking the max across studies covers the sparse-grid ones instead of
+# averaging them away. A study needs at least MIN_STUDY_POINTS mass points
+# to define its own rms, otherwise a one-point study leaks its outlier
+# straight back in; the pooled rms is the floor, which is also what a cell
+# falls back to when no study qualifies (the pooled rms is a quadratic
+# mean of the per-study values, hence never above their max).
+MIN_STUDY_POINTS = 2
+
+
+def _rms(values):
+    return float(sum(v * v for v in values) / len(values)) ** 0.5
+
+
+def _norm_envelope(points, floor, production_only=False):
+    """(envelope, n points, diagnostics) under the per-study rms rule."""
+    usable = [p for p in points if p.get("excluded") is None
+              and (p["production_pairing"] or not production_only)]
+    if not usable:
+        return floor, 0, {}
+    by_study = {}
+    for p in usable:
+        by_study.setdefault(p["mhc"], []).append(p["value"])
+    per_study = {m: _rms(v) for m, v in sorted(by_study.items())
+                 if len(v) >= MIN_STUDY_POINTS}
+    pooled = _rms([p["value"] for p in usable])
+    value = max([floor, pooled] + list(per_study.values()))
+    diag = {
+        "rule": "max over studies of the per-study rms",
+        "per_study_rms": {f"MHc{m}": v for m, v in per_study.items()},
+        "per_study_npoints": {f"MHc{m}": len(v)
+                              for m, v in sorted(by_study.items())},
+        "studies_below_min_points": [f"MHc{m}" for m, v
+                                     in sorted(by_study.items())
+                                     if len(v) < MIN_STUDY_POINTS],
+        "pooled_rms": pooled,
+        "pooled_max": max(p["value"] for p in usable),
+        "driver": (max(per_study, key=per_study.get) if per_study
+                   else "pooled_rms"),
+    }
+    return value, len(usable), diag
+
 
 def _reachable(study_channel, bin_label):
     """Can any baseline mass point in this mA bin use this study channel as
@@ -507,19 +567,14 @@ def export_loo_pooled(mhcs, yield_variant=None):
         floor = interpolation_config.UNCERTAINTY_NORM_FLOOR
         out, counts, spread = {}, {}, {}
         for (channel, era, bin_label), pts in norm_all.items():
-            usable = [p for p in pts if p.get("excluded") is None
-                      and (p["production_pairing"] or not production_only)]
+            value, n, diag = _norm_envelope(pts, floor, production_only)
             key = f"{channel}/{era}/{bin_label}"
-            counts[key] = len(usable)
-            if not usable:
+            counts[key] = n
+            if not n:
                 continue
             out.setdefault(channel, {}).setdefault(era, {})[bin_label] = \
-                1.0 + max([floor] + [p["value"] for p in usable])
-            # How much does pooling cost? Per-mHc maxima inside this cell.
-            per_mhc = {}
-            for p in usable:
-                per_mhc[p["mhc"]] = max(per_mhc.get(p["mhc"], 0.0), p["value"])
-            spread[key] = {f"MHc{m}": v for m, v in sorted(per_mhc.items())}
+                1.0 + value
+            spread[key] = diag
         # An empty cell is either structurally unreachable (the pairing rule
         # means no production point can land there) or a genuine coverage
         # hole. The first needs no nuisance at all; the second must not
@@ -602,10 +657,14 @@ def export_loo_pooled(mhcs, yield_variant=None):
             "norm_ma_bins": [[lab, lo, hi] for lab, lo, hi in
                              interpolation_config.NORM_MA_BINS],
             "rules": {
-                "norm": "max(|N_pred/N_meas-1|) over usable LOO points per "
-                        "(channel, era, mA bin), pooled over mHc, floor "
-                        f"{interpolation_config.UNCERTAINTY_NORM_FLOOR}, "
-                        f"warn above {interpolation_config.UNCERTAINTY_NORM_WARN}",
+                "norm": "per (channel, era, mA bin), pooled over mHc: the "
+                        "rms WITHIN each study, then the MAX over studies "
+                        f"holding >= {MIN_STUDY_POINTS} mass points; floored "
+                        "by the pooled rms and by "
+                        f"{interpolation_config.UNCERTAINTY_NORM_FLOOR}, warn "
+                        f"above {interpolation_config.UNCERTAINTY_NORM_WARN}. "
+                        "per_study_rms/pooled_max under per_mhc_maxima keep "
+                        "the inputs and the old max rule visible",
                 "scale_res": "pooled over mHc for reference only — the shape "
                              "parametrizations are still per-study, so the "
                              "per-mHc loo_uncertainties.json files remain "
@@ -623,11 +682,11 @@ def export_loo_pooled(mhcs, yield_variant=None):
         "scale": scale, "res": res,
         "nuisances": {"norm": names},
         "n_points": {"norm": n_norm, **n_shape},
-        "per_mhc_maxima": spread,
+        "per_study_detail": spread,
         "production_restricted": {
             "norm": pnorm, "scale": pscale, "res": pres,
             "n_points": {"norm": pn_norm, **pn_shape},
-            "per_mhc_maxima": pspread,
+            "per_study_detail": pspread,
         },
         "warnings": warnings,
     }
