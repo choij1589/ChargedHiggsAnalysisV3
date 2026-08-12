@@ -55,6 +55,12 @@ def parse_args():
     parser.add_argument("--blind", action="store_true",
                         help="Asimov data_obs (MC sum) instead of real data; "
                              "writes to the {method}_blind template segment")
+    parser.add_argument("--signal-source", default="mc-signal",
+                        choices=["mc-signal", "interp-signal"],
+                        help="mc-signal: direct-MC signal templates "
+                             "(default). interp-signal: parametric signal "
+                             "from the mA-interpolation surfaces (Baseline "
+                             "only; masspoint must be on configs/grid.json)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args()
 
@@ -700,6 +706,333 @@ def build_run_period_templates(args):
     logging.info("Run-period component template generation complete: %s/shapes.root", outdir)
 
 
+def build_interp_period_templates(args):
+    """Interp-signal (parametric) templates for one scan-grid mass point.
+
+    Group SEED: full build — backgrounds/data/binning with the seed's own
+    interpolated mean/sigma (the group's shared payload), plus the seed's
+    parametric signal. Group MEMBER: clones the seed's background/data
+    histograms and binning verbatim and injects only its own parametric
+    signal, into {seed_dir}/points/{member}. The seed job must have run
+    first (the DAG orders it)."""
+    import json
+
+    import interpolation_config
+    import param_signal
+    from closInterpYields import predict_shape_params
+    from fitInterpYieldModel import predict_yield
+
+    masspoint = args.masspoint
+    seed = interpolation_config.group_seed(masspoint)
+    is_seed = seed == masspoint
+    mhc, mA = srspaths.masspoint_mhc_ma(masspoint)
+    mA = float(mA)
+
+    if is_seed:
+        outdir = srspaths.template_dir(masspoint, args.method, args.era,
+                                       args.channel, blind=args.blind,
+                                       source="interp-signal")
+        seed_dir = None
+    else:
+        seed_dir = srspaths.template_dir(seed, args.method, args.era,
+                                         args.channel, blind=args.blind,
+                                         source="interp-signal")
+        outdir = srspaths.interp_member_dir(seed, masspoint, args.era,
+                                            args.channel, blind=args.blind)
+        if not os.path.exists(f"{seed_dir}/shapes.root"):
+            raise FileNotFoundError(
+                f"{seed_dir}/shapes.root not found — build the group seed "
+                f"{seed} first (members clone its backgrounds)")
+
+    polys, _ = interpolation_config.load_shape_polynomials(mhc)
+    with open(os.path.join(srspaths.interpolation_fits_dir(mhc),
+                           "yields", "yield_model.json")) as f:
+        yield_model = json.load(f)["model"]
+    delta_model = param_signal.load_delta_model(mhc)
+    uncertainties = param_signal.load_interp_uncertainties()
+
+    logging.info("Interp-signal templates for %s (group seed %s, %s)",
+                 masspoint, seed, "seed build" if is_seed else "member")
+
+    if os.path.exists(outdir):
+        shutil.rmtree(outdir)
+    os.makedirs(outdir, exist_ok=True)
+
+    periods = resolve_run_periods(args.era)
+    channels = resolve_channels(args.channel)
+
+    category_outputs = OrderedDict()
+    categories_json = OrderedDict()
+    binning_json = {
+        "construction": "run_period_components",
+        "binning_type": "extended",
+        "min_core_bins": MIN_CORE_BINS,
+        "categories": OrderedDict(),
+    }
+    process_components = []
+    background_validation = OrderedDict()
+    extra_systematics = OrderedDict()
+    param_meta = OrderedDict()
+    warnings = []
+
+    seed_file = None
+    seed_sidecars = {}
+    if not is_seed:
+        seed_file = ROOT.TFile.Open(f"{seed_dir}/shapes.root", "READ")
+        for name in ("categories", "binning", "background_validation",
+                     "process_list"):
+            with open(f"{seed_dir}/{name}.json") as f:
+                seed_sidecars[name] = json.load(f)
+
+    for period, suberas in periods:
+        for channel in channels:
+            cat = category_name(channel, period)
+            study_channel = interpolation_config.study_channel_for(
+                channel, masspoint)
+            cat_key = interpolation_config.category_key(study_channel, period)
+            params, clipped = predict_shape_params(polys[cat_key], mA)
+            if clipped:
+                warnings.append(f"[{cat}] clipped params: {clipped}")
+            interp_win = interpolation_config.interp_window(polys[cat_key], mA)
+            sigma_eff = float(np.sqrt(0.5 * (params["sigmaL"] ** 2
+                                             + params["sigmaR"] ** 2)))
+            yields = {subera: predict_yield(yield_model, study_channel,
+                                            subera, mA)
+                      for subera in suberas}
+
+            if is_seed:
+                x0 = params["x0"]
+                mass_min, mass_max = interp_win
+
+                def basedir_of(subera, _ch=channel):
+                    return srspaths.sample_dir(subera, _ch, masspoint,
+                                               "Baseline")
+
+                _all_bg, bg_by_subera = category_background_processes(
+                    suberas, channel)
+                background_validation[cat], active_by_subera = \
+                    validate_category_backgrounds(
+                        bg_by_subera, basedir_of,
+                        calculate_adaptive_bins(x0, sigma_eff, 15),
+                        mass_min, mass_max, masspoint)
+                bin_edges, n_core_final, apply_floor = scan_binning(
+                    cat, active_by_subera, basedir_of, x0, sigma_eff,
+                    mass_min, mass_max, masspoint)
+
+                nbins = len(bin_edges) - 1
+                if not args.blind:
+                    data_obs = sum_data_obs(suberas, basedir_of, bin_edges,
+                                            mass_min, mass_max,
+                                            masspoint=masspoint)
+                else:
+                    edges_vec = ROOT.std.vector["double"](
+                        [float(e) for e in bin_edges])
+                    data_obs = ROOT.TH1D("data_obs", "data_obs", nbins,
+                                         edges_vec.data())
+                    data_obs.SetDirectory(0)
+            else:
+                seed_binning = seed_sidecars["binning"]["categories"][cat]
+                bin_edges = [float(e) for e in seed_binning["bin_edges"]]
+                mass_min = float(seed_binning["mass_min"])
+                mass_max = float(seed_binning["mass_max"])
+                n_core_final = int(seed_binning["n_core_bins"])
+                apply_floor = bool(seed_binning["floor_applied"])
+                background_validation[cat] = \
+                    seed_sidecars["background_validation"][cat]
+
+            templates = {}
+            process_order = []
+            category_processes = []
+            member_signal = {}
+
+            for subera in suberas:
+                syst_config = load_systematics_block(subera, channel)
+                syst_categories = categorize_systematics(syst_config)
+
+                sig_comp = component_name("signal", subera, is_signal=True)
+                model = param_signal.ParametricSignal(
+                    f"{cat}_{subera}_{masspoint}", params, interp_win)
+                interp_terms = param_signal.interp_shape_terms(
+                    uncertainties, study_channel, channel, period, params)
+                n_pred, _err_pred = yields[subera]
+                proc_map = param_signal.build_signal_component(
+                    model, sig_comp, param_signal.delta_key(subera,
+                                                            study_channel),
+                    delta_model, syst_categories, bin_edges,
+                    (mass_min, mass_max), n_pred, mA, interp_terms, warnings)
+                templates[sig_comp] = proc_map
+                process_order.append(sig_comp)
+                category_processes.append({
+                    "name": sig_comp, "base_process": "signal",
+                    "physics_group": "signal", "subera": subera,
+                    "is_signal": True,
+                })
+                for key, hist in proc_map.items():
+                    name = sig_comp if key == "nominal" else f"{sig_comp}{key}"
+                    member_signal[name] = hist
+
+                if is_seed:
+                    for proc in active_by_subera[subera]:
+                        comp = component_name(proc, subera)
+                        floor_mode = "floor" if proc == "others" else "zero"
+                        proc_map_bkg = build_component_shape_templates(
+                            basedir_of(subera), proc, comp, bin_edges,
+                            mass_min, mass_max, syst_categories,
+                            -999., None, None, masspoint, floor_mode)
+                        templates[comp] = proc_map_bkg
+                        process_order.append(comp)
+                        category_processes.append({
+                            "name": comp, "base_process": proc,
+                            "physics_group": proc, "subera": subera,
+                            "is_signal": False,
+                        })
+                        if args.blind:
+                            data_obs.Add(proc_map_bkg["nominal"])
+
+                extra_systematics[f"{subera}|{channel}"] = \
+                    param_signal.interp_systematics_block(
+                        uncertainties, study_channel, channel, period,
+                        subera, mA)
+
+            if is_seed:
+                templates["data_obs"] = data_obs
+
+                if apply_floor:
+                    logging.warning("Floor fallback for %s", cat)
+                    apply_floor_fallback(templates)
+
+                bkg_names = [p["name"] for p in category_processes
+                             if not p["is_signal"]]
+                pre_merge = len(bin_edges) - 1
+                bin_edges, templates, n_syst_merges = \
+                    apply_syst_driven_merging(
+                        bin_edges, templates, bkg_names,
+                        max_rel_syst=SYST_MERGE_THRESHOLD, logger=logging)
+                if n_syst_merges:
+                    logging.warning("%s syst-merge: %d -> %d bins", cat,
+                                    pre_merge, len(bin_edges) - 1)
+                category_outputs[cat] = {
+                    "templates": templates,
+                    "process_order": process_order,
+                    "processes": category_processes,
+                }
+                categories_processes = category_processes
+            else:
+                # Member: seed's category payload + this point's signal.
+                seed_cat = seed_sidecars["categories"]["categories"][cat]
+                categories_processes = seed_cat["processes"]
+                # structural check: same signal component list
+                seed_signal_names = {p["name"] for p in categories_processes
+                                     if p["is_signal"]}
+                own_signal_names = {p["name"] for p in category_processes}
+                if seed_signal_names != own_signal_names:
+                    raise RuntimeError(
+                        f"{cat}: member signal components {own_signal_names} "
+                        f"!= seed's {seed_signal_names}")
+                n_syst_merges = int(seed_binning.get("n_bins_merged", 0))
+                category_outputs[cat] = {
+                    "seed_tdir": cat,
+                    "member_signal": member_signal,
+                    "nbins": len(bin_edges) - 1,
+                }
+
+            categories_json[cat] = {
+                "category": cat,
+                "channel": channel,
+                "run_period": period,
+                "suberas": suberas,
+                "processes": categories_processes,
+            }
+            binning_json["categories"][cat] = {
+                "nbins": len(bin_edges) - 1,
+                "bin_edges": [float(e) for e in bin_edges],
+                "method": "AdaptiveExtendedBins",
+                "sigma_eff": float(sigma_eff),
+                "mass_min": float(mass_min),
+                "mass_max": float(mass_max),
+                "n_core_bins": int(n_core_final),
+                "fit_model": "interpolated",
+                "fit_result": {**{k: float(v) for k, v in params.items()},
+                               "sigma_eff": float(sigma_eff)},
+                "floor_applied": bool(apply_floor),
+                "syst_merge_applied": n_syst_merges > 0,
+                "n_bins_merged": int(n_syst_merges),
+                "syst_merge_threshold": SYST_MERGE_THRESHOLD,
+                "binning_source": "interpolated" if is_seed
+                                  else f"seed:{seed}",
+            }
+            for proc_meta in categories_processes:
+                process_components.append({"category": cat, **proc_meta})
+            param_meta[cat] = {
+                "study_channel": study_channel,
+                "params": {k: float(v) for k, v in params.items()},
+                "clipped": clipped,
+                "interp_window": [float(interp_win[0]),
+                                  float(interp_win[1])],
+                "template_window": [float(mass_min), float(mass_max)],
+                "yields": {subera: {"n_pred": float(n), "err_pred": float(e)}
+                           for subera, (n, e) in yields.items()},
+            }
+
+    if is_seed:
+        write_run_period_shapes(outdir, category_outputs)
+    else:
+        # Copy the seed's category payloads, replacing the signal hists.
+        fout = ROOT.TFile.Open(f"{outdir}/shapes.root", "RECREATE")
+        for cat, payload in category_outputs.items():
+            tdir_in = seed_file.Get(cat)
+            if not tdir_in:
+                raise RuntimeError(f"seed shapes.root has no category {cat}")
+            tdir_out = fout.mkdir(cat)
+            tdir_out.cd()
+            member_signal = payload["member_signal"]
+            written = set()
+            for key in tdir_in.GetListOfKeys():
+                name = key.GetName()
+                if name in member_signal:
+                    hist = member_signal[name]
+                    if hist.GetNbinsX() != payload["nbins"]:
+                        raise RuntimeError(
+                            f"{cat}/{name}: member nbins "
+                            f"{hist.GetNbinsX()} != seed {payload['nbins']}")
+                    hist.Write(name)
+                    written.add(name)
+                elif name.startswith("signal_"):
+                    warnings.append(f"[{cat}] seed histogram {name} has no "
+                                    "member counterpart; dropped")
+                else:
+                    obj = key.ReadObj()
+                    obj.Write(name)
+            for name in sorted(set(member_signal) - written):
+                member_signal[name].Write(name)
+        fout.Close()
+        seed_file.Close()
+
+    write_template_sidecars(outdir, categories_json, binning_json,
+                            background_validation, process_components)
+    tag = f"{args.era}.{args.channel}"
+    save_json({"systematics": extra_systematics},
+              f"{outdir}/extra_systematics.{tag}.json")
+    save_json({
+        "meta": {
+            "masspoint": masspoint, "group_seed": seed,
+            "mhc": mhc, "mA": mA,
+            "signal_source": "interp-signal",
+            "model_inputs": {
+                "polynomials": f"fits/MHc{mhc}/polynomials.json",
+                "yield_model": f"fits/MHc{mhc}/yields/yield_model.json",
+                "delta_model": f"fits/MHc{mhc}/shape_deltas/delta_model.json",
+                "uncertainties": "configs/interpolation_uncertainties.json",
+            },
+        },
+        "categories": param_meta,
+        "warnings": warnings,
+    }, f"{outdir}/param_signal.{tag}.json")
+    for w in warnings:
+        logging.warning("%s", w)
+    logging.info("Interp-signal templates complete: %s/shapes.root", outdir)
+
+
 # =============================================================================
 # Main Execution
 # =============================================================================
@@ -715,7 +1048,12 @@ def main():
             f"Unknown --method '{args.method}' (expected Baseline or ParticleNet)"
         )
 
-    build_run_period_templates(args)
+    if args.signal_source == "interp-signal":
+        if args.method != "Baseline":
+            raise ValueError("interp-signal templates exist for Baseline only")
+        build_interp_period_templates(args)
+    else:
+        build_run_period_templates(args)
 
 if __name__ == "__main__":
     main()
