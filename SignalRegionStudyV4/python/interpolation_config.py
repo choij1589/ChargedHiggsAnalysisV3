@@ -408,7 +408,25 @@ def mhc_grid():
 
 
 def masspoint_name(mA, mhc):
-    return f"MHc{int(mhc)}_MA{mA}"
+    """MHc{X}_MA{Y}, with p-notation for fractional mA: 90 -> MA90,
+    90.5 -> MA90p5, 30.25 -> MA30p25, 15.1 -> MA15p1 (trailing zeros
+    trimmed, never 'p0'). Grid values are exact multiples of 0.05 GeV
+    (configs/grid.json lattice); formatting goes through the tick so
+    float representation noise cannot leak into names."""
+    ticks = int(round(float(mA) * 20))
+    if abs(ticks / 20.0 - float(mA)) > 1e-9:
+        raise ValueError(
+            f"mA={mA} is not on the 0.05 GeV naming lattice")
+    whole, frac = divmod(ticks, 20)
+    if frac == 0:
+        return f"MHc{int(mhc)}_MA{whole}"
+    token = f"{frac * 5:02d}".rstrip("0")
+    return f"MHc{int(mhc)}_MA{whole}p{token}"
+
+
+def parse_ma(token):
+    """'90p5' -> 90.5; '90' -> 90. Inverse of masspoint_name's mA part."""
+    return srspaths.parse_ma_token(token)
 
 
 def mA_of(masspoint):

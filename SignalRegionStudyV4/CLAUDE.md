@@ -295,7 +295,11 @@ results/conclusion), `UNCERTAINTY.md` (nuisance rule, values, evidence).
 Next: graduate the interpolation template producer behind a
 `srspaths.template_dir` method segment, consuming
 `configs/interpolation_uncertainties.json` and declaring the nuisances via
-`printDatacard.py`'s `extra_systematics*.json` hook. Nothing in V4 may
+`printDatacard.py`'s `extra_systematics*.json` hook. Its mA scan grid is
+frozen in `configs/grid.json` (2467 points over 7 mHc; banded steps below
+the dimuon σ_eff, all MC points included for direct-MC comparison;
+p-notation names like `MA90p5` — `makeInterpGrid.py`,
+`srspaths.grid_config()`). Nothing in V4 may
 hard-assume the template payload is binned histograms beyond the existing
 per-step contracts.
 

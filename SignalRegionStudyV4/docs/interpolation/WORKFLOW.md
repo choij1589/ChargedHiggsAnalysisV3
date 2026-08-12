@@ -169,6 +169,31 @@ configs/interpolation_uncertainties.json              production config
 (JSONs and PNGs both) — commit them after a verified re-run. The retired
 scratch trees live under `archive/test{,s}/` and stay untracked.
 
+## Template scan grid (`configs/grid.json`)
+
+The frozen mA grid the template producer will scan, per mHc
+(`srspaths.grid_config()`; regenerate with `python3
+python/makeInterpGrid.py`, login-node safe). Two requirements: the step
+stays **below the dimuon mass resolution** everywhere, and the grid
+**contains every MC point** so direct-MC and fit templates can be
+compared there (`mc_points` lists them per mHc).
+
+| mA band | step | binding σ_min at band start |
+|---|---|---|
+| [15, 30) | 0.1 GeV | ≈0.13 GeV |
+| [30, 60) | 0.25 GeV | ≈0.27 GeV |
+| [60, 100) | 0.5 GeV | ≈0.62 GeV |
+| [100, 155] | 1.0 GeV | ≈1.19 GeV |
+
+σ_min = minimum-over-categories σ_eff from the fitted surfaces; the
+generator *evaluates* the condition (worst step/σ_min 0.86–0.89, at
+mA = 30) and refuses to write a grid that violates it. Range per mHc:
+[15, max MC mA] — no extrapolation. 281 (MHc70) to 406 (MHc160) points,
+2467 total. Fractional mA is named in exact p-notation
+(`MHc160_MA90p5`, `MHc130_MA30p25`;
+`interpolation_config.masspoint_name`/`parse_ma`,
+`srspaths.parse_ma_token`).
+
 ## Known input issues
 
 - `MHc145_MA100` / 2023 / SR1E2Mu: corrupt raw skim (truncated at 9 MB;

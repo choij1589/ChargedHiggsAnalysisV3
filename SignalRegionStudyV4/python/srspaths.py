@@ -46,9 +46,20 @@ def method_segment(method, blind=False):
     return f"{method}_blind" if blind else method
 
 
+def parse_ma_token(token):
+    """Inverse of the mA p-notation: '90' -> 90 (int), '90p5' -> 90.5,
+    '30p25' -> 30.25. Fractional grid points exist only on the template
+    scan grid (configs/grid.json); real MC points are integers."""
+    if "p" in token:
+        whole, frac = token.split("p")
+        return int(whole) + int(frac) / 10 ** len(frac)
+    return int(token)
+
+
 def masspoint_mhc_ma(masspoint):
     parts = masspoint.split("_")
-    return (int(parts[0].replace("MHc", "")), int(parts[1].replace("MA", "")))
+    return (int(parts[0].replace("MHc", "")),
+            parse_ma_token(parts[1].replace("MA", "")))
 
 
 def pairing_variant(masspoint):
@@ -142,6 +153,16 @@ def interpolation_config():
 
 def interpolation_uncertainties_path():
     return config_path("interpolation_uncertainties.json")
+
+
+def grid_config():
+    """configs/grid.json — the frozen template-scan mA grid per mHc
+    (regenerate with python/makeInterpGrid.py). Per mHc: 'grid' (full
+    scan list, steps below the dimuon mass resolution, MC points
+    guaranteed members) and 'mc_points' (the baseline MC grid, where
+    direct-MC vs fit-template comparison is possible)."""
+    with open(config_path("grid.json")) as f:
+        return json.load(f)
 
 
 # Interpolation production layout (2026-08-13). Two trees, split by what
