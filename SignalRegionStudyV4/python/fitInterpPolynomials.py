@@ -159,15 +159,27 @@ def main():
                         help="comma-separated mA values to drop from the fit")
     parser.add_argument("--suffix", default="",
                         help="appended to the output filename (e.g. '_ex90'), "
-                             "so a leave-one-out refit does not clobber the "
-                             "adopted polynomials.json")
+                             "so an anchor-exclusion refit does not clobber "
+                             "the adopted polynomials.json")
+    parser.add_argument("--loo-ma", type=int, default=None,
+                        help="leave-one-out mode: fit anchors = full grid "
+                             "minus this mA; outputs go to the per-point dir "
+                             "tests/interpolation/MHc{X}_MA{Y}/")
     args = parser.parse_args()
     excluded = {int(m) for m in args.exclude_ma.split(",") if m.strip()}
-    study = interpolation_config.study(args.mhc)
+    if args.loo_ma is not None and (excluded or args.suffix):
+        raise ValueError("--loo-ma is a complete mode of its own; "
+                         "do not combine with --exclude-ma/--suffix")
+    if excluded and not args.suffix:
+        raise ValueError("--exclude-ma would overwrite the adopted "
+                         "polynomials.json; pass a --suffix (e.g. '_ex90')")
+    study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = study["fit"]
     all_ma = study["all"]
     interp_dir = srspaths.interpolation_dir(args.mhc)
-    params_plot_base = srspaths.interpolation_plots_dir(args.mhc, "params")
+    out_dir = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
+               if args.loo_ma is not None else interp_dir)
+    params_plot_base = os.path.join(out_dir, "plots", "params")
 
     with open(os.path.join(interp_dir, "fits", "dcb_fits.json")) as f:
         fits = json.load(f)["results"]
@@ -304,11 +316,22 @@ def main():
                     "the DCB+background model is incomplete and build_model "
                     "would fail downstream")
 
+    if args.loo_ma is not None:
+        # Leak check: the excluded point must not have anchored anything.
+        leaked = [(cat_key, p) for cat_key, params in output.items()
+                  for p, info in params.items()
+                  if args.loo_ma in info.get("points_used", {}).get("mA", [])]
+        if leaked:
+            raise RuntimeError(
+                f"LOO leak: excluded mA={args.loo_ma} entered the fit for "
+                f"{leaked}")
+
     payload = {
         "meta": {
             "mhc": args.mhc,
             "fit_ma": [m for m in fit_ma if m not in excluded],
             "excluded_ma": sorted(excluded),
+            "loo_ma": args.loo_ma,
             "f_test_pvalue": F_TEST_PVALUE,
             "poly_orders": {p: interpolation_config.POLY_ORDERS[p]
                             for p in ALL_PARAM_ORDER},
@@ -319,8 +342,8 @@ def main():
         "warnings": warnings,
         "degenerate": degenerate,
     }
-    os.makedirs(interp_dir, exist_ok=True)
-    outpath = os.path.join(interp_dir, f"polynomials{args.suffix}.json")
+    os.makedirs(out_dir, exist_ok=True)
+    outpath = os.path.join(out_dir, f"polynomials{args.suffix}.json")
     with open(outpath, "w") as f:
         json.dump(payload, f, indent=2)
 

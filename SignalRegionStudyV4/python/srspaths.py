@@ -156,3 +156,11 @@ def interpolation_dir(mhc=None):
 def interpolation_plots_dir(mhc, kind):
     """kind in {fits, params, closure, yields, deltas}."""
     return os.path.join(interpolation_dir(mhc), "plots", kind)
+
+
+def interpolation_loo_dir(mhc, ma):
+    """Per-point leave-one-out (LOO) output dir: models refit on the full
+    mA grid minus this point, closure evaluated at this point only. The
+    per-mHc aggregate lives in interpolation_dir(mhc)."""
+    return os.path.join(tests_dir(), "interpolation",
+                        f"MHc{int(mhc)}_MA{int(ma)}")

@@ -117,11 +117,30 @@ case "$STEP" in
     export_uncertainties)
         python3 python/exportInterpUncertainties.py --mhc "$MHC" $EXTRA_ARGS
         ;;
+    loo)
+        # One full leave-one-out iteration for MASSPOINT = MHc{X}_MA{Y}:
+        # refit the shape polynomials and the yield model on the full grid
+        # minus this point, then close both at this point only. Outputs go
+        # to tests/interpolation/MHc{X}_MA{Y}/.
+        LOO_MA="${MASSPOINT##*_MA}"
+        if [[ -z "$LOO_MA" || "$LOO_MA" == "$MASSPOINT" ]]; then
+            echo "ERROR: loo step needs MASSPOINT of the form MHc{X}_MA{Y}, got '$MASSPOINT'"
+            exit 1
+        fi
+        python3 python/fitInterpPolynomials.py --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
+        python3 python/fitInterpYieldModel.py  --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
+        python3 python/closInterpShapes.py     --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
+        python3 python/closInterpYields.py     --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
+        ;;
+    export_loo)
+        python3 python/exportInterpUncertainties.py --loo --mhc "$MHC" $EXTRA_ARGS
+        ;;
     *)
         echo "ERROR: Unknown step '$STEP'"
         echo "Valid steps: fit_float, merge_float, fit_frozen, merge_frozen, polynomials,"
         echo "  closure, merge_closure, yields, merge_yields, yield_model, yield_closure,"
-        echo "  merge_yield_closure, deltas, merge_deltas, delta_model, export_uncertainties"
+        echo "  merge_yield_closure, deltas, merge_deltas, delta_model, export_uncertainties,"
+        echo "  loo, export_loo"
         exit 1
         ;;
 esac

@@ -219,12 +219,16 @@ def study_channels_for(masspoint):
     return [study_channel_for(ch, masspoint) for ch in ("SR1E2Mu", "SR3Mu")]
 
 
-def study(mhc):
+def study(mhc, loo_ma=None):
     """Fit/held-out/all mA split for one mHc: 'all' is the full baseline
     grid, 'fit' is the parametrization anchor set from
     configs/interpolation.json, 'held_out' = all - fit (the interpolation
     test set; points also appear in closure as in-sample checks when they
-    are fit anchors)."""
+    are fit anchors).
+
+    loo_ma engages the leave-one-out split instead: 'fit' = full grid
+    minus that point, 'held_out' = [loo_ma] — the production-like closure
+    used to derive the interpolation uncertainties."""
     mhc = int(mhc)
     prefix = f"MHc{mhc}_MA"
     grid = sorted(
@@ -233,6 +237,13 @@ def study(mhc):
     )
     if not grid:
         raise ValueError(f"No baseline mass points for mHc={mhc}")
+    if loo_ma is not None:
+        loo_ma = int(loo_ma)
+        if loo_ma not in grid:
+            raise ValueError(f"LOO mA={loo_ma} not in the mHc={mhc} baseline grid {grid}")
+        return {"all": grid,
+                "fit": [ma for ma in grid if ma != loo_ma],
+                "held_out": [loo_ma]}
     fit_points = srspaths.interpolation_config()["fit_points"].get(str(mhc))
     if fit_points is None:
         raise ValueError(f"No fit_points defined for mHc={mhc} in configs/interpolation.json")
@@ -349,12 +360,15 @@ def eval_param(info, x):
     return np.polyval(np.asarray(info["coeffs"]), x)
 
 
-def load_shape_polynomials(mhc, suffix=""):
+def load_shape_polynomials(mhc, suffix="", loo_ma=None):
     """Per-category shape parametrizations (the yield/closure/export
-    steps' window and template source). suffix selects a leave-one-out
-    sibling file, e.g. '_ex90'."""
+    steps' window and template source). suffix selects an anchor-exclusion
+    sibling file, e.g. '_ex90'; loo_ma selects the leave-one-out per-point
+    directory instead (tests/interpolation/MHc{X}_MA{Y}/)."""
     import json
-    path = os.path.join(srspaths.interpolation_dir(mhc), f"polynomials{suffix}.json")
+    base = (srspaths.interpolation_loo_dir(mhc, loo_ma) if loo_ma is not None
+            else srspaths.interpolation_dir(mhc))
+    path = os.path.join(base, f"polynomials{suffix}.json")
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"{path} not found — run the shape-interpolation chain first")

@@ -214,12 +214,20 @@ def main():
                              "sub-model fit (leave-one-out); requires --suffix")
     parser.add_argument("--suffix", default="",
                         help="appended to the output filename (e.g. '_ex90'), "
-                             "so a leave-one-out refit does not clobber the "
-                             "adopted yield_model.json")
+                             "so an anchor-exclusion refit does not clobber "
+                             "the adopted yield_model.json")
+    parser.add_argument("--loo-ma", type=int, default=None,
+                        help="leave-one-out mode: fit anchors = full grid "
+                             "minus this mA; reads the LOO polynomials from "
+                             "and writes yield_model.json to the per-point "
+                             "dir tests/interpolation/MHc{X}_MA{Y}/")
     args = parser.parse_args()
 
-    study = interpolation_config.study(args.mhc)
     excluded = {int(m) for m in args.exclude_ma.split(",") if m.strip()}
+    if args.loo_ma is not None and (excluded or args.suffix):
+        raise ValueError("--loo-ma is a complete mode of its own; "
+                         "do not combine with --exclude-ma/--suffix")
+    study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = [m for m in study["fit"] if m not in excluded]
     orders = interpolation_config.YIELD_ORDERS
     if excluded and not args.suffix:
@@ -227,14 +235,18 @@ def main():
                          "yield_model.json; pass a --suffix "
                          "(e.g. the matching leave-one-out shape suffix)")
     yields_dir = os.path.join(srspaths.interpolation_dir(args.mhc), "yields")
-    plot_base = srspaths.interpolation_plots_dir(args.mhc, "yields")
+    out_dir = (os.path.join(srspaths.interpolation_loo_dir(args.mhc, args.loo_ma), "yields")
+               if args.loo_ma is not None else yields_dir)
+    plot_base = (os.path.join(srspaths.interpolation_loo_dir(args.mhc, args.loo_ma), "plots", "yields")
+                 if args.loo_ma is not None
+                 else srspaths.interpolation_plots_dir(args.mhc, "yields"))
 
     with open(os.path.join(yields_dir, "yields.json")) as f:
         yields_payload = json.load(f)
     yields = yields_payload["results"]
     shape_suffix = args.suffix if args.exclude_ma else ""
     polys, polys_path = interpolation_config.load_shape_polynomials(
-        args.mhc, shape_suffix)
+        args.mhc, shape_suffix, loo_ma=args.loo_ma)
 
     model = {"fractions": {}, "totals": {}}
     warnings = []
@@ -260,6 +272,7 @@ def main():
             "mhc": args.mhc,
             "fit_ma": fit_ma,
             "excluded_ma": sorted(excluded),
+            "loo_ma": args.loo_ma,
             "model": "k_era * G_period(mA) * f_category(mA); "
                      "f_SR3Mu = S * p_pairing / fsig",
             "orders": orders,
@@ -271,7 +284,8 @@ def main():
         "model": model,
         "warnings": warnings,
     }
-    outpath = os.path.join(yields_dir, f"yield_model{args.suffix}.json")
+    os.makedirs(out_dir, exist_ok=True)
+    outpath = os.path.join(out_dir, f"yield_model{args.suffix}.json")
     with open(outpath, "w") as f:
         json.dump(payload, f, indent=2)
 

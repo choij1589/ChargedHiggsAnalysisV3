@@ -91,23 +91,47 @@ def main():
     parser.add_argument("--output", default="",
                         help="output JSON path (default: "
                              "tests/interpolation/MHc{X}/yields/yield_closure.json)")
+    parser.add_argument("--loo-ma", type=int, default=None,
+                        help="leave-one-out mode: evaluate ONLY this mA, "
+                             "against the LOO yield_model/polynomials in the "
+                             "per-point dir tests/interpolation/MHc{X}_MA{Y}/ "
+                             "(where yield_closure.json and plots are written "
+                             "too); measured yields come from the adopted "
+                             "yields.json")
     args = parser.parse_args()
 
-    study = interpolation_config.study(args.mhc)
+    if args.loo_ma is not None and args.masspoints:
+        raise ValueError("--loo-ma already selects its single mass point; "
+                         "do not combine with --masspoints")
+    study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = study["fit"]
     yields_dir = os.path.join(srspaths.interpolation_dir(args.mhc), "yields")
-    plot_base = srspaths.interpolation_plots_dir(args.mhc, "yields")
+    loo_dir = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
+               if args.loo_ma is not None else None)
+    plot_base = (os.path.join(loo_dir, "plots", "yields")
+                 if loo_dir is not None
+                 else srspaths.interpolation_plots_dir(args.mhc, "yields"))
 
     with open(os.path.join(yields_dir, "yields.json")) as f:
         yields = json.load(f)["results"]
-    with open(os.path.join(yields_dir, "yield_model.json")) as f:
+    model_path = os.path.join(loo_dir, "yields", "yield_model.json") \
+        if loo_dir is not None else os.path.join(yields_dir, "yield_model.json")
+    with open(model_path) as f:
         model_payload = json.load(f)
     model = model_payload["model"]
-    shape_polys, _ = interpolation_config.load_shape_polynomials(args.mhc)
+    if args.loo_ma is not None and model_payload["meta"].get("loo_ma") != args.loo_ma:
+        raise RuntimeError(
+            f"{model_path} was not produced with --loo-ma {args.loo_ma} "
+            f"(meta.loo_ma={model_payload['meta'].get('loo_ma')})")
+    shape_polys, _ = interpolation_config.load_shape_polynomials(
+        args.mhc, loo_ma=args.loo_ma)
 
-    masspoints = interpolation_config.filter_csv(
-        [masspoint_name(m, args.mhc) for m in study["all"]],
-        args.masspoints, "masspoint")
+    if args.loo_ma is not None:
+        masspoints = [masspoint_name(args.loo_ma, args.mhc)]
+    else:
+        masspoints = interpolation_config.filter_csv(
+            [masspoint_name(m, args.mhc) for m in study["all"]],
+            args.masspoints, "masspoint")
 
     output = {}
     warnings = []
@@ -204,13 +228,18 @@ def main():
         "meta": {
             "mhc": args.mhc,
             "fit_ma": fit_ma,
+            "loo_ma": args.loo_ma,
             "command": " ".join(sys.argv),
             "date": datetime.datetime.now().isoformat(timespec="seconds"),
         },
         "closure": output,
         "warnings": warnings,
     }
-    outpath = args.output or os.path.join(yields_dir, "yield_closure.json")
+    if loo_dir is not None:
+        default_out = os.path.join(loo_dir, "yields", "yield_closure.json")
+    else:
+        default_out = os.path.join(yields_dir, "yield_closure.json")
+    outpath = args.output or default_out
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
     with open(outpath, "w") as f:
         json.dump(payload, f, indent=2)

@@ -82,20 +82,38 @@ def main():
                         help="write results to this explicit path instead of "
                              "closure.json (no merging; used by per-masspoint "
                              "condor jobs)")
+    parser.add_argument("--loo-ma", type=int, default=None,
+                        help="leave-one-out mode: evaluate ONLY this mA, "
+                             "against the LOO polynomials in the per-point "
+                             "dir tests/interpolation/MHc{X}_MA{Y}/ (where "
+                             "closure.json and plots are written too)")
     args = parser.parse_args()
 
-    study = interpolation_config.study(args.mhc)
+    if args.loo_ma is not None and args.masspoints:
+        raise ValueError("--loo-ma already selects its single mass point; "
+                         "do not combine with --masspoints")
+    study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     interp_dir = srspaths.interpolation_dir(args.mhc)
+    loo_dir = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
+               if args.loo_ma is not None else None)
 
     with open(os.path.join(interp_dir, "fits", "dcb_fits.json")) as f:
         dcb = json.load(f)["results"]
-    with open(os.path.join(interp_dir, "polynomials.json")) as f:
+    poly_path = os.path.join(loo_dir or interp_dir, "polynomials.json")
+    with open(poly_path) as f:
         poly_payload = json.load(f)
     polys = poly_payload["polynomials"]
+    if args.loo_ma is not None and poly_payload["meta"].get("loo_ma") != args.loo_ma:
+        raise RuntimeError(
+            f"{poly_path} was not produced with --loo-ma {args.loo_ma} "
+            f"(meta.loo_ma={poly_payload['meta'].get('loo_ma')})")
 
-    closure_points = interpolation_config.filter_csv(
-        [masspoint_name(m, args.mhc) for m in study["all"]],
-        args.masspoints, "closure masspoint")
+    if args.loo_ma is not None:
+        closure_points = [masspoint_name(args.loo_ma, args.mhc)]
+    else:
+        closure_points = interpolation_config.filter_csv(
+            [masspoint_name(m, args.mhc) for m in study["all"]],
+            args.masspoints, "closure masspoint")
     fit_mp = {masspoint_name(m, args.mhc) for m in study["fit"]}
 
     output = {}
@@ -208,7 +226,9 @@ def main():
             canvas.drawMasspoint()
             canvas.canv.cd(1)
             draw_dcb_param_comparison(direct["params"], predicted)
-            outdir = srspaths.interpolation_plots_dir(args.mhc, "closure")
+            outdir = (os.path.join(loo_dir, "plots", "closure")
+                      if loo_dir is not None
+                      else srspaths.interpolation_plots_dir(args.mhc, "closure"))
             os.makedirs(outdir, exist_ok=True)
             canvas.canv.SaveAs(
                 os.path.join(outdir, f"closure.{cat_key}.{mp}.png"))
@@ -244,7 +264,7 @@ def main():
         outpath = args.output
         os.makedirs(os.path.dirname(outpath) or ".", exist_ok=True)
     else:
-        outpath = os.path.join(interp_dir, "closure.json")
+        outpath = os.path.join(loo_dir or interp_dir, "closure.json")
 
     payload = {
         "meta": {
@@ -252,6 +272,7 @@ def main():
             "all_ma": study["all"],
             "fit_ma": poly_payload["meta"]["fit_ma"],
             "held_out_ma": study["held_out"],
+            "loo_ma": args.loo_ma,
             "command": " ".join(sys.argv),
             "date": datetime.datetime.now().isoformat(timespec="seconds"),
         },

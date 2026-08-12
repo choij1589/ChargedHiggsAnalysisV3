@@ -7,6 +7,8 @@
 # Usage:
 #   ./interpolation.sh --mhc 160 [--dry-run]
 #   ./interpolation.sh --all [--start-from STEP] [--local]
+#   ./interpolation.sh --loo --all          # leave-one-out sweep (needs the
+#                                           # adopted chain done: fits, yields)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,8 +20,10 @@ export PATH="${PWD}/python:${PATH}"
 MHCS=()
 ALL_MHC=false
 START_FROM="fit-floating"
+START_FROM_SET=false
 DRY_RUN=false
 LOCAL_RUN=false
+LOO_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -33,6 +37,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --start-from)
             START_FROM="$2"
+            START_FROM_SET=true
             shift 2
             ;;
         --dry-run)
@@ -41,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --local)
             LOCAL_RUN=true
+            shift
+            ;;
+        --loo)
+            LOO_MODE=true
             shift
             ;;
         --help)
@@ -52,6 +61,10 @@ while [[ $# -gt 0 ]]; do
             echo "  --start-from STEP    fit-floating, fit-frozen, polynomials, closure,"
             echo "                       yields, yield-model, yield-closure, deltas, export"
             echo "                       [default: fit-floating]"
+            echo "  --loo                Leave-one-out sweep: one node per mass point"
+            echo "                       (models refit on the grid minus that point,"
+            echo "                       closure at that point) + per-mHc aggregation."
+            echo "                       Needs the adopted chain outputs (fits, yields)."
             echo "  --local              Serial execution without condor (insurance for"
             echo "                       local-server condor availability)"
             echo "  --dry-run            Generate DAGs without submitting (condor mode only)"
@@ -66,6 +79,11 @@ done
 
 if [[ "$ALL_MHC" == "false" && ${#MHCS[@]} -eq 0 ]]; then
     echo "ERROR: pass --mhc N (one or more) or --all"
+    exit 1
+fi
+
+if [[ "$LOO_MODE" == "true" && "$START_FROM_SET" == "true" ]]; then
+    echo "ERROR: --start-from does not apply to the --loo sweep (flat DAG)"
     exit 1
 fi
 
@@ -271,9 +289,55 @@ EOF
     echo "PARENT merge_yield_closure CHILD export_uncertainties" >> "$dag_file"
 }
 
+# Leave-one-out sweep DAG: one flat `loo_{mp}` node per grid point (shape
+# polynomials + yield model refit on the grid minus that point, both
+# closures evaluated at that point; outputs in tests/interpolation/{mp}/),
+# then one export_loo aggregation node. Requires the adopted chain outputs
+# (fits/dcb_fits.json, yields/yields.json) to exist already.
+generate_loo_dag_file() {
+    local mhc=$1
+    local dag_file=$2
+    local masspoints mp_list
+    mp_list=$(study_masspoints_for "$mhc") || exit 1
+    read -r -a masspoints <<< "$mp_list"
+
+    local interp_dir="$SCRIPT_DIR/tests/interpolation/MHc${mhc}"
+    local prereq
+    for prereq in "$interp_dir/fits/dcb_fits.json" "$interp_dir/yields/yields.json"; do
+        if [[ ! -f "$prereq" ]]; then
+            echo "ERROR: missing $prereq" >&2
+            echo "       The --loo sweep reuses the adopted chain's fits and" >&2
+            echo "       yields; run the standard chain for mHc=$mhc first." >&2
+            exit 1
+        fi
+    done
+
+    cat > "$dag_file" << EOF
+# Leave-one-out DAG for MHc${mhc}
+CONFIG dagman.config
+
+EOF
+
+    local mp
+    for mp in "${masspoints[@]}"; do
+        echo "JOB loo_${mp} jobs.sub" >> "$dag_file"
+        echo "VARS loo_${mp} step=\"loo\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"\" job_request_memory=\"2048\"" >> "$dag_file"
+    done
+    echo "JOB export_loo jobs.sub" >> "$dag_file"
+    echo "VARS export_loo step=\"export_loo\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"\" job_request_memory=\"2048\"" >> "$dag_file"
+
+    echo "" >> "$dag_file"
+    echo "# Dependencies" >> "$dag_file"
+    for mp in "${masspoints[@]}"; do
+        echo "PARENT loo_${mp} CHILD export_loo" >> "$dag_file"
+    done
+}
+
 submit_condor_dags() {
-    local job_dir
-    job_dir=$(dag_new_jobdir "interp")
+    local job_dir jobdir_prefix
+    jobdir_prefix="interp"
+    [[ "$LOO_MODE" == "true" ]] && jobdir_prefix="interp_loo"
+    job_dir=$(dag_new_jobdir "$jobdir_prefix")
 
     local mhc
     for mhc in "${MHCS[@]}"; do
@@ -294,7 +358,11 @@ getenv = True
 should_transfer_files = NO
 queue
 EOF
-        generate_dag_file "$mhc" "$mp_dir/dag.dag"
+        if [[ "$LOO_MODE" == "true" ]]; then
+            generate_loo_dag_file "$mhc" "$mp_dir/dag.dag"
+        else
+            generate_dag_file "$mhc" "$mp_dir/dag.dag"
+        fi
         echo "Generated DAG: $mp_dir/dag.dag"
     done
 
@@ -310,6 +378,13 @@ run_local() {
     read -r -a masspoints <<< "$mp_list"
     local wrapper="$SCRIPT_DIR/scripts/interpolation_wrapper.sh"
     local mp
+
+    if [[ "$LOO_MODE" == "true" ]]; then
+        echo "=== MHc${mhc}: local serial LOO sweep (${#masspoints[@]} mass points) ==="
+        for mp in "${masspoints[@]}"; do "$wrapper" loo "$mhc" "$mp"; done
+        "$wrapper" export_loo "$mhc" -
+        return
+    fi
 
     echo "=== MHc${mhc}: local serial run (${#masspoints[@]} mass points) ==="
     for mp in "${masspoints[@]}"; do "$wrapper" fit_float "$mhc" "$mp"; done
@@ -333,7 +408,7 @@ run_local() {
 echo "============================================================"
 echo "SignalRegionStudyV4 mA-interpolation chain"
 echo "mHc values: ${MHCS[*]}"
-echo "Start from: $START_FROM"
+echo "Mode: $([[ "$LOO_MODE" == "true" ]] && echo "leave-one-out sweep" || echo "standard chain (start from: $START_FROM)")"
 echo "Local: $LOCAL_RUN"
 echo "Dry run: $DRY_RUN"
 echo "============================================================"
