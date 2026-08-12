@@ -72,7 +72,7 @@ def curve_graph(xs, ys, color=None):
     return g
 
 
-def band_graph(xs, ys, err_lo, err_hi=None, color=None):
+def band_graph(xs, ys, err_lo, err_hi=None, color=None, alpha=0.25):
     """Symmetric (err_hi=None -> err_lo used both sides) or asymmetric
     1-sigma band as a filled TGraphAsymmErrors."""
     n = len(xs)
@@ -81,7 +81,7 @@ def band_graph(xs, ys, err_lo, err_hi=None, color=None):
         g.SetPoint(i, xs[i], ys[i])
         hi = err_hi[i] if err_hi is not None else err_lo[i]
         g.SetPointError(i, 0.0, 0.0, err_lo[i], hi)
-    g.SetFillColorAlpha(color if color is not None else _BAND_COLOR, 0.25)
+    g.SetFillColorAlpha(color if color is not None else _BAND_COLOR, alpha)
     g.SetLineWidth(0)
     return g
 
@@ -415,9 +415,7 @@ def plot_yield_loo_grid(mhc, channel, yields, loo, outdir,
                      + ([] if curve is None else list(curve[:, 0])))
             ymin = 0.5 * max(min(all_v), 1e-3)
             ymax = 2.0 * max(all_v)
-            yr = max(20.0, 1.2 * max((100.0 * abs(r)
-                                      for _m, _v, _e, r, _n in pred),
-                                     default=0.0))
+            yr = 50.0   # fixed ratio range; outliers leave the frame
             xlo, xhi = min(all_m) - 3, max(all_m) + 3
 
             canv = dicanvas_with_pulls(
@@ -431,7 +429,7 @@ def plot_yield_loo_grid(mhc, channel, yields, loo, outdir,
             g_curve = None
             if curve is not None:
                 g_band = band_graph(list(xgrid), list(curve[:, 0]),
-                                    list(curve[:, 1]))
+                                    list(curve[:, 1]), alpha=0.35)
                 CMS.cmsObjectDraw(g_band, "E3")
                 keep.append(g_band)
                 g_curve = curve_graph(list(xgrid), list(curve[:, 0]))
@@ -457,10 +455,20 @@ def plot_yield_loo_grid(mhc, channel, yields, loo, outdir,
             lat.SetNDC(True)
             lat.SetTextFont(42)
             lat.SetTextSize(0.036)
-            lat.DrawLatex(0.20, 0.70, f"{channel}, {era}")
+            lat.DrawLatex(0.20, 0.70,
+                          f"{channel}, m_{{H^{{#pm}}}} = {mhc} GeV")
             canv.cd(1).RedrawAxis()
 
             canv.cd(2)
+            if curve is not None:
+                # Model 1-sigma band in relative terms around zero, so the
+                # residuals can be read directly against it.
+                g_rband = band_graph(
+                    list(xgrid), [0.0] * len(xgrid),
+                    list(100.0 * curve[:, 1] / np.maximum(curve[:, 0], 1e-9)),
+                    alpha=0.35)
+                CMS.cmsObjectDraw(g_rband, "E3")
+                keep.append(g_rband)
             ref = ROOT.TLine()
             ref.SetLineStyle(ROOT.kDotted)
             ref.DrawLine(xlo, 0.0, xhi, 0.0)
@@ -476,50 +484,6 @@ def plot_yield_loo_grid(mhc, channel, yields, loo, outdir,
             canv.cd(2).RedrawAxis()
 
             _save(canv, outdir, f"loo_grid.{channel}.{era}")
-
-
-def plot_yield_loo_residuals(mhc, channel, loo, outdir):
-    """One PNG per (channel, period): LOO relative residual vs mA, one
-    colored series per era (filled = usable, open = extrapolation)."""
-    import run_period_utils
-
-    for period, suberas in run_period_utils.RUN_PERIODS.items():
-        # Range from the usable points only — an endpoint extrapolation can
-        # be off by orders of magnitude (its marker just leaves the frame).
-        vals = [100.0 * abs(rec["rel"])
-                for entry in loo.values()
-                for era in suberas
-                for rec in [entry["scalar"].get(channel, {}).get(era)]
-                if rec is not None and not rec.get("extrapolation")]
-        yr = max(20.0, 1.2 * max(vals, default=0.0))
-        xs = sorted(loo)
-        canv = graph_canvas(f"loo_resid_{channel}_{period}", "m_{A} [GeV]",
-                            "(pred - meas) / meas [%]",
-                            min(xs) - 3, max(xs) + 3, -yr, yr, period)
-        leg = CMS.cmsLeg(0.62, 0.90 - 0.045 * len(suberas), 0.90, 0.90,
-                         textSize=0.028)
-        for color, era in zip(PALETTE_LONG, suberas):
-            used, extrap = [], []
-            for mA, entry in sorted(loo.items()):
-                rec = entry["scalar"].get(channel, {}).get(era)
-                if rec is None:
-                    continue
-                tgt = extrap if rec.get("extrapolation") else used
-                tgt.append((mA, 100.0 * rec["rel"]))
-            if used:
-                m, v = zip(*used)
-                g = points_graph(m, v, [0.0] * len(m), color=color)
-                CMS.cmsObjectDraw(g, "P")
-                leg.AddEntry(g, era, "p")
-            if extrap:
-                m, v = zip(*extrap)
-                CMS.cmsObjectDraw(points_graph(m, v, [0.0] * len(m),
-                                               filled=False, color=color), "P")
-        ref = ROOT.TLine()
-        ref.SetLineStyle(ROOT.kDotted)
-        ref.DrawLine(min(xs), 0.0, max(xs), 0.0)
-        canv.RedrawAxis()
-        _save(canv, outdir, f"loo_residuals.{channel}.{period}")
 
 
 def plot_yield_template_closure(cat_key, mp, hist, pred, n_pred, err_pred,

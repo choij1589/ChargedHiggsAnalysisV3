@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Summary plots of the leave-one-out yield closures: overlay every
-point's LOO-predicted window yield on the measured MC yields, and the
-matching relative-residual series — the visual counterpart of the
-loo_uncertainties.json norm tables.
+"""Summary plots of the leave-one-out yield closures — the visual
+counterpart of the loo_uncertainties.json norm tables.
 
-Reads the adopted yields.json (measured) and the 78 per-point
-tests/interpolation/MHc{X}_MA{Y}/yields/yield_closure.json (predictions);
+One two-pad PNG per (channel, era): measured MC yields, the adopted
+full-grid model curve with its 1-sigma band and every point's LOO
+prediction on top; the LOO relative residual (with the model band in
+relative terms) below.
+
+Reads the adopted yields.json + yield_model.json + polynomials.json and
+the 78 per-point tests/interpolation/MHc{X}_MA{Y}/yields/yield_closure.json;
 JSON-only, no sample access. Outputs into
-tests/interpolation/MHc{X}/plots/yields/:
-
-  loo_grid.{channel}.{era}.png        measured vs LOO-predicted N_window
-  loo_residuals.{channel}.{period}.png  LOO (pred-meas)/meas vs mA per era
+tests/interpolation/MHc{X}/plots/yields/loo_grid.{channel}.{era}.png.
 
   python3 plotInterpLOOSummary.py --mhc 130
   python3 plotInterpLOOSummary.py --all
@@ -63,8 +63,7 @@ def plot_one(mhc):
         interp_plot_utils.plot_yield_loo_grid(
             mhc, channel, yields, loo, outdir,
             model=model, polys=polys, predict_yield=predict_yield)
-        interp_plot_utils.plot_yield_loo_residuals(mhc, channel, loo, outdir)
-    print(f"[MHc{mhc}] wrote loo_grid/loo_residuals PNGs to {outdir}")
+    print(f"[MHc{mhc}] wrote loo_grid PNGs to {outdir}")
 
 
 def main():
