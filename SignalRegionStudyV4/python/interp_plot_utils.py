@@ -373,11 +373,13 @@ def plot_yield_residuals(closure, mhc, outdir):
             _save(canv, outdir, f"residuals.{channel}.{period}")
 
 
-def plot_yield_loo_grid(mhc, channel, yields, loo, outdir):
+def plot_yield_loo_grid(mhc, channel, yields, loo, outdir,
+                        model=None, polys=None, predict_yield=None):
     """One PNG per (channel, era): measured window yields (filled black)
     with the leave-one-out predictions at every grid point overlaid (open
-    red; grid-endpoint extrapolations open grey). The visual counterpart
-    of the loo_uncertainties.json norm table."""
+    red; grid-endpoint extrapolations open grey), and — when the adopted
+    model is passed — the full-grid fit curve with its 1-sigma band. The
+    visual counterpart of the loo_uncertainties.json norm table."""
     import run_period_utils
 
     grey = ROOT.TColor.GetColor("#9c9ca1")
@@ -398,26 +400,40 @@ def plot_yield_loo_grid(mhc, channel, yields, loo, outdir):
                 tgt.append((mA, rec["n_pred"], rec["err_pred"]))
             if not meas:
                 continue
-            # Range from the measured points and the usable predictions
-            # only: an endpoint extrapolation can be off by orders of
-            # magnitude and would flatten everything else.
-            all_v = ([v for _m, v, _e in meas]
-                     + [v for _m, v, _e in pred])
             all_m = [m for m, _v, _e in meas]
+            curve = None
+            if predict_yield is not None:
+                xgrid = np.linspace(min(all_m), max(all_m), 150)
+                curve = np.array([predict_yield(model, polys, channel, era, m)
+                                  for m in xgrid])
+            # Range from the measured points, the usable predictions and
+            # the fit curve only: an endpoint extrapolation can be off by
+            # orders of magnitude and would flatten everything else.
+            all_v = ([v for _m, v, _e in meas]
+                     + [v for _m, v, _e in pred]
+                     + ([] if curve is None else list(curve[:, 0])))
             ymin = 0.5 * max(min(all_v), 1e-3)
             ymax = 2.0 * max(all_v)
             canv = graph_canvas(f"loo_{channel}_{era}", "m_{A} [GeV]",
                                 "N_{window}", min(all_m) - 3, max(all_m) + 3,
                                 ymin, ymax, era, logy=True)
-            leg = CMS.cmsLeg(0.55, 0.74, 0.90, 0.88, textSize=0.028)
+            leg = CMS.cmsLeg(0.55, 0.70, 0.90, 0.88, textSize=0.028)
+            g_curve = None
+            if curve is not None:
+                CMS.cmsObjectDraw(band_graph(list(xgrid), list(curve[:, 0]),
+                                             list(curve[:, 1])), "E3")
+                g_curve = curve_graph(list(xgrid), list(curve[:, 0]))
+                CMS.cmsObjectDraw(g_curve, "L")
             m, v, e = zip(*meas)
             g_meas = points_graph(m, v, e)
             CMS.cmsObjectDraw(g_meas, "PE")
             leg.AddEntry(g_meas, "measured MC", "pe")
+            if g_curve is not None:
+                leg.AddEntry(g_curve, "full-grid model", "l")
             if pred:
                 m, v, e = zip(*pred)
                 g_pred = points_graph(m, v, e, filled=False,
-                                      color=_CURVE_COLOR)
+                                      color=_HELD_OUT_COLOR)
                 CMS.cmsObjectDraw(g_pred, "PE")
                 leg.AddEntry(g_pred, "LOO prediction", "pe")
             if pred_ex:

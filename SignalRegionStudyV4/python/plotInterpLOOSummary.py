@@ -48,14 +48,21 @@ def load_loo(mhc, grid):
 
 
 def plot_one(mhc):
+    from fitInterpYieldModel import predict_yield
+
     grid = interpolation_config.study(mhc)["all"]
-    with open(os.path.join(srspaths.interpolation_dir(mhc),
-                           "yields", "yields.json")) as f:
+    yields_dir = os.path.join(srspaths.interpolation_dir(mhc), "yields")
+    with open(os.path.join(yields_dir, "yields.json")) as f:
         yields = json.load(f)["results"]
+    with open(os.path.join(yields_dir, "yield_model.json")) as f:
+        model = json.load(f)["model"]
+    polys, _ = interpolation_config.load_shape_polynomials(mhc)
     loo = load_loo(mhc, grid)
     outdir = srspaths.interpolation_plots_dir(mhc, "yields")
     for channel in interpolation_config.STUDY_CHANNELS:
-        interp_plot_utils.plot_yield_loo_grid(mhc, channel, yields, loo, outdir)
+        interp_plot_utils.plot_yield_loo_grid(
+            mhc, channel, yields, loo, outdir,
+            model=model, polys=polys, predict_yield=predict_yield)
         interp_plot_utils.plot_yield_loo_residuals(mhc, channel, loo, outdir)
     print(f"[MHc{mhc}] wrote loo_grid/loo_residuals PNGs to {outdir}")
 
