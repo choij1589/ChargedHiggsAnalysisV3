@@ -16,7 +16,7 @@ Two fit entry points:
   all tail mA-dependence funnels into the alphas) and an optional 2nd-order
   Chebychev combinatoric background for the SR3Mu pairing variants:
   S(m) = fsig*DCB + (1-fsig)*Chebychev2(c1, c2) — can be flat, matching the
-  observed wrong-pairing plateau (docs/INTERPOLATION.md: expo and Bernstein
+  observed wrong-pairing plateau (docs/interpolation/EXPERIMENTS.md: expo and Bernstein
   backgrounds were tried and rejected). Only SR3Mu_highM carries a
   background: lowM's few-percent continuum is absorbed by the DCB tails
   (channel_has_bkg). A highM point whose fsig reaches

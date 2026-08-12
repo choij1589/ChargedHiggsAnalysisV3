@@ -9,7 +9,7 @@ SR3Mu_lowM, DCB + 2nd-order Chebychev combinatoric background for
 SR3Mu_highM alone (interpolation_config.channel_has_bkg) — lowM's
 few-percent wrong-pairing continuum is absorbed by the DCB tails.
 
-Two-pass structure (part of the adopted method, docs/INTERPOLATION.md):
+Two-pass structure (part of the adopted method, docs/interpolation/EXPERIMENTS.md S5):
 ``--pass floating`` fits nL/nR freely (source of the per-category median
 used to freeze them); ``--pass frozen`` fixes nL/nR to that median, which
 breaks the alpha-n degeneracy and is what the shape polynomials are fitted

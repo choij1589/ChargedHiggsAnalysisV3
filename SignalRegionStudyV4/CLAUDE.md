@@ -46,7 +46,7 @@ templates/{masspoint}/{method}/{era}/{channel}/
 results/json/{BR,xsec}/{era}/limits.{era}[.{channel}].Asymptotic.{method}.json
 tests/interpolation/MHc{X}/                  mA-interpolation chain outputs (fits, polynomials,
                                              closure, yields, shape_deltas, uncertainties.json,
-                                             plots/) — see docs/INTERPOLATION.md
+                                             plots/) — see docs/interpolation/
 ```
 
 The SR3Mu pairing rule: `highM` (higher-mass dimuon pairing) iff
@@ -280,7 +280,9 @@ Values land in `configs/interpolation_uncertainties.json`, keyed by STUDY
 channel (lowM/highM) while the nuisance names use the production channel
 SR3Mu — safe because one datacard holds one mass point.
 
-Full method record and decision history: `docs/INTERPOLATION.md`.
+Full record in `docs/interpolation/`: `WORKFLOW.md` (runbook + decision
+gates), `EXPERIMENTS.md` (every model decision as motivation/setup/
+results/conclusion), `UNCERTAINTY.md` (nuisance rule, values, evidence).
 
 ## Future Phases
 
@@ -292,7 +294,7 @@ hard-assume the template payload is binned histograms beyond the existing
 per-step contracts.
 
 Known limitations of the frozen model, all recorded in
-docs/INTERPOLATION.md:
+docs/interpolation/WORKFLOW.md:
 
 - **Low-mA grid density is the binding constraint.** Below mA ≈ 45 the
   below-Z norm envelopes are 7-19%, driven by MHc115 (15 → 27 → 42) and

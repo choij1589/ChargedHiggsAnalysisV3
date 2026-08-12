@@ -3,7 +3,7 @@
 and export them for the template-production step.
 
 Two closure tests, two correlation models (user requirement,
-docs/INTERPOLATION.md):
+docs/interpolation/UNCERTAINTY.md):
 
   - shape closure (closInterpShapes.py -> closure.json): interpolated vs
     direct-fit x0/sigma_eff at held-out mass points -> scale/res nuisances,

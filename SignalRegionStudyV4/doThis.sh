@@ -51,7 +51,7 @@ done
 #mv samples samples_backup_$(date +%Y%m%d)
 
 # ---------------------------------------------------------------------------
-# Step 1: mA interpolation chain  (docs/INTERPOLATION.md)
+# Step 1: mA interpolation chain  (docs/interpolation/WORKFLOW.md)
 # ---------------------------------------------------------------------------
 # Parametric signal templates at fixed mHc, arbitrary mA, over the FULL
 # baseline grid (78 mass points across seven mHc). Consumes Step 0's shared

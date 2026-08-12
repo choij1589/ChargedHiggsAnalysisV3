@@ -1,5 +1,5 @@
 """Shared constants and helpers for the mA-interpolation chain (production
-successor of the ``test/interpolation`` study; see docs/INTERPOLATION.md for
+successor of the ``test/interpolation`` study; see docs/interpolation/ for
 the method record and decision history).
 
 Adopted configuration (frozen): SR1E2Mu and SR3Mu_lowM = pure DCB;
@@ -23,7 +23,7 @@ import srspaths
 # Study channels: SR3Mu is split into its two dimuon-pairing variants and
 # each variant is interpolated separately over the full mA range (the
 # production pairing rule switches at mA=60; low-mHc points need every mass
-# point constraining both variants — see docs/INTERPOLATION.md).
+# point constraining both variants — see docs/interpolation/EXPERIMENTS.md S4).
 STUDY_CHANNELS = ["SR1E2Mu", "SR3Mu_lowM", "SR3Mu_highM"]
 
 
@@ -38,7 +38,7 @@ def channel_has_bkg(channel):
     support — whose parametrizations oscillated and extrapolated. Fitting
     lowM as a pure DCB and letting its small continuum sit in the tails
     took the worst production chi2/ndf from 154 to 24.5, with
-    chi2_interp ~= chi2_direct everywhere (docs/INTERPOLATION.md).
+    chi2_interp ~= chi2_direct everywhere (docs/interpolation/EXPERIMENTS.md S10).
     SR1E2Mu has a single pairing and no combinatoric background at all.
     """
     return channel == "SR3Mu_highM"
