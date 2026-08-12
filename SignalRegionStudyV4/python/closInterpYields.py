@@ -98,24 +98,34 @@ def main():
                              "(where yield_closure.json and plots are written "
                              "too); measured yields come from the adopted "
                              "yields.json")
+    parser.add_argument("--yield-variant", default=None,
+                        help="yield-model variant test "
+                             f"({'|'.join(sorted(interpolation_config.YIELD_VARIANTS))}); "
+                             "reads the variant yield_model.json and writes "
+                             "closure/plots into the variant tree")
     args = parser.parse_args()
 
     if args.loo_ma is not None and args.masspoints:
         raise ValueError("--loo-ma already selects its single mass point; "
                          "do not combine with --masspoints")
+    if args.yield_variant is not None:
+        interpolation_config.yield_variant_config(args.yield_variant)
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = study["fit"]
+    # Measurements and shapes always come from the adopted tree; only the
+    # model and this step's outputs live in the variant tree.
     yields_dir = os.path.join(srspaths.interpolation_dir(args.mhc), "yields")
-    loo_dir = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
-               if args.loo_ma is not None else None)
-    plot_base = (os.path.join(loo_dir, "plots", "yields")
-                 if loo_dir is not None
-                 else srspaths.interpolation_plots_dir(args.mhc, "yields"))
+    if args.loo_ma is not None:
+        out_base = srspaths.interpolation_loo_dir(args.mhc, args.loo_ma,
+                                                  variant=args.yield_variant)
+    else:
+        out_base = srspaths.interpolation_dir(args.mhc,
+                                              variant=args.yield_variant)
+    plot_base = os.path.join(out_base, "plots", "yields")
 
     with open(os.path.join(yields_dir, "yields.json")) as f:
         yields = json.load(f)["results"]
-    model_path = os.path.join(loo_dir, "yields", "yield_model.json") \
-        if loo_dir is not None else os.path.join(yields_dir, "yield_model.json")
+    model_path = os.path.join(out_base, "yields", "yield_model.json")
     with open(model_path) as f:
         model_payload = json.load(f)
     model = model_payload["model"]
@@ -123,6 +133,11 @@ def main():
         raise RuntimeError(
             f"{model_path} was not produced with --loo-ma {args.loo_ma} "
             f"(meta.loo_ma={model_payload['meta'].get('loo_ma')})")
+    if model_payload["meta"].get("yield_variant") != args.yield_variant:
+        raise RuntimeError(
+            f"{model_path} carries yield_variant="
+            f"{model_payload['meta'].get('yield_variant')!r}, not "
+            f"{args.yield_variant!r}")
     shape_polys, _ = interpolation_config.load_shape_polynomials(
         args.mhc, loo_ma=args.loo_ma)
 
@@ -229,17 +244,15 @@ def main():
             "mhc": args.mhc,
             "fit_ma": fit_ma,
             "loo_ma": args.loo_ma,
+            "yield_variant": args.yield_variant,
             "command": " ".join(sys.argv),
             "date": datetime.datetime.now().isoformat(timespec="seconds"),
         },
         "closure": output,
         "warnings": warnings,
     }
-    if loo_dir is not None:
-        default_out = os.path.join(loo_dir, "yields", "yield_closure.json")
-    else:
-        default_out = os.path.join(yields_dir, "yield_closure.json")
-    outpath = args.output or default_out
+    outpath = args.output or os.path.join(out_base, "yields",
+                                          "yield_closure.json")
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
     with open(outpath, "w") as f:
         json.dump(payload, f, indent=2)

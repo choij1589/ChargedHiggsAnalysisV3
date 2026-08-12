@@ -235,14 +235,19 @@ def export_one(mhc):
 LOO_CHANNELS = list(interpolation_config.STUDY_CHANNELS)
 
 
-def _loo_point_files(mhc, grid):
+def _loo_point_files(mhc, grid, yield_variant=None):
     """{mA: (closure, yield_closure)} from the per-point LOO dirs; a
-    partial sweep is a hard error, never a silently partial envelope."""
+    partial sweep is a hard error, never a silently partial envelope.
+
+    A yield variant only refits the yield model, so the shape closure is
+    still read from the adopted per-point dirs."""
     missing, out = [], {}
     for mA in grid:
         loo_dir = srspaths.interpolation_loo_dir(mhc, mA)
         cpath = os.path.join(loo_dir, "closure.json")
-        ypath = os.path.join(loo_dir, "yields", "yield_closure.json")
+        ypath = os.path.join(
+            srspaths.interpolation_loo_dir(mhc, mA, variant=yield_variant),
+            "yields", "yield_closure.json")
         absent = [p for p in (cpath, ypath) if not os.path.exists(p)]
         if absent:
             missing.extend(absent)
@@ -272,12 +277,12 @@ def _envelope(points, floor, production_only=False):
     return max([floor] + vals), len(vals)
 
 
-def export_loo_one(mhc):
+def export_loo_one(mhc, yield_variant=None):
     """Aggregate the per-point LOO closures of one mHc into
     tests/interpolation/MHc{X}/loo_uncertainties.json."""
     study = interpolation_config.study(mhc)
     grid = study["all"]
-    per_point = _loo_point_files(mhc, grid)
+    per_point = _loo_point_files(mhc, grid, yield_variant)
 
     warnings = []
     shape_detail = {}   # (channel, period) -> {"scale": [...], "res": [...]}
@@ -375,6 +380,7 @@ def export_loo_one(mhc):
             "grid_ma": grid,
             "endpoint_ma": [grid[0], grid[-1]],
             "channels": LOO_CHANNELS,
+            "yield_variant": yield_variant,
             "rules": {
                 "scale": "max(|x0_pred-x0_direct|/sigma_eff_direct) over "
                          "usable LOO points, floor "
@@ -412,8 +418,9 @@ def export_loo_one(mhc):
         },
         "warnings": warnings,
     }
-    outpath = os.path.join(srspaths.interpolation_dir(mhc),
-                           "loo_uncertainties.json")
+    outpath = os.path.join(
+        srspaths.interpolation_dir(mhc, variant=yield_variant),
+        "loo_uncertainties.json")
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
     with open(outpath, "w") as f:
         json.dump(payload, f, indent=2)
@@ -445,7 +452,15 @@ def main():
                              "tests/interpolation/MHc{X}/loo_uncertainties.json "
                              "instead of the sparse-split export; does NOT "
                              "write the consolidated config")
+    parser.add_argument("--yield-variant", default=None,
+                        help="aggregate a yield-model variant's LOO sweep "
+                             "(shape closure still from the adopted tree); "
+                             "--loo only")
     args = parser.parse_args()
+    if args.yield_variant is not None:
+        interpolation_config.yield_variant_config(args.yield_variant)
+        if not args.loo:
+            parser.error("--yield-variant is only defined with --loo")
     if not args.mhc and not args.all:
         parser.error("pass --mhc N and/or --all")
 
@@ -457,7 +472,7 @@ def main():
 
     if args.loo:
         for mhc in mhcs:
-            export_loo_one(mhc)
+            export_loo_one(mhc, args.yield_variant)
         return
 
     consolidated = {}

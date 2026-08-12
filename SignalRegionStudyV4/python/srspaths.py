@@ -163,9 +163,12 @@ def interpolation_plots_dir(mhc, kind, variant=None):
     return os.path.join(interpolation_dir(mhc, variant=variant), "plots", kind)
 
 
-def interpolation_loo_dir(mhc, ma):
+def interpolation_loo_dir(mhc, ma, variant=None):
     """Per-point leave-one-out (LOO) output dir: models refit on the full
     mA grid minus this point, closure evaluated at this point only. The
-    per-mHc aggregate lives in interpolation_dir(mhc)."""
-    return os.path.join(tests_dir(), "interpolation",
-                        f"MHc{int(mhc)}_MA{int(ma)}")
+    per-mHc aggregate lives in interpolation_dir(mhc). variant selects a
+    variant test tree, as in interpolation_dir()."""
+    base = os.path.join(tests_dir(), "interpolation")
+    if variant is not None:
+        base = os.path.join(base, "variants", variant)
+    return os.path.join(base, f"MHc{int(mhc)}_MA{int(ma)}")

@@ -159,6 +159,61 @@ YIELD_ORDERS = {
     "G": YIELD_G_ORDERS,
 }
 
+# ---- Yield-model variant tests -------------------------------------------
+# The adopted yield model fits G(mA) independently per mHc study. The LOO
+# review showed that every large production-pairing residual is a G
+# failure (|dG| up to 23%, |df| <= 8%) and that NO alternative 1D basis
+# fixes it (pol up to 6, log-mA, spline, pchip, linear all tie or lose):
+# the per-mHc grids are simply too coarse at the steep low-mA turn-on
+# (MHc100 has 8 points, MHc115 jumps 15 -> 27 -> 42), so dropping one
+# point makes the cubic swing +-20% with alternating signs.
+#
+#  joint — three changes bundled, all aimed at that failure:
+#    1. G is fitted as ONE surface in (mHc, mA) across all seven studies
+#       and sliced at the study's mHc (the slice of a polynomial surface at
+#       fixed mHc is a polynomial in mA, so the stored record keeps the
+#       adopted logpoly+cov contract). 12 parameters per (period,
+#       total-channel) instead of ~35 for seven independent cubics; the
+#       dense MHc160 grid constrains the low-mA shape of the sparse
+#       studies. LOO >10% failure rate 8.6% -> 3.5%, p90 at mA<=45
+#       16.1% -> 7.7%.
+#    2. The SR3Mu pairing decomposition drops the /fsig division:
+#       S = f_low + f_high, p_high = f_high/S on the measured fractions.
+#       Both forms are exact reparametrizations of (f_low, f_high); the
+#       smoothness test is a wash (helps 0, hurts 1, mixed 13 of 14) and
+#       the one loss is MHc145 Run3 — the origin of the +95% lowM
+#       yield-closure blow-up. Dropping it also decouples the yield model
+#       from the shape chain, which the puredcb shape model requires
+#       (lowM then has no fsig at all).
+#    3. k_era is an F-tested pol0/pol1 in mA (the share carries a real
+#       trend: pol1 cuts its RMS by 1.3-2.2x, slope significances up to
+#       9 sigma) and its quoted error is the SCATTER, not the standard
+#       error of the mean — the adopted std/sqrt(N) understates the
+#       single-point predictive error by sqrt(N) = 2.4-4.8.
+#
+# Outputs land under tests/interpolation/variants/{name}/MHc{X}[_MA{Y}]/;
+# the shape chain is untouched, so shape polynomials are read from the
+# adopted (or per-point LOO) tree.
+YIELD_VARIANTS = {
+    "joint": {"joint_G": True, "pairing_fsig": False, "k_era_orders": [0, 1]},
+}
+
+# Joint-surface basis: total-degree-truncated tensor polynomial in
+# (u, v) = ((mHc - 115)/45, (mA - 70)/70), i <= JOINT_G_MHC_DEGREE,
+# j <= JOINT_G_MA_DEGREE, i + j <= JOINT_G_MA_DEGREE.
+JOINT_G_MHC_DEGREE = 2
+JOINT_G_MA_DEGREE = 4
+JOINT_G_MHC_SCALE = (115.0, 45.0)
+JOINT_G_MA_SCALE = (70.0, 70.0)
+
+
+def yield_variant_config(name):
+    if name not in YIELD_VARIANTS:
+        raise ValueError(f"Unknown yield variant '{name}' "
+                         f"(known: {sorted(YIELD_VARIANTS)})")
+    return YIELD_VARIANTS[name]
+
+
 # Log-space error floor for N_total points, per run period: the observed
 # per-sample normalization scatter (channel-correlated, tracked to the raw
 # skims — upstream sample-production issue, largest in Run3).
@@ -293,6 +348,17 @@ def study(mhc, loo_ma=None):
         raise ValueError(f"mHc={mhc} fit_points {missing} not in the baseline grid {grid}")
     held_out = [ma for ma in grid if ma not in fit_points]
     return {"all": grid, "fit": fit_points, "held_out": held_out}
+
+
+def mhc_grid():
+    """Every mHc that has baseline mass points — the studies the joint
+    yield surface is fitted across."""
+    grid = sorted({int(mp[3:mp.index("_MA")])
+                   for mp in srspaths.masspoints_config()["baseline"]
+                   if mp.startswith("MHc") and "_MA" in mp})
+    if not grid:
+        raise ValueError("No baseline mass points in configs/masspoints.json")
+    return grid
 
 
 def masspoint_name(mA, mhc):

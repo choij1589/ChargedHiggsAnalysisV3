@@ -25,6 +25,7 @@ DRY_RUN=false
 LOCAL_RUN=false
 LOO_MODE=false
 VARIANT=""
+YIELD_VARIANT=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -57,6 +58,10 @@ while [[ $# -gt 0 ]]; do
             VARIANT="$2"
             shift 2
             ;;
+        --yield-variant)
+            YIELD_VARIANT="$2"
+            shift 2
+            ;;
         --help)
             echo "Usage: $0 --mhc N [--mhc N ...] | --all [OPTIONS]"
             echo ""
@@ -75,6 +80,14 @@ while [[ $# -gt 0 ]]; do
             echo "                       variant's categories, then polynomials +"
             echo "                       shape closure, under tests/interpolation/"
             echo "                       variants/NAME/. No yields/deltas/export."
+            echo "  --yield-variant NAME Yield-model variant test (interpolation_config"
+            echo "                       YIELD_VARIANTS: joint). Yield-only leave-one-out"
+            echo "                       sweep: reuses the adopted shape chain and its"
+            echo "                       per-point LOO shape closures, refits only the"
+            echo "                       yield model + yield closure under tests/"
+            echo "                       interpolation/variants/NAME/, then aggregates"
+            echo "                       loo_uncertainties.json there for a head-to-head"
+            echo "                       comparison with the adopted envelopes."
             echo "  --local              Serial execution without condor (insurance for"
             echo "                       local-server condor availability)"
             echo "  --dry-run            Generate DAGs without submitting (condor mode only)"
@@ -110,6 +123,22 @@ if [[ -n "$VARIANT" ]]; then
     case "$VARIANT" in
         nodrop|puredcb) ;;
         *) echo "ERROR: unknown variant '$VARIANT' (known: nodrop, puredcb)"; exit 1 ;;
+    esac
+fi
+
+if [[ -n "$YIELD_VARIANT" ]]; then
+    if [[ "$LOO_MODE" == "true" || -n "$VARIANT" ]]; then
+        echo "ERROR: --yield-variant is its own (yield-only LOO) mode; it does"
+        echo "       not combine with --loo or --variant"
+        exit 1
+    fi
+    if [[ "$START_FROM_SET" == "true" ]]; then
+        echo "ERROR: --start-from does not apply to a --yield-variant test"
+        exit 1
+    fi
+    case "$YIELD_VARIANT" in
+        joint) ;;
+        *) echo "ERROR: unknown yield variant '$YIELD_VARIANT' (known: joint)"; exit 1 ;;
     esac
 fi
 
@@ -398,8 +427,25 @@ generate_loo_dag_file() {
         fi
     done
 
+    # A yield-only variant sweep additionally reuses the adopted sweep's
+    # per-point shape closures, which the aggregation node reads verbatim.
+    local step="loo" extra=""
+    if [[ -n "$YIELD_VARIANT" ]]; then
+        step="loo_yield"
+        extra="--yield-variant $YIELD_VARIANT"
+        local mp_check
+        for mp_check in "${masspoints[@]}"; do
+            if [[ ! -f "$SCRIPT_DIR/tests/interpolation/${mp_check}/closure.json" ]]; then
+                echo "ERROR: missing tests/interpolation/${mp_check}/closure.json" >&2
+                echo "       A --yield-variant sweep reuses the adopted LOO shape" >&2
+                echo "       closures; run './interpolation.sh --loo --mhc $mhc' first." >&2
+                exit 1
+            fi
+        done
+    fi
+
     cat > "$dag_file" << EOF
-# Leave-one-out DAG for MHc${mhc}
+# Leave-one-out DAG for MHc${mhc}${YIELD_VARIANT:+ (yield variant '$YIELD_VARIANT')}
 CONFIG dagman.config
 
 EOF
@@ -407,10 +453,10 @@ EOF
     local mp
     for mp in "${masspoints[@]}"; do
         echo "JOB loo_${mp} jobs.sub" >> "$dag_file"
-        echo "VARS loo_${mp} step=\"loo\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"\" job_request_memory=\"2048\"" >> "$dag_file"
+        echo "VARS loo_${mp} step=\"${step}\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
     done
     echo "JOB export_loo jobs.sub" >> "$dag_file"
-    echo "VARS export_loo step=\"export_loo\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"\" job_request_memory=\"2048\"" >> "$dag_file"
+    echo "VARS export_loo step=\"export_loo\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
 
     echo "" >> "$dag_file"
     echo "# Dependencies" >> "$dag_file"
@@ -424,6 +470,7 @@ submit_condor_dags() {
     jobdir_prefix="interp"
     [[ "$LOO_MODE" == "true" ]] && jobdir_prefix="interp_loo"
     [[ -n "$VARIANT" ]] && jobdir_prefix="interp_variant_${VARIANT}"
+    [[ -n "$YIELD_VARIANT" ]] && jobdir_prefix="interp_yieldvariant_${YIELD_VARIANT}"
     job_dir=$(dag_new_jobdir "$jobdir_prefix")
 
     local mhc
@@ -445,7 +492,7 @@ getenv = True
 should_transfer_files = NO
 queue
 EOF
-        if [[ "$LOO_MODE" == "true" ]]; then
+        if [[ "$LOO_MODE" == "true" || -n "$YIELD_VARIANT" ]]; then
             generate_loo_dag_file "$mhc" "$mp_dir/dag.dag"
         elif [[ -n "$VARIANT" ]]; then
             generate_variant_dag_file "$mhc" "$mp_dir/dag.dag"
@@ -467,6 +514,14 @@ run_local() {
     read -r -a masspoints <<< "$mp_list"
     local wrapper="$SCRIPT_DIR/scripts/interpolation_wrapper.sh"
     local mp
+
+    if [[ -n "$YIELD_VARIANT" ]]; then
+        echo "=== MHc${mhc}: local serial yield-variant '$YIELD_VARIANT' LOO sweep (${#masspoints[@]} mass points) ==="
+        local yextra="--yield-variant $YIELD_VARIANT"
+        for mp in "${masspoints[@]}"; do "$wrapper" loo_yield "$mhc" "$mp" "$yextra"; done
+        "$wrapper" export_loo "$mhc" - "$yextra"
+        return
+    fi
 
     if [[ "$LOO_MODE" == "true" ]]; then
         echo "=== MHc${mhc}: local serial LOO sweep (${#masspoints[@]} mass points) ==="
@@ -512,6 +567,8 @@ echo "SignalRegionStudyV4 mA-interpolation chain"
 echo "mHc values: ${MHCS[*]}"
 if [[ "$LOO_MODE" == "true" ]]; then
     _mode="leave-one-out sweep"
+elif [[ -n "$YIELD_VARIANT" ]]; then
+    _mode="yield-model variant test (yield-only LOO sweep): $YIELD_VARIANT"
 elif [[ -n "$VARIANT" ]]; then
     _mode="fit-model variant test: $VARIANT"
 else
