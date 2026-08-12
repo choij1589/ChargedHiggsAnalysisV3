@@ -12,10 +12,13 @@ minimum-over-categories sigma_eff (user decision 2026-08-13: a step
 slightly ABOVE sigma near a band start is acceptable — the ratio is
 reported, never enforced):
 
-    [15, 20)    0.1  GeV
-    [20, 50)    0.25 GeV
-    [50, 100)   0.5  GeV
-    [100, 155]  1.0  GeV
+    [15, 30)    0.1  GeV
+    [30, 60)    0.25 GeV
+    [60, 100)   0.5  GeV
+    [100, -)    1.0  GeV
+
+(user-fixed edges [15, 30, 60, 100, -]; the open top is the BAND
+definition — the emitted grid is still clipped to [15, max MC mA]).
 
 Every MC mA is an integer and every band step divides integers, so the
 lattice contains all MC points by construction — verified anyway, along
@@ -42,11 +45,12 @@ import interpolation_config
 import srspaths
 from interpolation_config import masspoint_name, parse_ma
 
-# (band lo, band hi, step) in GeV; hi of the last band is inclusive.
-BANDS = [(15.0, 20.0, 0.1),
-         (20.0, 50.0, 0.25),
-         (50.0, 100.0, 0.5),
-         (100.0, 155.0, 1.0)]
+# (band lo, band hi, step) in GeV; hi None = open-ended (clipped by the
+# per-mHc MC range). User-fixed edges: [15, 30, 60, 100, -].
+BANDS = [(15.0, 30.0, 0.1),
+         (30.0, 60.0, 0.25),
+         (60.0, 100.0, 0.5),
+         (100.0, None, 1.0)]
 TICKS_PER_GEV = 20  # 0.05 GeV lattice; every band step is a multiple
 
 
@@ -63,7 +67,8 @@ def build_grid(lo, hi):
     lo_t, hi_t = to_ticks(lo), to_ticks(hi)
     ticks = set()
     for blo, bhi, step in BANDS:
-        blo_t, bhi_t, st_t = to_ticks(blo), to_ticks(bhi), to_ticks(step)
+        blo_t, st_t = to_ticks(blo), to_ticks(step)
+        bhi_t = to_ticks(bhi) if bhi is not None else hi_t
         start = max(blo_t, lo_t)
         stop = min(bhi_t, hi_t)
         if start > stop:
@@ -137,7 +142,7 @@ def main():
                     "ratio reported); range [15, max MC mA] per mHc (no "
                     "extrapolation); MC points are lattice members by "
                     "construction and verified",
-            "bands": [[lo, hi, step] for lo, hi, step in BANDS],
+            "bands": [[lo, hi, step] for lo, hi, step in BANDS],  # hi null = open
             "tick_gev": 1.0 / TICKS_PER_GEV,
             "naming": "p-notation, exact: 90 -> MA90, 90.5 -> MA90p5, "
                       "30.25 -> MA30p25 (interpolation_config."
