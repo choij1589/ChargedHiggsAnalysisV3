@@ -18,6 +18,10 @@ parser.add_argument("--channel", type=str, default="Combined",
 parser.add_argument("--method", type=str, required=True, help="Baseline, ParticleNet")
 parser.add_argument("--blind", action="store_true",
                     help="Collect limits from the {method}_blind template segment")
+parser.add_argument("--signal-source", type=str, default="mc-signal",
+                    choices=["mc-signal", "interp-signal"],
+                    help="Template signal source (interp-signal: the scan "
+                         "grid of configs/grid.json; Baseline only)")
 parser.add_argument("--mode", type=str, default="BR", choices=["BR", "xsec"],
                     help="Limit unit: BR (relative branching ratio, default) or xsec (sigma(pp->ttbar) x B_sig in fb)")
 parser.add_argument("--available-only", action="store_true",
@@ -43,7 +47,20 @@ if args.era not in VALID_ERAS:
 
 _masspoints_config = srspaths.masspoints_config()
 
-if args.method == "Baseline":
+if args.signal_source == "interp-signal":
+    if args.method != "Baseline":
+        raise ValueError("interp-signal templates exist for Baseline only")
+    # The scan grid is the mass-point set; each point resolves to its
+    # template-sharing group seed for path construction.
+    from interpolation_config import masspoint_name
+    MASSPOINTs = [
+        masspoint_name(v, int(key.replace("MHc", "")))
+        for key, entry in sorted(
+            srspaths.grid_config()["grids"].items(),
+            key=lambda kv: int(kv[0].replace("MHc", "")))
+        for v in entry["grid"]
+    ]
+elif args.method == "Baseline":
     MASSPOINTs = _masspoints_config["baseline"]
 elif args.method == "ParticleNet":
     MASSPOINTs = _masspoints_config["particlenet"]
@@ -68,9 +85,19 @@ def _convert(r, mode):
     raise ValueError(f"Unknown mode: {mode}")
 
 
+def _seed_of(masspoint):
+    """Group seed for interp-signal path nesting (identity for mc-signal)."""
+    if args.signal_source != "interp-signal":
+        return None
+    import interpolation_config
+    return interpolation_config.group_seed(masspoint)
+
+
 def parseAsymptoticLimit(masspoint, method, era, channel="Combined", mode="BR", blind=False):
     """Parse asymptotic limits from Combine ROOT output file."""
-    root_file = srspaths.asymptotic_root(masspoint, method, era, channel, blind=blind)
+    root_file = srspaths.asymptotic_root(
+        masspoint, method, era, channel, blind=blind,
+        source=args.signal_source, seed_masspoint=_seed_of(masspoint))
 
     logger.debug(f"Reading limits from: {root_file}")
 
@@ -110,19 +137,27 @@ def parseAsymptoticLimit(masspoint, method, era, channel="Combined", mode="BR", 
 
 
 def masspoint_sort_key(masspoint):
-    """Sort by (MHc, MA), with a stable fallback for unexpected names."""
-    match = re.fullmatch(r"MHc(\d+)_MA(\d+)", masspoint)
-    if match:
-        return (int(match.group(1)), int(match.group(2)), masspoint)
-    return (10**9, 10**9, masspoint)
+    """Sort by (MHc, MA) incl. p-notation, stable fallback otherwise."""
+    try:
+        mhc, ma = srspaths.masspoint_mhc_ma(masspoint)
+        return (mhc, float(ma), masspoint)
+    except (ValueError, IndexError):
+        return (10**9, 10**9.0, masspoint)
 
 
 def discoverAvailableMasspoints(method, era, channel="Combined", blind=False):
     """Discover mass points with existing asymptotic output for the requested mode."""
+    if args.signal_source == "interp-signal":
+        # The grid is the authoritative point list; discovery just filters
+        # by output existence (seed dirs and nested member dirs alike).
+        return [mp for mp in MASSPOINTs if os.path.isfile(
+            srspaths.asymptotic_root(mp, method, era, channel, blind=blind,
+                                     source="interp-signal",
+                                     seed_masspoint=_seed_of(mp)))]
     masspoints = set()
     pattern = os.path.join(
         srspaths.module_dir(), "templates", "*",
-        srspaths.method_segment(method, blind), era, channel,
+        srspaths.method_segment(method, blind), "mc-signal", era, channel,
         "combine_output", "asymptotic",
         "higgsCombine*.AsymptoticLimits.mH120.root",
     )
@@ -183,7 +218,8 @@ if __name__ == "__main__":
         outpath = args.output
     else:
         outpath = srspaths.limits_json(args.era, args.channel, args.method,
-                                       mode=args.mode, blind=args.blind)
+                                       mode=args.mode, blind=args.blind,
+                                       source=args.signal_source)
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
 
     with open(outpath, "w") as f:

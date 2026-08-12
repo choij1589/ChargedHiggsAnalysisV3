@@ -103,8 +103,10 @@ def _compute_paths():
     global OUTPUT_DIR, CACHE_DIR, CACHE_PATH
     fit_channel = getattr(args, "fit_channel", "Combined") or "Combined"
     method_segment = _method_segment(args)
+    source = getattr(args, "signal_source", "mc-signal") or "mc-signal"
     TEMPLATE_DIR = (f"{WORKDIR}/SignalRegionStudyV4/templates/"
-                    f"{args.masspoint}/{method_segment}/{args.era}/{fit_channel}")
+                    f"{args.masspoint}/{method_segment}/{source}/"
+                    f"{args.era}/{fit_channel}")
     FITDIAG_DIR = f"{TEMPLATE_DIR}/combine_output/fitdiag"
     FITDIAG_PATH = (f"{FITDIAG_DIR}/fitDiagnostics."
                     f"{args.masspoint}.{method_segment}.root")
@@ -427,8 +429,9 @@ def discover_channels(f):
 
 def load_subchannel_config(era, channel):
     """Load per-(era, channel) binning, threshold, bg-weights, process list."""
+    source = getattr(args, "signal_source", "mc-signal") or "mc-signal"
     tdir = (f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/"
-            f"{_method_segment(args)}/{era}/{channel}")
+            f"{_method_segment(args)}/{source}/{era}/{channel}")
     binning = json.load(open(f"{tdir}/binning.json"))
     plist = json.load(open(f"{tdir}/process_list.json"))
     category_key = f"{channel}_{era}"

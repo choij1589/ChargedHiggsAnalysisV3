@@ -6,8 +6,14 @@ once, here.
 
 Path layout contract (V4, no binning_suffix level):
     {WORKDIR}/{MODULE_NAME}/samples/{era}/{channel}/{masspoint}/{process}.root
-    {WORKDIR}/{MODULE_NAME}/templates/{masspoint}/{method}/{era}/{channel}/
+    {WORKDIR}/{MODULE_NAME}/templates/{masspoint}/{method}/{source}/{era}/{channel}/
     {WORKDIR}/{MODULE_NAME}/results/json/{mode}/{era}/limits....json
+
+source is 'mc-signal' (direct-MC templates; the only source for
+ParticleNet) or 'interp-signal' (parametric signal from the
+mA-interpolation surfaces, Baseline only). interp-signal group members
+nest under their group seed's dir:
+    .../templates/{seed}/Baseline/interp-signal/{era}/{channel}/points/{member}/
 
 Unblind (real data) is the V4 default. A blinded (Asimov) run writes
 "{method}_blind" as the method segment, so blind and unblind artifacts can
@@ -100,30 +106,73 @@ def sample_dir(era, channel, masspoint, method):
                         shared_channel_dirname(channel, masspoint=masspoint))
 
 
-def template_dir(masspoint, method, era, channel, blind=False):
+SIGNAL_SOURCES = ("mc-signal", "interp-signal")
+
+
+def _check_source(source):
+    if source not in SIGNAL_SOURCES:
+        raise ValueError(f"unknown signal source {source!r} "
+                         f"(expected one of {SIGNAL_SOURCES})")
+    return source
+
+
+def template_dir(masspoint, method, era, channel, blind=False,
+                 source="mc-signal"):
+    """templates/{mp}/{method_segment}/{source}/{era}/{channel}.
+
+    source: 'mc-signal' (direct-MC signal templates, the default and the
+    only source for ParticleNet) or 'interp-signal' (parametric signal
+    from the mA-interpolation surfaces; Baseline only). For an
+    interp-signal GROUP MEMBER, the masspoint here is the group SEED —
+    member outputs nest under it via interp_member_dir."""
     return os.path.join(
         module_dir(), "templates", masspoint,
-        method_segment(method, blind), era, channel
+        method_segment(method, blind), _check_source(source), era, channel
     )
 
 
-def asymptotic_root(masspoint, method, era, channel, blind=False):
+def interp_member_dir(seed_masspoint, member_masspoint, era, channel,
+                      blind=False):
+    """Template dir of an interp-signal group member: nested under the
+    seed's dir, which holds the group's shared background templates.
+    The seed itself lives directly in template_dir (source-level)."""
     return os.path.join(
-        template_dir(masspoint, method, era, channel, blind),
-        "combine_output", "asymptotic",
+        template_dir(seed_masspoint, "Baseline", era, channel, blind,
+                     source="interp-signal"),
+        "points", member_masspoint)
+
+
+def asymptotic_root(masspoint, method, era, channel, blind=False,
+                    source="mc-signal", seed_masspoint=None):
+    """The AsymptoticLimits output ROOT file. Filenames are unchanged
+    from the 4-segment era (mc-signal artifacts stay byte-identical);
+    the source only moves the directory. For an interp-signal member,
+    pass its seed so the path nests correctly."""
+    if seed_masspoint is not None and seed_masspoint != masspoint:
+        base = interp_member_dir(seed_masspoint, masspoint, era, channel,
+                                 blind)
+    else:
+        base = template_dir(masspoint, method, era, channel, blind, source)
+    return os.path.join(
+        base, "combine_output", "asymptotic",
         f"higgsCombine.{masspoint}.{method_segment(method, blind)}."
         "AsymptoticLimits.mH120.root"
     )
 
 
-def limits_json(era, channel, method, mode="BR", blind=False):
+def limits_json(era, channel, method, mode="BR", blind=False,
+                source="mc-signal"):
     """Collected-limits JSON path. Combined is the default channel and gets
-    no channel infix."""
+    no channel infix. mc-signal keeps the legacy filename (existing
+    results and the V3 comparator stay valid); interp-signal gets a
+    source token so the two scans never collide."""
     channel_infix = "" if channel == "Combined" else f".{channel}"
+    source_infix = "" if _check_source(source) == "mc-signal" \
+        else f".{source}"
     return os.path.join(
         module_dir(), "results", "json", mode, era,
         f"limits.{era}{channel_infix}.Asymptotic."
-        f"{method_segment(method, blind)}.json"
+        f"{method_segment(method, blind)}{source_infix}.json"
     )
 
 

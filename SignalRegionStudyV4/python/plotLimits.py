@@ -30,6 +30,10 @@ parser.add_argument("--method", type=str, required=True, help="Baseline, Particl
 parser.add_argument("--limit_type", type=str, default="Asymptotic",
                     choices=["Asymptotic"], help="Limit type (Asymptotic only in V4)")
 parser.add_argument("--blind", action="store_true", help="Hide observed limit (for blinded results)")
+parser.add_argument("--signal-source", type=str, default="mc-signal",
+                    choices=["mc-signal", "interp-signal"],
+                    help="Which collected-limits JSON to read (interp-signal: "
+                         "the scan-grid collection; Baseline only)")
 parser.add_argument("--stack_baseline", action="store_true", help="Show baseline expected limit on top (only for ParticleNet method)")
 parser.add_argument("--mhc", type=int, default=None,
                     help="Plot only this MHc value. Baseline defaults to 160 when omitted; ParticleNet uses all trained points when omitted.")
@@ -149,8 +153,12 @@ def _filter_by_mhc(limits_dict, mhc_value):
 
 _json_dir = f"results/json/{args.mode}/{args.era}"
 
+_source_infix = "" if args.signal_source == "mc-signal" \
+    else f".{args.signal_source}"
+
 if args.method == "Baseline":
-    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.Baseline.json") as f:
+    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}"
+              f".Baseline{_source_infix}.json") as f:
         limits = json.load(f)
 
     if args.compare_mhc:

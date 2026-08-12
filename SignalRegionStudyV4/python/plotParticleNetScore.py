@@ -147,7 +147,7 @@ reference_channel = "SR1E2Mu" if is_combined_channel else args.channel
 # For combined eras/channels, BASEDIR points to reference era/channel (used for config loading)
 BASEDIR = f"{WORKDIR}/SignalRegionStudyV4/samples/{reference_era}/{reference_channel}/{args.masspoint}"
 # Output to ParticleNet template directory
-OUTDIR = f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/{METHOD_SEGMENT}/{args.era}/{args.channel}"
+OUTDIR = f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/{METHOD_SEGMENT}/mc-signal/{args.era}/{args.channel}"
 
 # Always generate validation plots
 VALIDATION_OUTDIR = f"{OUTDIR}/scores"
@@ -179,7 +179,7 @@ def run_period_for_era(era):
 def template_dir(era, channel):
     return (
         f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/"
-        f"{METHOD_SEGMENT}/{era}/{channel}"
+        f"{METHOD_SEGMENT}/mc-signal/{era}/{channel}"
     )
 
 

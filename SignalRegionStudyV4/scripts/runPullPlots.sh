@@ -22,6 +22,8 @@ ERA=""
 CHANNEL=""
 MASSPOINT=""
 METHOD="Baseline"
+SIGNAL_SOURCE="mc-signal"
+SEED=""
 PULL_FIT="b"
 BLIND=false
 DRY_RUN=false
@@ -36,6 +38,8 @@ while [[ $# -gt 0 ]]; do
         --method)        METHOD="$2";        shift 2 ;;
         --pull-fit)      PULL_FIT="$2";      shift 2 ;;
         --blind)         BLIND=true;         shift ;;
+        --signal-source) SIGNAL_SOURCE="$2"; shift 2 ;;
+        --seed)          SEED="$2";          shift 2 ;;
         --dry-run)       DRY_RUN=true;       shift ;;
         --verbose)       VERBOSE=true;       shift ;;
         -h|--help)
@@ -71,7 +75,11 @@ esac
 # Template directory (V4 layout: templates/{masspoint}/{method}/{era}/{channel})
 METHOD_SEGMENT="$METHOD"
 [[ "$BLIND" == true ]] && METHOD_SEGMENT="${METHOD}_blind"
-TEMPLATE_DIR="$SRS_MODULE_DIR/templates/${MASSPOINT}/${METHOD_SEGMENT}/${ERA}/${CHANNEL}"
+TEMPLATE_DIR="$(srs_template_dir "$MASSPOINT" "$METHOD_SEGMENT" "$SIGNAL_SOURCE" "$ERA" "$CHANNEL")"
+# interp-signal group members nest under their seed
+if [[ -n "$SEED" && "$SEED" != "$MASSPOINT" ]]; then
+    TEMPLATE_DIR="$(srs_template_dir "$SEED" "$METHOD_SEGMENT" "$SIGNAL_SOURCE" "$ERA" "$CHANNEL")/points/$MASSPOINT"
+fi
 FITDIAG_DIR="${TEMPLATE_DIR}/combine_output/fitdiag"
 
 if [[ ! -d "$FITDIAG_DIR" ]]; then

@@ -62,6 +62,15 @@ srs_method_segment() {
     fi
 }
 
+# Template directory (mirrors srspaths.template_dir; 5-segment layout).
+# Usage: srs_template_dir MASSPOINT METHOD_SEGMENT SOURCE ERA CHANNEL
+#   SOURCE: mc-signal | interp-signal
+# An interp-signal group MEMBER nests under its seed:
+#   $(srs_template_dir SEED SEG interp-signal ERA CH)/points/MEMBER
+srs_template_dir() {
+    echo "$SRS_MODULE_DIR/templates/$1/$2/$3/$4/$5"
+}
+
 # Interpolation production dirs for one mHc (mirror
 # srspaths.interpolation_fits_dir / interpolation_closure_dir).
 # Usage: srs_interp_fits_dir 160 / srs_interp_closure_dir 160

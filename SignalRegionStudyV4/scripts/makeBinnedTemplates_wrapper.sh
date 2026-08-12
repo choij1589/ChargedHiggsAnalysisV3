@@ -59,6 +59,10 @@ if [[ "$EXTRA_ARGS" == *"--blind"* ]]; then
     METHOD_SEGMENT="${METHOD}_blind"
 fi
 
+# Signal-source segment (5-segment layout). This wrapper drives the
+# direct-MC chain; interp-signal jobs go through interp_templates_wrapper.sh.
+SIGNAL_SOURCE="mc-signal"
+
 # Setup environment for KNU cluster using cvmfs
 setup_environment() {
     srs_setup_cmssw
@@ -183,8 +187,8 @@ run_template_local() {
         --method "$METHOD" $EXTRA_ARGS
 
     # Copy output back to scratch
-    local local_output="$local_workdir/$SRS_MODULE_NAME/templates/$MASSPOINT/$METHOD_SEGMENT/$ERA/$CHANNEL"
-    local scratch_output="$SCRATCH_WORKDIR/$SRS_MODULE_NAME/templates/$MASSPOINT/$METHOD_SEGMENT/$ERA/$CHANNEL"
+    local local_output="$local_workdir/$SRS_MODULE_NAME/templates/$MASSPOINT/$METHOD_SEGMENT/$SIGNAL_SOURCE/$ERA/$CHANNEL"
+    local scratch_output="$SCRATCH_WORKDIR/$SRS_MODULE_NAME/templates/$MASSPOINT/$METHOD_SEGMENT/$SIGNAL_SOURCE/$ERA/$CHANNEL"
 
     if [[ -d "$local_output" ]]; then
         echo ""
