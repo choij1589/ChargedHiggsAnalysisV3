@@ -35,7 +35,6 @@ import os
 import sys
 
 import numpy as np
-from scipy import stats
 
 import interp_plot_utils
 import interpolation_config
@@ -198,8 +197,7 @@ def k_value(tot, era, mA):
     return float(np.polyval(np.asarray(rec["coeffs"]), mA)) / total
 
 
-def fit_totals(yields, period, eras, fit_ma, warnings, orders,
-               joint_data, mhc):
+def fit_totals(yields, period, eras, fit_ma, warnings, joint_data, mhc):
     """Total sub-model of one run period: per total-channel G + k_era."""
     floor = interpolation_config.REL_YIELD_ERR_FLOOR[period]
     # The period sum averages the eras' independent sample normalizations.
@@ -336,8 +334,8 @@ def main():
         model["fractions"][period], merged = fit_fractions(
             yields, period, list(eras), fit_ma, warnings, orders)
         model["totals"][period] = fit_totals(
-            yields, period, list(eras), fit_ma, warnings, orders,
-            joint_data=joint_data, mhc=args.mhc)
+            yields, period, list(eras), fit_ma, warnings, joint_data,
+            args.mhc)
         merged_by_period[period] = merged
 
     for period in model["fractions"]:

@@ -25,7 +25,7 @@ import numpy as np
 from math import sqrt
 
 from template_utils import (
-    categorize_systematics, parse_variations, get_output_tree_name, calculate_weight_scale,
+    categorize_systematics, get_output_tree_name, calculate_weight_scale,
 )
 
 # Argument parsing
@@ -59,7 +59,7 @@ if not WORKDIR:
 
 # Add path to Common/Tools for plotter imports
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
-from plotter import ComparisonCanvas, EnergyInfo, get_CoM_energy, get_era_list, LumiInfo
+from plotter import ComparisonCanvas, EnergyInfo, get_CoM_energy, LumiInfo
 from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
 
@@ -153,7 +153,7 @@ OUTDIR = f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/{METHOD_SEGM
 VALIDATION_OUTDIR = f"{OUTDIR}/scores"
 
 if is_combined_era:
-    logging.info(f"Combined era mode: loading from per-era histograms")
+    logging.info("Combined era mode: loading from per-era histograms")
     logging.info(f"Reference era for config: {reference_era}")
 else:
     logging.info(f"Input directory: {BASEDIR}")

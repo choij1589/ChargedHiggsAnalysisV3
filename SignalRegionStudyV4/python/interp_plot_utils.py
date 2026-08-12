@@ -20,7 +20,7 @@ import numpy as np
 import ROOT
 import cmsstyle as CMS
 
-from plotter import EnergyInfo, LumiInfo, PALETTE_LONG, get_CoM_energy
+from plotter import LumiInfo, PALETTE_LONG, get_CoM_energy
 
 ROOT.gROOT.SetBatch(True)
 

@@ -1,13 +1,13 @@
 #!/bin/bash
 # SignalRegionStudyV4 runbook.
 #
-# Rewritten from scratch 2026-08-12. It carries ONLY the two steps that are
-# currently verified against the new SKNanoOutput production (the one that
-# added Events_ElectronRecoSF_{Up,Down}): preprocessing and the mA
-# interpolation chain. Everything else - binned templates, datacards,
-# validation, limits, plots, the V3 comparison - is parked verbatim in
-# archive/doThis.sh and comes back one step at a time, only after it has been
-# re-run and checked against this production.
+# Rewritten 2026-08-12 (interpolation model frozen). It carries ONLY the steps
+# verified against the current SKNanoOutput production (the one that added
+# Events_ElectronRecoSF_{Up,Down}): preprocessing and the mA interpolation
+# chain. Everything else - binned templates, datacards, validation, limits,
+# plots, the V3 comparison - is parked verbatim in archive/doThis.sh and comes
+# back one step at a time, only after it has been re-run and checked against
+# this production.
 #
 # Unblind is the default. Layout: templates/{masspoint}/{method}/{era}/{channel}.
 
@@ -53,32 +53,59 @@ done
 # ---------------------------------------------------------------------------
 # Step 1: mA interpolation chain  (docs/INTERPOLATION.md)
 # ---------------------------------------------------------------------------
-# Parametric signal templates at fixed mHc, arbitrary mA. Per-mHc condor DAG:
-#   shape fits (floating -> frozen) -> polynomials -> shape closure
-#                                   -> window yields -> yield model -> yield closure
-#                                   -> shape-syst deltas -> delta model
-# with both closures feeding the derived-uncertainty export. Runs over the FULL
-# baseline grid for that mHc (78 mass points across all seven), not just the
-# fit anchors - the anchors in configs/interpolation.json are a closure-study
-# device; in production every model is refit over the full grid.
-# Consumes Step 0's shared signals only (no backgrounds), and needs both SR3Mu
-# pairing variants for every point. Outputs: tests/interpolation/MHc{X}/.
+# Parametric signal templates at fixed mHc, arbitrary mA, over the FULL
+# baseline grid (78 mass points across seven mHc). Consumes Step 0's shared
+# signals only (no backgrounds) and needs both SR3Mu pairing variants for
+# every point. Outputs: tests/interpolation/.
 #
-# Smoke first. MHc145 is the smallest grid that also exercises the
-# known-missing-sample branch (82 nodes, ~30 min wall). Gate on it before
-# committing to the full campaign: polynomials.json must carry nL and nR in
-# every category, and closure.json must have non-empty per-category records -
-# an empty closure.json is the silent failure mode, it still exits 0.
-#./automize/interpolation.sh --mhc 145
+# ===========================================================================
+# THE CHAIN IS NO LONGER SEVEN INDEPENDENT PER-mHc RUNS.
+#
+# Every mA dependence - each shape parameter, and the yield model's G and
+# k_era - is ONE surface in (mHc, mA) fitted across all seven studies and
+# sliced at each study's mHc. So:
+#
+#   * `polynomials` reads EVERY study's fits/dcb_fits.json
+#   * `yield_model` reads EVERY study's yields/yields.json
+#
+# A single-mHc run cannot get past `polynomials`: it raises FileNotFoundError
+# naming the study it is missing. That is deliberate - the alternative is a
+# surface silently fitted on a subset. Run the passes below instead, each one
+# fully finished before the next is submitted.
+# ===========================================================================
 
-# Full grid (538 nodes across seven mHc), then the derived nuisance sizes:
-#./automize/interpolation.sh --all
-#python3 python/exportInterpUncertainties.py --all
+# Pass 1 - per-point DCB fits, floating then frozen-n (~170 nodes).
+./automize/interpolation.sh --all --stop-after fit-frozen
 
-# Resume a partially-finished study at a named step (fit-floating, fit-frozen,
-# polynomials, closure, yields, yield-model, yield-closure, deltas, export).
-# Note closure and yields share a level, so either re-runs both:
-#./automize/interpolation.sh --mhc 160 --start-from polynomials
+# Pass 2 - shape surfaces, shape closure, window yields (~180 nodes).
+# The surfaces are fitted here, which is why pass 1 must be complete.
+./automize/interpolation.sh --all --start-from polynomials --stop-after yields
+
+# Pass 3 - yield model, yield closure, shape-systematic deltas (~190 nodes).
+./automize/interpolation.sh --all --start-from yield-model
+
+# Leave-one-out sweep: 78 nodes, each refitting BOTH surfaces without one
+# point and closing shape+yield at that point. This is where the uncertainties
+# come from - the full-grid closures above are in-sample. It only needs the
+# fits and yields, so it may run in parallel with pass 3.
+./automize/interpolation.sh --loo --all
+
+# Derived nuisance sizes + the production config. JSON-only, seconds, login
+# node is fine.
+python3 python/exportInterpUncertainties.py --loo --all --pooled --write-config
+
+# Global plots: the surfaces (seven slices per panel with each study's points)
+# and the nuisance rule (per-study rms vs mHc, adopted value, pooled rms).
+python3 python/plotInterpSurfaces.py --all
+python3 python/plotInterpNuisances.py
+
+# --- recovery ---------------------------------------------------------------
+# Resume a pass at a named step (fit-floating, fit-frozen, polynomials,
+# closure, yields, yield-model, yield-closure, deltas). closure and yields
+# share a level, so either re-runs both. Nodes outside
+# [--start-from, --stop-after] are emitted but marked DONE, so the dependency
+# graph stays intact:
+#./automize/interpolation.sh --mhc 160 --start-from yield-model
 
 # If a sharded stage was interrupted, merge what its jobs did produce before
 # re-running anything downstream of it:
@@ -89,9 +116,28 @@ done
 # passes -f and interferes with the rescue:
 #cd condor/jobs_interp_<ts>/MHc145 && condor_submit_dag dag.dag
 
-# Reviewing configs/interpolation_uncertainties.json: check the n_points field
-# (a per-era norm envelope resting on 3 points is thin) and any > 0.10
-# warnings. On Run3 those are expected - the known upstream per-sample yield
-# scatter, absorbed deliberately by the max envelope. On Run2 they instead
-# flag a sparse fit-grid gap in the steep phase-space fall, and may argue for
-# adding a fit anchor there in configs/interpolation.json.
+# Check a campaign really succeeded - "the DAG finished" is not the same as
+# "it worked", and an export node failing at the end is easy to miss:
+#grep -h "EXITING WITH STATUS" condor/jobs_interp_<ts>/MHc*/dag.dag.dagman.out
+
+# --- reviewing the result ---------------------------------------------------
+# configs/interpolation_uncertainties.json. One rule for all three families:
+# the rms WITHIN each mHc study, then the MAX across studies holding >= 2 mass
+# points, floored by the pooled rms and then by an absolute floor (scale 0.02,
+# res 0.01, norm 0.01). Nothing carries an mHc dependence; norm alone is
+# binned in mA at 15/80/100/155.
+#
+# What to look at, in order:
+#   * per_study_detail[cell].driver - which study set the value, and
+#     per_study_rms for how far the others sit below it. A cell driven by one
+#     study with a sparse low-mA grid (MHc115, MHc130) is the grid talking,
+#     not the model.
+#   * studies_below_min_points - studies skipped for holding < 2 points.
+#   * n_points - a cell resting on very few points is flagged in warnings.
+#   * any value sitting EXACTLY on its floor: the floor is then setting the
+#     number rather than catching a degenerate cell, and wants revisiting.
+#     With the frozen model none of them is active.
+#   * warnings for empty-but-reachable mA bins; those inherit the channel's
+#     worst populated bin (never the bare floor) and say so.
+# Run3 norm cells above 10% are expected - the known upstream per-sample yield
+# scatter, which is the REFERENCE's error, not the model's.

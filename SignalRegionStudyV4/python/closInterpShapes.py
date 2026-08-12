@@ -35,7 +35,7 @@ import ROOT
 
 import interpolation_config
 import srspaths
-from interpolation_config import (ALL_PARAM_ORDER, BKG_PARAMS, PARAM_CEILINGS,
+from interpolation_config import (ALL_PARAM_ORDER, PARAM_CEILINGS,
                                   PARAM_FLOORS, masspoint_name)
 
 from dcb_fit_utils import (bkg_components, build_model,

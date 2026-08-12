@@ -9,7 +9,6 @@ import os
 import shutil
 import logging
 import argparse
-import json
 from collections import OrderedDict
 import ROOT
 import numpy as np
@@ -418,7 +417,7 @@ def getOptimizedThreshold(scores_sig, weights_sig, scores_bkg, weights_bkg):
     initial_sensitivity = sensitivities[0]
     max_sensitivity = sensitivities[best_idx]
 
-    logging.info(f"Threshold optimization:")
+    logging.info("Threshold optimization:")
     logging.info(f"  Best threshold: {best_threshold:.3f}")
     logging.info(f"  Initial sensitivity (no cut): {initial_sensitivity:.3f}")
     logging.info(f"  Max sensitivity: {max_sensitivity:.3f}")

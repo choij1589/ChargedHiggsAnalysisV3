@@ -241,7 +241,6 @@ def fit_surface(mhc, mA, values, errors, degrees, slice_at):
 # per-sample normalization scatter (channel-correlated, tracked to the raw
 # skims — upstream sample-production issue, largest in Run3).
 REL_YIELD_ERR_FLOOR = {"Run2": 0.02, "Run3": 0.08}
-FRACTION_LOGERR_FLOOR = 0.005   # log-space floor for f_window points
 
 # Numerical guards when building a DCB(+Chebychev2) from interpolated
 # parameters. c1/c2 are clipped to the direct-fit bounds (dcb_fit_utils

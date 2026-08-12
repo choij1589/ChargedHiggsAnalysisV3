@@ -29,9 +29,7 @@ import subprocess
 import ROOT
 
 from template_utils import (
-    parse_variations,
     iter_shape_variations,
-    calculate_weight_scale,
     ensure_directory,
     categorize_systematics,
 )
