@@ -293,17 +293,42 @@ def period_token(period):
     return {"Run2": "13TeV", "Run3": "13p6TeV"}[period]
 
 
-def interp_nuisance_names(prod_channel, period, era=None):
+# The norm envelope is binned in mA and POOLED over mHc. Two reasons:
+# with the joint (mHc, mA) yield surface the model is one global object,
+# so its error is a property of the plane rather than of a study; and a
+# per-study max is not an estimator once mA is binned (53% of split cells
+# hold <= 2 points, and MHc70/MHc130 hold NONE in [60, 80) — MHc130's grid
+# jumps 55 -> 83 and MHc70's only point there is a grid endpoint).
+# Edges 15 / 60 / 120 / 155 split the grid into below-Z, on-Z and above-Z:
+# [60, 120) brackets the Z pole at 91.2 GeV, 60 is also the SR3Mu
+# production pairing switch, and 155 is the largest mA in the baseline
+# grid. The last bin is closed; an mA outside [15, 155] is an error rather
+# than a silent extra bin.
+NORM_MA_BINS = (("belowZ", 15.0, 60.0),
+                ("onZ", 60.0, 120.0),
+                ("aboveZ", 120.0, 155.0))
+
+
+def norm_ma_bin(mA):
+    """mA -> norm-uncertainty bin label."""
+    for label, lo, hi in NORM_MA_BINS:
+        if lo <= mA < hi or (hi == NORM_MA_BINS[-1][2] and mA == hi):
+            return label
+    raise ValueError(f"mA={mA} falls outside NORM_MA_BINS {NORM_MA_BINS}")
+
+
+def interp_nuisance_names(prod_channel, period, era=None, ma_bin=None):
     """Scale/res nuisance names are correlated within a run period; norm is
-    decorrelated between eras. Pass era=None for scale/res, an era string
-    for norm."""
+    decorrelated between eras and between mA bins. Pass era=None for
+    scale/res, an era string (and the point's ma_bin) for norm."""
     tok = period_token(period)
     names = {
         "scale": f"CMS_interp_scale_{prod_channel}_{tok}",
         "res": f"CMS_interp_res_{prod_channel}_{tok}",
     }
     if era is not None:
-        names["norm"] = f"CMS_interp_norm_{prod_channel}_{era}"
+        suffix = f"_{ma_bin}" if ma_bin is not None else ""
+        names["norm"] = f"CMS_interp_norm_{prod_channel}_{era}{suffix}"
     return names
 
 

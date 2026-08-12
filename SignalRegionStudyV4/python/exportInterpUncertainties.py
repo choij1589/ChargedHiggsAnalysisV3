@@ -277,9 +277,11 @@ def _envelope(points, floor, production_only=False):
     return max([floor] + vals), len(vals)
 
 
-def export_loo_one(mhc, yield_variant=None):
-    """Aggregate the per-point LOO closures of one mHc into
-    tests/interpolation/MHc{X}/loo_uncertainties.json."""
+def _collect_loo_points(mhc, yield_variant=None):
+    """Per-point LOO records of one mHc, before any envelope is taken.
+
+    Returns (shape_detail, norm_detail, grid, warnings); every record
+    carries mA and production_pairing so the caller can slice."""
     study = interpolation_config.study(mhc)
     grid = study["all"]
     per_point = _loo_point_files(mhc, grid, yield_variant)
@@ -340,6 +342,15 @@ def export_loo_one(mhc, yield_variant=None):
                     **base, "excluded": None,
                     "value": abs(rec["sigma_eff_pred"]
                                  / rec["sigma_eff_direct"] - 1.0)})
+
+    return shape_detail, norm_detail, grid, warnings
+
+
+def export_loo_one(mhc, yield_variant=None):
+    """Aggregate the per-point LOO closures of one mHc into
+    tests/interpolation/MHc{X}/loo_uncertainties.json."""
+    shape_detail, norm_detail, grid, warnings = _collect_loo_points(
+        mhc, yield_variant)
 
     def blocks(production_only):
         scale, res, norm, n_points = {}, {}, {}, {"scale": {}, "res": {}, "norm": {}}
@@ -439,6 +450,206 @@ def export_loo_one(mhc, yield_variant=None):
         print(f"  warning: {w}")
 
 
+# A max over one or two points is not an envelope; say so rather than
+# quoting it as if it were measured.
+MIN_ENVELOPE_POINTS = 3
+
+
+def _reachable(study_channel, bin_label):
+    """Can any baseline mass point in this mA bin use this study channel as
+    its production pairing? The SR3Mu rule (highM iff mHc>=100 and mA>=60)
+    makes e.g. highM/belowZ impossible, so no nuisance is owed there."""
+    for mp in srspaths.masspoints_config()["baseline"]:
+        if not mp.startswith("MHc") or "_MA" not in mp:
+            continue
+        mA = float(mp[mp.index("_MA") + 3:])
+        if interpolation_config.norm_ma_bin(mA) != bin_label:
+            continue
+        if study_channel == "SR1E2Mu":
+            return True
+        if interpolation_config.study_channel_for("SR3Mu", mp) == study_channel:
+            return True
+    return False
+
+
+def export_loo_pooled(mhcs, yield_variant=None):
+    """Pool every study's LOO points and bin the norm envelope in mA.
+
+    The norm nuisance is keyed (channel, era, mA bin) with NO mHc
+    dependence: the joint yield surface is one global model, so its error
+    belongs to the (mHc, mA) plane rather than to a study, and a per-study
+    max stops being an estimator once mA is binned (most split cells hold
+    only a point or two).
+
+    scale/res are pooled the same way and reported for reference only —
+    the shape parametrizations are still fitted per study, so the per-mHc
+    loo_uncertainties.json files stay authoritative for them.
+    """
+    shape_all = {}     # (channel, period) -> {"scale": [], "res": []}
+    norm_all = {}      # (channel, era, ma_bin) -> [records]
+    warnings, grids = [], {}
+    for mhc in mhcs:
+        shape_detail, norm_detail, grid, warn = _collect_loo_points(
+            mhc, yield_variant)
+        grids[mhc] = grid
+        warnings.extend(f"[MHc{mhc}] {w}" for w in warn)
+        for key, slot in shape_detail.items():
+            dst = shape_all.setdefault(key, {"scale": [], "res": []})
+            for kind in ("scale", "res"):
+                dst[kind].extend({**p, "mhc": mhc} for p in slot[kind])
+        for (channel, era), pts in norm_detail.items():
+            for p in pts:
+                bin_label = interpolation_config.norm_ma_bin(p["mA"])
+                norm_all.setdefault((channel, era, bin_label), []).append(
+                    {**p, "mhc": mhc})
+
+    def norm_block(production_only):
+        floor = interpolation_config.UNCERTAINTY_NORM_FLOOR
+        out, counts, spread = {}, {}, {}
+        for (channel, era, bin_label), pts in norm_all.items():
+            usable = [p for p in pts if p.get("excluded") is None
+                      and (p["production_pairing"] or not production_only)]
+            key = f"{channel}/{era}/{bin_label}"
+            counts[key] = len(usable)
+            if not usable:
+                continue
+            out.setdefault(channel, {}).setdefault(era, {})[bin_label] = \
+                1.0 + max([floor] + [p["value"] for p in usable])
+            # How much does pooling cost? Per-mHc maxima inside this cell.
+            per_mhc = {}
+            for p in usable:
+                per_mhc[p["mhc"]] = max(per_mhc.get(p["mhc"], 0.0), p["value"])
+            spread[key] = {f"MHc{m}": v for m, v in sorted(per_mhc.items())}
+        # An empty cell is either structurally unreachable (the pairing rule
+        # means no production point can land there) or a genuine coverage
+        # hole. The first needs no nuisance at all; the second must not
+        # silently take the floor, so it inherits the channel's worst
+        # populated bin and is flagged.
+        for (channel, era, bin_label) in sorted(norm_all):
+            if out.get(channel, {}).get(era, {}).get(bin_label) is not None:
+                continue
+            key = f"{channel}/{era}/{bin_label}"
+            if production_only and not _reachable(channel, bin_label):
+                spread[key] = {"unreachable": "no production point of this "
+                                              "channel lies in this mA bin"}
+                continue
+            populated = out.get(channel, {}).get(era, {})
+            if not populated:
+                continue
+            value = max(populated.values())
+            out[channel][era][bin_label] = value
+            spread[key] = {"fallback_from": sorted(populated)}
+            warnings.append(
+                f"[norm/{key}] no usable LOO point in this mA bin; "
+                f"falling back to the channel's worst populated bin "
+                f"({value - 1.0:.3f})")
+        for key, n in counts.items():
+            if 0 < n < MIN_ENVELOPE_POINTS and production_only:
+                warnings.append(
+                    f"[norm/{key}] envelope rests on {n} point(s); a max over "
+                    f"fewer than {MIN_ENVELOPE_POINTS} is not an envelope")
+        return out, counts, spread
+
+    def shape_block(production_only):
+        scale, res, counts = {}, {}, {}
+        for (channel, period), pts in shape_all.items():
+            v, n = _envelope(pts["scale"],
+                             interpolation_config.UNCERTAINTY_SCALE_FLOOR,
+                             production_only)
+            scale.setdefault(channel, {})[period] = v
+            counts[f"scale/{channel}/{period}"] = n
+            v, n = _envelope(pts["res"],
+                             interpolation_config.UNCERTAINTY_RES_FLOOR,
+                             production_only)
+            res.setdefault(channel, {})[period] = v
+            counts[f"res/{channel}/{period}"] = n
+        return scale, res, counts
+
+    norm, n_norm, spread = norm_block(production_only=False)
+    pnorm, pn_norm, pspread = norm_block(production_only=True)
+    scale, res, n_shape = shape_block(production_only=False)
+    pscale, pres, pn_shape = shape_block(production_only=True)
+
+    for channel, per_era in pnorm.items():
+        for era, per_bin in per_era.items():
+            for bin_label, v in per_bin.items():
+                if v - 1.0 > interpolation_config.UNCERTAINTY_NORM_WARN:
+                    warnings.append(
+                        f"[norm/{channel}/{era}/{bin_label}] pooled envelope "
+                        f"{v - 1.0:.3f} exceeds the "
+                        f"{interpolation_config.UNCERTAINTY_NORM_WARN:g} warn "
+                        "threshold")
+
+    names = {}
+    for channel, per_era in pnorm.items():
+        prod = interpolation_config.production_channel(channel)
+        for era, per_bin in per_era.items():
+            period = interpolation_config.period_of(era)
+            for bin_label in per_bin:
+                n = interpolation_config.interp_nuisance_names(
+                    prod, period, era=era, ma_bin=bin_label)
+                names.setdefault(channel, {}).setdefault(era, {})[
+                    bin_label] = n["norm"]
+
+    payload = {
+        "meta": {
+            "strategy": "leave-one-out, POOLED over mHc; the norm envelope "
+                        "is binned in mA",
+            "mhc_pooled": sorted(mhcs),
+            "grid_ma": {f"MHc{m}": g for m, g in sorted(grids.items())},
+            "channels": LOO_CHANNELS,
+            "yield_variant": yield_variant,
+            "norm_ma_bins": [[lab, lo, hi] for lab, lo, hi in
+                             interpolation_config.NORM_MA_BINS],
+            "rules": {
+                "norm": "max(|N_pred/N_meas-1|) over usable LOO points per "
+                        "(channel, era, mA bin), pooled over mHc, floor "
+                        f"{interpolation_config.UNCERTAINTY_NORM_FLOOR}, "
+                        f"warn above {interpolation_config.UNCERTAINTY_NORM_WARN}",
+                "scale_res": "pooled over mHc for reference only — the shape "
+                             "parametrizations are still per-study, so the "
+                             "per-mHc loo_uncertainties.json files remain "
+                             "authoritative",
+                "excluded": "extrapolation (grid endpoints), non-good direct "
+                            "fit (shape only), missing records",
+                "empty_bins": "a (channel, era, mA bin) with no usable point "
+                              "takes the channel's worst populated bin and is "
+                              "listed in warnings — never the bare floor",
+            },
+            "command": " ".join(sys.argv),
+            "date": datetime.datetime.now().isoformat(timespec="seconds"),
+        },
+        "norm": norm,
+        "scale": scale, "res": res,
+        "nuisances": {"norm": names},
+        "n_points": {"norm": n_norm, **n_shape},
+        "per_mhc_maxima": spread,
+        "production_restricted": {
+            "norm": pnorm, "scale": pscale, "res": pres,
+            "n_points": {"norm": pn_norm, **pn_shape},
+            "per_mhc_maxima": pspread,
+        },
+        "warnings": warnings,
+    }
+    outdir = srspaths.interpolation_dir(variant=yield_variant)
+    outpath = os.path.join(outdir, "loo_uncertainties.pooled.json")
+    os.makedirs(outdir, exist_ok=True)
+    with open(outpath, "w") as f:
+        json.dump(payload, f, indent=2)
+    print(f"Wrote {outpath}")
+    print("  pooled norm envelopes (production pairing), % :")
+    for channel in sorted(pnorm):
+        for era in sorted(pnorm[channel]):
+            row = ", ".join(
+                f"{b}={100*(pnorm[channel][era][b] - 1.0):.1f}"
+                f"({pn_norm.get(f'{channel}/{era}/{b}', 0)})"
+                for b in sorted(pnorm[channel][era]))
+            print(f"    {channel:<12} {era:<12} {row}")
+    for w in warnings:
+        print(f"  warning: {w}")
+    return payload
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mhc", type=int, help="compute for one mHc")
@@ -456,6 +667,11 @@ def main():
                         help="aggregate a yield-model variant's LOO sweep "
                              "(shape closure still from the adopted tree); "
                              "--loo only")
+    parser.add_argument("--pooled", action="store_true",
+                        help="with --loo: also pool every study's LOO points "
+                             "and write loo_uncertainties.pooled.json, whose "
+                             "norm envelope is binned in mA and carries NO "
+                             "mHc dependence (needs every mHc)")
     args = parser.parse_args()
     if args.yield_variant is not None:
         interpolation_config.yield_variant_config(args.yield_variant)
@@ -473,7 +689,13 @@ def main():
     if args.loo:
         for mhc in mhcs:
             export_loo_one(mhc, args.yield_variant)
+        if args.pooled:
+            if not args.all:
+                parser.error("--pooled needs every study; pass --all")
+            export_loo_pooled(mhcs, args.yield_variant)
         return
+    if args.pooled:
+        parser.error("--pooled is only defined with --loo")
 
     consolidated = {}
     inputs_meta = {}
