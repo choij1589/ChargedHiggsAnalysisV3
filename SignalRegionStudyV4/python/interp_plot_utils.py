@@ -574,3 +574,97 @@ def plot_shape_delta_series(key, syst, model_key, outdir):
             lat.DrawLatex(0.20, 0.83, f"{key}  {syst}")
             canv.RedrawAxis()
             _save(canv, outdir, f"deltas.{key}.{syst}.{quantity}".replace("|", "_"))
+
+
+# ------------------------------------------------------ (mHc, mA) surfaces
+
+def plot_surface_slices(title, xtitle, ytitle, per_mhc, outdir, name,
+                        period_or_era, logy=False):
+    """One curve per mHc study plus that study's measured points.
+
+    The readable way to show a (mHc, mA) surface to a physicist: seven
+    slices over a common mA axis, each with its own points in the matching
+    colour, so the borrowing across studies is visible directly.
+
+    per_mhc: {mhc: {"curve": (xs, ys), "points": (xs, ys, yerrs)}}
+    """
+    xs_all, ys_all = [], []
+    for block in per_mhc.values():
+        xs_all += list(block["curve"][0])
+        ys_all += list(block["curve"][1])
+        ys_all += list(block["points"][1])
+    if not ys_all:
+        return
+    lo, hi = min(ys_all), max(ys_all)
+    pad = 0.10 * (hi - lo) if hi > lo else max(abs(hi), 1.0) * 0.1
+    ymin, ymax = (max(lo * 0.5, 1e-6), hi * 2.0) if logy else (lo - pad,
+                                                               hi + pad * 2)
+    canv = graph_canvas(name, xtitle, ytitle, min(xs_all) - 2,
+                        max(xs_all) + 2, ymin, ymax, period_or_era, logy=logy)
+    leg = CMS.cmsLeg(0.62, 0.60, 0.92, 0.90, textSize=0.028)
+    keep = []
+    for i, mhc in enumerate(sorted(per_mhc)):
+        color = PALETTE_LONG[i % len(PALETTE_LONG)]
+        cx, cy = per_mhc[mhc]["curve"]
+        g = curve_graph(list(cx), list(cy), color=color)
+        CMS.cmsObjectDraw(g, "L")
+        px, py, pe = per_mhc[mhc]["points"]
+        keep.append(g)
+        if len(px):
+            gp = points_graph(list(px), list(py), list(pe), color=color)
+            CMS.cmsObjectDraw(gp, "PE")
+            keep.append(gp)
+            leg.AddEntry(gp, f"m_{{H^{{#pm}}}} = {mhc} GeV", "pe")
+        else:
+            leg.AddEntry(g, f"m_{{H^{{#pm}}}} = {mhc} GeV", "l")
+    lat = ROOT.TLatex()
+    lat.SetNDC(True)
+    lat.SetTextFont(42)
+    lat.SetTextSize(0.030)
+    lat.DrawLatex(0.16, 0.90, title)
+    canv.RedrawAxis()
+    _save(canv, outdir, name)
+
+
+def plot_nuisance_cell(channel, era, regions, outdir):
+    """The rms-then-max rule made visible for one (channel, era).
+
+    Per mA region: each study's rms as a point against mHc, the adopted
+    value as a solid line and the pooled rms dashed, so it is obvious which
+    study set the nuisance and how far the others sit below it.
+    """
+    have = [r for r in regions if regions[r].get("per_study_rms")]
+    if not have:
+        return
+    all_v = [v for r in have for v in regions[r]["per_study_rms"].values()]
+    all_v += [regions[r]["value"] for r in have]
+    canv = graph_canvas(f"nuis_{channel}_{era}", "m_{H^{#pm}} [GeV]",
+                        "relative yield deviation", 60, 170, 0.0,
+                        1.35 * max(all_v), era)
+    leg = CMS.cmsLeg(0.16, 0.66, 0.55, 0.90, textSize=0.028)
+    keep = []
+    for i, region in enumerate(have):
+        color = PALETTE_LONG[i % len(PALETTE_LONG)]
+        block = regions[region]
+        mh = sorted(int(k.replace("MHc", ""))
+                    for k in block["per_study_rms"])
+        ys = [block["per_study_rms"][f"MHc{m}"] for m in mh]
+        gp = points_graph(mh, ys, [0.0] * len(mh), color=color)
+        CMS.cmsObjectDraw(gp, "P")
+        adopted = curve_graph([60, 170], [block["value"]] * 2, color=color)
+        CMS.cmsObjectDraw(adopted, "L")
+        pooled = curve_graph([60, 170], [block["pooled_rms"]] * 2, color=color)
+        pooled.SetLineStyle(2)
+        CMS.cmsObjectDraw(pooled, "L")
+        keep += [gp, adopted, pooled]
+        leg.AddEntry(gp, f"{region}: {100 * block['value']:.1f}% "
+                         f"(driver {block['driver']})", "p")
+    lat = ROOT.TLatex()
+    lat.SetNDC(True)
+    lat.SetTextFont(42)
+    lat.SetTextSize(0.028)
+    lat.DrawLatex(0.16, 0.94, f"{channel}  {era}   "
+                              "solid = adopted (max over studies), "
+                              "dashed = pooled rms")
+    canv.RedrawAxis()
+    _save(canv, outdir, f"norm.{channel}.{era}")

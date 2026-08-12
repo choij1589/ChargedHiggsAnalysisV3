@@ -228,44 +228,83 @@ frozen outputs.
 
 ## mA Interpolation Chain
 
-Production-graduated development chain for parametric signal templates
-(fixed mHc, arbitrary mA): per-point DCB(+Chebychev2) fits →
-`fitInterpShapes.py` (floating/frozen-n passes) → shape parametrizations
-`fitInterpPolynomials.py` → shape closure `closInterpShapes.py`; window
-yields `measInterpYields.py` → yield model `fitInterpYieldModel.py` →
-yield closure `closInterpYields.py`; shape-systematic deltas
-`measInterpShapeDeltas.py` → `fitInterpShapeDeltas.py`; derived nuisance
-sizes `exportInterpUncertainties.py`. Config: `configs/interpolation.json`
-(mass-point fit/held-out splits), constants in `python/interpolation_config.py`.
-One-liner driver: `automize/interpolation.sh --mhc N|--all
-[--start-from STEP] [--local] [--dry-run]` (condor DAG; `--local` for
-serial execution). Outputs under `tests/interpolation/MHc{X}/`; merge any
-sharded stage with `python3 python/mergeInterpResults.py --mhc N --stage
+Parametric signal templates at fixed mHc and arbitrary mA. Chain:
+per-point DCB fits `fitInterpShapes.py` (floating/frozen-n passes) →
+shape surfaces `fitInterpPolynomials.py` → shape closure
+`closInterpShapes.py`; window yields `measInterpYields.py` → yield model
+`fitInterpYieldModel.py` → yield closure `closInterpYields.py`;
+shape-systematic deltas `measInterpShapeDeltas.py` →
+`fitInterpShapeDeltas.py`; derived nuisance sizes
+`exportInterpUncertainties.py`. Constants in
+`python/interpolation_config.py`; `configs/interpolation.json` now holds
+only `known_missing_samples` (the mHc list comes from `mhc_grid()`).
+
+**Production model (frozen 2026-08-12, no variant flags):** pure DCB for
+SR1E2Mu and SR3Mu_lowM, DCB+Chebychev2 for SR3Mu_highM alone
+(`channel_has_bkg`). Every shape parameter, plus the yield model's `G`
+and `k_era`, is ONE surface in (mHc, mA) fitted across all seven studies
+and sliced at the study's mHc — the slice of a surface is a polynomial,
+so the stored records and every downstream consumer are unchanged.
+Interpolation is **in mA only**.
+
+**Two cross-study barriers**: `polynomials` reads every study's
+`dcb_fits.json` and `yield_model` every study's `yields.json`. A rebuild
+therefore runs in three passes, each fully complete before the next:
+
+```bash
+./automize/interpolation.sh --all --stop-after fit-frozen
+./automize/interpolation.sh --all --start-from polynomials --stop-after yields
+./automize/interpolation.sh --all --start-from yield-model
+./automize/interpolation.sh --loo --all
+python3 python/exportInterpUncertainties.py --loo --all --pooled --write-config
+python3 python/plotInterpSurfaces.py --all      # global surface plots
+python3 python/plotInterpNuisances.py           # nuisance-rule plots
+```
+
+Outputs under `tests/interpolation/MHc{X}/` (per study),
+`tests/interpolation/MHc{X}_MA{Y}/` (leave-one-out) and
+`tests/interpolation/plots/` (global). Merge any sharded stage with
+`python3 python/mergeInterpResults.py --mhc N --stage
 {fits-floating,fits,closure,yields,yield-closure,shape-deltas}`.
 
-Uncertainties are **derived from the closure tests**, not assumed:
-`exportInterpUncertainties.py` takes the max envelope over held-out
-points — scale/res per (channel, run period), correlated within a period
-(`CMS_interp_{scale,res}_{ch}_{13TeV,13p6TeV}`), and norm per
-(channel, era), decorrelated between eras (`CMS_interp_norm_{ch}_{era}`)
-— into `configs/interpolation_uncertainties.json`.
+Uncertainties are **derived from the leave-one-out closures**, not
+assumed, by one rule for all three families: the rms WITHIN each mHc
+study, then the MAX across studies holding at least 2 mass points,
+floored by the cell's pooled rms and then by an absolute floor (scale
+0.02, res 0.01, norm 0.01). Nothing carries an mHc dependence — the rule
+already pools studies and both models are global surfaces. norm alone is
+binned in mA at 15/80/100/155
+(`CMS_interp_norm_{ch}_{era}_{belowZ|onZ|aboveZ}`); scale/res stay per
+(channel, run period) (`CMS_interp_{scale,res}_{ch}_{13TeV,13p6TeV}`).
+Values land in `configs/interpolation_uncertainties.json`, keyed by STUDY
+channel (lowM/highM) while the nuisance names use the production channel
+SR3Mu — safe because one datacard holds one mass point.
 
-Mass-point splits are fit anchors only; held-out = full baseline grid −
-anchors, computed at runtime. **The splits are a closure-study device: in
-production every model is refit over the full grid.** Full method record,
-decision history and the ordered next-step list: `docs/INTERPOLATION.md`.
+Full method record and decision history: `docs/INTERPOLATION.md`.
 
 ## Future Phases
 
-Next: run the seven mHc studies (MHc70–130 signals still need
-preprocessing; MHc145/160 must be re-run under the new anchors), review
-the derived uncertainties, then graduate the interpolation template
-producer behind a `srspaths.template_dir` method segment, consuming
+Next: graduate the interpolation template producer behind a
+`srspaths.template_dir` method segment, consuming
 `configs/interpolation_uncertainties.json` and declaring the nuisances via
-`printDatacard.py`'s `extra_systematics*.json` hook. See
-docs/INTERPOLATION.md "Next steps" for the ordered list. Nothing in V4 may
+`printDatacard.py`'s `extra_systematics*.json` hook. Nothing in V4 may
 hard-assume the template payload is binned histograms beyond the existing
 per-step contracts.
+
+Known limitations of the frozen model, all recorded in
+docs/INTERPOLATION.md:
+
+- **Low-mA grid density is the binding constraint.** Below mA ≈ 45 the
+  below-Z norm envelopes are 7-19%, driven by MHc115 (15 → 27 → 42) and
+  MHc130 (15 → 30 → 55). No functional form fixes this — every basis
+  tried fails there identically. One extra MC point in each of those gaps
+  would do more than any further model work.
+- **No mHc interpolation.** The surfaces are better-constrained models AT
+  the seven measured mHc; predicting an unmeasured study from the other
+  six is a 4% median / 18% p90 yield error.
+- **Closure pulls are uncalibrated** — the assumed 1% Run2 G error is far
+  below the ~5% surface residual. The exported envelopes use relative
+  residuals and are unaffected.
 
 ## Troubleshooting
 

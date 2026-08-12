@@ -7,6 +7,24 @@ modeling). The chain now lives in production (`python/`, `scripts/`,
 study is frozen under `test/archive/interpolation/` (untracked scratch by
 convention). This document is the durable record.
 
+## Production model (frozen 2026-08-12)
+
+The state a reader should assume everywhere below unless a section says
+otherwise. Full evidence for each line is in the decision history.
+
+| piece | model |
+|---|---|
+| SR1E2Mu, SR3Mu_lowM | pure DCB, frozen per-category nL/nR |
+| SR3Mu_highM | fsig·DCB + (1−fsig)·Chebychev₂ |
+| shape vs mA | one (mHc, mA) surface per parameter across all seven studies, sliced at the study's mHc; fsig in logit space |
+| yield | N = k_era · G_period(mA) · f_category(mA); G and k_era are (mHc, mA) surfaces, f is per-study with f_SR3Mu = S·p on raw fractions |
+| uncertainties | rms within each study, then max across studies; norm binned in mA at 15/80/100/155; no mHc dependence in any family |
+| interpolation range | **mA only**, at the seven measured mHc |
+
+Two cross-study barriers follow from the surfaces: `polynomials` reads
+every study's fits and `yield_model` every study's yields, so a rebuild
+runs in three passes (`automize/interpolation.sh --stop-after`).
+
 ## Graduated layout (2026-08-11)
 
 The method-development study below (`test/interpolation/`, now frozen
@@ -147,47 +165,62 @@ Per merged run-period category — 6 in total,
 
 - SR1E2Mu: pure double-sided Crystal Ball (DCB) — one dimuon pairing,
   no combinatorics.
-- SR3Mu_lowM / SR3Mu_highM:
-  `S(m) = fsig · DCB(m) + (1 − fsig) · Chebychev₂(m; c1, c2)` — the
-  pairing picks the wrong (combinatoric) dimuon in a mass-dependent
-  fraction of events, producing a near-flat pedestal under the peak that
-  only a shape that *can be flat* describes.
+- SR3Mu_lowM: **pure DCB** as well (adopted 2026-08-12). Both pairings
+  pick a combinatoric dimuon, but lowM's continuum is only a few percent
+  and is absorbed by the DCB tails; modelling it explicitly required a
+  per-point drop/pin rule that made the category *mixed* and broke the
+  parametrizations (see the decision history).
+- SR3Mu_highM:
+  `S(m) = fsig · DCB(m) + (1 − fsig) · Chebychev₂(m; c1, c2)` — here the
+  pairing picks the wrong (combinatoric) dimuon in 5–45% of events,
+  producing a near-flat pedestal under the peak that only a shape that
+  *can be flat* describes.
 - **Frozen tails**: nL/nR fixed per category to the median of the good
   floating-n fits (two-pass: floating-n campaign first, then the
   frozen-n refit). This breaks the α–n degeneracy — with n floating,
   each mass point lands elsewhere in the α–n valley and no smooth
   parametrization can follow.
-- **Background drop**: points where fsig >
-  `FSIG_DROP_THRESHOLD` (0.995) refit as pure DCB — unconstrained
-  background parameters otherwise inflate every error and de-weight the
-  low-mA anchors of the parametrizations. Such points anchor the fsig
-  parametrization at 1 (pinned at logit(1 − 10⁻³) with a fixed
-  logit-space error `FSIG_LOGIT_ANCHOR_SIGMA`); their c1/c2 carry zero
-  error and drop out. The same threshold governs the closure-side model
-  build.
+- **No background drop.** `FSIG_DROP_THRESHOLD` (0.995) survives only as
+  a warn-only sanity check: a highM fit that reaches it has no resolvable
+  background and something has changed. It never fired across all 156
+  highM fits of the seven studies. The old rule — refit such a point as a
+  pure DCB and pin fsig = 1 — is what made lowM a mixed category.
 - Two-stage fit structure (wide pre-fit sets a ±10σ window) identical to
   the production `fit_dcb`; `fit_dcb_with_errors` remains a verbatim
   mirror of production (frozen reproduction contract),
   `fit_dcb_bkg` is the study's generalized fit.
 
-**Parametrization vs mA** (`fit_polynomials.py`; forms/orders in
-`interp_config.POLY_ORDERS`):
+**Parametrization: one (mHc, mA) surface per parameter** (adopted
+2026-08-12, `fitInterpPolynomials.py`). Every shape parameter is fitted
+as a single error-weighted surface across **all seven mHc studies** and
+sliced at the study's mHc:
 
-| parameter | form |
+| aspect | choice |
 |---|---|
-| x0 | pol1 (fixed) |
-| sigmaL, sigmaR | pol2 (fixed; common form — both widths arise from the same two-muon resolution convolution) |
-| alphaL, alphaR | **up-only F-test ladder [2,3]**: pol2 minimum, pol3 where the data demand it (p < 0.05) |
-| nL, nR | frozen per category (constant records) |
-| fsig | polynomial in **logit space** (F-test ladder pol2–5): bounded in (0,1) like the earlier logistic but able to **turn over** — the true fsig rises past the plateau and falls again as mA → mHc, where the two OS pairings converge and the combinatoric pair re-enters the window. Anchor points (fsig = 1) pinned at logit(1 − 10⁻³); linear-space polynomial fallback below 5 points |
-| c1, c2 | **up-only F-test ladder [2,3]** (as α) |
+| basis | total-degree-truncated tensor polynomial in the scaled coordinates ((mHc−115)/45, (mA−70)/70), mHc degree ≤ 2, total degree ≤ 4 (`SHAPE_SURFACE_DEGREES`) — 12 coefficients |
+| space | linear for x0/σ/α/c1/c2; **logit** for fsig (bounded in (0,1) and able to turn over as mA → mHc, where the pairings converge and the combinatoric pair re-enters the window) |
+| nL, nR | frozen per category (constant records), median of that study's floating-n fits |
+| weights | 1/error, good-quality fits only, `MIN_REL_PARAM_ERROR` guard against collapsed Hesse errors |
 
-Error-weighted fits over the study's fit points (good-quality fits
-only); **uniform mA range** for both SR3Mu variants — production uses
-highM only above the mA = 60 pairing boundary, but at lower mHc (e.g.
-MHc130) that region holds too few MC points, so every mass point
-constrains both variants. Single-entry order lists fix the order;
-multi-entry lists engage an F-test ladder (step up accepted at p < 0.05).
+Interpolation remains **in mA only**: the surface is a better-constrained
+model *at* the seven measured mHc, not a licence to interpolate between
+them (leaving a whole study out and predicting it from the other six is a
+4% median / 18% p90 yield error).
+
+Because the slice of a polynomial surface at fixed mHc is itself a
+polynomial in mA, `polynomials.json` keeps the plain coeffs+cov record and
+**nothing downstream had to change** — `eval_param`, `interp_window`, both
+closures, the shape-delta chain and the template producer all still work
+on the sliced records. `joint_design`/`slice_surface`/`fit_surface` live in
+`interpolation_config` and are shared with the yield chain.
+
+**Uniform mA range** for both SR3Mu variants: production uses highM only
+above the mA = 60 pairing boundary, but at lower mHc (e.g. MHc130) that
+region holds too few MC points, so every mass point constrains both.
+
+Practical consequence: `polynomials` reads every study's `dcb_fits.json`,
+a cross-study barrier the per-mHc DAGs do not express. Use
+`automize/interpolation.sh --stop-after` to run the chain in passes.
 
 **Mass-point splits** (`interp_config.STUDIES`):
 
@@ -280,16 +313,19 @@ quantity with a physical reason to be simple):
   - SR1E2Mu: near-constant peak containment (pol0/1; the ±10σ window
     always holds the peak — measured 0.93–0.97 with a slow rise from
     improving tail containment).
-  - SR3Mu: pure pairing combinatorics, **derived from the shape fit's
-    fsig** instead of fitted freely. Exactly one of the two OS pairings
-    is the true A→μμ pair, so p_low + p_high = 1 and
-    f_low·fsig_low + f_high·fsig_high = S, the shared containment
-    (measured 0.93–1.03 while f_high itself spans a factor ~80).
-    S gets a low-order poly, the pairing probability p_high a
-    logit-space poly (bounded in [0,1]), and
-    f_variant = S · p_variant / fsig_variant with fsig evaluated from
-    the adopted shape polynomials — the sigmoid the old fraction fits
-    struggled with is exactly what fsig already measures.
+  - SR3Mu: pure pairing combinatorics. Exactly one of the two OS pairings
+    is the true A→μμ pair, so p_low + p_high = 1 and S = f_low + f_high
+    is the shared containment (roughly constant while f_high itself spans
+    a factor ~80). S gets a low-order poly, the pairing probability
+    p_high a logit-space poly (bounded in [0,1]), and
+    f_variant = S · p_variant.
+
+    The decomposition is taken on the **raw measured fractions**. It was
+    originally derived from the shape fit's fsig (f_v = S·p_v/fsig_v);
+    both forms are exact reparametrizations of (f_low, f_high), the
+    smoothness test between them is a wash, and the /fsig version
+    coupled the yield model to the shape chain — which pure-DCB lowM
+    cannot support, since lowM has no fsig at all (2026-08-12).
 
 The redesign replaced a first-generation per-era log-poly product
 (`N_total × f_window` per sub-era × channel, orders [1,2,3] × [2,3,4,5];
@@ -488,6 +524,13 @@ carry; `mergeRunPeriodTemplates.py` accepts any `--method` segment.
 | Widened yield ladders (S/G/f_SR1E2Mu +1 order) rejected | F-test took the extra order in 3 places with large in-sample χ² drops (MHc160 Run3 S 22.6/6→1.9/4) but held-out yield closure unchanged (±0.3%) — residuals are per-sample normalization scatter, not model stiffness; G never took pol5 |
 | **Parametric templates validated against direct MC at a held-out point** (MHc160_MA90, four-arm limit comparison) | expected limit −3.5% (A→B0), unchanged for the window/binning shift and for the interpolation nuisances; the −3.5% is a pure normalization effect (yields +1.0/+2.3% Run2, +12.1/+6.6% Run3 — inside the known Run3 sample scatter) with shape L1 ≤ 3.1%. Systematics are carried as fit-function shifts (dm, dsig, dN interpolated in mA); their closure against the target's own MC has median |Δ| ≤ 2e-5 |
 | Positive-definite Bernstein background (deg-2, b₁,b₂ ≥ 0; `bern_fixedn_logitfsig_ftest`) rejected | motivated by rare negative-Chebychev tails (all in production-irrelevant corners; the visible symptom is only a plot-time χ² = nan). Bernstein converges more often (bad direct fits 25→7 at MHc160 floating-n) but describes the combinatoric shape worse where it matters: direct-fit medians degrade in 7/8 SR3Mu categories (lowM_Run2 2.4→4.6 at MHc160) because the positivity bound is active where the data want the Chebychev's freedom, and the b₁=b₂=0 boundary pileup degrades the coefficient-vs-mA interpolation (production-relevant held-out closure MHc160 median 2.46→2.85, worst 6.3→19.8). Negative Chebychev tails are instead rendered inert by the existing `BIN_FLOOR_VALUE` floor at template-construction time |
+
+| **SR3Mu_lowM refit as a pure DCB** (`puredcb`; `nodrop` tested and rejected) | the drop/pin rule made lowM MIXED — 25 of 156 fits pinned at fsig=1 beside free fsig≈0.9 points, c1/c2 with partial mA support — and its fsig/c1/c2 parametrizations oscillated and extrapolated (MHc145_MA35 lowM_Run3: predicted fsig 0.916 where the direct fit is a pure DCB, c1 = −6, χ²/ndf 154). Pure DCB: worst production χ²/ndf 24.5, and χ²_interp ≈ χ²_direct everywhere (24.5 vs 24.3), i.e. interpolation adds nothing on top of the fit model; peak fidelity equal (scale ≤ 0.12 σ_eff, res ≤ 3.6%). Cost: the unmodelled few-% continuum lifts median χ² 2–3 → 4–15. `nodrop` (never pin, honest logit errors) FAILED: at fsig≈1 the logit error is ~1/(p(1−p)) so the polynomial is unconstrained exactly there — MHc130 lowM_Run2 mA15 predicted fsig = 0.05 against a true 0.99999, χ² 45468. **fsig is not an interpolable quantity**: its point fits zigzag 5–13% with claimed errors ±0.3%, DCB-tail degeneracy artifacts |
+| **Yield G(mA) and k_era become (mHc, mA) surfaces** (`joint`) | factorizing the LOO residual showed every large production-pairing miss is a G failure (\|dG\| to 23%, \|df\| ≤ 8%), and that NO alternative 1D basis fixes it — pol up to 6, log-mA, cubic spline, PCHIP and linear all tie or lose against pol[3,4]. It is grid sparsity: MHc100 has 8 points and MHc115 jumps 15 → 27 → 42, so dropping one point swings the cubic ±20% with alternating signs. One surface across all studies (12 parameters against ~35 for seven cubics) takes LOO failures above 10% from 8.6% to 3.5% and the p90 at mA ≤ 45 from 16.1% to 7.7%. k_era likewise: the shares carry a real smooth mHc drift (2018/SR1E2Mu 0.4280 → 0.4346 across mHc) and pooling averages the per-sample noise over 78 points instead of 6–23 — envelopes above 10% 51/152 → 43/152 with 3 coefficients in place of 28 constants. A per-study pol0/pol1 in mA was tried first and is a wash (73 → 75): the gain is the pooling, not the mA freedom |
+| **SR3Mu yield pairing decomposition drops its /fsig division** | S = f_low + f_high and p_high = f_high/S on the raw measured fractions. Both forms are exact reparametrizations of (f_low, f_high); the smoothness test is a wash (helps 0, hurts 1, mixed 13 of 14 datasets) and the one loss is MHc145 Run3, the origin of the +95% lowM yield-closure blow-up. It also decouples the yield model from the shape chain, which pure-DCB lowM cannot support (lowM has no fsig at all) |
+| **Shape parametrizations become (mHc, mA) surfaces too** | same protocol, applied to x0/σL/σR: worst-case scale error halves (0.344 → 0.172 σ_eff), p90 0.064 → 0.045, res p90 0.033 → 0.026. Two controls establish that the gain is the cross-mHc constraint and not extra freedom in mA: giving the 1D per-study fit wider mA orders leaves the scale max at 0.344 and nearly doubles the res max (0.115 → 0.264), while flattening the mHc dependence out of the surface is also worse (scale p90 0.065). A separate check shows the LOO test is fair: denying the surface every point within ±5 GeV in other studies changes nothing (>10% rate 3.5% either way), so it is not reading off a near-duplicate; removing the target's own study entirely degrades it badly (median 4.1%, p90 17.7%), so it does need that study's points. `POLY_ORDERS` and the per-parameter F-test ladders retire with this |
+| **One uncertainty rule for scale/res/norm: rms within each study, then max across studies** | the LOO residuals are unbiased (\|mean\| < 2% in every cell) and Gaussian-like — max/rms lands at 1.8–3.6 against the √(2 ln N) = 1.8–2.9 expected — so the previous plain max was a ~3σ order statistic used as a 1σ lnN width, scaling with how many points a cell happened to hold rather than with model accuracy (one mass point, MHc115_MA27, set 15 of 16 below-Z cells). The plain pooled rms is the right 1σ but hides a real effect: below the Z the per-study rms genuinely varies with mHc (observed spread 69–77% against 41% expected), tracking low-mA grid density — MHc160 samples it every 5 GeV and closes to 2.0%, MHc115/130 have 15–25 GeV gaps and close to 11–18%. rms-inside-a-study means no single mass point sets the value; max-across-studies covers the sparse ones instead of averaging them away. Studies with < 2 mass points in a cell are skipped (a one-point study leaks its outlier straight back in); the pooled rms is the floor |
+| **norm binned in mA at 15/80/100/155, and no family carries an mHc dependence** | binning norm is justified by that consistent, physically traceable below-Z effect; scale/res are NOT binned, because scale's region-to-region variation has no consistent pattern across channels and res sits at its floor everywhere. Dropping mHc is forced once mA is binned — most split cells hold one or two points and some hold none at all — and legitimate because both models are now global surfaces. Effect: the average nuisance a mass point sees falls 20.7% → 15.6%, with SR3Mu_lowM on-Z going 29.1% → 5.3%. `UNCERTAINTY_RES_FLOOR` lowered 0.02 → 0.01, where it was *setting* four of six res cells (measured 0.0124/0.0148/0.0179/0.0191 all pushed to 0.0200) rather than catching degenerate ones; all three floors are now pure safety nets |
 
 Superseded variants' outputs are retained under
 `results/MHc{X}/{fixedn,expo*,cheb,…}` and `plots/archive/`; the
