@@ -104,7 +104,13 @@ SEED_SPACING = [(15.0, 30.0, 0.5),
 
 def build_groups(grid):
     """[(seed, [members incl. seed])] — every grid point in exactly one
-    group, assigned to its nearest seed; per-mHc endpoints always seeds."""
+    group, assigned to its nearest seed; per-mHc endpoints always seeds.
+
+    A group never spans the mA = 60 SR3Mu pairing boundary: members and
+    seed must sit on the same side, because the shared background
+    templates come from the pairing-variant sample dir (lowM vs highM at
+    mHc >= 100) and would be the WRONG samples across it. Enforced for
+    every mHc (harmless below 100, where everything is lowM)."""
     seed_ticks = set()
     for blo, bhi, spacing in SEED_SPACING:
         blo_t, sp_t = to_ticks(blo), to_ticks(spacing)
@@ -117,7 +123,8 @@ def build_groups(grid):
     seeds = sorted(t / TICKS_PER_GEV for t in seed_ticks)
     members = {s: [] for s in seeds}
     for v in grid:
-        members[min(seeds, key=lambda s: (abs(v - s), s))].append(v)
+        candidates = [s for s in seeds if (s >= 60.0) == (v >= 60.0)]
+        members[min(candidates, key=lambda s: (abs(v - s), s))].append(v)
     return [(s, members[s]) for s in seeds if members[s]]
 
 
