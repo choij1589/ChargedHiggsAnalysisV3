@@ -429,6 +429,32 @@ def parse_ma(token):
     return srspaths.parse_ma_token(token)
 
 
+_GROUP_SEED_CACHE = None
+
+
+def group_seed(masspoint):
+    """Template-sharing group seed of a grid point (configs/grid.json).
+
+    Returns the SEED masspoint name; a seed maps to itself. The seed's
+    template dir holds the group's shared background templates; member
+    outputs nest under it (srspaths.interp_member_dir). Raises for a
+    mass point that is not on the scan grid."""
+    global _GROUP_SEED_CACHE
+    if _GROUP_SEED_CACHE is None:
+        _GROUP_SEED_CACHE = {}
+        for key, entry in srspaths.grid_config()["grids"].items():
+            mhc = int(key.replace("MHc", ""))
+            for grp in entry["groups"]:
+                seed_name = masspoint_name(grp["seed"], mhc)
+                for mA in grp["members"]:
+                    _GROUP_SEED_CACHE[masspoint_name(mA, mhc)] = seed_name
+    if masspoint not in _GROUP_SEED_CACHE:
+        raise KeyError(
+            f"{masspoint} is not on the template scan grid "
+            "(configs/grid.json)")
+    return _GROUP_SEED_CACHE[masspoint]
+
+
 def mA_of(masspoint):
     return srspaths.masspoint_mhc_ma(masspoint)[1]
 

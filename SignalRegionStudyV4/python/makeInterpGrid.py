@@ -90,6 +90,37 @@ def sigma_min(polys, mA):
     return min(sigs)
 
 
+# Template-sharing groups: seeds on a regular lattice mirroring the grid
+# bands, coarser where sigma is larger (user-fixed 2026-08-13). The seed's
+# template dir holds the group's shared background templates (built with
+# the SEED's mean/sigma) and hosts validation/GoF/impact jobs; members
+# nest under it (srspaths.interp_member_dir). Worst member peak offset:
+# 1.74 sigma, at the band starts.
+SEED_SPACING = [(15.0, 30.0, 0.5),
+                (30.0, 60.0, 1.0),
+                (60.0, 100.0, 2.0),
+                (100.0, None, 4.0)]
+
+
+def build_groups(grid):
+    """[(seed, [members incl. seed])] — every grid point in exactly one
+    group, assigned to its nearest seed; per-mHc endpoints always seeds."""
+    seed_ticks = set()
+    for blo, bhi, spacing in SEED_SPACING:
+        blo_t, sp_t = to_ticks(blo), to_ticks(spacing)
+        for v in grid:
+            t = to_ticks(v)
+            if blo_t <= t < (to_ticks(bhi) if bhi is not None
+                             else t + 1) and (t - blo_t) % sp_t == 0:
+                seed_ticks.add(t)
+    seed_ticks.update((to_ticks(grid[0]), to_ticks(grid[-1])))
+    seeds = sorted(t / TICKS_PER_GEV for t in seed_ticks)
+    members = {s: [] for s in seeds}
+    for v in grid:
+        members[min(seeds, key=lambda s: (abs(v - s), s))].append(v)
+    return [(s, members[s]) for s in seeds if members[s]]
+
+
 def main():
     grids = {}
     res_check = {}
@@ -123,16 +154,33 @@ def main():
                 raise RuntimeError(
                     f"name round-trip failed: {v} -> {name} -> {back}")
 
-        grids[f"MHc{mhc}"] = {"grid": grid, "mc_points": mc_points}
+        groups = build_groups(grid)
+        gmembers = [v for _s, ms in groups for v in ms]
+        if sorted(gmembers) != grid:
+            raise RuntimeError(f"MHc{mhc}: groups do not partition the grid")
+        worst_off, worst_off_at = 0.0, None
+        for s, ms in groups:
+            for v in ms:
+                r = abs(v - s) / sigma_min(polys, v)
+                if r > worst_off:
+                    worst_off, worst_off_at = r, v
+        grids[f"MHc{mhc}"] = {
+            "grid": grid,
+            "mc_points": mc_points,
+            "groups": [{"seed": s, "members": ms} for s, ms in groups],
+        }
         res_check[f"MHc{mhc}"] = {
             "max_step_over_sigma_min": round(worst, 3),
             "at_mA": worst_at,
+            "max_seed_offset_over_sigma_min": round(worst_off, 3),
+            "offset_at_mA": worst_off_at,
         }
         n_total += len(grid)
         print(f"MHc{mhc}: {len(grid):4d} points "
-              f"({len(mc_points)} MC), range [{min(mc_points)}, "
-              f"{max(mc_points)}], worst step/sigma_min "
-              f"{worst:.2f} at mA={worst_at}")
+              f"({len(mc_points)} MC), {len(groups):3d} groups, "
+              f"range [{min(mc_points)}, {max(mc_points)}], worst "
+              f"step/sigma {worst:.2f} at mA={worst_at}, worst seed "
+              f"offset {worst_off:.2f} sigma at mA={worst_off_at}")
 
     payload = {
         "meta": {
@@ -143,6 +191,13 @@ def main():
                     "extrapolation); MC points are lattice members by "
                     "construction and verified",
             "bands": [[lo, hi, step] for lo, hi, step in BANDS],  # hi null = open
+            "seed_spacing": [[lo, hi, sp] for lo, hi, sp in SEED_SPACING],
+            "grouping": "template-sharing groups: every grid point joins "
+                        "its nearest seed; the seed's template dir holds "
+                        "the shared background templates (built with the "
+                        "seed's mean/sigma) and members nest under it "
+                        "(points/{masspoint}); per-mHc endpoints are "
+                        "always seeds",
             "tick_gev": 1.0 / TICKS_PER_GEV,
             "naming": "p-notation, exact: 90 -> MA90, 90.5 -> MA90p5, "
                       "30.25 -> MA30p25 (interpolation_config."
