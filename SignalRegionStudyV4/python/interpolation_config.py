@@ -185,22 +185,33 @@ YIELD_ORDERS = {
 #       yield-closure blow-up. Dropping it also decouples the yield model
 #       from the shape chain, which the puredcb shape model requires
 #       (lowM then has no fsig at all).
-#    3. k_era is an F-tested pol0/pol1 in mA (the share carries a real
-#       trend: pol1 cuts its RMS by 1.3-2.2x, slope significances up to
-#       9 sigma) and its quoted error is the SCATTER, not the standard
-#       error of the mean — the adopted std/sqrt(N) understates the
-#       single-point predictive error by sqrt(N) = 2.4-4.8.
+#    3. k_era becomes a PLANE in (mHc, mA) (the total-degree truncation
+#       keeps 1, mHc, mA — three coefficients), pooled across all seven
+#       studies and sliced at the study's mHc, replacing four constants
+#       per study. The era shares carry a real smooth mHc drift that the
+#       per-study constants were absorbing independently (2018/SR1E2Mu
+#       runs 0.4280 -> 0.4346 monotonically from mHc 70 to 160), and
+#       pooling averages the per-sample noise over 78 points instead of
+#       6-23. Its quoted error becomes the SCATTER about the surface, not
+#       the standard error of the mean — the adopted std/sqrt(N)
+#       understates the single-point predictive error by sqrt(N) =
+#       2.4-4.8. LOO envelopes >10% 51/152 -> 43/152 with 4 coefficients
+#       per (era, total-channel) in place of 28 constants. A per-study
+#       pol0/pol1 in mA was tried first and is a wash (73 -> 75); the gain
+#       comes from pooling across mHc, not from the mA freedom.
 #
 # Outputs land under tests/interpolation/variants/{name}/MHc{X}[_MA{Y}]/;
 # the shape chain is untouched, so shape polynomials are read from the
 # adopted (or per-point LOO) tree.
 YIELD_VARIANTS = {
-    "joint": {"joint_G": True, "pairing_fsig": False, "k_era_orders": [0, 1]},
+    "joint": {"joint_G": True, "pairing_fsig": False,
+              "k_era_surface": (1, 1)},
 }
 
 # Joint-surface basis: total-degree-truncated tensor polynomial in
 # (u, v) = ((mHc - 115)/45, (mA - 70)/70), i <= JOINT_G_MHC_DEGREE,
-# j <= JOINT_G_MA_DEGREE, i + j <= JOINT_G_MA_DEGREE.
+# j <= JOINT_G_MA_DEGREE, i + j <= JOINT_G_MA_DEGREE. k_era uses the same
+# scaling with its own (mHc, mA) degrees from the variant config.
 JOINT_G_MHC_DEGREE = 2
 JOINT_G_MA_DEGREE = 4
 JOINT_G_MHC_SCALE = (115.0, 45.0)

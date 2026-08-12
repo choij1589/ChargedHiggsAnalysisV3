@@ -196,7 +196,8 @@ def fit_joint_G(joint_data, period, tot_channel, mhc, err):
     """One surface across every mHc study, sliced at this study's mHc."""
     dh = interpolation_config.JOINT_G_MHC_DEGREE
     da = interpolation_config.JOINT_G_MA_DEGREE
-    pts = joint_data[(period, tot_channel)]
+    rec = joint_data[(period, tot_channel)]
+    pts = rec["totals"]
     if len(pts) < 3 * (da + 1):
         raise RuntimeError(f"[{period}/{tot_channel}] joint G surface needs "
                            f"more points than {len(pts)}")
@@ -226,37 +227,35 @@ def fit_joint_G(joint_data, period, tot_channel, mhc, err):
     }
 
 
-def fit_k_era(shares, ma_fit, orders):
-    """Era share vs mA: F-tested pol0/pol1, error = the observed scatter.
+def fit_k_surface(joint_data, period, tot_channel, era, mhc, degrees):
+    """Era share as a surface in (mHc, mA), pooled across every study and
+    sliced at this study's mHc.
 
-    The adopted model quotes std/sqrt(N) — the error on the MEAN, which
-    understates the predictive error for a single mass point by sqrt(N).
+    The shares drift smoothly with mHc, so four constants per study both
+    miss a real trend and carry the per-sample noise of that study's 6-23
+    points alone. The quoted error is the SCATTER of this study's points
+    about the surface — the predictive error for one mass point, unlike
+    the adopted std/sqrt(N), which is the error on the mean.
     """
-    x = np.asarray(ma_fit, float)
-    y = np.asarray(shares, float)
-    chosen, coeffs = None, None
-    for deg in sorted(orders):
-        if len(x) < deg + 2:
-            continue
-        c = np.polyfit(x, y, deg)
-        rss = float(((np.polyval(c, x) - y) ** 2).sum())
-        if chosen is None:
-            chosen, coeffs, prev_rss = deg, c, rss
-            continue
-        ndf = len(x) - (deg + 1)
-        if ndf <= 0 or rss <= 0:
-            break
-        f_stat = ((prev_rss - rss) / (deg - chosen)) / (rss / ndf)
-        p_value = 1.0 - stats.f.cdf(max(f_stat, 0.0), deg - chosen, ndf)
-        if p_value < interpolation_config.F_TEST_PVALUE:
-            chosen, coeffs, prev_rss = deg, c, rss
-    resid = np.polyval(coeffs, x) - y
-    mean = float(y.mean())
-    scatter = float(np.sqrt((resid ** 2).mean()))
+    dh, da = degrees
+    rec = joint_data[(period, tot_channel)]
+    pts = rec["totals"]
+    mh, ma = pts[:, 0], pts[:, 1]
+    shares = rec["shares"][era]
+    amat, powers = joint_design(mh, ma, dh, da)
+    coeffs, *_ = np.linalg.lstsq(amat, shares, rcond=None)
+    beta, _ = slice_surface(coeffs, np.zeros((len(coeffs), len(coeffs))),
+                            powers, mhc, da)
+    here = mh == float(mhc)
+    resid = (amat @ coeffs - shares)[here]
+    mean = float(shares[here].mean())
     return {"value": mean,
-            "err_rel": scatter / mean,
-            "coeffs": [float(c) for c in coeffs],
-            "chosen_order": int(chosen)}
+            "err_rel": float(np.sqrt((resid ** 2).mean()) / mean),
+            "coeffs": [float(c) for c in beta],
+            "chosen_order": int(da),
+            "surface": {"mhc_degree": dh, "ma_degree": da,
+                        "n_points": int(len(pts)),
+                        "n_params": int(len(coeffs))}}
 
 
 def k_value(tot, era, mA):
@@ -270,7 +269,7 @@ def k_value(tot, era, mA):
 
 
 def fit_totals(yields, period, eras, fit_ma, warnings, orders,
-               joint_data=None, mhc=None, k_orders=None):
+               joint_data=None, mhc=None, k_surface=None):
     """Total sub-model of one run period: per total-channel G + k_era."""
     floor = interpolation_config.REL_YIELD_ERR_FLOOR[period]
     # The period sum averages the eras' independent sample normalizations.
@@ -296,25 +295,34 @@ def fit_totals(yields, period, eras, fit_ma, warnings, orders,
                                 "err": [g_err] * len(ma_fit)}
         k = {}
         for era in eras:
-            shares = [per_ma[m][era]["sumw_total"] / g_pts[m] for m in ma_fit]
-            if k_orders:
-                k[era] = fit_k_era(shares, ma_fit, k_orders)
-            else:
-                s = np.array(shares)
-                k[era] = {"value": float(s.mean()),
-                          "err_rel": float(s.std(ddof=1) / np.sqrt(len(s))
-                                           / s.mean())}
+            if k_surface is not None:
+                if joint_data is None:
+                    raise RuntimeError("a k_era surface needs the pooled "
+                                       "per-study yields (joint_G)")
+                k[era] = fit_k_surface(joint_data, period, tot_channel, era,
+                                       mhc, k_surface)
+                continue
+            s = np.array([per_ma[m][era]["sumw_total"] / g_pts[m]
+                          for m in ma_fit])
+            k[era] = {"value": float(s.mean()),
+                      "err_rel": float(s.std(ddof=1) / np.sqrt(len(s))
+                                       / s.mean())}
         out[tot_channel] = {"G": g_rec, "k": k}
     return out
 
 
 def load_joint_totals(loo_mhc=None, loo_ma=None):
-    """Period-summed totals of EVERY mHc study, for the joint G surface.
+    """Period totals and era shares of EVERY mHc study, for the joint
+    G and k_era surfaces.
 
     Reads each study's adopted yields.json. In leave-one-out mode the
     excluded point is dropped from the study it belongs to only — the
     other studies keep their full grids, which is the whole point of
     borrowing shape across mHc.
+
+    Returns {(period, total-channel): {"totals": [(mHc, mA, log N)],
+                                       "shares": {era: [N_era/N]}}}
+    with the rows of "totals" and every "shares" list index-aligned.
     """
     out = {}
     for mhc in interpolation_config.mhc_grid():
@@ -329,18 +337,25 @@ def load_joint_totals(loo_mhc=None, loo_ma=None):
         for period, eras in run_period_utils.RUN_PERIODS.items():
             for tot_channel, src in (("SR1E2Mu", "SR1E2Mu"),
                                      ("SR3Mu", "SR3Mu_lowM")):
-                rows = out.setdefault((period, tot_channel), [])
+                block = out.setdefault((period, tot_channel),
+                                       {"totals": [],
+                                        "shares": {e: [] for e in eras}})
                 for rec in res.values():
                     if mhc == loo_mhc and rec["mA"] == loo_ma:
                         continue
-                    era_rows = [rec["channels"].get(src, {}).get(e)
-                                for e in eras]
-                    if any(r is None for r in era_rows):
+                    era_rows = {e: rec["channels"].get(src, {}).get(e)
+                                for e in eras}
+                    if any(r is None for r in era_rows.values()):
                         continue
-                    rows.append((float(mhc), float(rec["mA"]),
-                                 float(np.log(sum(r["sumw_total"]
-                                                  for r in era_rows)))))
-    return {k: np.array(v) for k, v in out.items()}
+                    total = sum(r["sumw_total"] for r in era_rows.values())
+                    block["totals"].append((float(mhc), float(rec["mA"]),
+                                            float(np.log(total))))
+                    for e in eras:
+                        block["shares"][e].append(
+                            era_rows[e]["sumw_total"] / total)
+    return {k: {"totals": np.array(v["totals"]),
+                "shares": {e: np.array(s) for e, s in v["shares"].items()}}
+            for k, v in out.items()}
 
 
 def predict_yield(model, polys, channel, era, mA):
@@ -409,7 +424,7 @@ def main():
     vcfg = (interpolation_config.yield_variant_config(args.yield_variant)
             if args.yield_variant else {})
     use_fsig = vcfg.get("pairing_fsig", True)
-    k_orders = vcfg.get("k_era_orders")
+    k_surface = vcfg.get("k_era_surface")
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = [m for m in study["fit"] if m not in excluded]
     orders = interpolation_config.YIELD_ORDERS
@@ -446,7 +461,8 @@ def main():
     model = {"fractions": {}, "totals": {},
              "options": {"pairing_fsig": use_fsig,
                          "joint_G": bool(vcfg.get("joint_G")),
-                         "k_era_orders": k_orders}}
+                         "k_era_surface": list(k_surface)
+                         if k_surface else None}}
     warnings = []
     merged_by_period = {}
     for period, eras in run_period_utils.RUN_PERIODS.items():
@@ -455,7 +471,8 @@ def main():
             use_fsig)
         model["totals"][period] = fit_totals(
             yields, period, list(eras), fit_ma, warnings, orders,
-            joint_data=joint_data, mhc=args.mhc, k_orders=k_orders)
+            joint_data=joint_data, mhc=args.mhc,
+            k_surface=k_surface)
         merged_by_period[period] = merged
 
     def fsig_fn(cat_polys, cat_key, mA):
