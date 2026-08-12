@@ -107,7 +107,7 @@ case "$STEP" in
     deltas)
         python3 python/measInterpShapeDeltas.py --mhc "$MHC" \
             --masspoints "$MASSPOINT" \
-            --output "$(part_output shape_deltas shape_deltas)" $EXTRA_ARGS
+            --output "$(part_output "$FITS_DIR/shape_deltas" shape_deltas)" $EXTRA_ARGS
         ;;
     merge_deltas)
         python3 python/mergeInterpResults.py --mhc "$MHC" --stage shape-deltas $EXTRA_ARGS
