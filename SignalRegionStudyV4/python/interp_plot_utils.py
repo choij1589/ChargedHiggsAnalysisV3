@@ -373,6 +373,111 @@ def plot_yield_residuals(closure, mhc, outdir):
             _save(canv, outdir, f"residuals.{channel}.{period}")
 
 
+def plot_yield_loo_grid(mhc, channel, yields, loo, outdir):
+    """One PNG per (channel, era): measured window yields (filled black)
+    with the leave-one-out predictions at every grid point overlaid (open
+    red; grid-endpoint extrapolations open grey). The visual counterpart
+    of the loo_uncertainties.json norm table."""
+    import run_period_utils
+
+    grey = ROOT.TColor.GetColor("#9c9ca1")
+    for period, suberas in run_period_utils.RUN_PERIODS.items():
+        for era in suberas:
+            meas = []
+            for rec in yields.values():
+                r = rec["channels"].get(channel, {}).get(era)
+                if r is not None:
+                    meas.append((rec["mA"], r["sumw"], r["err"]))
+            meas.sort()
+            pred, pred_ex = [], []
+            for mA, entry in sorted(loo.items()):
+                rec = entry["scalar"].get(channel, {}).get(era)
+                if rec is None:
+                    continue
+                tgt = pred_ex if rec.get("extrapolation") else pred
+                tgt.append((mA, rec["n_pred"], rec["err_pred"]))
+            if not meas:
+                continue
+            # Range from the measured points and the usable predictions
+            # only: an endpoint extrapolation can be off by orders of
+            # magnitude and would flatten everything else.
+            all_v = ([v for _m, v, _e in meas]
+                     + [v for _m, v, _e in pred])
+            all_m = [m for m, _v, _e in meas]
+            ymin = 0.5 * max(min(all_v), 1e-3)
+            ymax = 2.0 * max(all_v)
+            canv = graph_canvas(f"loo_{channel}_{era}", "m_{A} [GeV]",
+                                "N_{window}", min(all_m) - 3, max(all_m) + 3,
+                                ymin, ymax, era, logy=True)
+            leg = CMS.cmsLeg(0.55, 0.74, 0.90, 0.88, textSize=0.028)
+            m, v, e = zip(*meas)
+            g_meas = points_graph(m, v, e)
+            CMS.cmsObjectDraw(g_meas, "PE")
+            leg.AddEntry(g_meas, "measured MC", "pe")
+            if pred:
+                m, v, e = zip(*pred)
+                g_pred = points_graph(m, v, e, filled=False,
+                                      color=_CURVE_COLOR)
+                CMS.cmsObjectDraw(g_pred, "PE")
+                leg.AddEntry(g_pred, "LOO prediction", "pe")
+            if pred_ex:
+                m, v, e = zip(*pred_ex)
+                g_ex = points_graph(m, v, e, filled=False, color=grey)
+                CMS.cmsObjectDraw(g_ex, "PE")
+                leg.AddEntry(g_ex, "LOO (extrapolation)", "pe")
+            lat = ROOT.TLatex()
+            lat.SetNDC(True)
+            lat.SetTextFont(42)
+            lat.SetTextSize(0.032)
+            lat.DrawLatex(0.20, 0.70, f"{channel}, {era}")
+            canv.RedrawAxis()
+            _save(canv, outdir, f"loo_grid.{channel}.{era}")
+
+
+def plot_yield_loo_residuals(mhc, channel, loo, outdir):
+    """One PNG per (channel, period): LOO relative residual vs mA, one
+    colored series per era (filled = usable, open = extrapolation)."""
+    import run_period_utils
+
+    for period, suberas in run_period_utils.RUN_PERIODS.items():
+        # Range from the usable points only — an endpoint extrapolation can
+        # be off by orders of magnitude (its marker just leaves the frame).
+        vals = [100.0 * abs(rec["rel"])
+                for entry in loo.values()
+                for era in suberas
+                for rec in [entry["scalar"].get(channel, {}).get(era)]
+                if rec is not None and not rec.get("extrapolation")]
+        yr = max(20.0, 1.2 * max(vals, default=0.0))
+        xs = sorted(loo)
+        canv = graph_canvas(f"loo_resid_{channel}_{period}", "m_{A} [GeV]",
+                            "(pred - meas) / meas [%]",
+                            min(xs) - 3, max(xs) + 3, -yr, yr, period)
+        leg = CMS.cmsLeg(0.62, 0.90 - 0.045 * len(suberas), 0.90, 0.90,
+                         textSize=0.028)
+        for color, era in zip(PALETTE_LONG, suberas):
+            used, extrap = [], []
+            for mA, entry in sorted(loo.items()):
+                rec = entry["scalar"].get(channel, {}).get(era)
+                if rec is None:
+                    continue
+                tgt = extrap if rec.get("extrapolation") else used
+                tgt.append((mA, 100.0 * rec["rel"]))
+            if used:
+                m, v = zip(*used)
+                g = points_graph(m, v, [0.0] * len(m), color=color)
+                CMS.cmsObjectDraw(g, "P")
+                leg.AddEntry(g, era, "p")
+            if extrap:
+                m, v = zip(*extrap)
+                CMS.cmsObjectDraw(points_graph(m, v, [0.0] * len(m),
+                                               filled=False, color=color), "P")
+        ref = ROOT.TLine()
+        ref.SetLineStyle(ROOT.kDotted)
+        ref.DrawLine(min(xs), 0.0, max(xs), 0.0)
+        canv.RedrawAxis()
+        _save(canv, outdir, f"loo_residuals.{channel}.{period}")
+
+
 def plot_yield_template_closure(cat_key, mp, hist, pred, n_pred, err_pred,
                                 chi2, ndf, period, outdir):
     """Absolute-normalization closure: MC hist vs predicted template, with
