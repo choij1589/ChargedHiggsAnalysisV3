@@ -224,6 +224,22 @@ def main():
                         held["error"].append(pv["error"])
 
             result = None
+            if (param in interpolation_config.BKG_PARAMS
+                    and len(used["mA"]) == 1):
+                # A single usable anchor still defines a flat background
+                # shape, and a flat one is far better than none: build_model
+                # requires c1/c2 whenever fsig is present, so skipping here
+                # would leave an inconsistent model that dies downstream with
+                # KeyError. select_order refuses this (it wants ndf >= 1),
+                # which is right for the core shape parameters but too strict
+                # for a component carrying weight (1-fsig).
+                result = {"coeffs": [used["value"][0]],
+                          "cov": [[used["error"][0] ** 2]],
+                          "chi2": 0.0, "ndf": 0, "chosen_order": 0,
+                          "orders_tried": {}, "degenerate_bkg": True}
+                warnings.append(
+                    f"[{cat_key}] {param}: only 1 usable anchor "
+                    f"(mA={used['mA'][0]}); using a CONSTANT background shape")
             if (param == "fsig"
                     and len(used["mA"]) >= interpolation_config.FSIG_LOGISTIC_MIN_POINTS):
                 result = fit_logit_poly(used["mA"], used["value"], used["error"])
@@ -274,6 +290,19 @@ def main():
             interp_plot_utils.plot_parameter_vs_mA(
                 cat_key, param, {"used": used, "held_out": held}, result,
                 os.path.join(params_plot_base, cat_key), all_ma, args.mhc, period)
+
+        # Structural invariant: dcb_fit_utils.build_model reads c1/c2 whenever
+        # fsig is present, so a category carrying fsig without both background
+        # coefficients is an incomplete model. It would survive this step and
+        # then kill every downstream consumer with a bare KeyError.
+        if "fsig" in output[cat_key]:
+            absent = [p for p in interpolation_config.BKG_PARAMS
+                      if p not in output[cat_key]]
+            if absent:
+                degenerate.append(
+                    f"[{cat_key}] carries fsig but no {','.join(absent)}: "
+                    "the DCB+background model is incomplete and build_model "
+                    "would fail downstream")
 
     payload = {
         "meta": {
