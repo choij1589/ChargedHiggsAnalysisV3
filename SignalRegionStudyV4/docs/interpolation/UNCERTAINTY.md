@@ -246,7 +246,7 @@ python3 python/plotInterpNuisances.py
 ```
 
 The correlation study reads the same LOO outputs
-(`tests/interpolation/MHc{X}_MA{Y}/{yields/yield_closure.json,closure.json}`):
+(`closure/interpolation/loo/MHc{X}_MA{Y}/{yields/yield_closure.json,closure.json}`):
 signed residuals per (channel, era/period, mHc, mA); adjacent-in-mA
 Pearson r within studies (same-bin pairs), cross-era/cross-channel r at
 fixed points, and the common-mode variance fraction across a period's

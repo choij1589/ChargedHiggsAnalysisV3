@@ -87,14 +87,14 @@ def main():
                         help="comma-separated masspoint filter")
     parser.add_argument("--output", default="",
                         help="output JSON path (default: "
-                             "tests/interpolation/MHc{X}/yields/yield_closure.json)")
+                             "closure/interpolation/MHc{X}/yield_closure.json)")
     parser.add_argument("--loo-ma", type=int, default=None,
                         help="leave-one-out mode: evaluate ONLY this mA, "
                              "against the LOO yield_model/polynomials in the "
-                             "per-point dir tests/interpolation/MHc{X}_MA{Y}/ "
-                             "(where yield_closure.json and plots are written "
-                             "too); measured yields come from the adopted "
-                             "yields.json")
+                             "per-point dir closure/interpolation/loo/"
+                             "MHc{X}_MA{Y}/ (where yield_closure.json and "
+                             "plots are written too); measured yields come "
+                             "from the adopted yields.json")
     args = parser.parse_args()
 
     if args.loo_ma is not None and args.masspoints:
@@ -102,17 +102,24 @@ def main():
                          "do not combine with --masspoints")
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = study["fit"]
-    # Measured yields always come from the study dir; a LOO run writes its
-    # closure into the per-point dir alongside the model it tests.
-    yields_dir = os.path.join(srspaths.interpolation_dir(args.mhc), "yields")
-    out_base = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
-                if args.loo_ma is not None
-                else srspaths.interpolation_dir(args.mhc))
-    plot_base = os.path.join(out_base, "plots", "yields")
+    # Measured yields and the fitted model always come from the fits tree;
+    # the closure product goes to the closure tree. A LOO run reads and
+    # writes the self-contained per-point dir instead (model + closure
+    # side by side).
+    yields_dir = os.path.join(srspaths.interpolation_fits_dir(args.mhc),
+                              "yields")
+    loo_dir = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
+               if args.loo_ma is not None else None)
+    plot_base = (os.path.join(loo_dir, "plots", "yields")
+                 if loo_dir is not None
+                 else srspaths.interpolation_closure_plots_dir(
+                     args.mhc, "yields"))
 
     with open(os.path.join(yields_dir, "yields.json")) as f:
         yields = json.load(f)["results"]
-    model_path = os.path.join(out_base, "yields", "yield_model.json")
+    model_path = os.path.join(loo_dir, "yields", "yield_model.json") \
+        if loo_dir is not None else os.path.join(yields_dir,
+                                                 "yield_model.json")
     with open(model_path) as f:
         model_payload = json.load(f)
     model = model_payload["model"]
@@ -231,8 +238,14 @@ def main():
         "closure": output,
         "warnings": warnings,
     }
-    outpath = args.output or os.path.join(out_base, "yields",
-                                          "yield_closure.json")
+    if args.output:
+        outpath = args.output
+    elif loo_dir is not None:
+        outpath = os.path.join(loo_dir, "yields", "yield_closure.json")
+    else:
+        outpath = os.path.join(
+            srspaths.interpolation_closure_dir(args.mhc),
+            "yield_closure.json")
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
     with open(outpath, "w") as f:
         json.dump(payload, f, indent=2)

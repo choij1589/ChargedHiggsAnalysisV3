@@ -7,7 +7,7 @@ studies) as a solid line and the cell's pooled rms dashed. It shows at a
 glance which study set the nuisance and how far the others sit below it —
 the thing a single number in the config cannot say.
 
-Reads tests/interpolation/loo_uncertainties.pooled.json, so it runs after
+Reads closure/interpolation/loo_uncertainties.pooled.json, so it runs after
 `exportInterpUncertainties.py --loo --all --pooled`. JSON-only apart from
 the ROOT canvases; safe on the login node.
 
@@ -28,7 +28,7 @@ def main():
                              "production-pairing one (diagnostic)")
     args = parser.parse_args()
 
-    path = os.path.join(srspaths.interpolation_dir(),
+    path = os.path.join(srspaths.interpolation_closure_dir(),
                         "loo_uncertainties.pooled.json")
     if not os.path.exists(path):
         raise FileNotFoundError(

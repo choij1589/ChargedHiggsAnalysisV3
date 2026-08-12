@@ -8,9 +8,9 @@ single slice each, which hides the thing that actually makes the model work
 slices on a common mA axis with each study's own points in the matching
 colour:
 
-  plots/surfaces/surface.shape.{category}.{param}.png   DCB parameters
-  plots/surfaces/surface.G.{period}.{total_channel}.png per-period total yield
-  plots/surfaces/surface.k_era.{period}.{total_channel}.png  era shares
+  fits/params/surface.shape.{category}.{param}.png      DCB parameters
+  fits/yield/surface.G.{period}.{total_channel}.png     per-period total yield
+  fits/yield/surface.k_era.{period}.{total_channel}.png era shares
 
 Reads the per-study polynomials.json / yield_model.json (each carries the
 full surface under joint_surface) plus the measured fits and yields.
@@ -47,7 +47,7 @@ def _surface_curve(rec, grid, logspace=False, logit=False):
 def plot_shape_surfaces(mhcs, outdir):
     polys = {}
     for mhc in mhcs:
-        path = os.path.join(srspaths.interpolation_dir(mhc),
+        path = os.path.join(srspaths.interpolation_fits_dir(mhc),
                             "polynomials.json")
         with open(path) as f:
             polys[mhc] = json.load(f)["polynomials"]
@@ -81,7 +81,7 @@ def plot_shape_surfaces(mhcs, outdir):
 def plot_yield_surfaces(mhcs, outdir):
     models, yields = {}, {}
     for mhc in mhcs:
-        ydir = os.path.join(srspaths.interpolation_dir(mhc), "yields")
+        ydir = os.path.join(srspaths.interpolation_fits_dir(mhc), "yields")
         with open(os.path.join(ydir, "yield_model.json")) as f:
             models[mhc] = json.load(f)["model"]
         with open(os.path.join(ydir, "yields.json")) as f:
@@ -143,14 +143,22 @@ def main():
     args = parser.parse_args()
 
     mhcs = interpolation_config.mhc_grid()
-    outdir = srspaths.interpolation_global_plots_dir("surfaces")
-    os.makedirs(outdir, exist_ok=True)
+    total = 0
     if args.kind in (None, "shape") or args.all:
+        outdir = srspaths.interpolation_global_plots_dir("params")
+        os.makedirs(outdir, exist_ok=True)
         plot_shape_surfaces(mhcs, outdir)
+        n = len([f for f in os.listdir(outdir) if f.endswith(".png")])
+        print(f"Wrote {n} shape-surface plots into {outdir}")
+        total += n
     if args.kind in (None, "yield") or args.all:
+        outdir = srspaths.interpolation_global_plots_dir("yield")
+        os.makedirs(outdir, exist_ok=True)
         plot_yield_surfaces(mhcs, outdir)
-    n = len([f for f in os.listdir(outdir) if f.endswith(".png")])
-    print(f"Wrote {n} surface plots into {outdir}")
+        n = len([f for f in os.listdir(outdir) if f.endswith(".png")])
+        print(f"Wrote {n} yield-surface plots into {outdir}")
+        total += n
+    print(f"{total} surface plots in total")
 
 
 if __name__ == "__main__":

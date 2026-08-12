@@ -144,29 +144,58 @@ def interpolation_uncertainties_path():
     return config_path("interpolation_uncertainties.json")
 
 
-def tests_dir():
-    return os.path.join(module_dir(), "tests")
+# Interpolation production layout (2026-08-13). Two trees, split by what
+# the artifact IS, both git-tracked:
+#   fits/                 fit-function artifacts (per-study models + their
+#                         validation plots; global surface panels at
+#                         fits/{params,yield})
+#   closure/interpolation/  closure products (per-study closures, the 78
+#                         LOO dirs under loo/, the pooled uncertainty
+#                         diagnostic and the nuisance-rule plots)
+# The old tests/interpolation tree is retired under archive/.
 
-
-def interpolation_dir(mhc=None):
-    base = os.path.join(tests_dir(), "interpolation")
+def interpolation_fits_dir(mhc=None):
+    """fits/ (no arg) or fits/MHc{X}: dcb_fits{,_floating}.json,
+    polynomials.json, yields/{yields,yield_model}.json, shape_deltas/,
+    parts/ shards and plots/."""
+    base = os.path.join(module_dir(), "fits")
     return os.path.join(base, f"MHc{int(mhc)}") if mhc is not None else base
 
 
-def interpolation_plots_dir(mhc, kind):
-    """kind in {fits, params, closure, yields, deltas}."""
-    return os.path.join(interpolation_dir(mhc), "plots", kind)
+def interpolation_closure_dir(mhc=None):
+    """closure/interpolation/ (no arg) or .../MHc{X}: closure.json,
+    yield_closure.json, loo_uncertainties.json, parts/ shards and plots/."""
+    base = os.path.join(module_dir(), "closure", "interpolation")
+    return os.path.join(base, f"MHc{int(mhc)}") if mhc is not None else base
+
+
+def interpolation_fit_plots_dir(mhc, kind):
+    """Per-study fit-validation plots, kind in {fits, params, yields,
+    deltas}: fits/MHc{X}/plots/{kind}."""
+    return os.path.join(interpolation_fits_dir(mhc), "plots", kind)
+
+
+def interpolation_closure_plots_dir(mhc, kind):
+    """Per-study closure plots, kind in {closure, yields}:
+    closure/interpolation/MHc{X}/plots/{kind}."""
+    return os.path.join(interpolation_closure_dir(mhc), "plots", kind)
 
 
 def interpolation_global_plots_dir(kind):
-    """Plots of objects that span every study (the (mHc, mA) surfaces, the
-    pooled nuisance summary): tests/interpolation/plots/{kind}."""
-    return os.path.join(interpolation_dir(), "plots", kind)
+    """Plots of objects that span every study. The surface panels live with
+    the fit artifacts (kind "params" -> fits/params, "yield" ->
+    fits/yield); the nuisance-rule summary with the closure products
+    (kind "nuisance" -> closure/interpolation/plots/nuisance)."""
+    if kind in ("params", "yield"):
+        return os.path.join(interpolation_fits_dir(), kind)
+    if kind == "nuisance":
+        return os.path.join(interpolation_closure_dir(), "plots", kind)
+    raise ValueError(f"unknown global plot kind: {kind}")
 
 
 def interpolation_loo_dir(mhc, ma):
     """Per-point leave-one-out (LOO) output dir: models refit on the full
     mA grid minus this point, closure evaluated at this point only. The
-    per-mHc aggregate lives in interpolation_dir(mhc)."""
-    return os.path.join(tests_dir(), "interpolation",
+    per-mHc aggregate lives in interpolation_closure_dir(mhc)."""
+    return os.path.join(interpolation_closure_dir(), "loo",
                         f"MHc{int(mhc)}_MA{int(ma)}")

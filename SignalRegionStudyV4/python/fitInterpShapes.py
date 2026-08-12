@@ -3,7 +3,7 @@
 
 For every masspoint x category, fit the signal 'Central' trees and record
 parameters + errors + fit quality into
-tests/interpolation/MHc{X}/fits/dcb_fits_{pass}.json, with a diagnostic
+fits/MHc{X}/dcb_fits_{pass}.json, with a diagnostic
 MC-vs-fit PNG per fit. Adopted fit model (frozen): pure DCB for SR1E2Mu and
 SR3Mu_lowM, DCB + 2nd-order Chebychev combinatoric background for
 SR3Mu_highM alone (interpolation_config.channel_has_bkg) — lowM's
@@ -147,7 +147,7 @@ def main():
                 print(f"WARNING: {warnings[-1]}")
 
             make_fit_plot(chain, fit, period, channel, mp,
-                          srspaths.interpolation_plots_dir(
+                          srspaths.interpolation_fit_plots_dir(
                               args.mhc, "fits"))
             results[cat_key][mp] = fit
 
@@ -160,8 +160,7 @@ def main():
         outpath = args.output
         os.makedirs(os.path.dirname(outpath) or ".", exist_ok=True)
     else:
-        fits_dir = os.path.join(
-            srspaths.interpolation_dir(args.mhc), "fits")
+        fits_dir = srspaths.interpolation_fits_dir(args.mhc)
         os.makedirs(fits_dir, exist_ok=True)
         outpath = os.path.join(fits_dir, basename)
         # A filtered rerun merges into the existing JSON instead of

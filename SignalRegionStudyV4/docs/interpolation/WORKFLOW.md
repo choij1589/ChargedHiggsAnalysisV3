@@ -152,17 +152,22 @@ cd condor/jobs_interp_<ts>/MHc145 && condor_submit_dag dag.dag
 ## Outputs
 
 ```
-tests/interpolation/MHc{X}/          per-study: fits/, polynomials.json, closure.json,
-                                     yields/, shape_deltas/, plots/
-tests/interpolation/MHc{X}_MA{Y}/    leave-one-out: both surfaces refit without the
-                                     point, closure + yield closure at it
-tests/interpolation/loo_uncertainties.pooled.json   pooled envelope + per-study detail
-tests/interpolation/plots/           global: surface slices, nuisance-rule plots
-configs/interpolation_uncertainties.json            production config (git-tracked)
+fits/MHc{X}/                     fit artifacts: dcb_fits{,_floating}.json, parts/,
+                                 polynomials.json, yields/{yields,yield_model}.json,
+                                 shape_deltas/, plots/{fits,params,yields,deltas}/
+fits/params/  fits/yield/        global surface panels (shape params; G, k_era)
+closure/interpolation/MHc{X}/    closure.json, yield_closure.json,
+                                 loo_uncertainties.json, parts/, plots/{closure,yields}/
+closure/interpolation/loo/MHc{X}_MA{Y}/   leave-one-out: both surfaces refit
+                                 without the point, closure + yield closure at it
+closure/interpolation/loo_uncertainties.pooled.json   pooled envelope + detail
+closure/interpolation/plots/nuisance/                 nuisance-rule plots
+configs/interpolation_uncertainties.json              production config
 ```
 
-`tests/` is untracked scratch by convention — never commit it. The one
-git-tracked product of the chain is `configs/interpolation_uncertainties.json`.
+`fits/`, `closure/` and the config are **git-tracked production outputs**
+(JSONs and PNGs both) — commit them after a verified re-run. The retired
+scratch trees live under `archive/test{,s}/` and stay untracked.
 
 ## Known input issues
 

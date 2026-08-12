@@ -16,8 +16,8 @@ downstream consumer had to change.
 **Reads every study's fits/dcb_fits.json**, so all seven must have completed
 stage 1 before this step runs (see automize/interpolation.sh --stop-after).
 
-Outputs tests/interpolation/MHc{X}/polynomials.json and per-category
-parameter-vs-mA cmsstyle PNGs under tests/interpolation/MHc{X}/plots/params/.
+Outputs fits/MHc{X}/polynomials.json and per-category parameter-vs-mA
+cmsstyle PNGs under fits/MHc{X}/plots/params/.
 
   python3 fitInterpPolynomials.py --mhc 160
 """
@@ -124,7 +124,7 @@ def load_joint_shape_fits(loo_mhc=None, loo_ma=None):
     """
     raw = {}
     for mhc in interpolation_config.mhc_grid():
-        path = os.path.join(srspaths.interpolation_dir(mhc), "fits",
+        path = os.path.join(srspaths.interpolation_fits_dir(mhc),
                             "dcb_fits.json")
         if not os.path.exists(path):
             raise FileNotFoundError(
@@ -196,18 +196,22 @@ def main():
                         help="leave-one-out mode: drop this study's mA from "
                              "the joint fit (other studies keep their full "
                              "grids); outputs go to the per-point dir "
-                             "tests/interpolation/MHc{X}_MA{Y}/")
+                             "closure/interpolation/loo/MHc{X}_MA{Y}/")
     args = parser.parse_args()
 
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = study["fit"]
     all_ma = study["all"]
-    interp_dir = srspaths.interpolation_dir(args.mhc)
-    out_dir = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
-               if args.loo_ma is not None else interp_dir)
-    params_plot_base = os.path.join(out_dir, "plots", "params")
+    fits_dir = srspaths.interpolation_fits_dir(args.mhc)
+    if args.loo_ma is not None:
+        out_dir = srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
+        params_plot_base = os.path.join(out_dir, "plots", "params")
+    else:
+        out_dir = fits_dir
+        params_plot_base = srspaths.interpolation_fit_plots_dir(
+            args.mhc, "params")
 
-    with open(os.path.join(interp_dir, "fits", "dcb_fits.json")) as f:
+    with open(os.path.join(fits_dir, "dcb_fits.json")) as f:
         local_fits = json.load(f)["results"]
     joint = load_joint_shape_fits(loo_mhc=args.mhc, loo_ma=args.loo_ma)
 

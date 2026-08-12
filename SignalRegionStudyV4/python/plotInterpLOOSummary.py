@@ -8,9 +8,9 @@ prediction on top; the LOO relative residual (with the model band in
 relative terms) below.
 
 Reads the adopted yields.json + yield_model.json + polynomials.json and
-the 78 per-point tests/interpolation/MHc{X}_MA{Y}/yields/yield_closure.json;
+the 78 per-point closure/interpolation/loo/MHc{X}_MA{Y}/yields/yield_closure.json;
 JSON-only, no sample access. Outputs into
-tests/interpolation/MHc{X}/plots/yields/loo_grid.{channel}.{era}.png.
+closure/interpolation/MHc{X}/plots/yields/loo_grid.{channel}.{era}.png.
 
   python3 plotInterpLOOSummary.py --mhc 130
   python3 plotInterpLOOSummary.py --all
@@ -51,13 +51,14 @@ def plot_one(mhc):
     from fitInterpYieldModel import predict_yield
 
     grid = interpolation_config.study(mhc)["all"]
-    yields_dir = os.path.join(srspaths.interpolation_dir(mhc), "yields")
+    yields_dir = os.path.join(srspaths.interpolation_fits_dir(mhc),
+                              "yields")
     with open(os.path.join(yields_dir, "yields.json")) as f:
         yields = json.load(f)["results"]
     with open(os.path.join(yields_dir, "yield_model.json")) as f:
         model = json.load(f)["model"]
     loo = load_loo(mhc, grid)
-    outdir = srspaths.interpolation_plots_dir(mhc, "yields")
+    outdir = srspaths.interpolation_closure_plots_dir(mhc, "yields")
     for channel in interpolation_config.STUDY_CHANNELS:
         interp_plot_utils.plot_yield_loo_grid(
             mhc, channel, yields, loo, outdir,

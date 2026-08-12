@@ -62,8 +62,13 @@ srs_method_segment() {
     fi
 }
 
-# Interpolation-study output directory for one mHc (mirrors
-# srspaths.interpolation_dir). Usage: srs_interp_dir 160
-srs_interp_dir() {
-    echo "$SRS_MODULE_DIR/tests/interpolation/MHc$1"
+# Interpolation production dirs for one mHc (mirror
+# srspaths.interpolation_fits_dir / interpolation_closure_dir).
+# Usage: srs_interp_fits_dir 160 / srs_interp_closure_dir 160
+srs_interp_fits_dir() {
+    echo "$SRS_MODULE_DIR/fits/MHc$1"
+}
+
+srs_interp_closure_dir() {
+    echo "$SRS_MODULE_DIR/closure/interpolation/MHc$1"
 }

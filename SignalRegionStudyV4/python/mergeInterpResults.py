@@ -56,8 +56,7 @@ def _write(outpath, payload):
 def merge_fits(mhc, fit_pass, allow_missing, expected, study):
     basename = "dcb_fits.json" if fit_pass == "frozen" else "dcb_fits_floating.json"
     part_prefix = basename[:-5]
-    fits_dir = os.path.join(srspaths.interpolation_dir(mhc),
-                            "fits")
+    fits_dir = srspaths.interpolation_fits_dir(mhc)
     parts, missing, stray = _collect_parts(
         os.path.join(fits_dir, "parts"), part_prefix, expected, allow_missing)
 
@@ -95,9 +94,9 @@ def merge_fits(mhc, fit_pass, allow_missing, expected, study):
 
 
 def merge_closure(mhc, allow_missing, expected, study):
-    interp_dir = srspaths.interpolation_dir(mhc)
+    closure_dir = srspaths.interpolation_closure_dir(mhc)
     parts, missing, stray = _collect_parts(
-        os.path.join(interp_dir, "closure", "parts"), "closure",
+        os.path.join(closure_dir, "parts"), "closure",
         expected, allow_missing)
 
     results, warnings, fit_ma = {}, [], study["fit"]
@@ -119,7 +118,7 @@ def merge_closure(mhc, allow_missing, expected, study):
         "closure": results,
         "warnings": warnings,
     }
-    outpath = os.path.join(interp_dir, "closure.json")
+    outpath = os.path.join(closure_dir, "closure.json")
     _write(outpath, payload)
     n = sum(len(v) for v in results.values())
     print(f"Merged {len(expected) - len(missing)}/{len(expected)} parts -> "
@@ -130,7 +129,8 @@ def merge_closure(mhc, allow_missing, expected, study):
 
 
 def merge_yields(mhc, allow_missing, expected, study):
-    yields_dir = os.path.join(srspaths.interpolation_dir(mhc), "yields")
+    yields_dir = os.path.join(srspaths.interpolation_fits_dir(mhc),
+                              "yields")
     parts, missing, stray = _collect_parts(
         os.path.join(yields_dir, "parts"), "yields", expected, allow_missing)
 
@@ -181,9 +181,9 @@ def summarize_scalar(closure):
 
 
 def merge_yield_closure(mhc, allow_missing, expected, study):
-    yields_dir = os.path.join(srspaths.interpolation_dir(mhc), "yields")
+    closure_dir = srspaths.interpolation_closure_dir(mhc)
     parts, missing, stray = _collect_parts(
-        os.path.join(yields_dir, "parts"), "yield_closure", expected,
+        os.path.join(closure_dir, "parts"), "yield_closure", expected,
         allow_missing)
 
     results, warnings = {}, []
@@ -204,13 +204,14 @@ def merge_yield_closure(mhc, allow_missing, expected, study):
         "closure": results,
         "warnings": warnings,
     }
-    outpath = os.path.join(yields_dir, "yield_closure.json")
+    outpath = os.path.join(closure_dir, "yield_closure.json")
     _write(outpath, payload)
     print(f"Merged {len(expected) - len(missing)}/{len(expected)} parts -> "
           f"{outpath}\n")
 
     interp_plot_utils.plot_yield_residuals(
-        results, mhc, srspaths.interpolation_plots_dir(mhc, "yields"))
+        results, mhc, srspaths.interpolation_closure_plots_dir(
+            mhc, "yields"))
 
     stats = summarize_scalar(results)
     header = (f"{'channel':<14} {'era':<12} "
@@ -249,7 +250,8 @@ def merge_yield_closure(mhc, allow_missing, expected, study):
 
 
 def merge_shape_deltas(mhc, allow_missing, expected, study):
-    deltas_dir = os.path.join(srspaths.interpolation_dir(mhc), "shape_deltas")
+    deltas_dir = os.path.join(srspaths.interpolation_fits_dir(mhc),
+                              "shape_deltas")
     parts, missing, stray = _collect_parts(
         os.path.join(deltas_dir, "parts"), "shape_deltas", expected,
         allow_missing)

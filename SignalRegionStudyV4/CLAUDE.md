@@ -44,9 +44,11 @@ samples/{era}/{channel}/{masspoint}/         ParticleNet per-masspoint dirs (sco
                                              NoHistMode skims; incl. TTZ2E1Mu)
 templates/{masspoint}/{method}/{era}/{channel}/
 results/json/{BR,xsec}/{era}/limits.{era}[.{channel}].Asymptotic.{method}.json
-tests/interpolation/MHc{X}/                  mA-interpolation chain outputs (fits, polynomials,
-                                             closure, yields, shape_deltas, uncertainties.json,
-                                             plots/) — see docs/interpolation/
+fits/MHc{X}/                                 mA-interpolation fit artifacts (dcb_fits, polynomials,
+                                             yield model, shape_deltas, validation plots); global
+                                             surface panels in fits/{params,yield}/
+closure/interpolation/{MHc{X},loo/}          interpolation closures, LOO sweep, pooled
+                                             uncertainty diagnostics — see docs/interpolation/
 ```
 
 The SR3Mu pairing rule: `highM` (higher-mass dimuon pairing) iff
@@ -261,9 +263,11 @@ python3 python/plotInterpSurfaces.py --all      # global surface plots
 python3 python/plotInterpNuisances.py           # nuisance-rule plots
 ```
 
-Outputs under `tests/interpolation/MHc{X}/` (per study),
-`tests/interpolation/MHc{X}_MA{Y}/` (leave-one-out) and
-`tests/interpolation/plots/` (global). Merge any sharded stage with
+Outputs under `fits/MHc{X}/` (per-study fit artifacts + plots, global
+surface panels in `fits/{params,yield}/`) and `closure/interpolation/`
+(per-study closures, `loo/MHc{X}_MA{Y}/` leave-one-out dirs, pooled
+diagnostics, nuisance plots) — git-tracked production trees, committed
+after a verified run. Merge any sharded stage with
 `python3 python/mergeInterpResults.py --mhc N --stage
 {fits-floating,fits,closure,yields,yield-closure,shape-deltas}`.
 

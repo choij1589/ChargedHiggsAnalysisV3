@@ -78,7 +78,7 @@ def main():
                         help="comma-separated masspoint filter")
     parser.add_argument("--output", default="",
                         help="output JSON path (default: "
-                             "tests/interpolation/MHc{X}/yields/yields.json)")
+                             "fits/MHc{X}/yields/yields.json)")
     args = parser.parse_args()
 
     study = interpolation_config.study(args.mhc)
@@ -130,7 +130,7 @@ def main():
         "warnings": warnings,
     }
     outpath = args.output or os.path.join(
-        srspaths.interpolation_dir(args.mhc), "yields", "yields.json")
+        srspaths.interpolation_fits_dir(args.mhc), "yields", "yields.json")
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
     with open(outpath, "w") as f:
         json.dump(payload, f, indent=2)

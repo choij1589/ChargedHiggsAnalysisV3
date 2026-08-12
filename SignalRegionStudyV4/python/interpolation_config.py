@@ -483,8 +483,8 @@ def fixed_n_values(mhc):
     (reads the floating-n dcb_fits.json)."""
     import json
     from statistics import median
-    path = os.path.join(srspaths.interpolation_dir(mhc),
-                        "fits", "dcb_fits_floating.json")
+    path = os.path.join(srspaths.interpolation_fits_dir(mhc),
+                        "dcb_fits_floating.json")
     with open(path) as f:
         fits = json.load(f)["results"]
     out = {}
@@ -516,10 +516,10 @@ def eval_param(info, x):
 def load_shape_polynomials(mhc, loo_ma=None):
     """Per-category shape parametrizations (the yield/closure/export steps'
     window and template source). loo_ma selects the leave-one-out per-point
-    directory instead (tests/interpolation/MHc{X}_MA{Y}/)."""
+    directory instead (closure/interpolation/loo/MHc{X}_MA{Y}/)."""
     import json
     base = (srspaths.interpolation_loo_dir(mhc, loo_ma) if loo_ma is not None
-            else srspaths.interpolation_dir(mhc))
+            else srspaths.interpolation_fits_dir(mhc))
     path = os.path.join(base, "polynomials.json")
     if not os.path.exists(path):
         raise FileNotFoundError(

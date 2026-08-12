@@ -16,8 +16,8 @@ fit and the MC histogram:
     uncertainty exporter (exportInterpUncertainties.py) directly, so it does
     not have to re-derive them from params.
 
-Outputs tests/interpolation/MHc{X}/closure.json, canvases under
-tests/interpolation/MHc{X}/plots/closure/, and a summary table. Runs as
+Outputs closure/interpolation/MHc{X}/closure.json, canvases under
+closure/interpolation/MHc{X}/plots/closure/, and a summary table. Runs as
 per-masspoint condor jobs (--output writes a part JSON; merge with
 mergeInterpResults.py --stage closure).
 
@@ -85,21 +85,22 @@ def main():
     parser.add_argument("--loo-ma", type=int, default=None,
                         help="leave-one-out mode: evaluate ONLY this mA, "
                              "against the LOO polynomials in the per-point "
-                             "dir tests/interpolation/MHc{X}_MA{Y}/ (where "
-                             "closure.json and plots are written too)")
+                             "dir closure/interpolation/loo/MHc{X}_MA{Y}/ "
+                             "(where closure.json and plots are written too)")
     args = parser.parse_args()
 
     if args.loo_ma is not None and args.masspoints:
         raise ValueError("--loo-ma already selects its single mass point; "
                          "do not combine with --masspoints")
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
-    interp_dir = srspaths.interpolation_dir(args.mhc)
+    fits_dir = srspaths.interpolation_fits_dir(args.mhc)
+    closure_dir = srspaths.interpolation_closure_dir(args.mhc)
     loo_dir = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
                if args.loo_ma is not None else None)
 
-    with open(os.path.join(interp_dir, "fits", "dcb_fits.json")) as f:
+    with open(os.path.join(fits_dir, "dcb_fits.json")) as f:
         dcb = json.load(f)["results"]
-    poly_path = os.path.join(loo_dir or interp_dir, "polynomials.json")
+    poly_path = os.path.join(loo_dir or fits_dir, "polynomials.json")
     with open(poly_path) as f:
         poly_payload = json.load(f)
     polys = poly_payload["polynomials"]
@@ -220,7 +221,7 @@ def main():
             draw_dcb_param_comparison(direct["params"], predicted)
             outdir = (os.path.join(loo_dir, "plots", "closure")
                       if loo_dir is not None
-                      else srspaths.interpolation_plots_dir(
+                      else srspaths.interpolation_closure_plots_dir(
                           args.mhc, "closure"))
             os.makedirs(outdir, exist_ok=True)
             canvas.canv.SaveAs(
@@ -257,7 +258,7 @@ def main():
         outpath = args.output
         os.makedirs(os.path.dirname(outpath) or ".", exist_ok=True)
     else:
-        outpath = os.path.join(loo_dir or interp_dir, "closure.json")
+        outpath = os.path.join(loo_dir or closure_dir, "closure.json")
 
     payload = {
         "meta": {

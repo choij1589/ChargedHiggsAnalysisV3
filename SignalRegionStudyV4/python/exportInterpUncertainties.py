@@ -30,6 +30,7 @@ scatter into the exported nuisance size).
 """
 import argparse
 import datetime
+import decimal
 import json
 import os
 import sys
@@ -184,7 +185,7 @@ def _collect_loo_points(mhc):
 
 def export_loo_one(mhc):
     """Aggregate the per-point LOO closures of one mHc into
-    tests/interpolation/MHc{X}/loo_uncertainties.json.
+    closure/interpolation/MHc{X}/loo_uncertainties.json.
 
     Its norm block keeps the plain per-study max and is a DIAGNOSTIC: the
     production norm nuisance is mA-binned, pooled over mHc and set by the
@@ -271,7 +272,7 @@ def export_loo_one(mhc):
         },
         "warnings": warnings,
     }
-    outpath = os.path.join(srspaths.interpolation_dir(mhc),
+    outpath = os.path.join(srspaths.interpolation_closure_dir(mhc),
                            "loo_uncertainties.json")
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
     with open(outpath, "w") as f:
@@ -531,7 +532,7 @@ def export_loo_pooled(mhcs, write_config=False):
         },
         "warnings": warnings,
     }
-    outdir = srspaths.interpolation_dir()
+    outdir = srspaths.interpolation_closure_dir()
     outpath = os.path.join(outdir, "loo_uncertainties.pooled.json")
     os.makedirs(outdir, exist_ok=True)
     with open(outpath, "w") as f:
@@ -554,8 +555,26 @@ def write_production_config(payload):
     """configs/interpolation_uncertainties.json — the production artifact.
 
     Takes the production-pairing block: those are the values a datacard for
-    a real mass point will use."""
+    a real mass point will use.
+
+    Values are CEIL-rounded to 3 decimals (0.0233 -> 0.024) — conservative
+    by construction, never rounded down; norm rounds its envelope part
+    (1 + ceil3(v - 1)). Full precision stays in the pooled diagnostic and
+    in per_study_detail, which is the audit trail the rounded numbers are
+    checked against."""
+
+    def ceil3(v):
+        return float(decimal.Decimal(str(v)).quantize(
+            decimal.Decimal("0.001"), rounding=decimal.ROUND_CEILING))
+
     pr = payload["production_restricted"]
+    scale = {ch: {p: ceil3(v) for p, v in per.items()}
+             for ch, per in pr["scale"].items()}
+    res = {ch: {p: ceil3(v) for p, v in per.items()}
+           for ch, per in pr["res"].items()}
+    norm = {ch: {era: {b: 1.0 + ceil3(v - 1.0) for b, v in bins.items()}
+                 for era, bins in per.items()}
+            for ch, per in pr["norm"].items()}
     out = {
         "meta": {
             **{k: payload["meta"][k] for k in
@@ -581,9 +600,12 @@ def write_production_config(payload):
                 "res": interpolation_config.UNCERTAINTY_RES_FLOOR,
                 "norm": interpolation_config.UNCERTAINTY_NORM_FLOOR},
             "min_study_points": MIN_STUDY_POINTS,
-            "source": "tests/interpolation/loo_uncertainties.pooled.json",
+            "rounding": "scale/res/norm ceil-rounded to 3 decimals "
+                        "(never down); per_study_detail and the pooled "
+                        "diagnostic keep full precision",
+            "source": "closure/interpolation/loo_uncertainties.pooled.json",
         },
-        "scale": pr["scale"], "res": pr["res"], "norm": pr["norm"],
+        "scale": scale, "res": res, "norm": norm,
         "nuisances": payload["nuisances"],
         "n_points": pr["n_points"],
         "per_study_detail": pr["per_study_detail"],
@@ -608,12 +630,12 @@ def main():
                         help="every mHc in the baseline grid")
     parser.add_argument("--loo", action="store_true",
                         help="aggregate the leave-one-out sweep "
-                             "(tests/interpolation/MHc{X}_MA{Y}/ dirs) into "
-                             "the per-study tests/interpolation/MHc{X}/"
-                             "loo_uncertainties.json diagnostics")
+                             "(closure/interpolation/loo/MHc{X}_MA{Y}/ dirs) "
+                             "into the per-study closure/interpolation/"
+                             "MHc{X}/loo_uncertainties.json diagnostics")
     parser.add_argument("--pooled", action="store_true",
                         help="with --loo: also pool every study's LOO points "
-                             "into tests/interpolation/"
+                             "into closure/interpolation/"
                              "loo_uncertainties.pooled.json, where the norm "
                              "envelope is binned in mA and nothing carries an "
                              "mHc dependence (needs every mHc)")

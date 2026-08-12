@@ -46,21 +46,22 @@ export WORKDIR="$SRS_REPO_DIR"
 cd "$SRS_MODULE_DIR"
 export PATH="${PWD}/python:${PATH}"
 
-INTERP_DIR="$(srs_interp_dir "$MHC")"
+FITS_DIR="$(srs_interp_fits_dir "$MHC")"
+CLOSURE_DIR="$(srs_interp_closure_dir "$MHC")"
 
 part_output() {
-    # $1 = subdir under $INTERP_DIR, $2 = file basename prefix
-    local subdir=$1
+    # $1 = base dir (fits or closure tree), $2 = file basename prefix
+    local base=$1
     local prefix=$2
-    mkdir -p "$INTERP_DIR/$subdir/parts"
-    echo "$INTERP_DIR/$subdir/parts/${prefix}.${MASSPOINT}.json"
+    mkdir -p "$base/parts"
+    echo "$base/parts/${prefix}.${MASSPOINT}.json"
 }
 
 case "$STEP" in
     fit_float)
         python3 python/fitInterpShapes.py --mhc "$MHC" --pass floating \
             --masspoints "$MASSPOINT" \
-            --output "$(part_output fits dcb_fits_floating)" $EXTRA_ARGS
+            --output "$(part_output "$FITS_DIR" dcb_fits_floating)" $EXTRA_ARGS
         ;;
     merge_float)
         python3 python/mergeInterpResults.py --mhc "$MHC" --stage fits-floating $EXTRA_ARGS
@@ -68,7 +69,7 @@ case "$STEP" in
     fit_frozen)
         python3 python/fitInterpShapes.py --mhc "$MHC" --pass frozen \
             --masspoints "$MASSPOINT" \
-            --output "$(part_output fits dcb_fits)" $EXTRA_ARGS
+            --output "$(part_output "$FITS_DIR" dcb_fits)" $EXTRA_ARGS
         ;;
     merge_frozen)
         python3 python/mergeInterpResults.py --mhc "$MHC" --stage fits $EXTRA_ARGS
@@ -79,7 +80,7 @@ case "$STEP" in
     closure)
         python3 python/closInterpShapes.py --mhc "$MHC" \
             --masspoints "$MASSPOINT" \
-            --output "$(part_output closure closure)" $EXTRA_ARGS
+            --output "$(part_output "$CLOSURE_DIR" closure)" $EXTRA_ARGS
         ;;
     merge_closure)
         python3 python/mergeInterpResults.py --mhc "$MHC" --stage closure $EXTRA_ARGS
@@ -87,7 +88,7 @@ case "$STEP" in
     yields)
         python3 python/measInterpYields.py --mhc "$MHC" \
             --masspoints "$MASSPOINT" \
-            --output "$(part_output yields yields)" $EXTRA_ARGS
+            --output "$(part_output "$FITS_DIR/yields" yields)" $EXTRA_ARGS
         ;;
     merge_yields)
         python3 python/mergeInterpResults.py --mhc "$MHC" --stage yields $EXTRA_ARGS
@@ -98,7 +99,7 @@ case "$STEP" in
     yield_closure)
         python3 python/closInterpYields.py --mhc "$MHC" \
             --masspoints "$MASSPOINT" \
-            --output "$(part_output yields yield_closure)" $EXTRA_ARGS
+            --output "$(part_output "$CLOSURE_DIR" yield_closure)" $EXTRA_ARGS
         ;;
     merge_yield_closure)
         python3 python/mergeInterpResults.py --mhc "$MHC" --stage yield-closure $EXTRA_ARGS
@@ -118,7 +119,7 @@ case "$STEP" in
         # One full leave-one-out iteration for MASSPOINT = MHc{X}_MA{Y}:
         # refit the shape polynomials and the yield model on the full grid
         # minus this point, then close both at this point only. Outputs go
-        # to tests/interpolation/MHc{X}_MA{Y}/.
+        # to closure/interpolation/loo/MHc{X}_MA{Y}/.
         LOO_MA="${MASSPOINT##*_MA}"
         if [[ -z "$LOO_MA" || "$LOO_MA" == "$MASSPOINT" ]]; then
             echo "ERROR: loo step needs MASSPOINT of the form MHc{X}_MA{Y}, got '$MASSPOINT'"

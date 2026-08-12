@@ -319,7 +319,8 @@ EOF
 
 # Leave-one-out sweep DAG: one flat `loo_{mp}` node per grid point (shape
 # polynomials + yield model refit on the grid minus that point, both
-# closures evaluated at that point; outputs in tests/interpolation/{mp}/),
+# closures evaluated at that point; outputs in
+# closure/interpolation/loo/{mp}/),
 # then one export_loo aggregation node. Requires the adopted chain outputs
 # (fits/dcb_fits.json, yields/yields.json) to exist already.
 generate_loo_dag_file() {
@@ -329,9 +330,9 @@ generate_loo_dag_file() {
     mp_list=$(study_masspoints_for "$mhc") || exit 1
     read -r -a masspoints <<< "$mp_list"
 
-    local interp_dir="$SCRIPT_DIR/tests/interpolation/MHc${mhc}"
+    local fits_dir="$SCRIPT_DIR/fits/MHc${mhc}"
     local prereq
-    for prereq in "$interp_dir/fits/dcb_fits.json" "$interp_dir/yields/yields.json"; do
+    for prereq in "$fits_dir/dcb_fits.json" "$fits_dir/yields/yields.json"; do
         if [[ ! -f "$prereq" ]]; then
             echo "ERROR: missing $prereq" >&2
             echo "       The --loo sweep reuses the adopted chain's fits and" >&2

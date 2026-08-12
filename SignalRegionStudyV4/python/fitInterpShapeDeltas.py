@@ -18,10 +18,10 @@ Closure: the model evaluated at every HELD-OUT mass point (which also has
 its own measured delta, since stage 1 runs over the full grid) against
 that measured delta — the interpolation test.
 
-Outputs tests/interpolation/MHc{X}/shape_deltas/delta_model.json plus a
+Outputs fits/MHc{X}/shape_deltas/delta_model.json plus a
 closure table and cmsstyle overview plots for a curated subset (worst
 closers + JES/ps_isr/ps_fsr) under
-tests/interpolation/MHc{X}/plots/deltas/.
+fits/MHc{X}/plots/deltas/.
 
   python3 fitInterpShapeDeltas.py --mhc 160
 """
@@ -120,8 +120,8 @@ def main():
                         help="mHc study to fit")
     parser.add_argument("--no-plots", action="store_true")
     args = parser.parse_args()
-    interp_dir = srspaths.interpolation_dir(args.mhc)
-    deltas_dir = os.path.join(interp_dir, "shape_deltas")
+    deltas_dir = os.path.join(srspaths.interpolation_fits_dir(args.mhc),
+                              "shape_deltas")
     with open(os.path.join(deltas_dir, "shape_deltas.json")) as f:
         payload = json.load(f)
     results = payload["results"]
@@ -232,7 +232,7 @@ def main():
                         for bucket in ("systs", "pdf_members")
                         for syst in entry[bucket]
                         if any(kw in syst.lower() for kw in CURATED_KEYWORDS)}
-        plot_dir = srspaths.interpolation_plots_dir(args.mhc, "deltas")
+        plot_dir = srspaths.interpolation_fit_plots_dir(args.mhc, "deltas")
         for key, syst in sorted(worst_keys | curated_keys):
             interp_plot_utils.plot_shape_delta_series(
                 key, syst, model[key], plot_dir)

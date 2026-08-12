@@ -22,9 +22,9 @@ model.
 must have completed stage 1 of this chain before this step runs (see
 automize/interpolation.sh --stop-after).
 
-Outputs tests/interpolation/MHc{X}/yields/yield_model.json, per-period
+Outputs fits/MHc{X}/yields/yield_model.json, per-period
 model component plots and per-(channel,era) measured-vs-model plots under
-tests/interpolation/MHc{X}/plots/yields/.
+fits/MHc{X}/plots/yields/.
 
   python3 fitInterpYieldModel.py --mhc 160
 """
@@ -236,7 +236,7 @@ def load_joint_totals(loo_mhc=None, loo_ma=None):
     """
     out = {}
     for mhc in interpolation_config.mhc_grid():
-        path = os.path.join(srspaths.interpolation_dir(mhc), "yields",
+        path = os.path.join(srspaths.interpolation_fits_dir(mhc), "yields",
                             "yields.json")
         if not os.path.exists(path):
             raise FileNotFoundError(
@@ -308,20 +308,21 @@ def main():
                         help="leave-one-out mode: drop this study's mA from "
                              "the joint surfaces and the per-study fits "
                              "(other studies keep their full grids); outputs "
-                             "go to tests/interpolation/MHc{X}_MA{Y}/")
+                             "go to closure/interpolation/loo/MHc{X}_MA{Y}/")
     args = parser.parse_args()
 
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = study["fit"]
     orders = interpolation_config.YIELD_ORDERS
-    yields_dir = os.path.join(srspaths.interpolation_dir(args.mhc), "yields")
+    yields_dir = os.path.join(srspaths.interpolation_fits_dir(args.mhc),
+                              "yields")
     if args.loo_ma is not None:
         out_base = srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
         out_dir = os.path.join(out_base, "yields")
         plot_base = os.path.join(out_base, "plots", "yields")
     else:
         out_dir = yields_dir
-        plot_base = srspaths.interpolation_plots_dir(args.mhc, "yields")
+        plot_base = srspaths.interpolation_fit_plots_dir(args.mhc, "yields")
 
     with open(os.path.join(yields_dir, "yields.json")) as f:
         yields = json.load(f)["results"]

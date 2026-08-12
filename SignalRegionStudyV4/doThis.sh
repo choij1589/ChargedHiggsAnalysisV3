@@ -56,7 +56,9 @@ done
 # Parametric signal templates at fixed mHc, arbitrary mA, over the FULL
 # baseline grid (78 mass points across seven mHc). Consumes Step 0's shared
 # signals only (no backgrounds) and needs both SR3Mu pairing variants for
-# every point. Outputs: tests/interpolation/.
+# every point. Outputs: fits/ (models + validation plots) and
+# closure/interpolation/ (closures, LOO, nuisance diagnostics) — both
+# git-tracked production trees.
 #
 # ===========================================================================
 # THE CHAIN IS NO LONGER SEVEN INDEPENDENT PER-mHc RUNS.
