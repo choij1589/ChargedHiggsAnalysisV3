@@ -24,8 +24,8 @@ START_FROM_SET=false
 DRY_RUN=false
 LOCAL_RUN=false
 LOO_MODE=false
-VARIANT=""
-YIELD_VARIANT=""
+STOP_AFTER=""
+STOP_AFTER_SET=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -54,12 +54,9 @@ while [[ $# -gt 0 ]]; do
             LOO_MODE=true
             shift
             ;;
-        --variant)
-            VARIANT="$2"
-            shift 2
-            ;;
-        --yield-variant)
-            YIELD_VARIANT="$2"
+        --stop-after)
+            STOP_AFTER="$2"
+            STOP_AFTER_SET=true
             shift 2
             ;;
         --help)
@@ -69,25 +66,18 @@ while [[ $# -gt 0 ]]; do
             echo "  --mhc N              Run the chain for mHc=N (repeatable)"
             echo "  --all                Run for every mHc in configs/interpolation.json"
             echo "  --start-from STEP    fit-floating, fit-frozen, polynomials, closure,"
-            echo "                       yields, yield-model, yield-closure, deltas, export"
+            echo "                       yields, yield-model, yield-closure, deltas"
             echo "                       [default: fit-floating]"
+            echo "  --stop-after STEP    same vocabulary; omit every node above that"
+            echo "                       level. The shape and yield SURFACES read every"
+            echo "                       study, so a rebuild runs in three passes:"
+            echo "                       --stop-after fit-frozen, then --start-from"
+            echo "                       polynomials --stop-after yields, then"
+            echo "                       --start-from yield-model."
             echo "  --loo                Leave-one-out sweep: one node per mass point"
             echo "                       (models refit on the grid minus that point,"
             echo "                       closure at that point) + per-mHc aggregation."
             echo "                       Needs the adopted chain outputs (fits, yields)."
-            echo "  --variant NAME       Fit-model variant test (interpolation_config"
-            echo "                       FIT_VARIANTS: nodrop, puredcb): refit the"
-            echo "                       variant's categories, then polynomials +"
-            echo "                       shape closure, under tests/interpolation/"
-            echo "                       variants/NAME/. No yields/deltas/export."
-            echo "  --yield-variant NAME Yield-model variant test (interpolation_config"
-            echo "                       YIELD_VARIANTS: joint). Yield-only leave-one-out"
-            echo "                       sweep: reuses the adopted shape chain and its"
-            echo "                       per-point LOO shape closures, refits only the"
-            echo "                       yield model + yield closure under tests/"
-            echo "                       interpolation/variants/NAME/, then aggregates"
-            echo "                       loo_uncertainties.json there for a head-to-head"
-            echo "                       comparison with the adopted envelopes."
             echo "  --local              Serial execution without condor (insurance for"
             echo "                       local-server condor availability)"
             echo "  --dry-run            Generate DAGs without submitting (condor mode only)"
@@ -110,52 +100,30 @@ if [[ "$LOO_MODE" == "true" && "$START_FROM_SET" == "true" ]]; then
     exit 1
 fi
 
-if [[ -n "$VARIANT" ]]; then
-    if [[ "$LOO_MODE" == "true" ]]; then
-        echo "ERROR: --variant and --loo are mutually exclusive"
-        exit 1
-    fi
-    if [[ "$START_FROM_SET" == "true" ]]; then
-        echo "ERROR: --start-from does not apply to a --variant test (the"
-        echo "       refit IS the test; the sub-chain always runs in full)"
-        exit 1
-    fi
-    case "$VARIANT" in
-        nodrop|puredcb) ;;
-        *) echo "ERROR: unknown variant '$VARIANT' (known: nodrop, puredcb)"; exit 1 ;;
-    esac
-fi
-
-if [[ -n "$YIELD_VARIANT" ]]; then
-    if [[ "$LOO_MODE" == "true" || -n "$VARIANT" ]]; then
-        echo "ERROR: --yield-variant is its own (yield-only LOO) mode; it does"
-        echo "       not combine with --loo or --variant"
-        exit 1
-    fi
-    if [[ "$START_FROM_SET" == "true" ]]; then
-        echo "ERROR: --start-from does not apply to a --yield-variant test"
-        exit 1
-    fi
-    case "$YIELD_VARIANT" in
-        joint) ;;
-        *) echo "ERROR: unknown yield variant '$YIELD_VARIANT' (known: joint)"; exit 1 ;;
-    esac
-fi
-
 if [[ "$ALL_MHC" == "true" ]]; then
-    _interp_json="$SCRIPT_DIR/configs/interpolation.json"
-    _mhc_list=$(python3 -c "
-import json
-d = json.load(open('$_interp_json'))
-print(' '.join(sorted(d['fit_points'], key=int)))
-")
+    _mhc_list=$(WORKDIR="$(dirname "$SCRIPT_DIR")" python3 -c "
+import sys
+sys.path.insert(0, '$SCRIPT_DIR/python')
+import interpolation_config as ic
+print(' '.join(str(m) for m in ic.mhc_grid()))
+") || { echo "ERROR: cannot resolve the mHc grid (source setup.sh first?)"; exit 1; }
     read -ra MHCS <<< "$_mhc_list"
 fi
 
-case "$START_FROM" in
-    fit-floating|fit-frozen|polynomials|closure|yields|yield-model|yield-closure|deltas|export) ;;
-    *) echo "ERROR: Invalid --start-from '$START_FROM'"; exit 1 ;;
-esac
+_valid_step() {
+    case "$1" in
+        fit-floating|fit-frozen|polynomials|closure|yields|yield-model|yield-closure|deltas) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+_valid_step "$START_FROM" || { echo "ERROR: Invalid --start-from '$START_FROM'"; exit 1; }
+if [[ "$STOP_AFTER_SET" == "true" ]]; then
+    _valid_step "$STOP_AFTER" || { echo "ERROR: Invalid --stop-after '$STOP_AFTER'"; exit 1; }
+    if [[ "$LOO_MODE" == "true" ]]; then
+        echo "ERROR: --stop-after does not apply to the --loo sweep (flat DAG)"
+        exit 1
+    fi
+fi
 
 # Full baseline mA grid of one mHc study (interpolation_config.study()["all"]).
 # Fails loudly: a silent empty list would generate a DAG with no per-mass-point
@@ -198,7 +166,6 @@ step_to_level() {
         yield_model) echo 4 ;;
         yield_closure|merge_yield_closure) echo 5 ;;
         deltas|merge_deltas|delta_model) echo 6 ;;
-        export_uncertainties) echo 7 ;;
         *) echo 0 ;;
     esac
 }
@@ -212,29 +179,41 @@ start_from_level() {
         yield-model) echo 4 ;;
         yield-closure) echo 5 ;;
         deltas) echo 6 ;;
-        export) echo 7 ;;
     esac
 }
 
 generate_dag_file() {
     local mhc=$1
     local dag_file=$2
-    local start_level
+    local start_level stop_level
     start_level=$(start_from_level "$START_FROM")
+    stop_level=99
+    [[ "$STOP_AFTER_SET" == "true" ]] && stop_level=$(start_from_level "$STOP_AFTER")
     local masspoints mp_list
     # Separate assignment so $? is the command substitution's status: the
     # helper exits non-zero in its subshell and we must abort here.
     mp_list=$(study_masspoints_for "$mhc") || exit 1
     read -r -a masspoints <<< "$mp_list"
 
+    # A node outside [start_level, stop_level] is emitted but marked DONE,
+    # so DAGMan keeps the full dependency graph and simply does not run it.
+    # Below --start-from its output already exists; above --stop-after this
+    # pass deliberately ends first, and a later pass runs it. That is what
+    # lets the cross-study surface barriers be honoured: `polynomials` reads
+    # every study's fits and `yield_model` every study's yields, so neither
+    # may start until all seven studies have cleared the previous stage.
     job_done_suffix() {
         local level
         level=$(step_to_level "$1")
-        [[ $level -lt $start_level ]] && echo " DONE" || echo ""
+        if [[ $level -lt $start_level || $level -gt $stop_level ]]; then
+            echo " DONE"
+        else
+            echo ""
+        fi
     }
 
     cat > "$dag_file" << EOF
-# DAG for MHc${mhc} interpolation chain (start-from: $START_FROM)
+# DAG for MHc${mhc} interpolation chain (start-from: $START_FROM, stop-after: ${STOP_AFTER:-none})
 CONFIG dagman.config
 
 EOF
@@ -308,10 +287,6 @@ EOF
     echo "JOB delta_model jobs.sub${done_sfx}" >> "$dag_file"
     echo "VARS delta_model step=\"delta_model\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"\" job_request_memory=\"2048\"" >> "$dag_file"
 
-    done_sfx=$(job_done_suffix export_uncertainties)
-    echo "JOB export_uncertainties jobs.sub${done_sfx}" >> "$dag_file"
-    echo "VARS export_uncertainties step=\"export_uncertainties\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"\" job_request_memory=\"2048\"" >> "$dag_file"
-
     echo "" >> "$dag_file"
     echo "# Dependencies" >> "$dag_file"
     for mp in "${masspoints[@]}"; do
@@ -340,68 +315,6 @@ EOF
         echo "PARENT deltas_${mp} CHILD merge_deltas" >> "$dag_file"
     done
     echo "PARENT merge_deltas CHILD delta_model" >> "$dag_file"
-    echo "PARENT merge_closure CHILD export_uncertainties" >> "$dag_file"
-    echo "PARENT merge_yield_closure CHILD export_uncertainties" >> "$dag_file"
-}
-
-# Fit-model variant DAG: the standard chain's fits -> polynomials -> shape
-# closure prefix, every node carrying "--variant NAME". Only the variant's
-# categories are refit (fitInterpShapes restricts itself); no yields/deltas/
-# export — the test's verdict is the shape closure.
-generate_variant_dag_file() {
-    local mhc=$1
-    local dag_file=$2
-    local masspoints mp_list
-    mp_list=$(study_masspoints_for "$mhc") || exit 1
-    read -r -a masspoints <<< "$mp_list"
-
-    local extra="--variant $VARIANT"
-
-    cat > "$dag_file" << EOF
-# Fit-model variant '$VARIANT' DAG for MHc${mhc}
-CONFIG dagman.config
-
-EOF
-
-    local mp
-    for mp in "${masspoints[@]}"; do
-        echo "JOB fit_float_${mp} jobs.sub" >> "$dag_file"
-        echo "VARS fit_float_${mp} step=\"fit_float\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
-    done
-    echo "JOB merge_float jobs.sub" >> "$dag_file"
-    echo "VARS merge_float step=\"merge_float\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
-
-    for mp in "${masspoints[@]}"; do
-        echo "JOB fit_frozen_${mp} jobs.sub" >> "$dag_file"
-        echo "VARS fit_frozen_${mp} step=\"fit_frozen\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
-    done
-    echo "JOB merge_frozen jobs.sub" >> "$dag_file"
-    echo "VARS merge_frozen step=\"merge_frozen\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
-
-    echo "JOB polynomials jobs.sub" >> "$dag_file"
-    echo "VARS polynomials step=\"polynomials\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
-
-    for mp in "${masspoints[@]}"; do
-        echo "JOB closure_${mp} jobs.sub" >> "$dag_file"
-        echo "VARS closure_${mp} step=\"closure\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
-    done
-    echo "JOB merge_closure jobs.sub" >> "$dag_file"
-    echo "VARS merge_closure step=\"merge_closure\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"${extra}\" job_request_memory=\"2048\"" >> "$dag_file"
-
-    echo "" >> "$dag_file"
-    echo "# Dependencies" >> "$dag_file"
-    for mp in "${masspoints[@]}"; do
-        echo "PARENT fit_float_${mp} CHILD merge_float" >> "$dag_file"
-    done
-    echo "PARENT merge_float CHILD ${masspoints[*]/#/fit_frozen_}" >> "$dag_file"
-    for mp in "${masspoints[@]}"; do
-        echo "PARENT fit_frozen_${mp} CHILD merge_frozen" >> "$dag_file"
-    done
-    echo "PARENT merge_frozen CHILD polynomials" >> "$dag_file"
-    echo "PARENT polynomials CHILD ${masspoints[*]/#/closure_}" >> "$dag_file"
-    for mp in "${masspoints[@]}"; do
-        echo "PARENT closure_${mp} CHILD merge_closure" >> "$dag_file"
-    done
 }
 
 # Leave-one-out sweep DAG: one flat `loo_{mp}` node per grid point (shape
@@ -427,25 +340,10 @@ generate_loo_dag_file() {
         fi
     done
 
-    # A yield-only variant sweep additionally reuses the adopted sweep's
-    # per-point shape closures, which the aggregation node reads verbatim.
     local step="loo" extra=""
-    if [[ -n "$YIELD_VARIANT" ]]; then
-        step="loo_yield"
-        extra="--yield-variant $YIELD_VARIANT"
-        local mp_check
-        for mp_check in "${masspoints[@]}"; do
-            if [[ ! -f "$SCRIPT_DIR/tests/interpolation/${mp_check}/closure.json" ]]; then
-                echo "ERROR: missing tests/interpolation/${mp_check}/closure.json" >&2
-                echo "       A --yield-variant sweep reuses the adopted LOO shape" >&2
-                echo "       closures; run './interpolation.sh --loo --mhc $mhc' first." >&2
-                exit 1
-            fi
-        done
-    fi
 
     cat > "$dag_file" << EOF
-# Leave-one-out DAG for MHc${mhc}${YIELD_VARIANT:+ (yield variant '$YIELD_VARIANT')}
+# Leave-one-out DAG for MHc${mhc}
 CONFIG dagman.config
 
 EOF
@@ -469,8 +367,6 @@ submit_condor_dags() {
     local job_dir jobdir_prefix
     jobdir_prefix="interp"
     [[ "$LOO_MODE" == "true" ]] && jobdir_prefix="interp_loo"
-    [[ -n "$VARIANT" ]] && jobdir_prefix="interp_variant_${VARIANT}"
-    [[ -n "$YIELD_VARIANT" ]] && jobdir_prefix="interp_yieldvariant_${YIELD_VARIANT}"
     job_dir=$(dag_new_jobdir "$jobdir_prefix")
 
     local mhc
@@ -492,10 +388,8 @@ getenv = True
 should_transfer_files = NO
 queue
 EOF
-        if [[ "$LOO_MODE" == "true" || -n "$YIELD_VARIANT" ]]; then
+        if [[ "$LOO_MODE" == "true" ]]; then
             generate_loo_dag_file "$mhc" "$mp_dir/dag.dag"
-        elif [[ -n "$VARIANT" ]]; then
-            generate_variant_dag_file "$mhc" "$mp_dir/dag.dag"
         else
             generate_dag_file "$mhc" "$mp_dir/dag.dag"
         fi
@@ -515,31 +409,10 @@ run_local() {
     local wrapper="$SCRIPT_DIR/scripts/interpolation_wrapper.sh"
     local mp
 
-    if [[ -n "$YIELD_VARIANT" ]]; then
-        echo "=== MHc${mhc}: local serial yield-variant '$YIELD_VARIANT' LOO sweep (${#masspoints[@]} mass points) ==="
-        local yextra="--yield-variant $YIELD_VARIANT"
-        for mp in "${masspoints[@]}"; do "$wrapper" loo_yield "$mhc" "$mp" "$yextra"; done
-        "$wrapper" export_loo "$mhc" - "$yextra"
-        return
-    fi
-
     if [[ "$LOO_MODE" == "true" ]]; then
         echo "=== MHc${mhc}: local serial LOO sweep (${#masspoints[@]} mass points) ==="
         for mp in "${masspoints[@]}"; do "$wrapper" loo "$mhc" "$mp"; done
         "$wrapper" export_loo "$mhc" -
-        return
-    fi
-
-    if [[ -n "$VARIANT" ]]; then
-        echo "=== MHc${mhc}: local serial variant '$VARIANT' test (${#masspoints[@]} mass points) ==="
-        local extra="--variant $VARIANT"
-        for mp in "${masspoints[@]}"; do "$wrapper" fit_float "$mhc" "$mp" "$extra"; done
-        "$wrapper" merge_float "$mhc" - "$extra"
-        for mp in "${masspoints[@]}"; do "$wrapper" fit_frozen "$mhc" "$mp" "$extra"; done
-        "$wrapper" merge_frozen "$mhc" - "$extra"
-        "$wrapper" polynomials "$mhc" - "$extra"
-        for mp in "${masspoints[@]}"; do "$wrapper" closure "$mhc" "$mp" "$extra"; done
-        "$wrapper" merge_closure "$mhc" - "$extra"
         return
     fi
 
@@ -559,7 +432,6 @@ run_local() {
     for mp in "${masspoints[@]}"; do "$wrapper" deltas "$mhc" "$mp"; done
     "$wrapper" merge_deltas "$mhc" -
     "$wrapper" delta_model "$mhc" -
-    "$wrapper" export_uncertainties "$mhc" -
 }
 
 echo "============================================================"
@@ -567,10 +439,6 @@ echo "SignalRegionStudyV4 mA-interpolation chain"
 echo "mHc values: ${MHCS[*]}"
 if [[ "$LOO_MODE" == "true" ]]; then
     _mode="leave-one-out sweep"
-elif [[ -n "$YIELD_VARIANT" ]]; then
-    _mode="yield-model variant test (yield-only LOO sweep): $YIELD_VARIANT"
-elif [[ -n "$VARIANT" ]]; then
-    _mode="fit-model variant test: $VARIANT"
 else
     _mode="standard chain (start from: $START_FROM)"
 fi

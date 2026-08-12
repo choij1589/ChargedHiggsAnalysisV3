@@ -195,8 +195,8 @@ def _poly_band(fit_info, xgrid):
 
 # -------------------------------------------------------------- yield model
 
-def plot_yield_period_model(mhc, period, model, polys, merged, fit_ma,
-                            outdir, eval_rec, rec_band, inv_logit, fsig_of):
+def plot_yield_period_model(mhc, period, model, merged, fit_ma,
+                            outdir, eval_rec, rec_band, inv_logit):
     """One PNG per yield-model component of one run period: G (x2), S,
     p_high, f_sr1e2mu, SR3Mu f overlay."""
     grid = np.linspace(min(fit_ma) - 3, max(fit_ma) + 3, 200)
@@ -224,8 +224,9 @@ def plot_yield_period_model(mhc, period, model, polys, merged, fit_ma,
         lat.SetTextFont(42)
         lat.SetTextSize(0.032)
         lat.DrawLatex(0.20, 0.83,
-                     f"G {tot_channel}: log-pol{rec['chosen_order']}, "
-                     f"#chi^{{2}}/ndf={rec['chi2']:.1f}/{rec['ndf']}")
+                     f"G {tot_channel}: slice of the joint (m_{{H^{{#pm}}}}, m_{{A}}) "
+                     f"surface, #chi^{{2}}={rec['chi2']:.1f} over "
+                     f"{rec['ndf']} points here")
         canv.RedrawAxis()
         _save(canv, outdir, f"model.{period}.G_{tot_channel}")
 
@@ -266,7 +267,7 @@ def plot_yield_period_model(mhc, period, model, polys, merged, fit_ma,
     canv.RedrawAxis()
     _save(canv, outdir, f"model.{period}.f_SR1E2Mu")
 
-    canv = graph_canvas(f"foverlay_{period}", "m_{A} [GeV]", "f = S #upoint p / f^{sig}",
+    canv = graph_canvas(f"foverlay_{period}", "m_{A} [GeV]", "f = S #upoint p",
                         min(fit_ma) - 3, max(fit_ma) + 3, 1e-4, 1.0, period,
                         logy=True)
     leg = CMS.cmsLeg(0.62, 0.72, 0.90, 0.88, textSize=0.030)
@@ -281,15 +282,14 @@ def plot_yield_period_model(mhc, period, model, polys, merged, fit_ma,
         S = eval_rec(fr["S"], grid)
         ph = inv_logit(eval_rec(fr["p_high_logit"], grid))
         p = ph if ch == "SR3Mu_highM" else 1 - ph
-        fs = np.array([fsig_of(polys, f"{ch}_{period}", m) for m in grid])
-        curve = curve_graph(list(grid), list(S * p / fs), color=color)
+        curve = curve_graph(list(grid), list(S * p), color=color)
         CMS.cmsObjectDraw(curve, "L")
         leg.AddEntry(g, ch, "pe")
     canv.RedrawAxis()
     _save(canv, outdir, f"model.{period}.f_SR3Mu_overlay")
 
 
-def plot_yield_era_grid(mhc, channel, yields, model, polys, fit_ma, outdir,
+def plot_yield_era_grid(mhc, channel, yields, model, fit_ma, outdir,
                         predict_yield):
     """One PNG per (channel, era): measured window yield vs model curve."""
     import run_period_utils
@@ -303,7 +303,7 @@ def plot_yield_era_grid(mhc, channel, yields, model, polys, fit_ma, outdir,
                 if r is not None:
                     pts.append((rec["mA"], r["sumw"], r["err"]))
             pts.sort()
-            curve = np.array([predict_yield(model, polys, channel, era, m)
+            curve = np.array([predict_yield(model, channel, era, m)
                               for m in grid])
             ymin = 0.5 * max(min(curve[:, 0].min(),
                                  min((v for _m, v, _e in pts), default=1e-3)), 1e-3)
@@ -374,7 +374,7 @@ def plot_yield_residuals(closure, mhc, outdir):
 
 
 def plot_yield_loo_grid(mhc, channel, yields, loo, outdir,
-                        model=None, polys=None, predict_yield=None):
+                        model=None, predict_yield=None):
     """One PNG per (channel, era), two pads. Top: measured window yields
     (filled black), the adopted full-grid fit curve with its 1-sigma band
     (when the model is passed) and the leave-one-out predictions at every
@@ -405,7 +405,7 @@ def plot_yield_loo_grid(mhc, channel, yields, loo, outdir,
             curve = None
             if predict_yield is not None:
                 xgrid = np.linspace(min(all_m), max(all_m), 150)
-                curve = np.array([predict_yield(model, polys, channel, era, m)
+                curve = np.array([predict_yield(model, channel, era, m)
                                   for m in xgrid])
             # Ranges from the measured points, the usable predictions and
             # the fit curve only: an endpoint extrapolation can be off by

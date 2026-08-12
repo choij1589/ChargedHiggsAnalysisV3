@@ -39,215 +39,45 @@ import srspaths
 from interpolation_config import masspoint_name
 
 
-def _production_categories(mhc, held_out_ma, period):
-    """For each held-out mA, (prod_channel, study_category_key) pairs
-    relevant to production at this (mhc, mA, period)."""
-    out = []
-    for mA in held_out_ma:
-        mp = masspoint_name(mA, mhc)
-        out.append((mA, mp, "SR1E2Mu",
-                    interpolation_config.category_key("SR1E2Mu", period)))
-        sr3mu_channel = interpolation_config.study_channel_for("SR3Mu", mp)
-        out.append((mA, mp, "SR3Mu",
-                    interpolation_config.category_key(sr3mu_channel, period)))
-    return out
-
-
-def derive_shape_uncertainties(mhc, closure, held_out_ma, warnings):
-    """(scale, res) = {prod_channel: {period: value}}, plus per-point
-    detail for the audit trail."""
-    scale, res, detail = {}, {}, {}
-    for period, _eras in _run_periods():
-        for mA, mp, prod_channel, cat_key in _production_categories(
-                mhc, held_out_ma, period):
-            rec = closure.get(cat_key, {}).get(mp)
-            if rec is None:
-                continue
-            if rec.get("extrapolation") or rec.get("direct_quality") != "good":
-                continue
-            x0_direct = rec["x0_direct"]
-            sigma_eff_direct = rec["sigma_eff_direct"]
-            sigma_eff_pred = rec["sigma_eff_pred"]
-            x0_pred = rec["predicted"]["x0"]
-            if sigma_eff_direct <= 0:
-                continue
-            scale_pt = abs(x0_pred - x0_direct) / sigma_eff_direct
-            res_pt = abs(sigma_eff_pred / sigma_eff_direct - 1.0)
-            key = (prod_channel, period)
-            detail.setdefault(key, {"scale": [], "res": []})
-            detail[key]["scale"].append({"mA": mA, "value": scale_pt})
-            detail[key]["res"].append({"mA": mA, "value": res_pt})
-
-    for (prod_channel, period), pts in detail.items():
-        scale_vals = [p["value"] for p in pts["scale"]]
-        res_vals = [p["value"] for p in pts["res"]]
-        if not scale_vals:
-            warnings.append(f"[shape/{prod_channel}/{period}] no held-out "
-                            "points survived selection; using the floor")
-        scale.setdefault(prod_channel, {})[period] = max(
-            [interpolation_config.UNCERTAINTY_SCALE_FLOOR] + scale_vals)
-        res.setdefault(prod_channel, {})[period] = max(
-            [interpolation_config.UNCERTAINTY_RES_FLOOR] + res_vals)
-    return scale, res, detail
-
-
-def derive_norm_uncertainties(mhc, yield_closure, held_out_ma, warnings):
-    """norm = {prod_channel: {era: lnN}}, plus per-point detail."""
-    norm, detail = {}, {}
-    for period, eras in _run_periods():
-        for mA, mp, prod_channel, _cat_key in _production_categories(
-                mhc, held_out_ma, period):
-            study_channel = ("SR1E2Mu" if prod_channel == "SR1E2Mu" else
-                             interpolation_config.study_channel_for("SR3Mu", mp))
-            entry = yield_closure.get(mp)
-            if entry is None:
-                continue
-            for era in eras:
-                rec = entry.get("scalar", {}).get(study_channel, {}).get(era)
-                if rec is None or rec.get("extrapolation"):
-                    continue
-                key = (prod_channel, era)
-                detail.setdefault(key, []).append(
-                    {"mA": mA, "value": abs(rec["rel"])})
-
-    for (prod_channel, era), pts in detail.items():
-        vals = [p["value"] for p in pts]
-        envelope = max([interpolation_config.UNCERTAINTY_NORM_FLOOR] + vals)
-        if envelope > interpolation_config.UNCERTAINTY_NORM_WARN:
-            warnings.append(
-                f"[norm/{prod_channel}/{era}] envelope {envelope:.3f} exceeds "
-                f"the {interpolation_config.UNCERTAINTY_NORM_WARN:g} warn "
-                "threshold (expected for Run3: known per-sample scatter, or "
-                "a sparse fit-grid gap)")
-        norm.setdefault(prod_channel, {})[era] = 1.0 + envelope
-    return norm, detail
-
-
 def _run_periods():
     import run_period_utils
     return list(run_period_utils.RUN_PERIODS.items())
 
 
 def build_nuisance_names(scale, res, norm):
+    """Nuisance names for the three families.
+
+    Values are keyed by STUDY channel (SR3Mu_lowM / SR3Mu_highM) because a
+    single mA bin at fixed mHc can contain both pairings; the names use the
+    production channel SR3Mu, which is safe because one datacard holds one
+    mass point and therefore exactly one pairing."""
     names = {"scale": {}, "res": {}, "norm": {}}
-    for prod_channel, per_period in scale.items():
-        for period in per_period:
-            n = interpolation_config.interp_nuisance_names(prod_channel, period)
-            names["scale"].setdefault(prod_channel, {})[period] = n["scale"]
-    for prod_channel, per_period in res.items():
-        for period in per_period:
-            n = interpolation_config.interp_nuisance_names(prod_channel, period)
-            names["res"].setdefault(prod_channel, {})[period] = n["res"]
-    for prod_channel, per_era in norm.items():
-        for era in per_era:
+    for kind, block in (("scale", scale), ("res", res)):
+        for channel, per_period in block.items():
+            prod = interpolation_config.production_channel(channel)
+            for period in per_period:
+                n = interpolation_config.interp_nuisance_names(prod, period)
+                names[kind].setdefault(channel, {})[period] = n[kind]
+    for channel, per_era in norm.items():
+        prod = interpolation_config.production_channel(channel)
+        for era, per_bin in per_era.items():
             period = interpolation_config.period_of(era)
-            n = interpolation_config.interp_nuisance_names(
-                prod_channel, period, era=era)
-            names["norm"].setdefault(prod_channel, {})[era] = n["norm"]
+            for bin_label in per_bin:
+                n = interpolation_config.interp_nuisance_names(
+                    prod, period, era=era, ma_bin=bin_label)
+                names["norm"].setdefault(channel, {}).setdefault(
+                    era, {})[bin_label] = n["norm"]
     return names
 
 
-def export_one(mhc):
-    """Compute and write the per-mHc uncertainties.json; returns the
-    (mhc_key, entry, input_paths) tuple for the consolidated export."""
-    study = interpolation_config.study(mhc)
-    if not study["held_out"]:
-        # Full-grid anchor configuration (the production setting): the
-        # sparse-split export has nothing to measure. The uncertainties are
-        # derived from the leave-one-out sweep instead (--loo).
-        print(f"[MHc{mhc}] no held-out points (full-grid anchors); "
-              "sparse-split export skipped - use --loo for the "
-              "leave-one-out-derived uncertainties")
-        return None, None
-    interp_dir = srspaths.interpolation_dir(mhc)
-
-    closure_path = os.path.join(interp_dir, "closure.json")
-    with open(closure_path) as f:
-        closure_payload = json.load(f)
-    yield_closure_path = os.path.join(interp_dir, "yields", "yield_closure.json")
-    with open(yield_closure_path) as f:
-        yield_closure_payload = json.load(f)
-
-    warnings = []
-    scale, res, shape_detail = derive_shape_uncertainties(
-        mhc, closure_payload["closure"], study["held_out"], warnings)
-    norm, norm_detail = derive_norm_uncertainties(
-        mhc, yield_closure_payload["closure"], study["held_out"], warnings)
-    nuisances = build_nuisance_names(scale, res, norm)
-    n_points = {
-        "scale": {f"{ch}/{p}": len(pts["scale"])
-                 for (ch, p), pts in shape_detail.items()},
-        "res": {f"{ch}/{p}": len(pts["res"])
-               for (ch, p), pts in shape_detail.items()},
-        "norm": {f"{ch}/{e}": len(pts) for (ch, e), pts in norm_detail.items()},
-    }
-
-    entry = {
-        "scale": scale, "res": res, "norm": norm,
-        "nuisances": nuisances, "n_points": n_points,
-    }
-    detail = {
-        "scale": {f"{ch}/{p}": pts["scale"] for (ch, p), pts in shape_detail.items()},
-        "res": {f"{ch}/{p}": pts["res"] for (ch, p), pts in shape_detail.items()},
-        "norm": {f"{ch}/{e}": pts for (ch, e), pts in norm_detail.items()},
-    }
-
-    payload = {
-        "meta": {
-            "mhc": mhc,
-            "held_out_ma": study["held_out"],
-            "rules": {
-                "scale": "max(|x0_pred-x0_direct|/sigma_eff_direct) over "
-                         f"held-out points, floor {interpolation_config.UNCERTAINTY_SCALE_FLOOR}",
-                "res": "max(|sigma_eff_pred/sigma_eff_direct-1|) over "
-                       f"held-out points, floor {interpolation_config.UNCERTAINTY_RES_FLOOR}",
-                "norm": "max(|N_pred/N_meas-1|) over held-out points per era, "
-                        f"floor {interpolation_config.UNCERTAINTY_NORM_FLOOR}, "
-                        f"warn above {interpolation_config.UNCERTAINTY_NORM_WARN}",
-            },
-            "inputs": {"closure": closure_path,
-                      "yield_closure": yield_closure_path},
-            "command": " ".join(sys.argv),
-            "date": datetime.datetime.now().isoformat(timespec="seconds"),
-        },
-        **entry,
-        "point_detail": detail,
-        "warnings": warnings,
-    }
-    outpath = os.path.join(interp_dir, "uncertainties.json")
-    os.makedirs(os.path.dirname(outpath), exist_ok=True)
-    with open(outpath, "w") as f:
-        json.dump(payload, f, indent=2)
-    print(f"Wrote {outpath}")
-    for w in warnings:
-        print(f"  warning: {w}")
-    return entry, {"closure": closure_path, "yield_closure": yield_closure_path}
-
-
-# ---- Leave-one-out aggregation ------------------------------------------
-# Every mass point is closed against models refit on the full grid minus
-# that point (the per-point dirs tests/interpolation/MHc{X}_MA{Y}/, produced
-# by the --loo-ma chain). The SR3Mu pairing variants are kept SPLIT and each
-# is evaluated over the full mA grid (user decision 2026-08-12); an
-# informational production-restricted block is included alongside so the
-# later restriction/pooling decision needs no re-run.
-
-LOO_CHANNELS = list(interpolation_config.STUDY_CHANNELS)
-
-
-def _loo_point_files(mhc, grid, yield_variant=None):
+def _loo_point_files(mhc, grid):
     """{mA: (closure, yield_closure)} from the per-point LOO dirs; a
-    partial sweep is a hard error, never a silently partial envelope.
-
-    A yield variant only refits the yield model, so the shape closure is
-    still read from the adopted per-point dirs."""
+    partial sweep is a hard error, never a silently partial envelope."""
     missing, out = [], {}
     for mA in grid:
         loo_dir = srspaths.interpolation_loo_dir(mhc, mA)
         cpath = os.path.join(loo_dir, "closure.json")
-        ypath = os.path.join(
-            srspaths.interpolation_loo_dir(mhc, mA, variant=yield_variant),
-            "yields", "yield_closure.json")
+        ypath = os.path.join(loo_dir, "yields", "yield_closure.json")
         absent = [p for p in (cpath, ypath) if not os.path.exists(p)]
         if absent:
             missing.extend(absent)
@@ -277,14 +107,14 @@ def _envelope(points, floor, production_only=False):
     return max([floor] + vals), len(vals)
 
 
-def _collect_loo_points(mhc, yield_variant=None):
+def _collect_loo_points(mhc):
     """Per-point LOO records of one mHc, before any envelope is taken.
 
     Returns (shape_detail, norm_detail, grid, warnings); every record
     carries mA and production_pairing so the caller can slice."""
     study = interpolation_config.study(mhc)
     grid = study["all"]
-    per_point = _loo_point_files(mhc, grid, yield_variant)
+    per_point = _loo_point_files(mhc, grid)
 
     warnings = []
     shape_detail = {}   # (channel, period) -> {"scale": [...], "res": [...]}
@@ -346,7 +176,7 @@ def _collect_loo_points(mhc, yield_variant=None):
     return shape_detail, norm_detail, grid, warnings
 
 
-def export_loo_one(mhc, yield_variant=None):
+def export_loo_one(mhc):
     """Aggregate the per-point LOO closures of one mHc into
     tests/interpolation/MHc{X}/loo_uncertainties.json.
 
@@ -354,7 +184,7 @@ def export_loo_one(mhc, yield_variant=None):
     production norm nuisance is mA-binned, pooled over mHc and set by the
     per-study rms rule in loo_uncertainties.pooled.json (--pooled)."""
     shape_detail, norm_detail, grid, warnings = _collect_loo_points(
-        mhc, yield_variant)
+        mhc)
 
     def blocks(production_only):
         scale, res, norm, n_points = {}, {}, {}, {"scale": {}, "res": {}, "norm": {}}
@@ -395,7 +225,6 @@ def export_loo_one(mhc, yield_variant=None):
             "grid_ma": grid,
             "endpoint_ma": [grid[0], grid[-1]],
             "channels": LOO_CHANNELS,
-            "yield_variant": yield_variant,
             "rules": {
                 "scale": "max(|x0_pred-x0_direct|/sigma_eff_direct) over "
                          "usable LOO points, floor "
@@ -433,9 +262,8 @@ def export_loo_one(mhc, yield_variant=None):
         },
         "warnings": warnings,
     }
-    outpath = os.path.join(
-        srspaths.interpolation_dir(mhc, variant=yield_variant),
-        "loo_uncertainties.json")
+    outpath = os.path.join(srspaths.interpolation_dir(mhc),
+                           "loo_uncertainties.json")
     os.makedirs(os.path.dirname(outpath), exist_ok=True)
     with open(outpath, "w") as f:
         json.dump(payload, f, indent=2)
@@ -458,8 +286,8 @@ def export_loo_one(mhc, yield_variant=None):
 # quoting it as if it were measured.
 MIN_ENVELOPE_POINTS = 3
 
-# Norm-nuisance rule: the rms WITHIN each mHc study, then the MAX over
-# studies (user decision 2026-08-12).
+# THE uncertainty rule, for all three families: the rms WITHIN each mHc
+# study, then the MAX over studies (user decision 2026-08-12).
 #
 # The max over all pooled points was a ~3 sigma order statistic used as a
 # 1 sigma lnN width: the residuals are unbiased (|mean| < 2% everywhere)
@@ -486,8 +314,11 @@ def _rms(values):
     return float(sum(v * v for v in values) / len(values)) ** 0.5
 
 
-def _norm_envelope(points, floor, production_only=False):
-    """(envelope, n points, diagnostics) under the per-study rms rule."""
+def _envelope_rms_then_max(points, floor, production_only=False):
+    """(envelope, n points, diagnostics) under the rms-then-max rule.
+
+    Used for scale, res and norm alike; the caller supplies the floor and
+    decides the cell keying."""
     usable = [p for p in points if p.get("excluded") is None
               and (p["production_pairing"] or not production_only)]
     if not usable:
@@ -532,7 +363,7 @@ def _reachable(study_channel, bin_label):
     return False
 
 
-def export_loo_pooled(mhcs, yield_variant=None):
+def export_loo_pooled(mhcs, write_config=False):
     """Pool every study's LOO points and bin the norm envelope in mA.
 
     The norm nuisance is keyed (channel, era, mA bin) with NO mHc
@@ -550,7 +381,7 @@ def export_loo_pooled(mhcs, yield_variant=None):
     warnings, grids = [], {}
     for mhc in mhcs:
         shape_detail, norm_detail, grid, warn = _collect_loo_points(
-            mhc, yield_variant)
+            mhc)
         grids[mhc] = grid
         warnings.extend(f"[MHc{mhc}] {w}" for w in warn)
         for key, slot in shape_detail.items():
@@ -567,7 +398,8 @@ def export_loo_pooled(mhcs, yield_variant=None):
         floor = interpolation_config.UNCERTAINTY_NORM_FLOOR
         out, counts, spread = {}, {}, {}
         for (channel, era, bin_label), pts in norm_all.items():
-            value, n, diag = _norm_envelope(pts, floor, production_only)
+            value, n, diag = _envelope_rms_then_max(
+                pts, floor, production_only)
             key = f"{channel}/{era}/{bin_label}"
             counts[key] = n
             if not n:
@@ -606,24 +438,30 @@ def export_loo_pooled(mhcs, yield_variant=None):
         return out, counts, spread
 
     def shape_block(production_only):
-        scale, res, counts = {}, {}, {}
+        """scale/res under the same rms-then-max rule as norm.
+
+        They are NOT binned in mA: res sits at its floor in every cell, and
+        scale's region-to-region variation has no consistent pattern across
+        channels (worst below-Z in some, on-Z in others) — noise across
+        6-32-point cells rather than the grid-density effect that justifies
+        binning norm."""
+        floors = {"scale": interpolation_config.UNCERTAINTY_SCALE_FLOOR,
+                  "res": interpolation_config.UNCERTAINTY_RES_FLOOR}
+        out = {"scale": {}, "res": {}}
+        counts, detail = {}, {}
         for (channel, period), pts in shape_all.items():
-            v, n = _envelope(pts["scale"],
-                             interpolation_config.UNCERTAINTY_SCALE_FLOOR,
-                             production_only)
-            scale.setdefault(channel, {})[period] = v
-            counts[f"scale/{channel}/{period}"] = n
-            v, n = _envelope(pts["res"],
-                             interpolation_config.UNCERTAINTY_RES_FLOOR,
-                             production_only)
-            res.setdefault(channel, {})[period] = v
-            counts[f"res/{channel}/{period}"] = n
-        return scale, res, counts
+            for kind in ("scale", "res"):
+                v, n, diag = _envelope_rms_then_max(
+                    pts[kind], floors[kind], production_only)
+                out[kind].setdefault(channel, {})[period] = v
+                counts[f"{kind}/{channel}/{period}"] = n
+                detail[f"{kind}/{channel}/{period}"] = diag
+        return out["scale"], out["res"], counts, detail
 
     norm, n_norm, spread = norm_block(production_only=False)
     pnorm, pn_norm, pspread = norm_block(production_only=True)
-    scale, res, n_shape = shape_block(production_only=False)
-    pscale, pres, pn_shape = shape_block(production_only=True)
+    scale, res, n_shape, d_shape = shape_block(production_only=False)
+    pscale, pres, pn_shape, pd_shape = shape_block(production_only=True)
 
     for channel, per_era in pnorm.items():
         for era, per_bin in per_era.items():
@@ -635,16 +473,7 @@ def export_loo_pooled(mhcs, yield_variant=None):
                         f"{interpolation_config.UNCERTAINTY_NORM_WARN:g} warn "
                         "threshold")
 
-    names = {}
-    for channel, per_era in pnorm.items():
-        prod = interpolation_config.production_channel(channel)
-        for era, per_bin in per_era.items():
-            period = interpolation_config.period_of(era)
-            for bin_label in per_bin:
-                n = interpolation_config.interp_nuisance_names(
-                    prod, period, era=era, ma_bin=bin_label)
-                names.setdefault(channel, {}).setdefault(era, {})[
-                    bin_label] = n["norm"]
+    names = build_nuisance_names(pscale, pres, pnorm)
 
     payload = {
         "meta": {
@@ -653,7 +482,6 @@ def export_loo_pooled(mhcs, yield_variant=None):
             "mhc_pooled": sorted(mhcs),
             "grid_ma": {f"MHc{m}": g for m, g in sorted(grids.items())},
             "channels": LOO_CHANNELS,
-            "yield_variant": yield_variant,
             "norm_ma_bins": [[lab, lo, hi] for lab, lo, hi in
                              interpolation_config.NORM_MA_BINS],
             "rules": {
@@ -663,12 +491,16 @@ def export_loo_pooled(mhcs, yield_variant=None):
                         "by the pooled rms and by "
                         f"{interpolation_config.UNCERTAINTY_NORM_FLOOR}, warn "
                         f"above {interpolation_config.UNCERTAINTY_NORM_WARN}. "
-                        "per_study_rms/pooled_max under per_mhc_maxima keep "
-                        "the inputs and the old max rule visible",
-                "scale_res": "pooled over mHc for reference only — the shape "
-                             "parametrizations are still per-study, so the "
-                             "per-mHc loo_uncertainties.json files remain "
-                             "authoritative",
+                        "per_study_detail keeps every input visible: the "
+                        "per-study rms and point counts, the studies skipped "
+                        "for having too few points, the pooled rms, the old "
+                        "plain max, and which study drove the value",
+                "scale_res": "same rms-then-max rule, per (channel, period), "
+                             "NOT binned in mA and with no mHc dependence "
+                             "(the rule already pools studies). The shape "
+                             "parametrizations are themselves (mHc, mA) "
+                             "surfaces, so a per-study envelope would be "
+                             "measuring one slice of a global model.",
                 "excluded": "extrapolation (grid endpoints), non-good direct "
                             "fit (shape only), missing records",
                 "empty_bins": "a (channel, era, mA bin) with no usable point "
@@ -680,17 +512,17 @@ def export_loo_pooled(mhcs, yield_variant=None):
         },
         "norm": norm,
         "scale": scale, "res": res,
-        "nuisances": {"norm": names},
+        "nuisances": names,
         "n_points": {"norm": n_norm, **n_shape},
-        "per_study_detail": spread,
+        "per_study_detail": {**spread, **d_shape},
         "production_restricted": {
             "norm": pnorm, "scale": pscale, "res": pres,
             "n_points": {"norm": pn_norm, **pn_shape},
-            "per_study_detail": pspread,
+            "per_study_detail": {**pspread, **pd_shape},
         },
         "warnings": warnings,
     }
-    outdir = srspaths.interpolation_dir(variant=yield_variant)
+    outdir = srspaths.interpolation_dir()
     outpath = os.path.join(outdir, "loo_uncertainties.pooled.json")
     os.makedirs(outdir, exist_ok=True)
     with open(outpath, "w") as f:
@@ -709,87 +541,89 @@ def export_loo_pooled(mhcs, yield_variant=None):
     return payload
 
 
+def write_production_config(payload):
+    """configs/interpolation_uncertainties.json — the production artifact.
+
+    Takes the production-pairing block: those are the values a datacard for
+    a real mass point will use."""
+    pr = payload["production_restricted"]
+    out = {
+        "meta": {
+            **{k: payload["meta"][k] for k in
+               ("strategy", "mhc_pooled", "channels", "norm_ma_bins",
+                "rules", "command", "date")},
+            "keying": "scale/res per (study channel, run period); norm per "
+                      "(study channel, era, mA bin). NO mHc dependence in "
+                      "any of them — the rule pools studies and both the "
+                      "shape and yield models are (mHc, mA) surfaces. Values "
+                      "are keyed by STUDY channel (SR3Mu_lowM/highM) because "
+                      "one mA bin can hold both pairings; the nuisance NAMES "
+                      "use the production channel SR3Mu, which is safe "
+                      "because one datacard holds one mass point.",
+            "floors": {
+                "scale": interpolation_config.UNCERTAINTY_SCALE_FLOOR,
+                "res": interpolation_config.UNCERTAINTY_RES_FLOOR,
+                "norm": interpolation_config.UNCERTAINTY_NORM_FLOOR},
+            "min_study_points": MIN_STUDY_POINTS,
+            "source": "tests/interpolation/loo_uncertainties.pooled.json",
+        },
+        "scale": pr["scale"], "res": pr["res"], "norm": pr["norm"],
+        "nuisances": payload["nuisances"],
+        "n_points": pr["n_points"],
+        "per_study_detail": pr["per_study_detail"],
+        "warnings": payload["warnings"],
+    }
+    path = srspaths.interpolation_uncertainties_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(out, f, indent=2)
+    print(f"Wrote {path}")
+    for kind in ("scale", "res"):
+        for channel in sorted(out[kind]):
+            row = ", ".join(f"{p}={v:.4f}"
+                            for p, v in sorted(out[kind][channel].items()))
+            print(f"  {kind:<5} {channel:<12} {row}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mhc", type=int, help="compute for one mHc")
     parser.add_argument("--all", action="store_true",
-                        help="compute for every mHc in "
-                             "configs/interpolation.json and write the "
-                             "consolidated configs/interpolation_uncertainties.json")
+                        help="every mHc in the baseline grid")
     parser.add_argument("--loo", action="store_true",
                         help="aggregate the leave-one-out sweep "
                              "(tests/interpolation/MHc{X}_MA{Y}/ dirs) into "
-                             "tests/interpolation/MHc{X}/loo_uncertainties.json "
-                             "instead of the sparse-split export; does NOT "
-                             "write the consolidated config")
-    parser.add_argument("--yield-variant", default=None,
-                        help="aggregate a yield-model variant's LOO sweep "
-                             "(shape closure still from the adopted tree); "
-                             "--loo only")
+                             "the per-study tests/interpolation/MHc{X}/"
+                             "loo_uncertainties.json diagnostics")
     parser.add_argument("--pooled", action="store_true",
                         help="with --loo: also pool every study's LOO points "
-                             "and write loo_uncertainties.pooled.json, whose "
-                             "norm envelope is binned in mA and carries NO "
+                             "into tests/interpolation/"
+                             "loo_uncertainties.pooled.json, where the norm "
+                             "envelope is binned in mA and nothing carries an "
                              "mHc dependence (needs every mHc)")
+    parser.add_argument("--write-config", action="store_true",
+                        help="with --pooled: also write the production "
+                             "configs/interpolation_uncertainties.json")
     args = parser.parse_args()
-    if args.yield_variant is not None:
-        interpolation_config.yield_variant_config(args.yield_variant)
-        if not args.loo:
-            parser.error("--yield-variant is only defined with --loo")
     if not args.mhc and not args.all:
         parser.error("pass --mhc N and/or --all")
+    if not args.loo:
+        parser.error("--loo is the only supported mode: with full-grid "
+                     "anchors the leave-one-out sweep is where the "
+                     "uncertainties come from")
+    if args.write_config and not args.pooled:
+        parser.error("--write-config needs --pooled")
 
-    if args.all:
-        mhcs = sorted(int(k) for k in
-                     srspaths.interpolation_config()["fit_points"])
-    else:
-        mhcs = [args.mhc]
+    mhcs = interpolation_config.mhc_grid() if args.all else [args.mhc]
 
-    if args.loo:
-        for mhc in mhcs:
-            export_loo_one(mhc, args.yield_variant)
-        if args.pooled:
-            if not args.all:
-                parser.error("--pooled needs every study; pass --all")
-            export_loo_pooled(mhcs, args.yield_variant)
-        return
-    if args.pooled:
-        parser.error("--pooled is only defined with --loo")
-
-    consolidated = {}
-    inputs_meta = {}
     for mhc in mhcs:
-        entry, inputs = export_one(mhc)
-        if entry is None:
-            continue
-        consolidated[f"MHc{mhc}"] = entry
-        inputs_meta[f"MHc{mhc}"] = inputs
-
-    if args.all:
-        payload = {
-            "meta": {
-                "rules": {
-                    "scale": "max(|dx0|/sigma_eff) over held-out points per "
-                             "(channel, period), floor "
-                             f"{interpolation_config.UNCERTAINTY_SCALE_FLOOR}",
-                    "res": "max(|dsigma_eff/sigma_eff|) over held-out points "
-                           f"per (channel, period), floor "
-                           f"{interpolation_config.UNCERTAINTY_RES_FLOOR}",
-                    "norm": "max(|N_pred/N_meas-1|) over held-out points per "
-                            f"(channel, era), floor "
-                            f"{interpolation_config.UNCERTAINTY_NORM_FLOOR}",
-                },
-                "inputs": inputs_meta,
-                "command": " ".join(sys.argv),
-                "date": datetime.datetime.now().isoformat(timespec="seconds"),
-            },
-            **consolidated,
-        }
-        outpath = srspaths.interpolation_uncertainties_path()
-        os.makedirs(os.path.dirname(outpath), exist_ok=True)
-        with open(outpath, "w") as f:
-            json.dump(payload, f, indent=2)
-        print(f"\nWrote consolidated {outpath}")
+        export_loo_one(mhc)
+    if args.pooled:
+        if not args.all:
+            parser.error("--pooled needs every study; pass --all")
+        payload = export_loo_pooled(mhcs)
+        if args.write_config:
+            write_production_config(payload)
 
 
 if __name__ == "__main__":

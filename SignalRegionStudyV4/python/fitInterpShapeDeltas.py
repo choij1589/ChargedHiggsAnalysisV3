@@ -23,7 +23,7 @@ closure table and cmsstyle overview plots for a curated subset (worst
 closers + JES/ps_isr/ps_fsr) under
 tests/interpolation/MHc{X}/plots/deltas/.
 
-  python3 fitInterpShapeDeltas.py --mhc 160 [--exclude-ma 90] [--suffix _ex90]
+  python3 fitInterpShapeDeltas.py --mhc 160
 """
 import argparse
 import datetime
@@ -42,13 +42,13 @@ N_PLOTTED_WORST = 8
 CURATED_KEYWORDS = ("jes", "ps_isr", "ps_fsr")
 
 
-def collect_points(results, key, path, quantity, fit_ma, excluded, ma_range):
+def collect_points(results, key, path, quantity, fit_ma, ma_range):
     """(mA, value, error) donor points of one delta series."""
     lo, hi = ma_range
     pts = []
     for mp, rec in results.items():
         mA = rec["mA"]
-        if mA not in fit_ma or mA in excluded or not lo <= mA <= hi:
+        if mA not in fit_ma or not lo <= mA <= hi:
             continue
         cat = rec["cats"].get(key)
         if cat is None:
@@ -118,18 +118,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mhc", type=int, required=True,
                         help="mHc study to fit")
-    parser.add_argument("--exclude-ma", default="",
-                        help="comma-separated mA values to drop from the fit "
-                             "(leave-one-out); requires --suffix")
-    parser.add_argument("--suffix", default="",
-                        help="appended to the output filename (e.g. '_ex90')")
     parser.add_argument("--no-plots", action="store_true")
     args = parser.parse_args()
-    excluded = {float(m) for m in args.exclude_ma.split(",") if m.strip()}
-    if excluded and not args.suffix:
-        raise ValueError("--exclude-ma would overwrite the adopted "
-                         "delta_model.json; pass a --suffix")
-
     interp_dir = srspaths.interpolation_dir(args.mhc)
     deltas_dir = os.path.join(interp_dir, "shape_deltas")
     with open(os.path.join(deltas_dir, "shape_deltas.json")) as f:
@@ -156,7 +146,7 @@ def main():
                     recs = {}
                     for quantity in interpolation_config.DELTA_QUANTITIES:
                         pts = collect_points(results, key, path, quantity,
-                                             fit_ma, excluded, ma_range)
+                                             fit_ma, ma_range)
                         fit = fit_series(pts)
                         if fit is None:
                             warnings.append(f"[{key}] {syst}/{direction}/"
@@ -184,9 +174,8 @@ def main():
     out = {
         "meta": {
             "mhc": args.mhc,
-            "fit_ma": sorted(fit_ma - excluded),
+            "fit_ma": sorted(fit_ma),
             "held_out_ma": held_out_ma,
-            "excluded_ma": sorted(excluded),
             "orders": interpolation_config.DELTA_ORDERS,
             "err_floor": interpolation_config.DELTA_ERR_FLOOR,
             "core_nsigma": payload["meta"]["core_nsigma"],
@@ -197,7 +186,7 @@ def main():
         "closure": closure,
         "warnings": warnings,
     }
-    outpath = os.path.join(deltas_dir, f"delta_model{args.suffix}.json")
+    outpath = os.path.join(deltas_dir, "delta_model.json")
     with open(outpath, "w") as f:
         json.dump(out, f, indent=2)
     print(f"Wrote {outpath}")

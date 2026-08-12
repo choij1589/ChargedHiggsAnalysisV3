@@ -63,13 +63,7 @@ srs_method_segment() {
 }
 
 # Interpolation-study output directory for one mHc (mirrors
-# srspaths.interpolation_dir). Usage: srs_interp_dir 160 [variant]
-# The optional variant selects the fit-model variant tree
-# (tests/interpolation/variants/{variant}/MHc{X}).
+# srspaths.interpolation_dir). Usage: srs_interp_dir 160
 srs_interp_dir() {
-    if [[ -n "${2:-}" ]]; then
-        echo "$SRS_MODULE_DIR/tests/interpolation/variants/$2/MHc$1"
-    else
-        echo "$SRS_MODULE_DIR/tests/interpolation/MHc$1"
-    fi
+    echo "$SRS_MODULE_DIR/tests/interpolation/MHc$1"
 }

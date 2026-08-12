@@ -46,17 +46,7 @@ export WORKDIR="$SRS_REPO_DIR"
 cd "$SRS_MODULE_DIR"
 export PATH="${PWD}/python:${PATH}"
 
-# Fit-model variant runs carry "--variant NAME" in EXTRA_ARGS; their part
-# outputs must land in the variant tree (the shell mirror of
-# srspaths.interpolation_dir(mhc, variant=...)).
-VARIANT=""
-_prev=""
-for _arg in $EXTRA_ARGS; do
-    [[ "$_prev" == "--variant" ]] && VARIANT="$_arg"
-    _prev="$_arg"
-done
-
-INTERP_DIR="$(srs_interp_dir "$MHC" "$VARIANT")"
+INTERP_DIR="$(srs_interp_dir "$MHC")"
 
 part_output() {
     # $1 = subdir under $INTERP_DIR, $2 = file basename prefix
@@ -124,9 +114,6 @@ case "$STEP" in
     delta_model)
         python3 python/fitInterpShapeDeltas.py --mhc "$MHC" $EXTRA_ARGS
         ;;
-    export_uncertainties)
-        python3 python/exportInterpUncertainties.py --mhc "$MHC" $EXTRA_ARGS
-        ;;
     loo)
         # One full leave-one-out iteration for MASSPOINT = MHc{X}_MA{Y}:
         # refit the shape polynomials and the yield model on the full grid
@@ -142,20 +129,6 @@ case "$STEP" in
         python3 python/closInterpShapes.py     --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
         python3 python/closInterpYields.py     --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
         ;;
-    loo_yield)
-        # Yield-only leave-one-out iteration, for yield-model variant tests:
-        # the shape chain is untouched, so the per-point shape polynomials
-        # and closure of the adopted tree are reused as-is and only the
-        # yield model + yield closure are recomputed (into the variant tree
-        # when EXTRA_ARGS carries --yield-variant).
-        LOO_MA="${MASSPOINT##*_MA}"
-        if [[ -z "$LOO_MA" || "$LOO_MA" == "$MASSPOINT" ]]; then
-            echo "ERROR: loo_yield step needs MASSPOINT of the form MHc{X}_MA{Y}, got '$MASSPOINT'"
-            exit 1
-        fi
-        python3 python/fitInterpYieldModel.py --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
-        python3 python/closInterpYields.py    --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
-        ;;
     export_loo)
         python3 python/exportInterpUncertainties.py --loo --mhc "$MHC" $EXTRA_ARGS
         ;;
@@ -163,8 +136,8 @@ case "$STEP" in
         echo "ERROR: Unknown step '$STEP'"
         echo "Valid steps: fit_float, merge_float, fit_frozen, merge_frozen, polynomials,"
         echo "  closure, merge_closure, yields, merge_yields, yield_model, yield_closure,"
-        echo "  merge_yield_closure, deltas, merge_deltas, delta_model, export_uncertainties,"
-        echo "  loo, loo_yield, export_loo"
+        echo "  merge_yield_closure, deltas, merge_deltas, delta_model,"
+        echo "  loo, export_loo"
         exit 1
         ;;
 esac

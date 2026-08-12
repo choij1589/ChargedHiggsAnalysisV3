@@ -56,13 +56,12 @@ def plot_one(mhc):
         yields = json.load(f)["results"]
     with open(os.path.join(yields_dir, "yield_model.json")) as f:
         model = json.load(f)["model"]
-    polys, _ = interpolation_config.load_shape_polynomials(mhc)
     loo = load_loo(mhc, grid)
     outdir = srspaths.interpolation_plots_dir(mhc, "yields")
     for channel in interpolation_config.STUDY_CHANNELS:
         interp_plot_utils.plot_yield_loo_grid(
             mhc, channel, yields, loo, outdir,
-            model=model, polys=polys, predict_yield=predict_yield)
+            model=model, predict_yield=predict_yield)
     print(f"[MHc{mhc}] wrote loo_grid PNGs to {outdir}")
 
 
@@ -70,13 +69,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mhc", type=int, help="one mHc study")
     parser.add_argument("--all", action="store_true",
-                        help="every mHc in configs/interpolation.json")
+                        help="every mHc in the baseline grid")
     args = parser.parse_args()
     if not args.mhc and not args.all:
         parser.error("pass --mhc N and/or --all")
     if args.all:
         mhcs = sorted(int(k) for k in
-                      srspaths.interpolation_config()["fit_points"])
+                      interpolation_config.mhc_grid())
     else:
         mhcs = [args.mhc]
     for mhc in mhcs:

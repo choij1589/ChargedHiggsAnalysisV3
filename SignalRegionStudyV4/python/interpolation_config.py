@@ -2,10 +2,11 @@
 successor of the ``test/interpolation`` study; see docs/INTERPOLATION.md for
 the method record and decision history).
 
-Adopted configuration (frozen, no variant flags): SR1E2Mu = pure DCB;
-SR3Mu_{lowM,highM} = fsig*DCB + (1-fsig)*Chebychev2, with per-category frozen
-median nL/nR, uniform mA range, fixed x0/sigma orders, up-only F-test ladders
-for alpha/c1/c2, and a logit-space polynomial for fsig (turnover-capable).
+Adopted configuration (frozen): SR1E2Mu and SR3Mu_lowM = pure DCB;
+SR3Mu_highM = fsig*DCB + (1-fsig)*Chebychev2, with per-category frozen median
+nL/nR. Every shape parameter and every yield-model component is fitted as ONE
+surface in (mHc, mA) across all seven studies and sliced at the study's mHc,
+with fsig in logit space. Interpolation is in mA only.
 
 This module is a plain sibling of the other python/ libraries: scripts run as
 ``python3 python/<script>.py``, so Python already puts this directory on
@@ -27,67 +28,38 @@ STUDY_CHANNELS = ["SR1E2Mu", "SR3Mu_lowM", "SR3Mu_highM"]
 
 
 def channel_has_bkg(channel):
-    """SR3Mu pairing picks a combinatoric dimuon in a mass-dependent
-    fraction of events -> background component; SR1E2Mu has a single
-    pairing and none."""
-    return channel.startswith("SR3Mu")
+    """Only SR3Mu_highM carries a background component.
+
+    Both SR3Mu pairings pick a combinatoric dimuon, but the two are very
+    different in size: highM's wrong-pairing continuum runs 5-45% and is
+    smooth in mA, while lowM's is a few percent and was previously modelled
+    with a per-point drop/pin rule that made the category MIXED — pinned
+    fsig=1 anchors next to free fsig~0.9 points, c1/c2 with partial mA
+    support — whose parametrizations oscillated and extrapolated. Fitting
+    lowM as a pure DCB and letting its small continuum sit in the tails
+    took the worst production chi2/ndf from 154 to 24.5, with
+    chi2_interp ~= chi2_direct everywhere (docs/INTERPOLATION.md).
+    SR1E2Mu has a single pairing and no combinatoric background at all.
+    """
+    return channel == "SR3Mu_highM"
 
 
-# ---- Fit-model variant tests ---------------------------------------------
-# Alternative background policies for the SR3Mu_lowM pathology: the adopted
-# per-point drop/pin rule (FSIG_DROP_THRESHOLD) makes lowM a MIXED category
-# (pinned fsig=1 anchors next to free fsig~0.9 points, c1/c2 with partial
-# mA support) whose fsig/c1/c2 parametrizations oscillate and extrapolate
-# (e.g. MHc145_MA35 lowM_Run3: predicted fsig 0.916 where the direct fit is
-# a pure DCB, c1=-6). Each variant refits ONLY the categories it lists;
-# every other category keeps the adopted model, so comparisons read the
-# adopted tests/interpolation/MHc{X} outputs for those.
+# Shape parametrization: every parameter is ONE surface in (mHc, mA) fitted
+# across all seven mHc studies and sliced at the study's mHc. Interpolation
+# is in mA only — the surface is a better-constrained model AT the measured
+# mHc, not a licence to interpolate between them (leaving a whole study out
+# and predicting it from the other six is a 4% median / 18% p90 error).
 #
-#  nodrop  — DCB+cheb2 with the drop/pin rule disabled: fsig fitted freely
-#            at every point, c1/c2 measured everywhere (homogeneous
-#            parametrization inputs).
-#  puredcb — pure DCB (no background component at all), lowM continuum
-#            absorbed by the DCB tails.
+# Measured against 1D per-study polynomials on the same LOO protocol, the
+# surface halves the worst-case scale error (0.344 -> 0.172 sigma_eff) and
+# cuts p90 from 0.064 to 0.045. Two controls show the gain is the cross-mHc
+# constraint and not extra freedom in mA: giving the 1D fit wider mA orders
+# leaves the scale max at 0.344 and nearly doubles the res max, while
+# flattening the mHc dependence out of the surface is also worse.
 #
-# Outputs land under tests/interpolation/variants/{name}/MHc{X}/
-# (srspaths.interpolation_dir(mhc, variant=name)).
-FIT_VARIANTS = {
-    "nodrop": {"bkg": {"SR3Mu_lowM": "cheb2"}, "allow_drop": False},
-    "puredcb": {"bkg": {"SR3Mu_lowM": None}, "allow_drop": True},
-}
-
-
-def variant_config(name):
-    if name not in FIT_VARIANTS:
-        raise ValueError(f"Unknown fit variant '{name}' "
-                         f"(known: {sorted(FIT_VARIANTS)})")
-    return FIT_VARIANTS[name]
-
-
-def variant_channels(name):
-    """Study channels a variant refits; all others keep the adopted model."""
-    return sorted(variant_config(name)["bkg"])
-
-
-# Parametrization forms per parameter. Single-entry order lists FIX the
-# order (no F-test); multi-entry lists engage the F-test ladder in
-# fitInterpPolynomials.select_order (higher order accepted at p < 0.05).
-# fsig uses a logit-space polynomial (turnover-capable) with a linear-space
-# polynomial fallback below FSIG_LOGISTIC_MIN_POINTS.
-POLY_ORDERS = {
-    "x0": [1],
-    "sigmaL": [2],
-    "sigmaR": [2],
-    "alphaL": [2, 3],
-    "nL": [1, 2],       # frozen in the adopted model; ladder unused
-    "alphaR": [2, 3],
-    "nR": [1, 2],       # frozen in the adopted model; ladder unused
-    "fsig": [1, 2, 3],
-    "c1": [2, 3],
-    "c2": [2, 3],
-}
+# (mHc degree, total degree), total-degree-truncated as in joint_design().
+SHAPE_SURFACE_DEGREES = (2, 4)
 F_TEST_PVALUE = 0.05
-FSIG_LOGISTIC_MIN_POINTS = 5
 
 # Smallest believable relative error on a fitted parameter. A not-fully
 # converged Minuit pass (status=3) can leave a collapsed Hesse error -- values
@@ -107,23 +79,21 @@ MIN_REL_PARAM_ERROR = 1e-5
 ALL_PARAM_ORDER = ["x0", "sigmaL", "sigmaR", "alphaL", "nL",
                    "alphaR", "nR", "fsig", "c1", "c2"]
 
-# Background-shape parameters (zero weight when fsig -> 1).
+# Background-shape parameters (SR3Mu_highM only).
 BKG_PARAMS = ("c1", "c2")
 
-# fsig >= this  =>  the point carries no background: the fit refits as a
-# pure DCB (dcb_fit_utils) and closure builds a pure DCB from the
-# prediction. The dropped point still anchors fsig(mA) at 1.0.
-FSIG_DROP_THRESHOLD = 0.995
-FSIG_ANCHOR_ERROR = 0.002
+# fsig is fitted as a surface in LOGIT space: bounded in (0,1) and able to
+# turn over, since the true fsig rises past the naive-logistic plateau and
+# falls again as mA -> mHc, where the two OS pairings converge and the
+# combinatoric pair re-enters the window.
+FSIG_LOGIT_PARAMS = ("fsig",)
 
-# fsig fitted as a polynomial in logit space (bounded in (0,1) AND able to
-# turn over — the true fsig rises past the naive-logistic plateau and falls
-# again as mA -> mHc, where the two OS pairings converge and the combinatoric
-# pair re-enters the window). Anchor points (fsig = 1, background dropped)
-# are pinned at logit(1 - FSIG_LOGIT_CLIP) with a fixed logit-space error.
-FSIG_LOGIT_ORDERS = [2, 3, 4, 5]
-FSIG_LOGIT_CLIP = 1e-3
-FSIG_LOGIT_ANCHOR_SIGMA = 0.5
+# Sanity threshold only. A highM fit returning fsig above this has no
+# resolvable background, which never happened across all 156 highM fits of
+# the seven studies; it is reported as a warning rather than silently
+# refitting as a pure DCB (that drop/pin rule is what made lowM pathological
+# and was removed with the puredcb adoption).
+FSIG_DROP_THRESHOLD = 0.995
 
 # Informational low-statistics flag threshold (unweighted entries in the
 # narrow fit window); recorded in dcb_fits.json, not a gate.
@@ -137,92 +107,134 @@ LOW_STAT_ENTRIES = 500
 # computed from the INTERPOLATED shape parameters — see interp_window().
 #
 # N_win = k_era * G_period(mA) * f_category(mA):
-#  - G(mA): shared per-period baseline-selection yield shape (log-space poly
-#    on the period-summed totals; b-jet efficiency is flat in mA, the rest
-#    is smooth mHc-mA kinematics with an asymmetric fall as the W* phase
-#    space closes -> cubic minimum).
-#  - f(mA): per-category window fraction. SR1E2Mu: near-constant peak
-#    containment (pol0/1). SR3Mu: pure pairing combinatorics, derived from
-#    the shape fit's fsig: exactly one OS pairing is the true A->mumu pair,
-#    so p_low + p_high = 1 and f_variant = S(mA) * p_variant(mA) / fsig_variant(mA),
-#    with S the shared containment and p_high fitted in logit space.
+#  - G: per-period total yield, a log-space SURFACE in (mHc, mA) sliced at
+#    the study's mHc (JOINT_G_DEGREES).
+#  - k_era: era share, a plane in (mHc, mA) (JOINT_K_DEGREES), pooled across
+#    studies; the shares are renormalized to sum to one over a period.
+#  - f(mA): per-category window fraction, still a per-study 1D fit — it is
+#    a containment fraction, close to flat and well measured everywhere.
+#    SR1E2Mu: pol0/1. SR3Mu: pure pairing combinatorics, exactly one OS
+#    pairing being the true A->mumu pair, so p_low + p_high = 1 and
+#    f_variant = S(mA) * p_variant(mA), with S the shared containment and
+#    p_high fitted in logit space. The decomposition is taken on the RAW
+#    measured fractions: dividing by the shape fit's fsig is an exact
+#    reparametrization that buys no smoothness (helps 0, hurts 1, mixed 13
+#    of 14 datasets) and coupled the yield model to the shape chain, which
+#    pure-DCB lowM cannot support.
 YIELD_F_SR1E2MU_ORDERS = [0, 1]
 YIELD_S_ORDERS = [2, 3, 4]
 YIELD_P_LOGIT_ORDERS = [2, 3, 4, 5]
-YIELD_G_ORDERS = [3, 4]
 YIELD_F_ABS_ERR_FLOOR = 0.005   # absolute floor on a merged window fraction
 
 YIELD_ORDERS = {
     "f_sr1e2mu": YIELD_F_SR1E2MU_ORDERS,
     "S": YIELD_S_ORDERS,
     "p_high_logit": YIELD_P_LOGIT_ORDERS,
-    "G": YIELD_G_ORDERS,
 }
 
-# ---- Yield-model variant tests -------------------------------------------
-# The adopted yield model fits G(mA) independently per mHc study. The LOO
-# review showed that every large production-pairing residual is a G
-# failure (|dG| up to 23%, |df| <= 8%) and that NO alternative 1D basis
-# fixes it (pol up to 6, log-mA, spline, pchip, linear all tie or lose):
-# the per-mHc grids are simply too coarse at the steep low-mA turn-on
-# (MHc100 has 8 points, MHc115 jumps 15 -> 27 -> 42), so dropping one
-# point makes the cubic swing +-20% with alternating signs.
+# ---- Joint (mHc, mA) surfaces --------------------------------------------
+# Both chains fit their mA dependence as ONE surface across all seven mHc
+# studies, sliced at the study's mHc. The reason is the same in both cases:
+# the per-mHc grids are too coarse at the steep low-mA turn-on (MHc100 has
+# 8 points, MHc115 jumps 15 -> 27 -> 42), so a per-study fit swings by
+# +-20% when one point moves, and NO alternative 1D basis fixes it (pol up
+# to 6, log-mA, spline, pchip and linear all tie or lose). Borrowing the
+# SHAPE across studies does: LOO failures above 10% fall 8.6% -> 3.5% for
+# the yield totals, and the worst shape scale error halves.
 #
-#  joint — three changes bundled, all aimed at that failure:
-#    1. G is fitted as ONE surface in (mHc, mA) across all seven studies
-#       and sliced at the study's mHc (the slice of a polynomial surface at
-#       fixed mHc is a polynomial in mA, so the stored record keeps the
-#       adopted logpoly+cov contract). 12 parameters per (period,
-#       total-channel) instead of ~35 for seven independent cubics; the
-#       dense MHc160 grid constrains the low-mA shape of the sparse
-#       studies. LOO >10% failure rate 8.6% -> 3.5%, p90 at mA<=45
-#       16.1% -> 7.7%.
-#    2. The SR3Mu pairing decomposition drops the /fsig division:
-#       S = f_low + f_high, p_high = f_high/S on the measured fractions.
-#       Both forms are exact reparametrizations of (f_low, f_high); the
-#       smoothness test is a wash (helps 0, hurts 1, mixed 13 of 14) and
-#       the one loss is MHc145 Run3 — the origin of the +95% lowM
-#       yield-closure blow-up. Dropping it also decouples the yield model
-#       from the shape chain, which the puredcb shape model requires
-#       (lowM then has no fsig at all).
-#    3. k_era becomes a PLANE in (mHc, mA) (the total-degree truncation
-#       keeps 1, mHc, mA — three coefficients), pooled across all seven
-#       studies and sliced at the study's mHc, replacing four constants
-#       per study. The era shares carry a real smooth mHc drift that the
-#       per-study constants were absorbing independently (2018/SR1E2Mu
-#       runs 0.4280 -> 0.4346 monotonically from mHc 70 to 160), and
-#       pooling averages the per-sample noise over 78 points instead of
-#       6-23. Its quoted error becomes the SCATTER about the surface, not
-#       the standard error of the mean — the adopted std/sqrt(N)
-#       understates the single-point predictive error by sqrt(N) =
-#       2.4-4.8. LOO envelopes >10% 51/152 -> 43/152 with 4 coefficients
-#       per (era, total-channel) in place of 28 constants. A per-study
-#       pol0/pol1 in mA was tried first and is a wash (73 -> 75); the gain
-#       comes from pooling across mHc, not from the mA freedom.
-#
-# Outputs land under tests/interpolation/variants/{name}/MHc{X}[_MA{Y}]/;
-# the shape chain is untouched, so shape polynomials are read from the
-# adopted (or per-point LOO) tree.
-YIELD_VARIANTS = {
-    "joint": {"joint_G": True, "pairing_fsig": False,
-              "k_era_surface": (1, 1)},
-}
+# Basis: total-degree-truncated tensor polynomial in the scaled coordinates
+# (u, v) = ((mHc - 115)/45, (mA - 70)/70), keeping i <= mhc_degree and
+# i + j <= total_degree. Because the slice of a polynomial surface at fixed
+# mHc is itself a polynomial in mA, every stored record keeps the plain
+# coeffs+cov contract and nothing downstream needs to know a surface was
+# involved (see slice_surface).
+JOINT_MHC_SCALE = (115.0, 45.0)
+JOINT_MA_SCALE = (70.0, 70.0)
 
-# Joint-surface basis: total-degree-truncated tensor polynomial in
-# (u, v) = ((mHc - 115)/45, (mA - 70)/70), i <= JOINT_G_MHC_DEGREE,
-# j <= JOINT_G_MA_DEGREE, i + j <= JOINT_G_MA_DEGREE. k_era uses the same
-# scaling with its own (mHc, mA) degrees from the variant config.
-JOINT_G_MHC_DEGREE = 2
-JOINT_G_MA_DEGREE = 4
-JOINT_G_MHC_SCALE = (115.0, 45.0)
-JOINT_G_MA_SCALE = (70.0, 70.0)
+# G: the per-period total-yield surface. k_era: the era-share plane — the
+# total-degree truncation keeps 1, mHc and mA, three coefficients per
+# (era, total-channel) in place of 28 constants. The shares carry a real
+# smooth mHc drift the per-study constants were absorbing independently
+# (2018/SR1E2Mu runs 0.4280 -> 0.4346 monotonically from mHc 70 to 160),
+# and pooling averages the per-sample noise over 78 points instead of 6-23.
+JOINT_G_DEGREES = (2, 4)
+JOINT_K_DEGREES = (1, 1)
 
 
-def yield_variant_config(name):
-    if name not in YIELD_VARIANTS:
-        raise ValueError(f"Unknown yield variant '{name}' "
-                         f"(known: {sorted(YIELD_VARIANTS)})")
-    return YIELD_VARIANTS[name]
+def joint_design(mhc, mA, degrees):
+    """Total-degree-truncated tensor basis in scaled (mHc, mA).
+
+    Returns (design matrix, [(i, j) powers]) — the powers are needed to
+    slice the fitted surface at a fixed mHc."""
+    dh, da = degrees
+    mh0, mhs = JOINT_MHC_SCALE
+    ma0, mas = JOINT_MA_SCALE
+    u = (np.asarray(mhc, float) - mh0) / mhs
+    v = (np.asarray(mA, float) - ma0) / mas
+    cols, powers = [], []
+    for i in range(dh + 1):
+        for j in range(da + 1):
+            if i + j > da:
+                continue
+            cols.append(u ** i * v ** j)
+            powers.append((i, j))
+    return np.vstack(cols).T, powers
+
+
+def slice_surface(coeffs, cov, powers, mhc, degrees):
+    """Collapse a (mHc, mA) surface at fixed mHc into a plain polynomial in
+    mA (numpy descending convention) with a propagated covariance.
+
+    This is what keeps the surfaces invisible downstream: eval_param,
+    interp_window, closure and the template producer all keep working on
+    the sliced record exactly as they did on a per-study 1D fit."""
+    _, da = degrees
+    ma0, mas = JOINT_MA_SCALE
+    mh0, mhs = JOINT_MHC_SCALE
+    u = (float(mhc) - mh0) / mhs
+    base = np.array([1.0 / mas, -ma0 / mas])   # v as a polynomial in mA
+    kmat = np.zeros((da + 1, len(powers)))
+    for k, (i, j) in enumerate(powers):
+        vj = np.array([1.0])
+        for _ in range(j):
+            vj = np.polymul(vj, base)
+        kmat[da + 1 - len(vj):, k] = (u ** i) * vj
+    beta = kmat @ np.asarray(coeffs)
+    return beta, kmat @ np.asarray(cov) @ kmat.T
+
+
+def fit_surface(mhc, mA, values, errors, degrees, slice_at):
+    """Weighted least-squares surface fit + slice, as a record.
+
+    Shared by the shape parametrizations and the yield model: same basis,
+    same slicing, same bookkeeping."""
+    amat, powers = joint_design(mhc, mA, degrees)
+    w = 1.0 / np.asarray(errors, float)
+    aw = amat * w[:, None]
+    coeffs, *_ = np.linalg.lstsq(aw, np.asarray(values, float) * w, rcond=None)
+    resid = amat @ coeffs - np.asarray(values, float)
+    # UNSCALED covariance, i.e. the input errors are trusted — the same
+    # convention the per-study weighted_polyfit used, so the sliced band
+    # means the same thing it always did.
+    cov = np.linalg.pinv(aw.T @ aw)
+    beta, beta_cov = slice_surface(coeffs, cov, powers, slice_at, degrees)
+    here = np.asarray(mhc, float) == float(slice_at)
+    return {
+        "coeffs": [float(c) for c in beta],
+        "cov": [[float(c) for c in row] for row in beta_cov],
+        "chosen_order": int(degrees[1]),
+        "chi2": float((((resid * w) ** 2)[here]).sum()),
+        "ndf": int(here.sum()),
+        "joint_surface": {
+            "mhc_degree": int(degrees[0]), "total_degree": int(degrees[1]),
+            "n_points": int(len(values)), "n_params": int(len(coeffs)),
+            "mhc_values": sorted({int(v) for v in np.asarray(mhc)}),
+            "chi2_all": float(((resid * w) ** 2).sum()),
+            "ndf_all": int(len(values) - len(coeffs)),
+            "coeffs": [float(c) for c in coeffs],
+            "powers": [[int(i), int(j)] for i, j in powers],
+        },
+    }
 
 
 # Log-space error floor for N_total points, per run period: the observed
@@ -278,11 +290,19 @@ def delta_key(era, study_channel):
 
 
 # ---- Interpolation-uncertainty derivation --------------------------------
-# Derived from the held-out closure residuals themselves (exportInterpUncertainties.py),
-# not fixed here — these are only the floors and the sample-scatter warn
-# threshold applied on top of the per-mHc max-envelope.
+# Sizes are derived from the leave-one-out closure residuals themselves
+# (exportInterpUncertainties.py), by one rule for all three families: the
+# rms WITHIN each mHc study, then the MAX across studies. These constants
+# are only the safety floors and the warn threshold applied on top.
+#
+# The floors are meant to catch degenerate cells, NOT to set values. With
+# the adopted model none of them is active: scale lands at 0.022-0.055,
+# res at 0.012-0.028 and norm at 0.019-0.235. RES was lowered from 0.02,
+# where it was setting four of the six res cells rather than catching
+# anything (measured 0.0124/0.0148/0.0179/0.0191 all pushed up to 0.0200).
+# A cell sitting exactly on a floor is a signal to revisit it.
 UNCERTAINTY_SCALE_FLOOR = 0.02   # min x0 -> x0 +- floor * sigma_eff
-UNCERTAINTY_RES_FLOOR = 0.02     # min sigmaL,R -> sigma * (1 +- floor)
+UNCERTAINTY_RES_FLOOR = 0.01     # min sigmaL,R -> sigma * (1 +- floor)
 UNCERTAINTY_NORM_FLOOR = 0.01    # min lnN - 1
 UNCERTAINTY_NORM_WARN = 0.10     # warn (not fail) above this envelope
 
@@ -350,15 +370,13 @@ def study_channels_for(masspoint):
 
 
 def study(mhc, loo_ma=None):
-    """Fit/held-out/all mA split for one mHc: 'all' is the full baseline
-    grid, 'fit' is the parametrization anchor set from
-    configs/interpolation.json, 'held_out' = all - fit (the interpolation
-    test set; points also appear in closure as in-sample checks when they
-    are fit anchors).
+    """Fit/held-out/all mA split for one mHc.
 
-    loo_ma engages the leave-one-out split instead: 'fit' = full grid
-    minus that point, 'held_out' = [loo_ma] — the production-like closure
-    used to derive the interpolation uncertainties."""
+    In production every model is fitted over the FULL baseline grid, so
+    'fit' == 'all' and 'held_out' is empty. loo_ma engages the
+    leave-one-out split instead: 'fit' = full grid minus that point,
+    'held_out' = [loo_ma]. That split is the only closure the chain has,
+    and it is what the interpolation uncertainties are derived from."""
     mhc = int(mhc)
     prefix = f"MHc{mhc}_MA"
     grid = sorted(
@@ -374,15 +392,7 @@ def study(mhc, loo_ma=None):
         return {"all": grid,
                 "fit": [ma for ma in grid if ma != loo_ma],
                 "held_out": [loo_ma]}
-    fit_points = srspaths.interpolation_config()["fit_points"].get(str(mhc))
-    if fit_points is None:
-        raise ValueError(f"No fit_points defined for mHc={mhc} in configs/interpolation.json")
-    fit_points = sorted(fit_points)
-    missing = [ma for ma in fit_points if ma not in grid]
-    if missing:
-        raise ValueError(f"mHc={mhc} fit_points {missing} not in the baseline grid {grid}")
-    held_out = [ma for ma in grid if ma not in fit_points]
-    return {"all": grid, "fit": fit_points, "held_out": held_out}
+    return {"all": grid, "fit": list(grid), "held_out": []}
 
 
 def mhc_grid():
@@ -467,13 +477,12 @@ def known_missing_samples():
     return {tuple(entry) for entry in srspaths.interpolation_config()["known_missing_samples"]}
 
 
-def fixed_n_values(mhc, variant=None):
+def fixed_n_values(mhc):
     """Per-category fixed nL/nR: median of the good floating-n direct fits
-    (reads the floating-n dcb_fits.json; a variant reads its own floating
-    pass)."""
+    (reads the floating-n dcb_fits.json)."""
     import json
     from statistics import median
-    path = os.path.join(srspaths.interpolation_dir(mhc, variant=variant),
+    path = os.path.join(srspaths.interpolation_dir(mhc),
                         "fits", "dcb_fits_floating.json")
     with open(path) as f:
         fits = json.load(f)["results"]
@@ -503,18 +512,14 @@ def eval_param(info, x):
     return np.polyval(np.asarray(info["coeffs"]), x)
 
 
-def load_shape_polynomials(mhc, suffix="", loo_ma=None, variant=None):
-    """Per-category shape parametrizations (the yield/closure/export
-    steps' window and template source). suffix selects an anchor-exclusion
-    sibling file, e.g. '_ex90'; loo_ma selects the leave-one-out per-point
-    directory instead (tests/interpolation/MHc{X}_MA{Y}/); variant selects
-    a fit-model variant tree (FIT_VARIANTS)."""
+def load_shape_polynomials(mhc, loo_ma=None):
+    """Per-category shape parametrizations (the yield/closure/export steps'
+    window and template source). loo_ma selects the leave-one-out per-point
+    directory instead (tests/interpolation/MHc{X}_MA{Y}/)."""
     import json
-    if loo_ma is not None and variant is not None:
-        raise ValueError("loo_ma and variant are mutually exclusive")
     base = (srspaths.interpolation_loo_dir(mhc, loo_ma) if loo_ma is not None
-            else srspaths.interpolation_dir(mhc, variant=variant))
-    path = os.path.join(base, f"polynomials{suffix}.json")
+            else srspaths.interpolation_dir(mhc))
+    path = os.path.join(base, "polynomials.json")
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"{path} not found — run the shape-interpolation chain first")

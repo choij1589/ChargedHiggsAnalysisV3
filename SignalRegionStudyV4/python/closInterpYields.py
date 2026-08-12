@@ -49,7 +49,7 @@ TEMPLATE_NBINS = 100
 
 def predict_shape_params(cat_polys, mA):
     """Predicted shape parameters at mA, mirroring closInterpShapes.py:
-    floors/ceilings clip, background dropped when fsig -> 1."""
+    floors/ceilings clip."""
     predicted = {}
     clipped = []
     for param in [p for p in ALL_PARAM_ORDER if p in cat_polys]:
@@ -63,9 +63,6 @@ def predict_shape_params(cat_polys, mA):
             clipped.append(param)
             value = ceiling
         predicted[param] = value
-    if predicted.get("fsig", 0.0) >= interpolation_config.FSIG_DROP_THRESHOLD:
-        for bkg_param in BKG_PARAMS + ("fsig",):
-            predicted.pop(bkg_param, None)
     return predicted, clipped
 
 
@@ -98,29 +95,19 @@ def main():
                              "(where yield_closure.json and plots are written "
                              "too); measured yields come from the adopted "
                              "yields.json")
-    parser.add_argument("--yield-variant", default=None,
-                        help="yield-model variant test "
-                             f"({'|'.join(sorted(interpolation_config.YIELD_VARIANTS))}); "
-                             "reads the variant yield_model.json and writes "
-                             "closure/plots into the variant tree")
     args = parser.parse_args()
 
     if args.loo_ma is not None and args.masspoints:
         raise ValueError("--loo-ma already selects its single mass point; "
                          "do not combine with --masspoints")
-    if args.yield_variant is not None:
-        interpolation_config.yield_variant_config(args.yield_variant)
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
     fit_ma = study["fit"]
-    # Measurements and shapes always come from the adopted tree; only the
-    # model and this step's outputs live in the variant tree.
+    # Measured yields always come from the study dir; a LOO run writes its
+    # closure into the per-point dir alongside the model it tests.
     yields_dir = os.path.join(srspaths.interpolation_dir(args.mhc), "yields")
-    if args.loo_ma is not None:
-        out_base = srspaths.interpolation_loo_dir(args.mhc, args.loo_ma,
-                                                  variant=args.yield_variant)
-    else:
-        out_base = srspaths.interpolation_dir(args.mhc,
-                                              variant=args.yield_variant)
+    out_base = (srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
+                if args.loo_ma is not None
+                else srspaths.interpolation_dir(args.mhc))
     plot_base = os.path.join(out_base, "plots", "yields")
 
     with open(os.path.join(yields_dir, "yields.json")) as f:
@@ -133,11 +120,6 @@ def main():
         raise RuntimeError(
             f"{model_path} was not produced with --loo-ma {args.loo_ma} "
             f"(meta.loo_ma={model_payload['meta'].get('loo_ma')})")
-    if model_payload["meta"].get("yield_variant") != args.yield_variant:
-        raise RuntimeError(
-            f"{model_path} carries yield_variant="
-            f"{model_payload['meta'].get('yield_variant')!r}, not "
-            f"{args.yield_variant!r}")
     shape_polys, _ = interpolation_config.load_shape_polynomials(
         args.mhc, loo_ma=args.loo_ma)
 
@@ -167,8 +149,7 @@ def main():
                         warnings.append(f"[{mp}/{channel}/{era}] no measured "
                                         "yield; skipped")
                         continue
-                    n_pred, err_pred = predict_yield(model, shape_polys,
-                                                     channel, era, mA)
+                    n_pred, err_pred = predict_yield(model, channel, era, mA)
                     # Measured error floored like the fit inputs: per-sample
                     # normalization noise dominates over MC stat.
                     err_floor = interpolation_config.REL_YIELD_ERR_FLOOR[
@@ -244,7 +225,6 @@ def main():
             "mhc": args.mhc,
             "fit_ma": fit_ma,
             "loo_ma": args.loo_ma,
-            "yield_variant": args.yield_variant,
             "command": " ".join(sys.argv),
             "date": datetime.datetime.now().isoformat(timespec="seconds"),
         },

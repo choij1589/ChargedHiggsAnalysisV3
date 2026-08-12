@@ -4,17 +4,23 @@ model.
 
   N_win(era, mA) = k_era * G_period(mA) * f_category(mA)
 
-  - G: shared per-period baseline-selection yield shape, log-space poly
-    (YIELD_G_ORDERS) fitted on the period-summed totals; the sum over four
-    eras averages the per-sample normalization scatter. One G per
+  - G: per-period total yield, a log-space SURFACE in (mHc, mA) fitted
+    across ALL seven studies and sliced at this mHc. One G per
     (total-channel x period), total-channel in {SR1E2Mu, SR3Mu} (the two
-    pairings share identical totals).
-  - k_era: constant era share (era shares were shown flat in mA).
-  - f: window fraction per category. SR1E2Mu: pol0/1 on the period-merged
-    fraction. SR3Mu: derived from the shape fit's fsig via the pairing
-    decomposition f_variant = S * p_variant / fsig with p_low + p_high = 1;
-    S (shared containment) is a low-order poly, p_high is fitted in logit
-    space.
+    pairings share identical totals). Summing the four eras first averages
+    the per-sample normalization scatter.
+  - k_era: era share, a plane in (mHc, mA) also pooled across studies —
+    the shares carry a real smooth mHc drift, and pooling averages the
+    per-sample noise over 78 points instead of one study's 6-23. Predicted
+    shares are renormalized to sum to one over a period.
+  - f: window fraction per category, a per-study 1D fit. SR1E2Mu: pol0/1 on
+    the period-merged fraction. SR3Mu: the pairing decomposition on the RAW
+    measured fractions, S = f_low + f_high and p_low + p_high = 1, with S a
+    low-order poly and p_high fitted in logit space.
+
+**Reads every study's yields/yields.json** for the surfaces, so all seven
+must have completed stage 1 of this chain before this step runs (see
+automize/interpolation.sh --stop-after).
 
 Outputs tests/interpolation/MHc{X}/yields/yield_model.json, per-period
 model component plots and per-(channel,era) measured-vs-model plots under
@@ -47,18 +53,6 @@ def logit(p):
 
 def inv_logit(z):
     return 1.0 / (1.0 + np.exp(-np.asarray(z)))
-
-
-def fsig_of(polys, cat_key, mA, use_fsig=True):
-    """Interpolated fsig clipped to (0,1]; 1.0 when the category has no
-    background component, or when the pairing decomposition is run on the
-    raw window fractions (yield variant 'joint')."""
-    if not use_fsig:
-        return 1.0
-    rec = polys[cat_key].get("fsig")
-    if rec is None:
-        return 1.0
-    return float(np.clip(interpolation_config.eval_param(rec, mA), 1e-3, 1.0))
 
 
 def fit_record(x, y, err, orders):
@@ -106,9 +100,14 @@ def period_merged_fraction(yields, channel, eras):
     return out
 
 
-def fit_fractions(yields, polys, period, eras, fit_ma, warnings, orders,
-                  use_fsig=True):
-    """Fraction sub-model of one run period: f_sr1e2mu, S, p_high."""
+def fit_fractions(yields, period, eras, fit_ma, warnings, orders):
+    """Fraction sub-model of one run period: f_sr1e2mu, S, p_high.
+
+    The SR3Mu pairing decomposition is taken on the RAW measured window
+    fractions: S = f_low + f_high, p_high = f_high/S. Dividing by the shape
+    fit's fsig first is an exact reparametrization that buys no smoothness
+    (helps 0, hurts 1, mixed 13 of 14 datasets) and coupled this model to
+    the shape chain, which pure-DCB lowM cannot support."""
     merged = {ch: period_merged_fraction(yields, ch, eras)
               for ch in interpolation_config.STUDY_CHANNELS}
 
@@ -121,10 +120,8 @@ def fit_fractions(yields, polys, period, eras, fit_ma, warnings, orders,
     s_pts, p_pts = [], []
     for m in [m for m in common if m in fit_ma]:
         lo, hi = merged["SR3Mu_lowM"][m], merged["SR3Mu_highM"][m]
-        fsl = fsig_of(polys, f"SR3Mu_lowM_{period}", m, use_fsig)
-        fsh = fsig_of(polys, f"SR3Mu_highM_{period}", m, use_fsig)
-        ql, qh = lo["f"] * fsl, hi["f"] * fsh
-        sql, sqh = lo["ferr"] * fsl, hi["ferr"] * fsh
+        ql, qh = lo["f"], hi["f"]
+        sql, sqh = lo["ferr"], hi["ferr"]
         S = ql + qh
         p = qh / S
         s_pts.append((m, S, max(float(np.hypot(sql, sqh)), 0.003)))
@@ -154,108 +151,41 @@ def period_totals(yields, period, eras, src, fit_ma, warnings, tag):
     return per_ma
 
 
-def joint_design(mhc, mA, dh, da):
-    """Total-degree-truncated tensor basis in scaled (mHc, mA)."""
-    mh0, mhs = interpolation_config.JOINT_G_MHC_SCALE
-    ma0, mas = interpolation_config.JOINT_G_MA_SCALE
-    u = (np.asarray(mhc, float) - mh0) / mhs
-    v = (np.asarray(mA, float) - ma0) / mas
-    cols, powers = [], []
-    for i in range(dh + 1):
-        for j in range(da + 1):
-            if i + j > da:
-                continue
-            cols.append(u ** i * v ** j)
-            powers.append((i, j))
-    return np.vstack(cols).T, powers
-
-
-def slice_surface(coeffs, cov, powers, mhc, da):
-    """Collapse the (mHc, mA) surface at fixed mHc into a plain polynomial
-    in mA (numpy descending convention) with a propagated covariance.
-
-    The slice of a polynomial surface is a polynomial, so the sliced record
-    is drop-in compatible with the adopted per-mHc G record: eval_rec and
-    rec_band keep working unchanged downstream.
-    """
-    mh0, mhs = interpolation_config.JOINT_G_MHC_SCALE
-    ma0, mas = interpolation_config.JOINT_G_MA_SCALE
-    u = (float(mhc) - mh0) / mhs
-    base = np.array([1.0 / mas, -ma0 / mas])   # v as a polynomial in mA
-    kmat = np.zeros((da + 1, len(powers)))
-    for k, (i, j) in enumerate(powers):
-        vj = np.array([1.0])
-        for _ in range(j):
-            vj = np.polymul(vj, base)
-        kmat[da + 1 - len(vj):, k] = (u ** i) * vj
-    beta = kmat @ np.asarray(coeffs)
-    return beta, kmat @ np.asarray(cov) @ kmat.T
-
-
 def fit_joint_G(joint_data, period, tot_channel, mhc, err):
-    """One surface across every mHc study, sliced at this study's mHc."""
-    dh = interpolation_config.JOINT_G_MHC_DEGREE
-    da = interpolation_config.JOINT_G_MA_DEGREE
-    rec = joint_data[(period, tot_channel)]
-    pts = rec["totals"]
-    if len(pts) < 3 * (da + 1):
+    """Period total-yield surface across every study, sliced at this mHc."""
+    pts = joint_data[(period, tot_channel)]["totals"]
+    degrees = interpolation_config.JOINT_G_DEGREES
+    if len(pts) < 3 * (degrees[1] + 1):
         raise RuntimeError(f"[{period}/{tot_channel}] joint G surface needs "
                            f"more points than {len(pts)}")
-    mh, ma, logn = pts[:, 0], pts[:, 1], pts[:, 2]
-    amat, powers = joint_design(mh, ma, dh, da)
-    coeffs, *_ = np.linalg.lstsq(amat, logn, rcond=None)
-    resid = amat @ coeffs - logn
-    cov = err * err * np.linalg.pinv(amat.T @ amat)
-    beta, beta_cov = slice_surface(coeffs, cov, powers, mhc, da)
-    here = mh == float(mhc)
-    return {
-        "coeffs": [float(c) for c in beta],
-        "cov": [[float(c) for c in row] for row in beta_cov],
-        "chosen_order": da,
-        "chi2": float(((resid[here] / err) ** 2).sum()),
-        "ndf": int(here.sum()),
-        "joint_surface": {
-            "mhc_degree": dh, "ma_degree": da,
-            "n_points": int(len(pts)), "n_params": int(len(coeffs)),
-            "mhc_values": sorted({int(v) for v in mh}),
-            "chi2_all": float(((resid / err) ** 2).sum()),
-            "ndf_all": int(len(pts) - len(coeffs)),
-            "rms_resid_rel": float(np.sqrt((resid ** 2).mean())),
-            "coeffs": [float(c) for c in coeffs],
-            "powers": [[int(i), int(j)] for i, j in powers],
-        },
-    }
+    return interpolation_config.fit_surface(
+        pts[:, 0], pts[:, 1], pts[:, 2], np.full(len(pts), err), degrees, mhc)
 
 
-def fit_k_surface(joint_data, period, tot_channel, era, mhc, degrees):
-    """Era share as a surface in (mHc, mA), pooled across every study and
+def fit_k_surface(joint_data, period, tot_channel, era, mhc):
+    """Era share as a plane in (mHc, mA), pooled across every study and
     sliced at this study's mHc.
 
     The shares drift smoothly with mHc, so four constants per study both
     miss a real trend and carry the per-sample noise of that study's 6-23
     points alone. The quoted error is the SCATTER of this study's points
-    about the surface — the predictive error for one mass point, unlike
-    the adopted std/sqrt(N), which is the error on the mean.
+    about the surface — the predictive error for one mass point, unlike the
+    old std/sqrt(N), which is the error on the mean and understates it by
+    sqrt(N) = 2.4-4.8.
     """
-    dh, da = degrees
-    rec = joint_data[(period, tot_channel)]
-    pts = rec["totals"]
-    mh, ma = pts[:, 0], pts[:, 1]
-    shares = rec["shares"][era]
-    amat, powers = joint_design(mh, ma, dh, da)
-    coeffs, *_ = np.linalg.lstsq(amat, shares, rcond=None)
-    beta, _ = slice_surface(coeffs, np.zeros((len(coeffs), len(coeffs))),
-                            powers, mhc, da)
-    here = mh == float(mhc)
+    degrees = interpolation_config.JOINT_K_DEGREES
+    block = joint_data[(period, tot_channel)]
+    pts, shares = block["totals"], block["shares"][era]
+    rec = interpolation_config.fit_surface(
+        pts[:, 0], pts[:, 1], shares, np.ones(len(shares)), degrees, mhc)
+    here = pts[:, 0] == float(mhc)
+    amat, _ = interpolation_config.joint_design(pts[:, 0], pts[:, 1], degrees)
+    coeffs = np.array(rec["joint_surface"]["coeffs"])
     resid = (amat @ coeffs - shares)[here]
     mean = float(shares[here].mean())
-    return {"value": mean,
-            "err_rel": float(np.sqrt((resid ** 2).mean()) / mean),
-            "coeffs": [float(c) for c in beta],
-            "chosen_order": int(da),
-            "surface": {"mhc_degree": dh, "ma_degree": da,
-                        "n_points": int(len(pts)),
-                        "n_params": int(len(coeffs))}}
+    rec["value"] = mean
+    rec["err_rel"] = float(np.sqrt((resid ** 2).mean()) / mean)
+    return rec
 
 
 def k_value(tot, era, mA):
@@ -269,7 +199,7 @@ def k_value(tot, era, mA):
 
 
 def fit_totals(yields, period, eras, fit_ma, warnings, orders,
-               joint_data=None, mhc=None, k_surface=None):
+               joint_data, mhc):
     """Total sub-model of one run period: per total-channel G + k_era."""
     floor = interpolation_config.REL_YIELD_ERR_FLOOR[period]
     # The period sum averages the eras' independent sample normalizations.
@@ -282,31 +212,13 @@ def fit_totals(yields, period, eras, fit_ma, warnings, orders,
         ma_fit = sorted(m for m in per_ma if m in fit_ma)
         g_pts = {m: sum(r["sumw_total"] for r in per_ma[m].values())
                  for m in ma_fit}
-        if joint_data is not None:
-            g_rec = fit_joint_G(joint_data, period, tot_channel, mhc, g_err)
-        else:
-            g_rec = fit_record(ma_fit, np.log([g_pts[m] for m in ma_fit]),
-                               [g_err] * len(ma_fit), orders["G"])
-            if g_rec is None:
-                raise RuntimeError(f"[{period}/{tot_channel}] G fit failed")
+        g_rec = fit_joint_G(joint_data, period, tot_channel, mhc, g_err)
         g_rec.setdefault("points_used", {})
         g_rec["points_used"] = {"x": [float(m) for m in ma_fit],
                                 "y": [float(np.log(g_pts[m])) for m in ma_fit],
                                 "err": [g_err] * len(ma_fit)}
-        k = {}
-        for era in eras:
-            if k_surface is not None:
-                if joint_data is None:
-                    raise RuntimeError("a k_era surface needs the pooled "
-                                       "per-study yields (joint_G)")
-                k[era] = fit_k_surface(joint_data, period, tot_channel, era,
-                                       mhc, k_surface)
-                continue
-            s = np.array([per_ma[m][era]["sumw_total"] / g_pts[m]
-                          for m in ma_fit])
-            k[era] = {"value": float(s.mean()),
-                      "err_rel": float(s.std(ddof=1) / np.sqrt(len(s))
-                                       / s.mean())}
+        k = {era: fit_k_surface(joint_data, period, tot_channel, era, mhc)
+             for era in eras}
         out[tot_channel] = {"G": g_rec, "k": k}
     return out
 
@@ -358,10 +270,9 @@ def load_joint_totals(loo_mhc=None, loo_ma=None):
             for k, v in out.items()}
 
 
-def predict_yield(model, polys, channel, era, mA):
+def predict_yield(model, channel, era, mA):
     """(N_pred, err_pred) of the physics model for one era x channel."""
     period = interpolation_config.period_of(era)
-    use_fsig = model.get("options", {}).get("pairing_fsig", True)
     fr = model["fractions"][period]
     if channel == "SR1E2Mu":
         f = float(eval_rec(fr["f_sr1e2mu"], mA))
@@ -371,7 +282,7 @@ def predict_yield(model, polys, channel, era, mA):
         z = float(eval_rec(fr["p_high_logit"], mA))
         p_high = float(inv_logit(z))
         p = p_high if channel == "SR3Mu_highM" else 1.0 - p_high
-        f = S * p / fsig_of(polys, f"{channel}_{period}", mA, use_fsig)
+        f = S * p
         # logit-space band sz -> sigma_p = sz*p_high*(1-p_high); relative
         # error of the used p is sigma_p / p.
         sz = float(rec_band(fr["p_high_logit"], mA)[0])
@@ -395,114 +306,63 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mhc", type=int, required=True,
                         help="mHc study to run")
-    parser.add_argument("--exclude-ma", default="",
-                        help="comma-separated mA values to drop from every "
-                             "sub-model fit (leave-one-out); requires --suffix")
-    parser.add_argument("--suffix", default="",
-                        help="appended to the output filename (e.g. '_ex90'), "
-                             "so an anchor-exclusion refit does not clobber "
-                             "the adopted yield_model.json")
     parser.add_argument("--loo-ma", type=int, default=None,
-                        help="leave-one-out mode: fit anchors = full grid "
-                             "minus this mA; reads the LOO polynomials from "
-                             "and writes yield_model.json to the per-point "
-                             "dir tests/interpolation/MHc{X}_MA{Y}/")
-    parser.add_argument("--yield-variant", default=None,
-                        help="yield-model variant test "
-                             f"({'|'.join(sorted(interpolation_config.YIELD_VARIANTS))}); "
-                             "outputs go to the variant tree, shape "
-                             "polynomials still come from the adopted one")
+                        help="leave-one-out mode: drop this study's mA from "
+                             "the joint surfaces and the per-study fits "
+                             "(other studies keep their full grids); outputs "
+                             "go to tests/interpolation/MHc{X}_MA{Y}/")
     args = parser.parse_args()
 
-    excluded = {int(m) for m in args.exclude_ma.split(",") if m.strip()}
-    if args.loo_ma is not None and (excluded or args.suffix):
-        raise ValueError("--loo-ma is a complete mode of its own; "
-                         "do not combine with --exclude-ma/--suffix")
-    if args.yield_variant is not None and (excluded or args.suffix):
-        raise ValueError("--yield-variant does not combine with "
-                         "--exclude-ma/--suffix")
-    vcfg = (interpolation_config.yield_variant_config(args.yield_variant)
-            if args.yield_variant else {})
-    use_fsig = vcfg.get("pairing_fsig", True)
-    k_surface = vcfg.get("k_era_surface")
     study = interpolation_config.study(args.mhc, loo_ma=args.loo_ma)
-    fit_ma = [m for m in study["fit"] if m not in excluded]
+    fit_ma = study["fit"]
     orders = interpolation_config.YIELD_ORDERS
-    if excluded and not args.suffix:
-        raise ValueError("--exclude-ma would overwrite the adopted "
-                         "yield_model.json; pass a --suffix "
-                         "(e.g. the matching leave-one-out shape suffix)")
-    # Measured yields and shape polynomials always come from the adopted
-    # tree (or its per-point LOO dirs): a yield variant changes the model,
-    # not the measurement or the shape chain.
     yields_dir = os.path.join(srspaths.interpolation_dir(args.mhc), "yields")
     if args.loo_ma is not None:
-        out_base = srspaths.interpolation_loo_dir(args.mhc, args.loo_ma,
-                                                  variant=args.yield_variant)
+        out_base = srspaths.interpolation_loo_dir(args.mhc, args.loo_ma)
         out_dir = os.path.join(out_base, "yields")
         plot_base = os.path.join(out_base, "plots", "yields")
     else:
-        out_dir = os.path.join(
-            srspaths.interpolation_dir(args.mhc, variant=args.yield_variant),
-            "yields")
-        plot_base = srspaths.interpolation_plots_dir(
-            args.mhc, "yields", variant=args.yield_variant)
+        out_dir = yields_dir
+        plot_base = srspaths.interpolation_plots_dir(args.mhc, "yields")
 
     with open(os.path.join(yields_dir, "yields.json")) as f:
-        yields_payload = json.load(f)
-    yields = yields_payload["results"]
-    shape_suffix = args.suffix if args.exclude_ma else ""
-    polys, polys_path = interpolation_config.load_shape_polynomials(
-        args.mhc, shape_suffix, loo_ma=args.loo_ma)
+        yields = json.load(f)["results"]
+    joint_data = load_joint_totals(args.mhc, args.loo_ma)
 
-    joint_data = (load_joint_totals(args.mhc, args.loo_ma)
-                  if vcfg.get("joint_G") else None)
-
-    model = {"fractions": {}, "totals": {},
-             "options": {"pairing_fsig": use_fsig,
-                         "joint_G": bool(vcfg.get("joint_G")),
-                         "k_era_surface": list(k_surface)
-                         if k_surface else None}}
+    model = {"fractions": {}, "totals": {}}
     warnings = []
     merged_by_period = {}
     for period, eras in run_period_utils.RUN_PERIODS.items():
         model["fractions"][period], merged = fit_fractions(
-            yields, polys, period, list(eras), fit_ma, warnings, orders,
-            use_fsig)
+            yields, period, list(eras), fit_ma, warnings, orders)
         model["totals"][period] = fit_totals(
             yields, period, list(eras), fit_ma, warnings, orders,
-            joint_data=joint_data, mhc=args.mhc,
-            k_surface=k_surface)
+            joint_data=joint_data, mhc=args.mhc)
         merged_by_period[period] = merged
-
-    def fsig_fn(cat_polys, cat_key, mA):
-        return fsig_of(cat_polys, cat_key, mA, use_fsig)
 
     for period in model["fractions"]:
         interp_plot_utils.plot_yield_period_model(
-            args.mhc, period, model, polys, merged_by_period[period],
-            fit_ma, plot_base, eval_rec, rec_band, inv_logit, fsig_fn)
+            args.mhc, period, model, merged_by_period[period],
+            fit_ma, plot_base, eval_rec, rec_band, inv_logit)
     for channel in interpolation_config.STUDY_CHANNELS:
         interp_plot_utils.plot_yield_era_grid(
-            args.mhc, channel, yields, model, polys, fit_ma, plot_base,
+            args.mhc, channel, yields, model, fit_ma, plot_base,
             predict_yield)
 
     payload = {
         "meta": {
             "mhc": args.mhc,
             "fit_ma": fit_ma,
-            "excluded_ma": sorted(excluded),
             "loo_ma": args.loo_ma,
-            "yield_variant": args.yield_variant,
-            "model": "k_era * G_period(mA) * f_category(mA); "
-                     + ("f_SR3Mu = S * p_pairing"
-                        if not use_fsig else
-                        "f_SR3Mu = S * p_pairing / fsig")
-                     + ("; G = joint (mHc,mA) surface" if joint_data
-                        else ""),
+            "model": "k_era * G_period(mA) * f_category(mA), with G and "
+                     "k_era (mHc, mA) surfaces sliced at this mHc and "
+                     "f_SR3Mu = S * p_pairing on the raw window fractions",
             "orders": orders,
+            "surface_degrees": {
+                "G": list(interpolation_config.JOINT_G_DEGREES),
+                "k_era": list(interpolation_config.JOINT_K_DEGREES)},
+            "mhc_pooled": interpolation_config.mhc_grid(),
             "rel_yield_err_floor": interpolation_config.REL_YIELD_ERR_FLOOR,
-            "shape_polynomials": polys_path,
             "command": " ".join(sys.argv),
             "date": datetime.datetime.now().isoformat(timespec="seconds"),
         },
@@ -510,7 +370,7 @@ def main():
         "warnings": warnings,
     }
     os.makedirs(out_dir, exist_ok=True)
-    outpath = os.path.join(out_dir, f"yield_model{args.suffix}.json")
+    outpath = os.path.join(out_dir, "yield_model.json")
     with open(outpath, "w") as f:
         json.dump(payload, f, indent=2)
 
@@ -527,7 +387,7 @@ def main():
               f"({fr['p_high_logit']['chi2']:.1f}/{fr['p_high_logit']['ndf']})"
               " | G: "
               + ", ".join(
-                  f"{ch} pol{t['G']['chosen_order']}"
+                  f"{ch} surf-deg{t['G']['chosen_order']}"
                   f"({t['G']['chi2']:.1f}/{t['G']['ndf']})"
                   for ch, t in tots.items()))
     if warnings:

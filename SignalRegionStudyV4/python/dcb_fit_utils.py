@@ -17,10 +17,12 @@ Two fit entry points:
   Chebychev combinatoric background for the SR3Mu pairing variants:
   S(m) = fsig*DCB + (1-fsig)*Chebychev2(c1, c2) — can be flat, matching the
   observed wrong-pairing plateau (docs/INTERPOLATION.md: expo and Bernstein
-  backgrounds were tried and rejected). Points where fsig hits
-  interpolation_config.FSIG_DROP_THRESHOLD refit as pure DCB (unconstrained
-  background parameters otherwise inflate every error and destabilize the
-  parametrization anchors).
+  backgrounds were tried and rejected). Only SR3Mu_highM carries a
+  background: lowM's few-percent continuum is absorbed by the DCB tails
+  (channel_has_bkg). A highM point whose fsig reaches
+  interpolation_config.FSIG_DROP_THRESHOLD is flagged (no_resolvable_bkg),
+  not silently refitted — that refit-and-pin rule is what made lowM a mixed
+  category with oscillating parametrizations.
 
 SumW2 caveat: with SumW2Error(True), covQual often reads -1 ("unknown");
 quality gating treats only 0 <= covQual < 2 as a failure.
@@ -134,15 +136,11 @@ def fit_dcb_with_errors(chain, mA_nominal):
     }
 
 
-def fit_dcb_bkg(chain, mA_nominal, nL_fixed=None, nR_fixed=None, bkg=None,
-                allow_drop=True):
+def fit_dcb_bkg(chain, mA_nominal, nL_fixed=None, nR_fixed=None, bkg=None):
     """Two-stage fit: DCB with optionally frozen nL/nR and an optional
     2nd-order Chebychev combinatoric background (see module docstring).
 
     bkg: None (pure DCB, SR1E2Mu) or "cheb2" (SR3Mu).
-    allow_drop: False disables the FSIG_DROP_THRESHOLD refit-as-pure-DCB
-    rule (fit-model variant 'nodrop'): fsig keeps its fitted value and
-    error, and c1/c2 stay measured, however small the background is.
     """
     if chain.GetEntries() <= 0:
         raise RuntimeError("No signal entries found for DCB fit")
@@ -231,13 +229,14 @@ def fit_dcb_bkg(chain, mA_nominal, nL_fixed=None, nR_fixed=None, bkg=None,
     fit_result = model.fitTo(ds_narrow, ROOT.RooFit.SumW2Error(True),
                              ROOT.RooFit.Save(), ROOT.RooFit.PrintLevel(-1))
 
-    # No-background points: refit as pure DCB (see module docstring).
-    bkg_dropped = (allow_drop and fsig is not None
-                   and fsig.getVal() > interpolation_config.FSIG_DROP_THRESHOLD)
-    if bkg_dropped:
-        fit_result = dcb.fitTo(ds_narrow, ROOT.RooFit.SumW2Error(True),
-                               ROOT.RooFit.Save(),
-                               ROOT.RooFit.PrintLevel(-1))
+    # A category with a background component is expected to resolve it. The
+    # old rule silently refitted such a point as a pure DCB and pinned
+    # fsig=1, which is what made SR3Mu_lowM a mixed category with
+    # oscillating parametrizations; SR3Mu_highM (the only category with a
+    # background now) never once triggered it across 156 fits. Report it
+    # instead of acting on it.
+    no_bkg = (fsig is not None
+              and fsig.getVal() > interpolation_config.FSIG_DROP_THRESHOLD)
 
     sigma_eff = sqrt(0.5 * (dcb_sL.getVal()**2 + dcb_sR.getVal()**2))
 
@@ -256,17 +255,11 @@ def fit_dcb_bkg(chain, mA_nominal, nL_fixed=None, nR_fixed=None, bkg=None,
         params["nL"] = {"value": float(nL_fixed), "error": 0.0}
         params["nR"] = {"value": float(nR_fixed), "error": 0.0}
     if bkg is not None:
-        if bkg_dropped:
-            params["fsig"] = {"value": 1.0,
-                              "error": interpolation_config.FSIG_ANCHOR_ERROR}
-            for name in bkg_vars:
-                params[name] = {"value": 0.0, "error": 0.0}
-        else:
-            params["fsig"] = {"value": float(fsig.getVal()),
-                              "error": float(fsig.getError())}
-            for name, var in bkg_vars.items():
-                params[name] = {"value": float(var.getVal()),
-                                "error": float(var.getError())}
+        params["fsig"] = {"value": float(fsig.getVal()),
+                          "error": float(fsig.getError())}
+        for name, var in bkg_vars.items():
+            params[name] = {"value": float(var.getVal()),
+                            "error": float(var.getError())}
     at_limit = [name for name, var in float_vars.items() if _at_bound(var)]
 
     out = {
@@ -286,7 +279,7 @@ def fit_dcb_bkg(chain, mA_nominal, nL_fixed=None, nR_fixed=None, bkg=None,
     }
     if bkg is not None:
         out["bkg_shape"] = bkg
-        out["bkg_dropped"] = bkg_dropped
+        out["no_resolvable_bkg"] = no_bkg
     if fix_n:
         out["fixed_n"] = {"nL": float(nL_fixed), "nR": float(nR_fixed)}
     return out
@@ -451,8 +444,6 @@ def fit_quality(fit):
     if fit["at_limit"]:
         reasons.append("at_limit=" + ",".join(fit["at_limit"]))
     fixed = set(fit.get("fixed_n", {}))
-    if fit.get("bkg_dropped"):
-        fixed |= set(interpolation_config.BKG_PARAMS)  # zero-error by design
     for name, pv in fit["params"].items():
         if name in fixed:
             continue  # frozen parameter: error 0 by construction

@@ -148,27 +148,25 @@ def tests_dir():
     return os.path.join(module_dir(), "tests")
 
 
-def interpolation_dir(mhc=None, variant=None):
-    """variant selects a fit-model variant test tree
-    (tests/interpolation/variants/{variant}/MHc{X}) instead of the adopted
-    chain outputs; see interpolation_config.FIT_VARIANTS."""
+def interpolation_dir(mhc=None):
     base = os.path.join(tests_dir(), "interpolation")
-    if variant is not None:
-        base = os.path.join(base, "variants", variant)
     return os.path.join(base, f"MHc{int(mhc)}") if mhc is not None else base
 
 
-def interpolation_plots_dir(mhc, kind, variant=None):
+def interpolation_plots_dir(mhc, kind):
     """kind in {fits, params, closure, yields, deltas}."""
-    return os.path.join(interpolation_dir(mhc, variant=variant), "plots", kind)
+    return os.path.join(interpolation_dir(mhc), "plots", kind)
 
 
-def interpolation_loo_dir(mhc, ma, variant=None):
+def interpolation_global_plots_dir(kind):
+    """Plots of objects that span every study (the (mHc, mA) surfaces, the
+    pooled nuisance summary): tests/interpolation/plots/{kind}."""
+    return os.path.join(interpolation_dir(), "plots", kind)
+
+
+def interpolation_loo_dir(mhc, ma):
     """Per-point leave-one-out (LOO) output dir: models refit on the full
     mA grid minus this point, closure evaluated at this point only. The
-    per-mHc aggregate lives in interpolation_dir(mhc). variant selects a
-    variant test tree, as in interpolation_dir()."""
-    base = os.path.join(tests_dir(), "interpolation")
-    if variant is not None:
-        base = os.path.join(base, "variants", variant)
-    return os.path.join(base, f"MHc{int(mhc)}_MA{int(ma)}")
+    per-mHc aggregate lives in interpolation_dir(mhc)."""
+    return os.path.join(tests_dir(), "interpolation",
+                        f"MHc{int(mhc)}_MA{int(ma)}")

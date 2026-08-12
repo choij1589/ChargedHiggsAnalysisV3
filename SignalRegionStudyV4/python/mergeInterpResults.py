@@ -53,10 +53,10 @@ def _write(outpath, payload):
         json.dump(payload, f, indent=2)
 
 
-def merge_fits(mhc, fit_pass, allow_missing, expected, study, variant=None):
+def merge_fits(mhc, fit_pass, allow_missing, expected, study):
     basename = "dcb_fits.json" if fit_pass == "frozen" else "dcb_fits_floating.json"
     part_prefix = basename[:-5]
-    fits_dir = os.path.join(srspaths.interpolation_dir(mhc, variant=variant),
+    fits_dir = os.path.join(srspaths.interpolation_dir(mhc),
                             "fits")
     parts, missing, stray = _collect_parts(
         os.path.join(fits_dir, "parts"), part_prefix, expected, allow_missing)
@@ -73,7 +73,7 @@ def merge_fits(mhc, fit_pass, allow_missing, expected, study, variant=None):
 
     payload = {
         "meta": {
-            "mhc": mhc, "fit_pass": fit_pass, "variant": variant,
+            "mhc": mhc, "fit_pass": fit_pass,
             "fit_ma": study["fit"], "held_out_ma": study["held_out"],
             "fixed_n": fixed_n,
             "command": " ".join(sys.argv),
@@ -94,8 +94,8 @@ def merge_fits(mhc, fit_pass, allow_missing, expected, study, variant=None):
     return 1 if missing and not allow_missing else 0
 
 
-def merge_closure(mhc, allow_missing, expected, study, variant=None):
-    interp_dir = srspaths.interpolation_dir(mhc, variant=variant)
+def merge_closure(mhc, allow_missing, expected, study):
+    interp_dir = srspaths.interpolation_dir(mhc)
     parts, missing, stray = _collect_parts(
         os.path.join(interp_dir, "closure", "parts"), "closure",
         expected, allow_missing)
@@ -112,7 +112,7 @@ def merge_closure(mhc, allow_missing, expected, study, variant=None):
     payload = {
         "meta": {
             "mhc": mhc, "all_ma": study["all"], "fit_ma": fit_ma,
-            "held_out_ma": study["held_out"], "variant": variant,
+            "held_out_ma": study["held_out"],
             "command": " ".join(sys.argv),
             "date": datetime.datetime.now().isoformat(timespec="seconds"),
         },
@@ -294,28 +294,19 @@ def main():
     parser.add_argument("--allow-missing", action="store_true",
                         help="merge whatever parts exist (default: fail on "
                              "missing masspoints)")
-    parser.add_argument("--variant", default=None,
-                        choices=sorted(interpolation_config.FIT_VARIANTS),
-                        help="merge a fit-model variant tree (fits and "
-                             "closure stages only)")
     args = parser.parse_args()
 
-    if args.variant is not None and args.stage not in (
-            "fits-floating", "fits", "closure"):
-        raise ValueError(f"--variant does not apply to stage '{args.stage}' "
-                         "(variant tests run fits -> polynomials -> closure only)")
     study = interpolation_config.study(args.mhc)
     expected = [masspoint_name(m, args.mhc) for m in study["all"]]
 
     if args.stage == "fits-floating":
         rc = merge_fits(args.mhc, "floating", args.allow_missing, expected,
-                        study, variant=args.variant)
+                        study)
     elif args.stage == "fits":
         rc = merge_fits(args.mhc, "frozen", args.allow_missing, expected,
-                        study, variant=args.variant)
+                        study)
     elif args.stage == "closure":
-        rc = merge_closure(args.mhc, args.allow_missing, expected, study,
-                           variant=args.variant)
+        rc = merge_closure(args.mhc, args.allow_missing, expected, study)
     elif args.stage == "yields":
         rc = merge_yields(args.mhc, args.allow_missing, expected, study)
     elif args.stage == "yield-closure":
