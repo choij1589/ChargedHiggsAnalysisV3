@@ -174,22 +174,23 @@ scratch trees live under `archive/test{,s}/` and stay untracked.
 The frozen mA grid the template producer will scan, per mHc
 (`srspaths.grid_config()`; regenerate with `python3
 python/makeInterpGrid.py`, login-node safe). Two requirements: the step
-stays **below the dimuon mass resolution** everywhere, and the grid
-**contains every MC point** so direct-MC and fit templates can be
-compared there (`mc_points` lists them per mHc).
+is **of the order of the dimuon mass resolution** (slightly above σ is
+accepted — user decision 2026-08-13), and the grid **contains every MC
+point** so direct-MC and fit templates can be compared there
+(`mc_points` lists them per mHc).
 
-| mA band | step | binding σ_min at band start |
+| mA band | step | σ_min at band start |
 |---|---|---|
-| [15, 30) | 0.1 GeV | ≈0.13 GeV |
-| [30, 60) | 0.25 GeV | ≈0.27 GeV |
-| [60, 100) | 0.5 GeV | ≈0.62 GeV |
+| [15, 20) | 0.1 GeV | ≈0.13 GeV |
+| [20, 50) | 0.25 GeV | ≈0.17 GeV |
+| [50, 100) | 0.5 GeV | ≈0.51 GeV |
 | [100, 155] | 1.0 GeV | ≈1.19 GeV |
 
 σ_min = minimum-over-categories σ_eff from the fitted surfaces; the
-generator *evaluates* the condition (worst step/σ_min 0.86–0.89, at
-mA = 30) and refuses to write a grid that violates it. Range per mHc:
-[15, max MC mA] — no extrapolation. 281 (MHc70) to 406 (MHc160) points,
-2467 total. Fractional mA is named in exact p-notation
+generator *evaluates* the step/σ_min ratio and records it in the meta
+block (worst 1.33–1.41, always at mA = 20; below 1 everywhere else) —
+a diagnostic, not a gate. Range per mHc: [15, max MC mA] — no
+extrapolation. 201 (MHc70) to 326 (MHc160) points, 1907 total. Fractional mA is named in exact p-notation
 (`MHc160_MA90p5`, `MHc130_MA30p25`;
 `interpolation_config.masspoint_name`/`parse_ma`,
 `srspaths.parse_ma_token`).

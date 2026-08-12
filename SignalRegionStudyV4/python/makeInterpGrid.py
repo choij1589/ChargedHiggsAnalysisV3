@@ -2,24 +2,26 @@
 """Fix the template-scan mA grid: configs/grid.json.
 
 Requirements (user, 2026-08-13):
-  1. the grid step is slightly SMALLER than the dimuon mass resolution
-     everywhere;
+  1. the grid step is of the order of the dimuon mass resolution
+     (slightly above sigma is acceptable);
   2. the grid CONTAINS every MC point, so direct-MC templates and fit
      templates can be compared at those mA.
 
-Implementation: banded absolute steps, each band's step below the
-minimum-over-categories sigma_eff at the band start (resolution grows
-with mA, so the band start is the binding point):
+Implementation: banded absolute steps of the order of the
+minimum-over-categories sigma_eff (user decision 2026-08-13: a step
+slightly ABOVE sigma near a band start is acceptable — the ratio is
+reported, never enforced):
 
-    [15, 30)    0.1  GeV   (sigma_min(15)  ~ 0.13 GeV)
-    [30, 60)    0.25 GeV   (sigma_min(30)  ~ 0.27 GeV)
-    [60, 100)   0.5  GeV   (sigma_min(60)  ~ 0.62 GeV)
-    [100, 155]  1.0  GeV   (sigma_min(100) ~ 1.19 GeV)
+    [15, 20)    0.1  GeV
+    [20, 50)    0.25 GeV
+    [50, 100)   0.5  GeV
+    [100, 155]  1.0  GeV
 
 Every MC mA is an integer and every band step divides integers, so the
 lattice contains all MC points by construction — verified anyway, along
-with the resolution condition (evaluated from the fitted sigma_eff
-surfaces, never assumed) and the p-notation name round-trip. Per-mHc
+with the p-notation name round-trip; the step/sigma_min ratio is
+evaluated from the fitted sigma_eff surfaces and recorded in the meta
+block as a diagnostic. Per-mHc
 range: [15, max MC mA] — never beyond the MC endpoints (the chain's
 no-extrapolation policy).
 
@@ -41,9 +43,9 @@ import srspaths
 from interpolation_config import masspoint_name, parse_ma
 
 # (band lo, band hi, step) in GeV; hi of the last band is inclusive.
-BANDS = [(15.0, 30.0, 0.1),
-         (30.0, 60.0, 0.25),
-         (60.0, 100.0, 0.5),
+BANDS = [(15.0, 20.0, 0.1),
+         (20.0, 50.0, 0.25),
+         (50.0, 100.0, 0.5),
          (100.0, 155.0, 1.0)]
 TICKS_PER_GEV = 20  # 0.05 GeV lattice; every band step is a multiple
 
@@ -107,10 +109,6 @@ def main():
             ratio = (b - a) / sigma_min(polys, a)
             if ratio > worst:
                 worst, worst_at = ratio, a
-        if worst >= 1.0:
-            raise RuntimeError(
-                f"MHc{mhc}: step {worst:.2f}x sigma_min at mA={worst_at} "
-                "— the grid is NOT below the resolution there")
         for v in grid:
             name = masspoint_name(v, mhc)
             if not re.fullmatch(r"[A-Za-z0-9_]+", name):
@@ -133,9 +131,10 @@ def main():
 
     payload = {
         "meta": {
-            "rule": "banded absolute steps, each below the "
-                    "minimum-over-categories dimuon sigma_eff at the band "
-                    "start; range [15, max MC mA] per mHc (no "
+            "rule": "banded absolute steps of the order of the "
+                    "minimum-over-categories dimuon sigma_eff (steps "
+                    "slightly above sigma near band starts accepted, "
+                    "ratio reported); range [15, max MC mA] per mHc (no "
                     "extrapolation); MC points are lattice members by "
                     "construction and verified",
             "bands": [[lo, hi, step] for lo, hi, step in BANDS],
