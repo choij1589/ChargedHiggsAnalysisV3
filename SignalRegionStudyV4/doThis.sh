@@ -9,7 +9,9 @@
 # back one step at a time, only after it has been re-run and checked against
 # this production.
 #
-# Unblind is the default. Layout: templates/{masspoint}/{method}/{era}/{channel}.
+# Unblind is the default.
+# Layout: templates/{masspoint}/{method}/{mc-signal,interp-signal}/{era}/{channel}
+#         (interp-signal group members nest under their seed: .../points/{member}).
 
 # ---------------------------------------------------------------------------
 # Step 0: Preprocess  (docs/SAMPLES.md)
@@ -143,3 +145,32 @@ python3 python/plotInterpNuisances.py
 #     worst populated bin (never the bare floor) and say so.
 # Run3 norm cells above 10% are expected - the known upstream per-sample yield
 # scatter, which is the REFERENCE's error, not the model's.
+
+# ---------------------------------------------------------------------------
+# Step 2: interp-signal template scan  (docs/interpolation/WORKFLOW.md,
+#         "Template production")
+# ---------------------------------------------------------------------------
+# Parametric-signal templates + datacards + asymptotic limits at every
+# grid.json point (2467 over 7 mHc). Grouping is FROZEN in grid.json: each
+# group's seed builds the shared backgrounds (4 heavy jobs, 6 GB), members
+# inject only their signal. Per point: All x {SR1E2Mu,SR3Mu,Combined}.
+# Requires Step 1's fits/ tree (polynomials, yield_model, delta_model) and
+# configs/interpolation_uncertainties.json.
+./automize/interpTemplates.sh --all
+
+# Single group (e.g. verification, or re-running one seed's neighbourhood):
+#./automize/interpTemplates.sh --mhc 160 --group MHc160_MA90
+
+# Gate: every DAG must exit 0 -
+#grep -h "EXITING WITH STATUS" condor/jobs_interp_templates_<ts>/MHc*/dag.dag.dagman.out
+
+# Collect the scan into results/json (source token in the filename keeps it
+# apart from the mc-signal collection), then plot:
+python3 python/collectLimits.py --era All --method Baseline --signal-source interp-signal
+python3 python/collectLimits.py --era All --channel SR1E2Mu --method Baseline --signal-source interp-signal
+python3 python/collectLimits.py --era All --channel SR3Mu   --method Baseline --signal-source interp-signal
+#python3 python/plotLimits.py --era All --method Baseline --signal-source interp-signal --mhc 160
+
+# Direct-MC comparison at the 78 mc_points: run the standard mc-signal chain
+# at the same point and compare limits -
+#./automize/makeBinnedTemplates.sh --masspoint MHc160_MA90 --method Baseline

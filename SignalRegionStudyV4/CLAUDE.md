@@ -290,18 +290,40 @@ Full record in `docs/interpolation/`: `WORKFLOW.md` (runbook + decision
 gates), `EXPERIMENTS.md` (every model decision as motivation/setup/
 results/conclusion), `UNCERTAINTY.md` (nuisance rule, values, evidence).
 
+## Interp-Signal Template Production
+
+Parametric-signal templates at every scan-grid point (2467 over 7 mHc;
+`configs/grid.json`, band edges [15, 30, 60, 100, –], p-notation names
+like `MA90p5`). `makeBinnedTemplates.py --signal-source interp-signal`:
+a group SEED builds the shared backgrounds with its own interpolated
+mean/sigma; members inject only their parametric signal
+(`python/param_signal.py`; shared machinery in
+`python/binned_template_core.py`). 572 groups frozen in `grid.json`
+(seed lattice 0.5/1/2/4 GeV; never spanning the mA=60 pairing
+boundary); members nest at
+`templates/{seed}/Baseline/interp-signal/{era}/{channel}/points/{member}`.
+Interp nuisances enter via the `extra_systematics*.json` hook, sized
+from `configs/interpolation_uncertainties.json`.
+
+```bash
+./automize/interpTemplates.sh --all            # full scan (7 DAGs, ~27k nodes;
+                                               #  heavy tier ~360 core-hours)
+./automize/interpTemplates.sh --mhc 160 --group MHc160_MA90   # one group
+python3 python/collectLimits.py --era All --method Baseline --signal-source interp-signal
+```
+
+Per point: All × {SR1E2Mu, SR3Mu, Combined} merge → datacard →
+asymptotic; one full validation per group at the seed. Verified
+2026-08-13 (MHc160_MA90 group): refactor bit-identical on the MC path,
+member backgrounds bitwise shared, limits smooth in mA — see
+docs/interpolation/WORKFLOW.md "Template production".
+
 ## Future Phases
 
-Next: graduate the interpolation template producer behind a
-`srspaths.template_dir` method segment, consuming
-`configs/interpolation_uncertainties.json` and declaring the nuisances via
-`printDatacard.py`'s `extra_systematics*.json` hook. Its mA scan grid is
-frozen in `configs/grid.json` (2467 points over 7 mHc; band edges
-[15, 30, 60, 100, –] with steps 0.1/0.25/0.5/1.0 GeV below the dimuon
-σ_eff, all MC points included for direct-MC comparison; p-notation
-names like `MA90p5` — `makeInterpGrid.py`, `srspaths.grid_config()`). Nothing in V4 may
-hard-assume the template payload is binned histograms beyond the existing
-per-step contracts.
+ParticleNet interp-signal study; a dedicated mc-vs-interp limit
+comparison plotter over `mc_points`. Nothing in V4 may hard-assume the
+template payload is binned histograms beyond the existing per-step
+contracts.
 
 Known limitations of the frozen model, all recorded in
 docs/interpolation/WORKFLOW.md:

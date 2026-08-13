@@ -20,12 +20,14 @@ source "$SCRIPT_DIR/automize/dag_lib.sh"
 source "$SCRIPT_DIR/scripts/env.sh"
 
 MHC_LIST=()
+GROUP_SEED=""
 DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --mhc) MHC_LIST+=("$2"); shift 2 ;;
         --all) MHC_LIST=(70 85 100 115 130 145 160); shift ;;
+        --group) GROUP_SEED="$2"; shift 2 ;;
         --dry-run) DRY_RUN=true; shift ;;
         -h|--help)
             grep '^#' "$0" | head -15; exit 0 ;;
@@ -80,6 +82,9 @@ EOF
         [[ -z "$line" ]] && continue
         local seed="${line%%:*}"
         local members_csv="${line#*:}"
+        # --group SEED_MP: emit only that group's nodes (verification /
+        # ad-hoc single-group runs)
+        [[ -n "$GROUP_SEED" && "$seed" != "$GROUP_SEED" ]] && continue
 
         # 4 heavy seed-category nodes
         local cat_nodes=()

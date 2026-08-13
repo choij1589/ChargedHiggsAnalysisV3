@@ -198,6 +198,55 @@ extrapolation. 281 (MHc70) to 406 (MHc160) points, 2467 total. Fractional mA is 
 `interpolation_config.masspoint_name`/`parse_ma`,
 `srspaths.parse_ma_token`).
 
+## Template production (interp-signal)
+
+Datacard-ready templates at every grid point: parametric signal (RooFit
+integrals of the sliced surfaces — zero tree reads) on the production
+background machinery. Owning code: `makeBinnedTemplates.py
+--signal-source interp-signal` (seed/member modes),
+`python/param_signal.py` (model → histograms, delta shifts, nuisances),
+`python/binned_template_core.py` (shared signal-independent machinery).
+
+**Template-sharing groups** (frozen in `grid.json`; `group_seed()`):
+backgrounds cost ~9.5 min/category and depend on the mass point only
+through window/binning (and the SR3Mu pairing), so each group's SEED
+builds them once with its own interpolated mean/sigma and every member
+injects only its signal. 572 groups (mean 4.3 points), seed lattice
+0.5/1/2/4 GeV mirroring the grid bands, worst member peak offset 1.74σ;
+a group never spans the mA = 60 pairing boundary (the shared backgrounds
+would come from the wrong pairing's samples). Member templates carry the
+pdf containment ratio automatically (normalization reference = the
+member's OWN interp window).
+
+Layout: seeds at `templates/{seed}/Baseline/interp-signal/{era}/{channel}/`
+(where validation and future GoF/impact jobs run), members nested at
+`.../points/{member}/`. Each point gets All × {SR1E2Mu, SR3Mu, Combined}
+merge → datacard → asymptotic; one full `validateRunPeriodTemplates` per
+group at the seed's All/Combined.
+
+```bash
+./automize/interpTemplates.sh --mhc 160            # one mHc (~4400 nodes)
+./automize/interpTemplates.sh --all                # full 2467-point scan
+./automize/interpTemplates.sh --mhc 160 --group MHc160_MA90   # one group
+python3 python/collectLimits.py --era All --method Baseline \
+    --signal-source interp-signal                  # + --channel SR1E2Mu/SR3Mu
+python3 python/plotLimits.py --era All --method Baseline \
+    --signal-source interp-signal --mhc 160
+```
+
+The interp nuisances land via `extra_systematics.{era}.{channel}.json`
+(scale/res shape terms + per-era norm lnN under period-level names,
+sized from `configs/interpolation_uncertainties.json`); `mc_points` in
+`grid.json` marks where direct-MC comparison is possible
+(`--signal-source mc-signal` chain at the same point).
+
+Verification record (2026-08-13, MHc160_MA90 group): refactor regression
+old-vs-new MC build bit-identical (1313 hists, diff exactly 0); E2E
+44-node DAG all green; member backgrounds bitwise identical to the
+seed's (1125 hists); member signal integral = n_pred × containment;
+seed All/Combined expected r = 0.9453 vs the archived arm-C 0.9258
+(2.1%, different samples + derived nuisances).
+
 ## Known input issues
 
 - `MHc145_MA100` / 2023 / SR1E2Mu: corrupt raw skim (truncated at 9 MB;
