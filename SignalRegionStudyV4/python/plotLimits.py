@@ -3,6 +3,7 @@ import os
 from array import array
 import argparse
 import ROOT
+import srspaths
 import json
 import cmsstyle as CMS
 from plotter import LumiInfo, LumiInfoExact, EnergyInfo, get_CoM_energy, PALETTE_LONG
@@ -61,8 +62,11 @@ LumiInfo_extended["All"] = _LUMI_CONFIG["All"]["combined"]
 
 def create_graphs(limits_dict):
     """Create TGraph objects from limits dictionary."""
-    mass_points = sorted(limits_dict.keys(), key=lambda mp: int(mp.split("_")[1][2:]))
-    x = array('d', [int(mp.split("_")[1][2:]) for mp in mass_points])
+    def _ma(mp):
+        return float(srspaths.parse_ma_token(mp.split("_")[1][2:]))
+
+    mass_points = sorted(limits_dict.keys(), key=_ma)
+    x = array('d', [_ma(mp) for mp in mass_points])
     n = len(x)
 
     # JSON values are already B_sig (converted in collectLimits.py); use directly
@@ -391,7 +395,9 @@ elif args.compare_mhc:
 else:
     _mode_suffix = f".MHc{args.mhc if args.mhc is not None else 160}"
 
-output_base = f"results/plots/{args.mode}/{args.era}/limit.{args.era}{_ch_suffix}.{args.limit_type}.{args.method}{_mode_suffix}"
+output_base = (f"results/plots/{args.mode}/{args.era}/limit.{args.era}"
+               f"{_ch_suffix}.{args.limit_type}.{args.method}"
+               f"{_source_infix}{_mode_suffix}")
 os.makedirs(os.path.dirname(output_base), exist_ok=True)
 
 canv.SaveAs(f"{output_base}.png")
