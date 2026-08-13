@@ -22,6 +22,7 @@ EXTRA_ARGS="$*"
 export WORKDIR="$SRS_REPO_DIR"
 cd "$SRS_MODULE_DIR"
 export PATH="${PWD}/python:${PATH}"
+export PYTHONPATH="$HOME/.local/lib/python3.9/site-packages:$SRS_REPO_DIR/Common/Tools:${PYTHONPATH:-}"
 
 srs_setup_cmssw
 
