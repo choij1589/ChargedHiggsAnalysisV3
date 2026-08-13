@@ -244,8 +244,11 @@ Verification record (2026-08-13, MHc160_MA90 group): refactor regression
 old-vs-new MC build bit-identical (1313 hists, diff exactly 0); E2E
 44-node DAG all green; member backgrounds bitwise identical to the
 seed's (1125 hists); member signal integral = n_pred × containment;
-seed All/Combined expected r = 0.9453 vs the archived arm-C 0.9258
-(2.1%, different samples + derived nuisances).
+direct mc-vs-interp limits on IDENTICAL
+samples (fresh mc-signal chain, 36-node DAG): expected −1.6% Combined /
+−2.3% SR1E2Mu / −0.6% SR3Mu — better than the four-arm −3.5% precedent;
+observed +1.6/+3.8/+5.6%, the known bin-edge sensitivity class (the arm
+study's B0→B moved observed +5.3% at unchanged expected).
 
 ## Known input issues
 
