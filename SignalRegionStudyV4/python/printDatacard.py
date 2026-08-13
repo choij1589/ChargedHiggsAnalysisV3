@@ -26,6 +26,10 @@ parser.add_argument("--masspoint", required=True, type=str, help="Signal mass po
 parser.add_argument("--method", required=True, type=str, help="Template method (Baseline, ParticleNet)")
 parser.add_argument("--blind", action="store_true",
                     help="Read from the {method}_blind template segment")
+parser.add_argument("--signal-source", default="mc-signal",
+                    choices=["mc-signal", "interp-signal"],
+                    help="Template signal source (interp-signal members "
+                         "resolve through their grid.json group seed)")
 parser.add_argument("--output", type=str, default=None, help="Output datacard path (default: auto-determined)")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 args = parser.parse_args()
@@ -34,8 +38,20 @@ args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
                     format='%(levelname)s - %(message)s')
 
-TEMPLATE_DIR = srspaths.template_dir(args.masspoint, args.method, args.era,
-                                     args.channel, blind=args.blind)
+def _resolve_template_dir():
+    if args.signal_source == "interp-signal":
+        import interpolation_config
+        seed = interpolation_config.group_seed(args.masspoint)
+        if seed != args.masspoint:
+            return srspaths.interp_member_dir(seed, args.masspoint,
+                                              args.era, args.channel,
+                                              blind=args.blind)
+    return srspaths.template_dir(args.masspoint, args.method, args.era,
+                                 args.channel, blind=args.blind,
+                                 source=args.signal_source)
+
+
+TEMPLATE_DIR = _resolve_template_dir()
 
 # Setup ROOT
 ROOT.gROOT.SetBatch(True)

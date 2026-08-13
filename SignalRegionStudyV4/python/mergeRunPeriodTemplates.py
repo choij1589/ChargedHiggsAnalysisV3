@@ -24,6 +24,18 @@ import srspaths
 ROOT.gROOT.SetBatch(True)
 
 
+def _resolve_template_dir(masspoint, method, era, channel, blind, source):
+    """template_dir with interp-signal group-member nesting (grid.json)."""
+    if source == "interp-signal":
+        import interpolation_config
+        seed = interpolation_config.group_seed(masspoint)
+        if seed != masspoint:
+            return srspaths.interp_member_dir(seed, masspoint, era, channel,
+                                              blind=blind)
+    return srspaths.template_dir(masspoint, method, era, channel,
+                                 blind=blind, source=source)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--era", required=True, choices=["Run2", "Run3", "All"])
@@ -39,6 +51,8 @@ def parse_args():
               "Default is <era>:SR1E2Mu,<era>:SR3Mu."),
     )
     parser.add_argument("--blind", action="store_true")
+    parser.add_argument("--signal-source", default="mc-signal",
+                        choices=["mc-signal", "interp-signal"])
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
@@ -55,13 +69,14 @@ def save_json(data, path):
 
 
 def source_dir(args, era, channel):
-    return srspaths.template_dir(args.masspoint, args.method, era, channel,
-                                 blind=args.blind)
+    return _resolve_template_dir(args.masspoint, args.method, era, channel,
+                                 args.blind, args.signal_source)
 
 
 def output_dir(args):
-    return srspaths.template_dir(args.masspoint, args.method, args.era,
-                                 args.channel, blind=args.blind)
+    return _resolve_template_dir(args.masspoint, args.method, args.era,
+                                 args.channel, args.blind,
+                                 args.signal_source)
 
 
 def parse_sources(args):

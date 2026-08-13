@@ -279,6 +279,8 @@ def parse_args():
     parser.add_argument("--masspoint", required=True)
     parser.add_argument("--method", required=True)
     parser.add_argument("--blind", action="store_true")
+    parser.add_argument("--signal-source", default="mc-signal",
+                        choices=["mc-signal", "interp-signal"])
     parser.add_argument("--max-systematic-plots", type=int, default=-1,
                         help="Maximum number of stacked systematic variation plots to write per validation run; negative means all")
     parser.add_argument("--skip-plots", action="store_true",
@@ -1298,8 +1300,18 @@ def make_systematic_plots(f, categories, shape_rows, output_dir, args, datacard_
 
 def main():
     args = parse_args()
-    tdir = srspaths.template_dir(args.masspoint, args.method, args.era,
-                                 args.channel, blind=args.blind)
+    if args.signal_source == "interp-signal":
+        import interpolation_config
+        _seed = interpolation_config.group_seed(args.masspoint)
+    else:
+        _seed = args.masspoint
+    if _seed != args.masspoint:
+        tdir = srspaths.interp_member_dir(_seed, args.masspoint, args.era,
+                                          args.channel, blind=args.blind)
+    else:
+        tdir = srspaths.template_dir(args.masspoint, args.method, args.era,
+                                     args.channel, blind=args.blind,
+                                     source=args.signal_source)
     categories_path = f"{tdir}/categories.json"
     process_path = f"{tdir}/process_list.json"
     binning_path = f"{tdir}/binning.json"
