@@ -55,8 +55,9 @@ nonzero on any failure.
 | V3's own template ROOT vs V3 `results/json/BR/...` | reference self-consistency | WARN only (see below) |
 | `validation/summary.json` | existence, nonzero size | — |
 
-`workspace.root` is deliberately not checked: in V3 it was produced by the
-GoF/impacts workflows (`text2workspace.py`), which are outside V4's scope.
+`workspace.root` is deliberately not checked: V4 produces it only in the
+GoF/impacts workflows on the interp-signal seeds, whose datacards have no
+V3 counterpart.
 
 The samples metadata check opens every tree of every file — this is the
 guard against silently lost or truncated pnfs transfers.

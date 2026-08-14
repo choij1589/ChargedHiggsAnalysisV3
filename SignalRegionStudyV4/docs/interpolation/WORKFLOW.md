@@ -250,6 +250,29 @@ samples (fresh mc-signal chain, 36-node DAG): expected −1.6% Combined /
 observed +1.6/+3.8/+5.6%, the known bin-edge sensitivity class (the arm
 study's B0→B moved observed +5.3% at unchanged expected).
 
+### GoF + impacts per group seed
+
+Mirrors V3 (`scripts/runGoF.sh`, `scripts/runImpacts.sh`,
+`automize/interpGofImpacts.sh`): saturated GoF, background-only
+(`--freezeParameters r --setParameters r=0`), real data +
+`--toysFrequentist` toys (500 in 5 batches); impacts via combineTool
+(`--robustFit 1`, r-range = 2×(exp+2σ) from the seed's own asymptotic
+when |r| > 5 else ±5, `prop_bin`/`autoMCStat` filtered post-hoc by
+`python/filterImpacts.py`). Per seed: GoF at All × {Combined, SR1E2Mu,
+SR3Mu}, impacts at All/Combined only (V3 convention), as one fat 4-core
+node (`--parallel 4`).
+
+```bash
+./automize/interpGofImpacts.sh --all          # 7 DAGs, ~14.6k nodes
+python3 python/plotGoFPValues.py --all        # p-value vs mA per mHc
+```
+
+Outputs under the seed's target dir: `combine_output/gof/{gof.json,
+gof_plot.png}` and `combine_output/impacts_obs/{impacts.pdf,
+impacts_filtered.pdf}`; summaries in `results/plots/gof/`. The gate:
+every DAG STATUS 0, p-values populated (floor 0.5/ntoys), no `prop_bin`
+in the filtered impacts.
+
 ## Known input issues
 
 - `MHc145_MA100` / 2023 / SR1E2Mu: corrupt raw skim (truncated at 9 MB;

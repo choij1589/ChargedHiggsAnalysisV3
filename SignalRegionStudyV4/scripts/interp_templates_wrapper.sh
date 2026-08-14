@@ -7,6 +7,7 @@
 #
 # Arguments: STEP MASSPOINT SEED ERA CHANNEL [EXTRA...]
 #   STEP: template | merge | datacard | validate | asymptotic
+#         | gof-data | gof-toys (EXTRA = toy seed) | gof-collect | impacts
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -71,6 +72,26 @@ case "$STEP" in
         ;;
     asymptotic)
         ./scripts/runAsymptotic.sh \
+            --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+            --method Baseline --signal-source interp-signal \
+            --seed "$SEED" $EXTRA_ARGS
+        ;;
+    gof-data|gof-collect)
+        ./scripts/runGoF.sh \
+            --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+            --method Baseline --signal-source interp-signal \
+            --seed "$SEED" --step "${STEP#gof-}" $EXTRA_ARGS
+        ;;
+    gof-toys)
+        # first EXTRA arg = toy batch seed
+        TOY_SEED=$1; shift
+        ./scripts/runGoF.sh \
+            --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+            --method Baseline --signal-source interp-signal \
+            --seed "$SEED" --step toys --toy-seed "$TOY_SEED" "$@"
+        ;;
+    impacts)
+        ./scripts/runImpacts.sh \
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
             --method Baseline --signal-source interp-signal \
             --seed "$SEED" $EXTRA_ARGS

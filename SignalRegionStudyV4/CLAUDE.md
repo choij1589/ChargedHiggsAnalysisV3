@@ -318,6 +318,13 @@ asymptotic; one full validation per group at the seed. Verified
 member backgrounds bitwise shared, limits smooth in mA — see
 docs/interpolation/WORKFLOW.md "Template production".
 
+GoF + impacts per group seed (mirrors V3; first V4 `text2workspace.py`
+use): `./automize/interpGofImpacts.sh --all` — saturated background-only
+GoF (500 toys/5 batches) at All × {Combined,SR1E2Mu,SR3Mu}, combineTool
+impacts (robustFit, prop_bin-filtered) at All/Combined; summaries via
+`python3 python/plotGoFPValues.py --all`. Workers
+`scripts/runGoF.sh`/`runImpacts.sh` also accept mc-signal ad hoc.
+
 ## Future Phases
 
 ParticleNet interp-signal study; a dedicated mc-vs-interp limit

@@ -64,8 +64,8 @@ METADATA_JSONS = [
     "background_validation.json",
 ]
 
-# workspace.root is intentionally absent: in V3 it was written by the GoF /
-# impacts workflows (text2workspace.py), which are out of V4's scope.
+# workspace.root is not compared: V4 writes it only in the GoF/impacts
+# workflows on the interp-signal seeds, which have no V3 counterpart.
 EXISTENCE_FILES = [os.path.join("validation", "summary.json")]
 
 

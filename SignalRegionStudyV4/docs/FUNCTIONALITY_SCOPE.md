@@ -28,6 +28,14 @@ argument; it is not part of any production workflow.
 - ParticleNet score plots (`python/plotParticleNetScore.py`)
 - Limit collection and plotting (`python/collectLimits.py`,
   `python/plotLimits.py`)
+- interp-signal template production over the scan grid
+  (`makeBinnedTemplates.py --signal-source interp-signal`,
+  `python/param_signal.py`, `automize/interpTemplates.sh`)
+- Goodness-of-fit and impacts, per interp-signal group seed
+  (`scripts/runGoF.sh`, `scripts/runImpacts.sh`,
+  `python/filterImpacts.py`, `python/plotGoFPValues.py`,
+  `automize/interpGofImpacts.sh`; the scripts also accept
+  `--signal-source mc-signal` ad hoc)
 - Reproduction comparison against V3 (`python/compareToV3.py`,
   `scripts/compare_wrapper.sh`)
 - Methods: `Baseline` and `ParticleNet`
@@ -39,7 +47,7 @@ argument; it is not part of any production workflow.
 These exist only in older modules and are intentionally not ported. V4 code
 and docs make no reference to them:
 
-- Goodness-of-Fit tests, impacts, HybridNew, signal injection / bias tests
+- HybridNew, signal injection / bias tests
 - Look-elsewhere-effect (LEE) toys
 - TTZ control-region templates and GoF
 - Paper-figure scripts
