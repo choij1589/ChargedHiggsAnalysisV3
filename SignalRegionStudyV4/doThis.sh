@@ -152,12 +152,14 @@ done
 #   grep -h "EXITING WITH STATUS" condor/jobs_pnet_interp_<ts>/study/logs/*.out | sort | uniq -c
 ./automize/pnetInterpolation.sh --all
 
-# 5c. Template scan over configs/pnet_grid.json (155 points / 15 groups;
-#     322-node DAG per mHc). One-group E2E first, then the campaign:
+# 5c. Template scan over configs/pnet_grid.json (150 points / 15 groups;
+#     322-node DAG per mHc, 304 for MHc100 whose reach is clipped at its
+#     mA = 95 MC endpoint). One-group E2E first, then the campaign:
 #./automize/interpTemplates.sh --mhc 115 --group MHc115_MA90 --method ParticleNet
 ./automize/interpTemplates.sh --all --method ParticleNet
 python3 python/collectLimits.py --era All --method ParticleNet --signal-source interp-signal
-# check parsed/total = 155; then per-mHc limit plots:
+# check parsed/total = 150; then per-mHc limit plots (--ymax syncs the
+# y-scale to the Baseline counterpart for method comparison):
 #for mhc in 100 115 130 145 160; do
 #    python3 python/plotLimits.py --era All --method ParticleNet \
 #        --signal-source interp-signal --mhc $mhc

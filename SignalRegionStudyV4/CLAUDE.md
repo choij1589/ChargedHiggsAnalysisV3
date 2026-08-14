@@ -327,15 +327,17 @@ impacts (robustFit, prop_bin-filtered) at All/Combined; summaries via
 
 ## ParticleNet Interpolation
 
-A thin layer on the Baseline interpolation, **model frozen 2026-08-14**;
-full record in `docs/interpolation/particlenet/` (`METHOD.md`,
-`UNCERTAINTY.md`). Seeds at the trained mA = 85/90/95 per mHc, groups of
-+-2.5 GeV on the 0.5 GeV lattice, so the arm reaches **mA in
-[82.5, 97.5]** only (155 points, 15 groups, 5 mHc); Baseline templates
-cover everything outside. Backgrounds are shared per group by the seed,
-which also fixes the net and the threshold — a **fixed eps_B = 20%**
-working point, replacing the argmax-Asimov-Z rule that left 5 of 68
-categories on 1.6-8.8 background events.
+A thin layer on the Baseline interpolation, **model frozen 2026-08-14,
+production complete 2026-08-15**; full record in
+`docs/interpolation/particlenet/` (`METHOD.md`, `UNCERTAINTY.md`). Seeds
+at the trained mA = 85/90/95 per mHc, groups of +-2.5 GeV on the 0.5 GeV
+lattice, clipped per mHc to the Baseline MC range — the arm reaches
+**mA in [82.5, 97.5]** (MHc100 stops at 95): **150 points, 15 groups,
+5 mHc** (`configs/pnet_grid.json`, `makePnetGrid.py`); Baseline
+templates cover everything outside. Backgrounds are shared per group by
+the seed, which also fixes the net and the threshold — a **fixed
+eps_B = 20%** working point, replacing the argmax-Asimov-Z rule that
+left 5 of 68 categories on 1.6-8.8 background events.
 
 Shapes reuse the Baseline surfaces verbatim (the nets are
 mass-decorrelated); the yield is
@@ -346,19 +348,37 @@ no scale family (the shift is refit statistics, already carried by
 autoMCStats), and `eff` covers the eps interpolation ALONE, since the
 Baseline `CMS_interp_norm` already covers the yield model.
 
-`preprocess.py --shared-scores --mhc MHcX` writes the per-mHc sample dir
-this needs (all trained mA, one shared background set, every net's score
-branches) — also 3-4x cheaper than the per-masspoint layout.
-`--central-only` is study-only and marks its output `CENTRAL_ONLY`.
+The production chain (doThis.sh Step 5; frozen artifacts in
+`fits/pnet/MHc{X}/{threshold_wp,eps_model}.json`, closures in
+`closure/pnet/`, nuisances in
+`configs/pnet_interpolation_uncertainties.json`):
+
+```bash
+./automize/preprocess.sh --pnet-scores        # 120 jobs, full-syst shared-scores dirs
+python3 python/verifyInterpSamples.py --pnet --mhc N   # anti-truncation gate
+./automize/pnetInterpolation.sh --all         # 27-node study DAG (one DAG, export barrier)
+./automize/interpTemplates.sh  --all --method ParticleNet   # 1610 nodes, 150 points
+./automize/interpGofImpacts.sh --all --method ParticleNet   # 330 nodes, 15 seeds
+```
+
+Templates land at `templates/{seed}/ParticleNet/interp-signal/...` —
+the directory rule is literally Baseline → ParticleNet; every consumer
+resolves the group seed method-aware
+(`interpolation_config.group_seed(mp, method)`). Sensitivity gain over
+Baseline: Combined exp0 median 1.38x (up to ~1.5x at the Z peak);
+mc-vs-interp at the 17 trained points vs V3's frozen mc limits: median
+1.024. `preprocess.py --shared-scores --mhc MHcX` writes the per-mHc
+sample dir (all trained mA, one shared background set, every net's
+score branches); `--central-only` is study-only and marks its output
+`CENTRAL_ONLY` (the verify gate fails on it).
 
 ## Future Phases
 
-ParticleNet interp-signal **template production** (the analogue of
-`automize/interpTemplates.sh`) is not built yet; the method and
-uncertainty records above are what it must be built against. Also: a
-dedicated mc-vs-interp limit comparison plotter over `mc_points`. Nothing
-in V4 may hard-assume the template payload is binned histograms beyond
-the existing per-step contracts.
+A dedicated mc-vs-interp limit comparison plotter over `mc_points` (the
+numeric comparison is in docs/interpolation/particlenet/METHOD.md
+"Production campaign record"). Nothing in V4 may hard-assume the
+template payload is binned histograms beyond the existing per-step
+contracts.
 
 Known limitations of the frozen model, all recorded in
 docs/interpolation/WORKFLOW.md:

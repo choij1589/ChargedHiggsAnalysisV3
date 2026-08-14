@@ -6,9 +6,10 @@ arm is a thin layer on top of the frozen Baseline interpolation, not a
 parallel chain — read [../WORKFLOW.md](../WORKFLOW.md) first; this file
 records only the delta. Nuisances: [UNCERTAINTY.md](UNCERTAINTY.md).
 
-Status: **feasibility complete and the model frozen (2026-08-14)**; the
-production chain (study steps, template production, GoF/impacts) is built —
-see Procedure. Campaign results are recorded here as their gates pass.
+Status: **production complete (2026-08-15)** — model frozen 2026-08-14,
+promoted to production code, study reproduced into the tracked trees, full
+template scan + GoF/impacts campaigns run. The campaign record is the
+section "Production campaign record" below.
 
 ## Why a separate layer is needed
 
@@ -30,7 +31,7 @@ Both hold. The measured sizes are in [UNCERTAINTY.md](UNCERTAINTY.md).
 |---|---|
 | seeds | mA = 85, 90, 95 per mHc — the mass points the nets are trained at |
 | groups | nearest seed, +-2.5 GeV; 3 groups per mHc, 15 in total |
-| grid | 0.5 GeV steps, mA in **[82.5, 97.5]**; 31 points per mHc, 155 in total |
+| grid | 0.5 GeV steps, mA in **[82.5, 97.5]** clipped per mHc to the Baseline MC range (MHc100 stops at its mA = 95 endpoint); 31 points per mHc except MHc100's 26, **150 in total** |
 | outside the reach | Baseline templates only — the two arms coexist as separate methods |
 | score | `s_sig / (s_sig + w_np*s_np + w_db*s_db + w_ttX*s_ttX)`, weights from the SEED's mass window |
 | working point | fixed **eps_B = 20%**, one threshold per (channel, run period, seed) |
@@ -50,7 +51,11 @@ is reproducible rather than dependent on floating-point comparison order.
 
 The reach is set by the trained grid, not by choice: seeds exist only at
 85/90/95, and +-2.5 GeV around them tiles [82.5, 97.5] exactly with no gap.
-An earlier +-2 GeV proposal would have left 87.5 and 92.5 uncovered.
+An earlier +-2 GeV proposal would have left 87.5 and 92.5 uncovered. The
+reach is additionally CLIPPED per mHc to the Baseline MC range (user
+decision 2026-08-14): beyond a study's MC endpoint both the Baseline yield
+model and the eps quadratic would extrapolate, so MHc100 — whose highest
+MC point is mA = 95 — ends there (26 points, seed-95 group of 5).
 
 **Every seed-member pair used in production has |dmA| <= 2.5.** This is not a
 detail — the seed's mass window is `[max(x0 - 10σ, 12), x0 + 10σ]` around the
@@ -218,7 +223,8 @@ python3 python/exportPnetUncertainties.py             # -> configs/pnet_interpol
 python3 python/closPnetTemplates.py  --mhc MHc115     # template closure + plots
 python3 python/summarizePnetStudies.py                # tables incl. Gate U1 -> summary.txt
 
-# Template production over the 155-point grid (322-node DAG per mHc):
+# Template production over the 150-point grid (322-node DAG per mHc,
+# 304 for MHc100):
 ./automize/interpTemplates.sh --all --method ParticleNet
 python3 python/collectLimits.py --era All --method ParticleNet --signal-source interp-signal
 
@@ -281,11 +287,46 @@ after the band is applied means the assigned nuisance does not cover the model
 error at that point. Read the anchors as a Baseline check, not a ParticleNet
 one — eps is exact there by construction.
 
+## Production campaign record (2026-08-14/15)
+
+All numbers reproducible from the committed artifacts
+(`results/json/BR/All/limits.All*.ParticleNet.interp-signal.json`,
+`closure/pnet/`, the seed template dirs' `combine_output/`).
+
+- **Study reproduction** (Gate A–E rerun off the production samples): 27/27
+  DAG nodes clean; thresholds and yields EXACT vs the frozen study (272
+  working points, 944 yield points at 0.0 relative deviation), shapes at
+  5.9e-7 worst relative (DCB refit Minuit noise), uncertainty values
+  identical, 68 closure canvases regenerated.
+- **One-group E2E** (MHc115 seed MA90, 104 nodes): validation 0 issues;
+  member backgrounds 1125/1125 histograms bitwise identical to the seed;
+  all four interp nuisance families on the signal column; Baseline interp
+  datacard regeneration byte-identical (non-regression).
+- **Template scan**: 5 DAGs / 1610 nodes, zero failures; 150/150 limits
+  collected in each of Combined/SR1E2Mu/SR3Mu. Limits smooth per mHc (max
+  adjacent exp0 step 11–15%, on the mA ≈ 88–89 rise into the Z peak).
+- **Sensitivity vs Baseline** (exp0 ratio Baseline/ParticleNet over the
+  shared grid): Combined median **1.38** (per-mHc medians 1.30–1.43),
+  rising to ~1.5 at the Z peak (mA 89–92); SR1E2Mu median 1.39 (up to
+  1.72), SR3Mu median 1.32. Never below 1.14 in Combined.
+- **mc-vs-interp** at the 17 trained points vs V3's frozen mc-signal
+  ParticleNet limits: exp0 ratio median **1.024**, max deviation 0.161 —
+  conflating the argmax-Z → eps_B=20% WP change and V3's missing
+  `CMS_eff_e_reco`, consistent with the Baseline arm's 3.5% precedent.
+- **GoF + impacts**: 330/330 nodes; 45 GoF sets and 15 filtered impact
+  PDFs. 3/45 cells below p = 0.05 (chance expectation 2.3): MHc115_MA90
+  Combined 0.028, MHc160_MA85 Combined 0.022 / SR3Mu 0.004. The GoF is
+  background-only — the parametric signal never enters — and V3's
+  mc-signal ParticleNet GoF at MHc160_MA85/SR3Mu was already low (0.072)
+  under the old threshold: a data/background feature of that phase-space
+  corner, not an interpolation defect.
+
 ## Known limitations
 
-- **The reach is [82.5, 97.5] and nothing widens it but new trainings.** The
-  nets exist at three mA per mHc; outside that window only Baseline templates
-  exist.
+- **The reach is [82.5, 97.5] (clipped to each study's MC range) and
+  nothing widens it but new trainings.** The nets exist at three mA per
+  mHc; outside that window only Baseline templates exist. At MHc100 the
+  reach ends at mA = 95 with the Baseline MC grid itself.
 - **No mHc interpolation.** Five measured mHc, each interpolated in mA only —
   the same restriction as the Baseline arm, for the same reason.
 - **MHc100 is the weakest study**, with the largest `r_eps` (median 0.025 vs

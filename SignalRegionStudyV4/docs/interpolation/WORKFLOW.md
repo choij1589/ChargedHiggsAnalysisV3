@@ -273,6 +273,25 @@ impacts_filtered.pdf}`; summaries in `results/plots/gof/`. The gate:
 every DAG STATUS 0, p-values populated (floor 0.5/ntoys), no `prop_bin`
 in the filtered impacts.
 
+## The ParticleNet arm
+
+The same interpolation, thin-layered onto the ParticleNet method — full
+record in [particlenet/METHOD.md](particlenet/METHOD.md) and
+[particlenet/UNCERTAINTY.md](particlenet/UNCERTAINTY.md); production
+complete 2026-08-15. In one paragraph: seeds at the trained mA = 85/90/95
+per mHc, groups ±2.5 GeV on a 0.5 GeV lattice clipped to the Baseline MC
+range (reach [82.5, 97.5]; MHc100 stops at 95 — 150 points, 15 groups,
+5 mHc, `configs/pnet_grid.json`); a frozen eps_B = 20% score threshold
+per category × seed (`fits/pnet/MHc{X}/threshold_wp.json`); Baseline
+shape surfaces and yield model reused verbatim with one new factor,
+eps_seed(era, mA), a quadratic through the seed net's anchors
+(`fits/pnet/MHc{X}/eps_model.json`); two new nuisances
+`CMS_interp_{res,eff}_pnet_*`
+(`configs/pnet_interpolation_uncertainties.json`). The template scan,
+GoF and impacts reuse THIS chain's drivers with `--method ParticleNet`
+(`interpTemplates.sh`, `interpGofImpacts.sh`); templates land under
+`templates/{seed}/ParticleNet/interp-signal/`. Runbook: doThis.sh Step 5.
+
 ## Known input issues
 
 - `MHc145_MA100` / 2023 / SR1E2Mu: corrupt raw skim (truncated at 9 MB;
