@@ -18,6 +18,19 @@ SEED=$3
 ERA=$4
 CHANNEL=$5
 shift 5
+# --method may appear anywhere in EXTRA (ParticleNet interp arm, added by
+# the DAG generator); default Baseline. Extracted here and re-injected as
+# exactly one --method per tool call, so old DAGs stay valid unchanged.
+METHOD="Baseline"
+_rest=()
+while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--method" ]]; then
+        METHOD="$2"; shift 2
+    else
+        _rest+=("$1"); shift
+    fi
+done
+set -- ${_rest[@]+"${_rest[@]}"}
 EXTRA_ARGS="$*"
 
 export WORKDIR="$SRS_REPO_DIR"
@@ -36,7 +49,7 @@ case "$STEP" in
             # seed: one heavy job per category (era/channel = the category)
             python3 python/makeBinnedTemplates.py \
                 --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-                --method Baseline "${SRC_ARGS[@]}" $EXTRA_ARGS
+                --method "$METHOD" "${SRC_ARGS[@]}" $EXTRA_ARGS
         else
             # member: signal injection is cheap — build all four component
             # dirs (the merge step consumes them) in this single job.
@@ -45,7 +58,7 @@ case "$STEP" in
                 python3 python/makeBinnedTemplates.py \
                     --era "$cat_era" --channel "$cat_channel" \
                     --masspoint "$MASSPOINT" \
-                    --method Baseline "${SRC_ARGS[@]}" $EXTRA_ARGS
+                    --method "$METHOD" "${SRC_ARGS[@]}" $EXTRA_ARGS
             done
         fi
         ;;
@@ -58,28 +71,28 @@ case "$STEP" in
         esac
         python3 python/mergeRunPeriodTemplates.py \
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-            --method Baseline --sources "$SOURCES" "${SRC_ARGS[@]}" $EXTRA_ARGS
+            --method "$METHOD" --sources "$SOURCES" "${SRC_ARGS[@]}" $EXTRA_ARGS
         ;;
     datacard)
         python3 python/printDatacard.py \
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-            --method Baseline "${SRC_ARGS[@]}" $EXTRA_ARGS
+            --method "$METHOD" "${SRC_ARGS[@]}" $EXTRA_ARGS
         ;;
     validate)
         python3 python/validateRunPeriodTemplates.py \
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-            --method Baseline "${SRC_ARGS[@]}" $EXTRA_ARGS
+            --method "$METHOD" "${SRC_ARGS[@]}" $EXTRA_ARGS
         ;;
     asymptotic)
         ./scripts/runAsymptotic.sh \
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-            --method Baseline --signal-source interp-signal \
+            --method "$METHOD" --signal-source interp-signal \
             --seed "$SEED" $EXTRA_ARGS
         ;;
     gof-data|gof-collect)
         ./scripts/runGoF.sh \
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-            --method Baseline --signal-source interp-signal \
+            --method "$METHOD" --signal-source interp-signal \
             --seed "$SEED" --step "${STEP#gof-}" $EXTRA_ARGS
         ;;
     gof-toys)
@@ -87,13 +100,13 @@ case "$STEP" in
         TOY_SEED=$1; shift
         ./scripts/runGoF.sh \
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-            --method Baseline --signal-source interp-signal \
+            --method "$METHOD" --signal-source interp-signal \
             --seed "$SEED" --step toys --toy-seed "$TOY_SEED" "$@"
         ;;
     impacts)
         ./scripts/runImpacts.sh \
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
-            --method Baseline --signal-source interp-signal \
+            --method "$METHOD" --signal-source interp-signal \
             --seed "$SEED" $EXTRA_ARGS
         ;;
     *)

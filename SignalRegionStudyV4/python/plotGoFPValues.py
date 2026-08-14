@@ -32,12 +32,14 @@ CHANNEL_STYLE = {
 
 
 def gof_json_path(seed_mp, era, channel, method_segment, source):
-    tdir = srspaths.template_dir(seed_mp, "Baseline", era, channel,
+    method = ("ParticleNet" if method_segment.startswith("ParticleNet")
+              else "Baseline")
+    tdir = srspaths.template_dir(seed_mp, method, era, channel,
                                  source=source)
-    # method_segment differs from "Baseline" only for blind runs, which the
-    # GoF chain does not produce by default; keep the hook anyway.
-    if method_segment != "Baseline":
-        tdir = tdir.replace("/Baseline/", f"/{method_segment}/")
+    # method_segment differs from the method only for blind runs, which
+    # the GoF chain does not produce by default; keep the hook anyway.
+    if method_segment != method:
+        tdir = tdir.replace(f"/{method}/", f"/{method_segment}/")
     return os.path.join(tdir, "combine_output", "gof", "gof.json")
 
 
@@ -52,7 +54,10 @@ def read_pvalue(path, floor):
 
 
 def plot_mhc(mhc, args):
-    grids = srspaths.grid_config()["grids"][f"MHc{mhc}"]
+    cfg = (srspaths.grid_config()
+           if args.method.startswith("Baseline")
+           else srspaths.pnet_grid_config())
+    grids = cfg["grids"][f"MHc{mhc}"]
     seeds = [g["seed"] for g in grids["groups"]]
     floor = 0.5 / args.ntoys
 
@@ -128,7 +133,15 @@ def main():
                         help="p-value floor = 0.5/ntoys")
     args = parser.parse_args()
 
-    mhcs = interpolation_config.mhc_grid() if args.all else (args.mhc or [])
+    if args.all:
+        if args.method.startswith("ParticleNet"):
+            import pnet_interp_config
+            mhcs = [pnet_interp_config.mhc_int(m)
+                    for m in pnet_interp_config.pn_mhc_list()]
+        else:
+            mhcs = interpolation_config.mhc_grid()
+    else:
+        mhcs = args.mhc or []
     if not mhcs:
         parser.error("--mhc N or --all required")
     for mhc in mhcs:

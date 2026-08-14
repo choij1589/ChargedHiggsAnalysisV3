@@ -252,6 +252,77 @@ def interp_shape_terms(uncertainties, study_channel, prod_channel, period,
     ]
 
 
+def load_pnet_uncertainties():
+    """configs/pnet_interpolation_uncertainties.json — the ParticleNet
+    layer's two nuisance families (res, eff), derived by
+    exportPnetUncertainties.py. Values are keyed by PRODUCTION channel
+    (the study is highM-only, so no pairing ambiguity exists)."""
+    import json
+    with open(srspaths.pnet_uncertainties_path()) as f:
+        return json.load(f)
+
+
+def pnet_shape_terms(uncertainties, pnet_uncertainties, study_channel,
+                     prod_channel, period, params):
+    """Shape-nuisance terms of a ParticleNet interp-signal template.
+
+    scale is SHARED with the Baseline arm (same name, same value — the
+    score cut does not move the peak; Gate U1 found the post-cut scale
+    spread to be refit noise). res is the ParticleNet family
+    CMS_interp_res_pnet_*: the cut narrows the peak, and in SR3Mu the
+    post-cut res residual exceeds the Baseline value (1.4-1.5x), so
+    sharing would under-cover — docs/interpolation/particlenet/UNCERTAINTY.md."""
+    import pnet_interp_config
+    names = interpolation_config.interp_nuisance_names(prod_channel, period)
+    scale_val = uncertainties["scale"][study_channel][period]
+    res_val = pnet_uncertainties["res"][prod_channel][period]["value"]
+    res_name = pnet_interp_config.pn_nuisance_name("res", prod_channel,
+                                                   period)
+    sigma_eff = float(np.sqrt(0.5 * (params["sigmaL"] ** 2
+                                     + params["sigmaR"] ** 2)))
+    shift = scale_val * sigma_eff
+    return [
+        (names["scale"], {"dx0_abs": shift}, {"dx0_abs": -shift}),
+        (res_name, {"dsig": res_val}, {"dsig": -res_val}),
+    ]
+
+
+def pnet_systematics_block(uncertainties, pnet_uncertainties, study_channel,
+                           prod_channel, period, era, mA):
+    """Datacard entries for one (sub-era, channel) of a ParticleNet
+    interp-signal template: the shared Baseline scale (shape) and norm
+    (lnN, this era's value in the target mA's bin — always onZ inside the
+    [82.5, 97.5] reach) plus the two ParticleNet families —
+    CMS_interp_res_pnet (shape) and CMS_interp_eff_pnet (lnN, covering
+    the eps interpolation ALONE; the yield model itself is already
+    covered by the Baseline norm)."""
+    import pnet_interp_config
+    names = interpolation_config.interp_nuisance_names(prod_channel, period)
+    ma_bin = interpolation_config.norm_ma_bin(mA)
+    norm_by_bin = uncertainties["norm"][study_channel][era]
+    if ma_bin not in norm_by_bin:
+        raise KeyError(
+            f"norm bin {ma_bin!r} missing for {study_channel}/{era} "
+            "(unreachable bin?) — refusing to guess")
+    res_name = pnet_interp_config.pn_nuisance_name("res", prod_channel,
+                                                   period)
+    eff_name = pnet_interp_config.pn_nuisance_name("eff", prod_channel,
+                                                   period)
+    eff_val = pnet_uncertainties["norm"][prod_channel][era]["value"]
+    return {
+        names["scale"]: {"source": "parametric", "type": "shape",
+                         "group": ["signal"]},
+        res_name: {"source": "parametric", "type": "shape",
+                   "group": ["signal"]},
+        names["norm"]: {"source": "valued", "type": "lnN",
+                        "group": ["signal"],
+                        "value": float(norm_by_bin[ma_bin])},
+        eff_name: {"source": "valued", "type": "lnN",
+                   "group": ["signal"],
+                   "value": 1.0 + float(eff_val)},
+    }
+
+
 def interp_systematics_block(uncertainties, study_channel, prod_channel,
                              period, era, mA):
     """Datacard entries for one (sub-era, channel)'s interp nuisances.

@@ -11,8 +11,10 @@
 # Usage:
 #   ./automize/interpGofImpacts.sh --all
 #   ./automize/interpGofImpacts.sh --mhc 160 [--group MHc160_MA90]
+#   ./automize/interpGofImpacts.sh --all --method ParticleNet
 #   Options: --gof-only | --impacts-only, --ntoys N (500), --nbatches N (5),
-#            --dry-run
+#            --method {Baseline,ParticleNet} (seed list from grid.json /
+#            pnet_grid.json), --dry-run
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,11 +28,14 @@ DO_IMPACTS=true
 NTOYS=500
 NBATCHES=5
 DRY_RUN=false
+METHOD="Baseline"
+ALL_MHC=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --mhc) MHC_LIST+=("$2"); shift 2 ;;
-        --all) MHC_LIST=(70 85 100 115 130 145 160); shift ;;
+        --all) ALL_MHC=true; shift ;;
+        --method) METHOD="$2"; shift 2 ;;
         --group) GROUP_SEED="$2"; shift 2 ;;
         --gof-only) DO_IMPACTS=false; shift ;;
         --impacts-only) DO_GOF=false; shift ;;
@@ -41,7 +46,20 @@ while [[ $# -gt 0 ]]; do
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
+case "$METHOD" in
+    Baseline|ParticleNet) ;;
+    *) echo "ERROR: --method must be Baseline or ParticleNet"; exit 1 ;;
+esac
+if [[ "$ALL_MHC" == "true" ]]; then
+    if [[ "$METHOD" == "ParticleNet" ]]; then
+        MHC_LIST=(100 115 130 145 160)
+    else
+        MHC_LIST=(70 85 100 115 130 145 160)
+    fi
+fi
 [[ ${#MHC_LIST[@]} -gt 0 ]] || { echo "ERROR: --mhc N or --all required"; exit 1; }
+METHOD_EXTRA=""
+[[ "$METHOD" == "ParticleNet" ]] && METHOD_EXTRA=" --method ParticleNet"
 
 GOF_TARGETS=(Combined SR1E2Mu SR3Mu)
 
@@ -51,14 +69,17 @@ generate_dag() {
     local dag_file="$dag_dir/dag.dag"
 
     local seeds
-    seeds=$(WORKDIR="$SRS_REPO_DIR" python3 - "$mhc" <<'PYEOF'
+    seeds=$(WORKDIR="$SRS_REPO_DIR" SRS_INTERP_METHOD="$METHOD" python3 - "$mhc" <<'PYEOF'
 import sys, os
 sys.path.insert(0, os.path.join(os.environ["WORKDIR"],
                                 "SignalRegionStudyV4", "python"))
 import srspaths
 from interpolation_config import masspoint_name
 mhc = int(sys.argv[1])
-for grp in srspaths.grid_config()["grids"][f"MHc{mhc}"]["groups"]:
+method = os.environ.get("SRS_INTERP_METHOD", "Baseline")
+cfg = (srspaths.grid_config() if method == "Baseline"
+       else srspaths.pnet_grid_config())
+for grp in cfg["grids"][f"MHc{mhc}"]["groups"]:
     print(masspoint_name(grp["seed"], mhc))
 PYEOF
     )
@@ -90,7 +111,7 @@ EOF
                 local toy_nodes=()
                 {
                     echo "JOB gofdata_${base} jobs.sub"
-                    echo "VARS gofdata_${base} step=\"gof-data\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"$tgt\" extra=\"\" memory=\"2048\" cpus=\"1\" tag=\"data\""
+                    echo "VARS gofdata_${base} step=\"gof-data\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"$tgt\" extra=\"${METHOD_EXTRA# }\" memory=\"2048\" cpus=\"1\" tag=\"data\""
                     echo "RETRY gofdata_${base} 1"
                 } >> "$dag_file"
                 local s
@@ -98,13 +119,13 @@ EOF
                     toy_nodes+=("goftoys_${base}_s${s}")
                     {
                         echo "JOB goftoys_${base}_s${s} jobs.sub"
-                        echo "VARS goftoys_${base}_s${s} step=\"gof-toys\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"$tgt\" extra=\"$s --ntoys $NTOYS --nbatches $NBATCHES\" memory=\"2048\" cpus=\"1\" tag=\"s${s}\""
+                        echo "VARS goftoys_${base}_s${s} step=\"gof-toys\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"$tgt\" extra=\"$s --ntoys $NTOYS --nbatches $NBATCHES$METHOD_EXTRA\" memory=\"2048\" cpus=\"1\" tag=\"s${s}\""
                         echo "RETRY goftoys_${base}_s${s} 1"
                     } >> "$dag_file"
                 done
                 {
                     echo "JOB gofcollect_${base} jobs.sub"
-                    echo "VARS gofcollect_${base} step=\"gof-collect\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"$tgt\" extra=\"--ntoys $NTOYS --nbatches $NBATCHES\" memory=\"2048\" cpus=\"1\" tag=\"collect\""
+                    echo "VARS gofcollect_${base} step=\"gof-collect\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"$tgt\" extra=\"--ntoys $NTOYS --nbatches $NBATCHES$METHOD_EXTRA\" memory=\"2048\" cpus=\"1\" tag=\"collect\""
                     echo "PARENT gofdata_${base} CHILD ${toy_nodes[*]}"
                     echo "PARENT gofdata_${base} ${toy_nodes[*]} CHILD gofcollect_${base}"
                     echo "RETRY gofcollect_${base} 1"
@@ -116,7 +137,7 @@ EOF
         if [[ "$DO_IMPACTS" == true ]]; then
             {
                 echo "JOB impacts_${seed} jobs.sub"
-                echo "VARS impacts_${seed} step=\"impacts\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"Combined\" extra=\"--parallel 4\" memory=\"4096\" cpus=\"4\" tag=\"impacts\""
+                echo "VARS impacts_${seed} step=\"impacts\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"Combined\" extra=\"--parallel 4$METHOD_EXTRA\" memory=\"4096\" cpus=\"4\" tag=\"impacts\""
                 echo "RETRY impacts_${seed} 1"
             } >> "$dag_file"
             # share the workspace with the Combined gof-data node instead of
@@ -134,12 +155,15 @@ EOF
 
 echo "============================================================"
 echo "interp-signal GoF + impacts campaign"
+echo "Method: $METHOD"
 echo "mHc values: ${MHC_LIST[*]}  (gof: $DO_GOF, impacts: $DO_IMPACTS)"
 echo "GoF: $NTOYS toys in $NBATCHES batches; targets All x {${GOF_TARGETS[*]}}"
 echo "Dry run: $DRY_RUN"
 echo "============================================================"
 
-JOB_DIR=$(dag_new_jobdir "interp_gof")
+JOB_PREFIX="interp_gof"
+[[ "$METHOD" == "ParticleNet" ]] && JOB_PREFIX="pnet_interp_gof"
+JOB_DIR=$(dag_new_jobdir "$JOB_PREFIX")
 for mhc in "${MHC_LIST[@]}"; do
     MP_DIR=$(dag_new_masspoint_dir "$JOB_DIR" "MHc${mhc}")
     generate_dag "$mhc" "$MP_DIR"

@@ -723,7 +723,7 @@ def build_interp_period_templates(args):
     from fitInterpYieldModel import predict_yield
 
     masspoint = args.masspoint
-    seed = interpolation_config.group_seed(masspoint)
+    seed = interpolation_config.group_seed(masspoint, args.method)
     is_seed = seed == masspoint
     mhc, mA = srspaths.masspoint_mhc_ma(masspoint)
     mA = float(mA)
@@ -738,7 +738,8 @@ def build_interp_period_templates(args):
                                          args.channel, blind=args.blind,
                                          source="interp-signal")
         outdir = srspaths.interp_member_dir(seed, masspoint, args.era,
-                                            args.channel, blind=args.blind)
+                                            args.channel, blind=args.blind,
+                                            method=args.method)
         if not os.path.exists(f"{seed_dir}/shapes.root"):
             raise FileNotFoundError(
                 f"{seed_dir}/shapes.root not found — build the group seed "
@@ -750,6 +751,34 @@ def build_interp_period_templates(args):
         yield_model = json.load(f)["model"]
     delta_model = param_signal.load_delta_model(mhc)
     uncertainties = param_signal.load_interp_uncertainties()
+
+    # ParticleNet arm: the frozen working point (score threshold + bg
+    # weights per category) and the eps(mA) model join the model inputs.
+    # Shapes stay the Baseline surfaces (mass-decorrelated nets); the
+    # yield gains the eps_seed(era, mA) factor; the nuisances swap res
+    # for CMS_interp_res_pnet and add CMS_interp_eff_pnet
+    # (docs/interpolation/particlenet/METHOD.md).
+    is_pnet = args.method == "ParticleNet"
+    pnet_uncertainties = pnet_wp = eps_model = None
+    seed_mA_int = None
+    if is_pnet:
+        import pnet_interp_config as pnet_cfg
+        pnet_uncertainties = param_signal.load_pnet_uncertainties()
+        pnet_wp = pnet_cfg.wp_lookup(pnet_cfg.DEFAULT_WP, [f"MHc{mhc}"])
+        if not pnet_wp:
+            raise FileNotFoundError(
+                f"no {pnet_cfg.DEFAULT_WP} entries in "
+                f"{pnet_cfg.threshold_wp_path(f'MHc{mhc}')} — run "
+                "measPnetThresholds.py first")
+        with open(pnet_cfg.eps_model_path(f"MHc{mhc}")) as f:
+            eps_payload = json.load(f)
+        if eps_payload["meta"]["working_point"] != pnet_cfg.DEFAULT_WP:
+            raise RuntimeError(
+                f"eps_model working point "
+                f"{eps_payload['meta']['working_point']!r} != "
+                f"{pnet_cfg.DEFAULT_WP!r}")
+        eps_model = eps_payload["model"]
+        seed_mA_int = pnet_cfg.mA_of(seed)
 
     logging.info("Interp-signal templates for %s (group seed %s, %s)",
                  masspoint, seed, "seed build" if is_seed else "member")
@@ -774,6 +803,10 @@ def build_interp_period_templates(args):
     extra_systematics = OrderedDict()
     param_meta = OrderedDict()
     warnings = []
+    threshold_summary = {"construction": "run_period_components",
+                         "categories": OrderedDict()}
+    background_weight_summary = {"construction": "run_period_components",
+                                 "categories": OrderedDict()}
 
     seed_file = None
     seed_sidecars = {}
@@ -800,11 +833,53 @@ def build_interp_period_templates(args):
                                             subera, mA)
                       for subera in suberas}
 
+            # ParticleNet: the SEED's frozen threshold + bg weights cut
+            # everything in the category, and eps_seed(era, mA) scales
+            # the parametric-signal yield.
+            threshold, upper_threshold, bg_weights = -999., None, None
+            eps_by_subera = None
+            if is_pnet:
+                wp_key = f"MHc{mhc}/{channel}_{period}/seed{seed_mA_int}"
+                wp_rec = pnet_wp.get(wp_key)
+                eps_rec = eps_model.get(wp_key)
+                if wp_rec is None or eps_rec is None:
+                    raise KeyError(
+                        f"{wp_key} missing from threshold_wp/eps_model — "
+                        "the ParticleNet interpolation chain must be "
+                        "complete before template production")
+                threshold = wp_rec["threshold"]
+                bg_weights = wp_rec["bg_weights"]
+                eps_by_subera = {}
+                for subera in suberas:
+                    era_rec = eps_rec["eras"].get(subera)
+                    if era_rec is None:
+                        raise KeyError(f"{wp_key}: no eps curve for era "
+                                       f"{subera}")
+                    eps_by_subera[subera] = pnet_cfg.eval_eps(era_rec, mA)
+                yields = {subera: (n * eps_by_subera[subera],
+                                   e * eps_by_subera[subera])
+                          for subera, (n, e) in yields.items()}
+                threshold_summary["categories"][cat] = {
+                    "threshold": float(threshold),
+                    "wp": pnet_cfg.DEFAULT_WP,
+                    "eff_bkg": wp_rec["eff_bkg"],
+                    "seed": seed,
+                    "eps": {k: float(v) for k, v in eps_by_subera.items()},
+                    "source": f"fits/pnet/MHc{mhc}/threshold_wp.json",
+                }
+                background_weight_summary["categories"][cat] = {
+                    "weights": bg_weights}
+
             if is_seed:
                 x0 = params["x0"]
                 mass_min, mass_max = interp_win
 
                 def basedir_of(subera, _ch=channel):
+                    if is_pnet:
+                        # shared-scores dir: backgrounds/data carrying the
+                        # seed net's score branches
+                        return srspaths.mhc_sample_dir(subera, _ch,
+                                                       f"MHc{mhc}")
                     return srspaths.sample_dir(subera, _ch, masspoint,
                                                "Baseline")
 
@@ -814,15 +889,19 @@ def build_interp_period_templates(args):
                     validate_category_backgrounds(
                         bg_by_subera, basedir_of,
                         calculate_adaptive_bins(x0, sigma_eff, 15),
-                        mass_min, mass_max, masspoint)
+                        mass_min, mass_max, masspoint,
+                        threshold, upper_threshold, bg_weights)
                 bin_edges, n_core_final, apply_floor = scan_binning(
                     cat, active_by_subera, basedir_of, x0, sigma_eff,
-                    mass_min, mass_max, masspoint)
+                    mass_min, mass_max, masspoint,
+                    threshold, upper_threshold, bg_weights)
 
                 nbins = len(bin_edges) - 1
                 if not args.blind:
                     data_obs = sum_data_obs(suberas, basedir_of, bin_edges,
                                             mass_min, mass_max,
+                                            threshold, upper_threshold,
+                                            bg_weights,
                                             masspoint=masspoint)
                 else:
                     edges_vec = ROOT.std.vector["double"](
@@ -852,8 +931,14 @@ def build_interp_period_templates(args):
                 sig_comp = component_name("signal", subera, is_signal=True)
                 model = param_signal.ParametricSignal(
                     f"{cat}_{subera}_{masspoint}", params, interp_win)
-                interp_terms = param_signal.interp_shape_terms(
-                    uncertainties, study_channel, channel, period, params)
+                if is_pnet:
+                    interp_terms = param_signal.pnet_shape_terms(
+                        uncertainties, pnet_uncertainties, study_channel,
+                        channel, period, params)
+                else:
+                    interp_terms = param_signal.interp_shape_terms(
+                        uncertainties, study_channel, channel, period,
+                        params)
                 n_pred, _err_pred = yields[subera]
                 proc_map = param_signal.build_signal_component(
                     model, sig_comp, param_signal.delta_key(subera,
@@ -878,7 +963,8 @@ def build_interp_period_templates(args):
                         proc_map_bkg = build_component_shape_templates(
                             basedir_of(subera), proc, comp, bin_edges,
                             mass_min, mass_max, syst_categories,
-                            -999., None, None, masspoint, floor_mode)
+                            threshold, upper_threshold, bg_weights,
+                            masspoint, floor_mode)
                         templates[comp] = proc_map_bkg
                         process_order.append(comp)
                         category_processes.append({
@@ -889,10 +975,16 @@ def build_interp_period_templates(args):
                         if args.blind:
                             data_obs.Add(proc_map_bkg["nominal"])
 
-                extra_systematics[f"{subera}|{channel}"] = \
-                    param_signal.interp_systematics_block(
-                        uncertainties, study_channel, channel, period,
-                        subera, mA)
+                if is_pnet:
+                    extra_systematics[f"{subera}|{channel}"] = \
+                        param_signal.pnet_systematics_block(
+                            uncertainties, pnet_uncertainties,
+                            study_channel, channel, period, subera, mA)
+                else:
+                    extra_systematics[f"{subera}|{channel}"] = \
+                        param_signal.interp_systematics_block(
+                            uncertainties, study_channel, channel, period,
+                            subera, mA)
 
             if is_seed:
                 templates["data_obs"] = data_obs
@@ -973,6 +1065,13 @@ def build_interp_period_templates(args):
                 "yields": {subera: {"n_pred": float(n), "err_pred": float(e)}
                            for subera, (n, e) in yields.items()},
             }
+            if is_pnet:
+                param_meta[cat]["pnet"] = {
+                    "wp": pnet_cfg.DEFAULT_WP,
+                    "threshold": float(threshold),
+                    "seed": seed,
+                    "eps": {k: float(v) for k, v in eps_by_subera.items()},
+                }
 
     if is_seed:
         write_run_period_shapes(outdir, category_outputs)
@@ -1013,17 +1112,32 @@ def build_interp_period_templates(args):
     tag = f"{args.era}.{args.channel}"
     save_json({"systematics": extra_systematics},
               f"{outdir}/extra_systematics.{tag}.json")
+    model_inputs = {
+        "polynomials": f"fits/MHc{mhc}/polynomials.json",
+        "yield_model": f"fits/MHc{mhc}/yields/yield_model.json",
+        "delta_model": f"fits/MHc{mhc}/shape_deltas/delta_model.json",
+        "uncertainties": "configs/interpolation_uncertainties.json",
+    }
+    if is_pnet:
+        model_inputs.update({
+            "threshold_wp": f"fits/pnet/MHc{mhc}/threshold_wp.json",
+            "eps_model": f"fits/pnet/MHc{mhc}/eps_model.json",
+            "pnet_uncertainties":
+                "configs/pnet_interpolation_uncertainties.json",
+        })
+        # Sidecars mirroring the mc-signal ParticleNet path, written for
+        # seed and member alike (same frozen source) so the run-period
+        # merge can carry them for every point.
+        save_json(threshold_summary, f"{outdir}/threshold.json")
+        save_json(background_weight_summary,
+                  f"{outdir}/background_weights.json")
     save_json({
         "meta": {
             "masspoint": masspoint, "group_seed": seed,
             "mhc": mhc, "mA": mA,
             "signal_source": "interp-signal",
-            "model_inputs": {
-                "polynomials": f"fits/MHc{mhc}/polynomials.json",
-                "yield_model": f"fits/MHc{mhc}/yields/yield_model.json",
-                "delta_model": f"fits/MHc{mhc}/shape_deltas/delta_model.json",
-                "uncertainties": "configs/interpolation_uncertainties.json",
-            },
+            "method": args.method,
+            "model_inputs": model_inputs,
         },
         "categories": param_meta,
         "warnings": warnings,
@@ -1049,8 +1163,6 @@ def main():
         )
 
     if args.signal_source == "interp-signal":
-        if args.method != "Baseline":
-            raise ValueError("interp-signal templates exist for Baseline only")
         build_interp_period_templates(args)
     else:
         build_run_period_templates(args)

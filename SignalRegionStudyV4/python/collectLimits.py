@@ -48,15 +48,19 @@ if args.era not in VALID_ERAS:
 _masspoints_config = srspaths.masspoints_config()
 
 if args.signal_source == "interp-signal":
-    if args.method != "Baseline":
-        raise ValueError("interp-signal templates exist for Baseline only")
+    if args.method not in ("Baseline", "ParticleNet"):
+        raise ValueError(f"Invalid method: {args.method}")
     # The scan grid is the mass-point set; each point resolves to its
-    # template-sharing group seed for path construction.
+    # template-sharing group seed for path construction. Baseline scans
+    # configs/grid.json (2467 points); ParticleNet scans
+    # configs/pnet_grid.json (155 points, reach [82.5, 97.5]).
     from interpolation_config import masspoint_name
+    _grid_cfg = (srspaths.grid_config() if args.method == "Baseline"
+                 else srspaths.pnet_grid_config())
     MASSPOINTs = [
         masspoint_name(v, int(key.replace("MHc", "")))
         for key, entry in sorted(
-            srspaths.grid_config()["grids"].items(),
+            _grid_cfg["grids"].items(),
             key=lambda kv: int(kv[0].replace("MHc", "")))
         for v in entry["grid"]
     ]
@@ -90,7 +94,7 @@ def _seed_of(masspoint):
     if args.signal_source != "interp-signal":
         return None
     import interpolation_config
-    return interpolation_config.group_seed(masspoint)
+    return interpolation_config.group_seed(masspoint, args.method)
 
 
 def parseAsymptoticLimit(masspoint, method, era, channel="Combined", mode="BR", blind=False):

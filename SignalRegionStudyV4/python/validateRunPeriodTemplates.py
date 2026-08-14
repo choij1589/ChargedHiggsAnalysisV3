@@ -1302,12 +1302,13 @@ def main():
     args = parse_args()
     if args.signal_source == "interp-signal":
         import interpolation_config
-        _seed = interpolation_config.group_seed(args.masspoint)
+        _seed = interpolation_config.group_seed(args.masspoint, args.method)
     else:
         _seed = args.masspoint
     if _seed != args.masspoint:
         tdir = srspaths.interp_member_dir(_seed, args.masspoint, args.era,
-                                          args.channel, blind=args.blind)
+                                          args.channel, blind=args.blind,
+                                          method=args.method)
     else:
         tdir = srspaths.template_dir(args.masspoint, args.method, args.era,
                                      args.channel, blind=args.blind,

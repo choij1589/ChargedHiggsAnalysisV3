@@ -144,12 +144,14 @@ def template_dir(masspoint, method, era, channel, blind=False,
 
 
 def interp_member_dir(seed_masspoint, member_masspoint, era, channel,
-                      blind=False):
+                      blind=False, method="Baseline"):
     """Template dir of an interp-signal group member: nested under the
     seed's dir, which holds the group's shared background templates.
-    The seed itself lives directly in template_dir (source-level)."""
+    The seed itself lives directly in template_dir (source-level).
+    method selects the arm (Baseline grid.json / ParticleNet
+    pnet_grid.json groups)."""
     return os.path.join(
-        template_dir(seed_masspoint, "Baseline", era, channel, blind,
+        template_dir(seed_masspoint, method, era, channel, blind,
                      source="interp-signal"),
         "points", member_masspoint)
 
@@ -162,7 +164,7 @@ def asymptotic_root(masspoint, method, era, channel, blind=False,
     pass its seed so the path nests correctly."""
     if seed_masspoint is not None and seed_masspoint != masspoint:
         base = interp_member_dir(seed_masspoint, masspoint, era, channel,
-                                 blind)
+                                 blind, method=method)
     else:
         base = template_dir(masspoint, method, era, channel, blind, source)
     return os.path.join(

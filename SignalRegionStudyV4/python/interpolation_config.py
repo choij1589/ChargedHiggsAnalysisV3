@@ -432,13 +432,20 @@ def parse_ma(token):
 _GROUP_SEED_CACHE = None
 
 
-def group_seed(masspoint):
-    """Template-sharing group seed of a grid point (configs/grid.json).
+def group_seed(masspoint, method="Baseline"):
+    """Template-sharing group seed of a grid point.
 
     Returns the SEED masspoint name; a seed maps to itself. The seed's
     template dir holds the group's shared background templates; member
     outputs nest under it (srspaths.interp_member_dir). Raises for a
-    mass point that is not on the scan grid."""
+    mass point that is not on the scan grid.
+
+    method selects the arm: Baseline resolves against configs/grid.json,
+    ParticleNet against configs/pnet_grid.json (seeds at the trained
+    mA = 85/90/95, reach [82.5, 97.5])."""
+    if method == "ParticleNet":
+        import pnet_interp_config
+        return pnet_interp_config.pn_group_seed(masspoint)
     global _GROUP_SEED_CACHE
     if _GROUP_SEED_CACHE is None:
         _GROUP_SEED_CACHE = {}

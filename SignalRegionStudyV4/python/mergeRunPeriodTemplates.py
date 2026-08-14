@@ -25,13 +25,14 @@ ROOT.gROOT.SetBatch(True)
 
 
 def _resolve_template_dir(masspoint, method, era, channel, blind, source):
-    """template_dir with interp-signal group-member nesting (grid.json)."""
+    """template_dir with interp-signal group-member nesting (method-aware:
+    Baseline grid.json / ParticleNet pnet_grid.json)."""
     if source == "interp-signal":
         import interpolation_config
-        seed = interpolation_config.group_seed(masspoint)
+        seed = interpolation_config.group_seed(masspoint, method)
         if seed != masspoint:
             return srspaths.interp_member_dir(seed, masspoint, era, channel,
-                                              blind=blind)
+                                              blind=blind, method=method)
     return srspaths.template_dir(masspoint, method, era, channel,
                                  blind=blind, source=source)
 

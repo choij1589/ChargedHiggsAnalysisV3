@@ -41,11 +41,12 @@ logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
 def _resolve_template_dir():
     if args.signal_source == "interp-signal":
         import interpolation_config
-        seed = interpolation_config.group_seed(args.masspoint)
+        seed = interpolation_config.group_seed(args.masspoint, args.method)
         if seed != args.masspoint:
             return srspaths.interp_member_dir(seed, args.masspoint,
                                               args.era, args.channel,
-                                              blind=args.blind)
+                                              blind=args.blind,
+                                              method=args.method)
     return srspaths.template_dir(args.masspoint, args.method, args.era,
                                  args.channel, blind=args.blind,
                                  source=args.signal_source)
