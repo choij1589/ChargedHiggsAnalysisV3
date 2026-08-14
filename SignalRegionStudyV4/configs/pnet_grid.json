@@ -1,6 +1,6 @@
 {
   "meta": {
-    "rule": "0.5 GeV lattice over the ParticleNet reach [82.5, 97.5] (seeds at the trained mA = 85/90/95, groups +-2.5 GeV); outside the reach only Baseline templates exist. Model frozen 2026-08-14 -- docs/interpolation/particlenet/METHOD.md",
+    "rule": "0.5 GeV lattice over the ParticleNet reach [82.5, 97.5] (seeds at the trained mA = 85/90/95, groups +-2.5 GeV), CLIPPED per mHc to the Baseline MC range -- beyond a study's MC endpoint both the yield model and the eps quadratic would extrapolate (MHc100 stops at mA = 95). Outside the reach only Baseline templates exist. Model frozen 2026-08-14 -- docs/interpolation/particlenet/METHOD.md",
     "seeds": [
       85.0,
       90.0,
@@ -13,7 +13,7 @@
     "naming": "p-notation, exact: 90 -> MA90, 82.5 -> MA82p5 (interpolation_config.masspoint_name / parse_ma)",
     "working_point": "epsB=20%",
     "command": "makePnetGrid.py",
-    "date": "2026-08-14T18:02:03"
+    "date": "2026-08-14T22:19:53"
   },
   "grids": {
     "MHc100": {
@@ -43,12 +43,7 @@
         93.5,
         94.0,
         94.5,
-        95.0,
-        95.5,
-        96.0,
-        96.5,
-        97.0,
-        97.5
+        95.0
       ],
       "mc_points": [
         85,
@@ -94,12 +89,7 @@
             93.5,
             94.0,
             94.5,
-            95.0,
-            95.5,
-            96.0,
-            96.5,
-            97.0,
-            97.5
+            95.0
           ]
         }
       ]

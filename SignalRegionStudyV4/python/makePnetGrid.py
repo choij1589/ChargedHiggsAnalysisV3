@@ -41,9 +41,13 @@ def to_ticks(x):
     return t
 
 
-def build_grid():
-    lo = pic.SEED_MA[0] - pic.GROUP_HALF_WIDTH
-    hi = pic.SEED_MA[-1] + pic.GROUP_HALF_WIDTH
+def build_grid(mc_lo, mc_hi):
+    """0.5 GeV lattice over the ParticleNet reach, CLIPPED to the study's
+    Baseline MC range [mc_lo, mc_hi]: outside its MC endpoints both the
+    Baseline yield model and the eps quadratic would be extrapolating
+    (user decision 2026-08-14 — MHc100 stops at its mA = 95 endpoint)."""
+    lo = max(pic.SEED_MA[0] - pic.GROUP_HALF_WIDTH, float(mc_lo))
+    hi = min(pic.SEED_MA[-1] + pic.GROUP_HALF_WIDTH, float(mc_hi))
     st = to_ticks(pic.GRID_STEP)
     return [t / TICKS_PER_GEV
             for t in range(to_ticks(lo), to_ticks(hi) + 1, st)]
@@ -55,28 +59,30 @@ def build_groups(grid):
     members = {s: [] for s in pic.SEED_MA}
     for v in grid:
         members[min(pic.SEED_MA, key=lambda s: (abs(v - s), s))].append(v)
-    return [(s, members[s]) for s in pic.SEED_MA]
+    return [(s, members[s]) for s in pic.SEED_MA if members[s]]
 
 
 def main():
-    grid = build_grid()
-    groups = build_groups(grid)
-
-    # ---- verification --------------------------------------------------
-    gmembers = sorted(v for _s, ms in groups for v in ms)
-    if gmembers != grid:
-        raise RuntimeError("groups do not partition the grid")
-    for s, ms in groups:
-        worst = max(abs(v - s) for v in ms)
-        if worst > pic.GROUP_HALF_WIDTH + 1e-9:
-            raise RuntimeError(
-                f"seed {s}: member offset {worst} exceeds the "
-                f"+-{pic.GROUP_HALF_WIDTH} GeV group window")
+    import interpolation_config
 
     grids = {}
     n_total = 0
     for mhc in pic.pn_mhc_list():
         mc_points = [pic.mA_of(mp) for mp in pic.trained_masspoints(mhc)]
+        baseline_mc = interpolation_config.study(pic.mhc_int(mhc))["all"]
+        grid = build_grid(min(baseline_mc), max(baseline_mc))
+        groups = build_groups(grid)
+
+        # ---- verification ----------------------------------------------
+        gmembers = sorted(v for _s, ms in groups for v in ms)
+        if gmembers != grid:
+            raise RuntimeError(f"{mhc}: groups do not partition the grid")
+        for s, ms in groups:
+            worst = max(abs(v - s) for v in ms)
+            if worst > pic.GROUP_HALF_WIDTH + 1e-9:
+                raise RuntimeError(
+                    f"{mhc}: seed {s}: member offset {worst} exceeds the "
+                    f"+-{pic.GROUP_HALF_WIDTH} GeV group window")
         gset = {to_ticks(v) for v in grid}
         missing = [m for m in mc_points if to_ticks(m) not in gset]
         if missing:
@@ -103,8 +109,11 @@ def main():
         "meta": {
             "rule": "0.5 GeV lattice over the ParticleNet reach "
                     "[82.5, 97.5] (seeds at the trained mA = 85/90/95, "
-                    "groups +-2.5 GeV); outside the reach only Baseline "
-                    "templates exist. Model frozen 2026-08-14 -- "
+                    "groups +-2.5 GeV), CLIPPED per mHc to the Baseline "
+                    "MC range -- beyond a study's MC endpoint both the "
+                    "yield model and the eps quadratic would extrapolate "
+                    "(MHc100 stops at mA = 95). Outside the reach only "
+                    "Baseline templates exist. Model frozen 2026-08-14 -- "
                     "docs/interpolation/particlenet/METHOD.md",
             "seeds": list(pic.SEED_MA),
             "group_half_width": pic.GROUP_HALF_WIDTH,
