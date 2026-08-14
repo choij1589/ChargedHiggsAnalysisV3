@@ -251,6 +251,47 @@ def interpolation_closure_dir(mhc=None):
     return os.path.join(base, f"MHc{int(mhc)}") if mhc is not None else base
 
 
+def _mhc_dirname(mhc):
+    """'MHc115' from 115, '115' or 'MHc115' — the pnet helpers accept the
+    string form because the study chain keys everything by 'MHc{X}'."""
+    text = str(mhc)
+    return text if text.startswith("MHc") else f"MHc{int(mhc)}"
+
+
+def pnet_grid_config():
+    """configs/pnet_grid.json — the frozen ParticleNet-interpolation scan
+    grid (regenerate with python/makePnetGrid.py). Per mHc: 'grid' (0.5 GeV
+    lattice over the reach [82.5, 97.5]), 'mc_points' (the trained mA,
+    where direct-MC comparison is possible) and 'groups' (template-sharing
+    groups seeded at the trained mA = 85/90/95)."""
+    with open(config_path("pnet_grid.json")) as f:
+        return json.load(f)
+
+
+def pnet_uncertainties_path():
+    """configs/pnet_interpolation_uncertainties.json — the ParticleNet-layer
+    nuisance values (CMS_interp_{res,eff}_pnet_*), written by
+    python/exportPnetUncertainties.py from the closure/pnet shards."""
+    return config_path("pnet_interpolation_uncertainties.json")
+
+
+def pnet_fits_dir(mhc=None):
+    """fits/pnet/ (no arg) or fits/pnet/MHc{X}: threshold_wp.json (the
+    frozen working point per category x seed) and eps_model.json (the
+    per-seed threshold-efficiency quadratics). Git-tracked, like the
+    Baseline fits/MHc{X} tree."""
+    base = os.path.join(module_dir(), "fits", "pnet")
+    return os.path.join(base, _mhc_dirname(mhc)) if mhc is not None else base
+
+
+def pnet_closure_dir(mhc=None):
+    """closure/pnet/ (no arg) or closure/pnet/MHc{X}: shape_reuse.json,
+    yield_interp.json, template_closure.json and plots/. Git-tracked, like
+    closure/interpolation/."""
+    base = os.path.join(module_dir(), "closure", "pnet")
+    return os.path.join(base, _mhc_dirname(mhc)) if mhc is not None else base
+
+
 def interpolation_fit_plots_dir(mhc, kind):
     """Per-study fit-validation plots, kind in {fits, params, yields,
     deltas}: fits/MHc{X}/plots/{kind}."""

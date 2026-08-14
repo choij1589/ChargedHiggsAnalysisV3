@@ -81,3 +81,13 @@ srs_interp_fits_dir() {
 srs_interp_closure_dir() {
     echo "$SRS_MODULE_DIR/closure/interpolation/MHc$1"
 }
+
+# ParticleNet-interpolation trees (accept '115' or 'MHc115').
+# Usage: srs_pnet_fits_dir MHc115 / srs_pnet_closure_dir MHc115
+srs_pnet_fits_dir() {
+    echo "$SRS_MODULE_DIR/fits/pnet/MHc${1#MHc}"
+}
+
+srs_pnet_closure_dir() {
+    echo "$SRS_MODULE_DIR/closure/pnet/MHc${1#MHc}"
+}

@@ -26,6 +26,7 @@ SINGLE_MASSPOINT=""
 DO_BACKGROUNDS=true
 DO_SIGNALS=true
 DO_PARTICLENET=true
+PNET_SCORES=false
 DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
@@ -34,10 +35,11 @@ while [[ $# -gt 0 ]]; do
         --skip-backgrounds) DO_BACKGROUNDS=false;  shift ;;
         --backgrounds-only) DO_SIGNALS=false;      shift ;;
         --skip-particlenet) DO_PARTICLENET=false;  shift ;;
+        --pnet-scores)      PNET_SCORES=true;      shift ;;
         --dry-run)          DRY_RUN=true;          shift ;;
         --help)
             echo "Usage: $0 [--masspoint MP] [--skip-backgrounds] [--backgrounds-only]"
-            echo "          [--skip-particlenet] [--dry-run]"
+            echo "          [--skip-particlenet] [--pnet-scores] [--dry-run]"
             echo ""
             echo "  Default: shared-background DAG + one DAG per mass point"
             echo "  (baseline+particlenet union from configs/masspoints.json)."
@@ -47,6 +49,12 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-particlenet   - shared backgrounds/signals only; omit the"
             echo "                         per-masspoint ParticleNet nodes (Baseline-only"
             echo "                         production, which needs no NoHistMode inputs)"
+            echo "  --pnet-scores        - ONLY the per-mHc shared-scores DAG"
+            echo "                         (preprocess.py --shared-scores, full"
+            echo "                         systematics): 5 mHc x 8 eras x"
+            echo "                         {SR1E2Mu, SR3Mu, TTZ2E1Mu} = 120 nodes."
+            echo "                         Input layout of the ParticleNet"
+            echo "                         mA-interpolation chain."
             echo "  --dry-run            - generate DAGs without submitting"
             exit 0
             ;;
@@ -79,6 +87,8 @@ WRAPPER_PATH="$(cd "$SCRIPT_DIR/.." && pwd)/scripts/preprocess_wrapper.sh"
 write_jobs_sub() {
     local mp_dir=$1
     local batch=$2
+    local memory=${3:-2GB}
+    local disk=${4:-1GB}
     cat > "$mp_dir/jobs.sub" << EOF
 JobBatchName = ${batch}
 universe = vanilla
@@ -88,8 +98,8 @@ output = logs/\$(era)_\$(channel)_\$(tag).out
 error = logs/\$(era)_\$(channel)_\$(tag).err
 log = dag.log
 request_cpus = 1
-request_memory = 2GB
-request_disk = 1GB
+request_memory = ${memory}
+request_disk = ${disk}
 should_transfer_files = NO
 use_x509userproxy = True
 x509userproxy = /tmp/x509up_u$(id -u)
@@ -104,6 +114,46 @@ dag_node() {
 }
 
 job_dir=$(dag_new_jobdir "preprocess")
+
+# --- Per-mHc shared-scores DAG (ParticleNet interpolation inputs) ---
+# One dir per (era, channel, mHc): every trained mass point with EVERY
+# net's score branches plus one shared background/nonprompt/data set
+# (samples/{era}/{channel}/{mHc}/). Full systematics -- these dirs are
+# template-production inputs, unlike the study's --central-only copies.
+if [[ "$PNET_SCORES" == "true" ]]; then
+    _pnet_mhcs=$(WORKDIR="$(cd "$SCRIPT_DIR/.." && pwd)/.." python3 -c "
+import sys
+sys.path.insert(0, '$(cd "$SCRIPT_DIR/.." && pwd)/python')
+import pnet_interp_config as pic
+print(' '.join(pic.pn_mhc_list()))
+") || { echo "ERROR: cannot resolve the trained mHc list"; exit 1; }
+    read -ra PNET_MHCS <<< "$_pnet_mhcs"
+    scores_dir=$(dag_new_masspoint_dir "$job_dir" "pnet_shared_scores")
+    # 4GB memory / 8GB disk: one job writes every trained mass point of its
+    # mHc with ALL systematic trees (~370 MB per signal file, 3-4 points)
+    # plus the shared backgrounds, all carrying every net's score branches.
+    write_jobs_sub "$scores_dir" "preprocess_pnet_scores" "4GB" "8GB"
+    {
+        echo "# Per-mHc shared-scores preprocessing (ParticleNet interpolation)"
+        echo "CONFIG dagman.config"
+        echo ""
+    } > "$scores_dir/dag.dag"
+    for mhc in "${PNET_MHCS[@]}"; do
+        for era in "${ERAs[@]}"; do
+            for channel in SR1E2Mu SR3Mu TTZ2E1Mu; do
+                dag_node "$scores_dir/dag.dag" "scores_${mhc}_${channel}_${era}" \
+                    "$era" "$channel" "none" "--shared-scores --mhc ${mhc}" \
+                    "scores_${mhc}"
+            done
+        done
+    done
+    n_nodes=$(( ${#PNET_MHCS[@]} * ${#ERAs[@]} * 3 ))
+    echo "Generated DAG: $scores_dir/dag.dag (${n_nodes} shared-scores nodes)"
+    dag_write_submit_all "$job_dir"
+    dag_write_status_all "$job_dir"
+    dag_submit_or_dryrun "$job_dir" "$DRY_RUN"
+    exit 0
+fi
 
 # --- Shared-background DAG (mass-independent; run once) ---
 if [[ "$DO_BACKGROUNDS" == "true" ]]; then

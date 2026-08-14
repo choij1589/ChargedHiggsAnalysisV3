@@ -105,15 +105,64 @@ def verify_masspoint(pnfs_samples, masspoint, checked_shared):
     return fails
 
 
+PNET_CHANNELS_WITH_SIGNAL = ("SR1E2Mu", "SR3Mu")
+PNET_CHANNELS = PNET_CHANNELS_WITH_SIGNAL + ("TTZ2E1Mu",)
+
+
+def verify_pnet_mhc(pnfs_samples, mhc):
+    """Anti-truncation gate for the per-mHc shared-scores layout
+    (preprocess.py --shared-scores): samples/{era}/{channel}/MHc{X}/ with
+    every trained mass point's signal file (full check) and the shared
+    backgrounds (existence). TTZ2E1Mu dirs carry backgrounds only. A dir
+    holding a CENTRAL_ONLY marker is a study artifact, never a
+    template-production input -> FAIL."""
+    import pnet_interp_config as pic
+    masspoints = pic.trained_masspoints(mhc)
+    fails = []
+    for era in ERAS:
+        for channel in PNET_CHANNELS:
+            sdir = os.path.join(pnfs_samples, era, channel, f"MHc{mhc}")
+            if not os.path.isdir(sdir):
+                fails.append(f"MISSING {sdir} : shared-scores dir absent")
+                continue
+            if os.path.exists(os.path.join(sdir, "CENTRAL_ONLY")):
+                fails.append(f"CORRUPT {sdir} : CENTRAL_ONLY marker "
+                             "(study output, not a production input)")
+            for bkg in BACKGROUND_FILES:
+                bpath = os.path.join(sdir, bkg)
+                if not os.path.exists(bpath) or os.path.getsize(bpath) == 0:
+                    fails.append(f"MISSING {bpath} : shared background")
+            if channel in PNET_CHANNELS_WITH_SIGNAL:
+                for mp in masspoints:
+                    fails.extend(check_signal_file(
+                        os.path.join(sdir, f"{mp}.root")))
+    return fails
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mhc", type=int, required=True,
-                        help="mHc study for --all")
+                        help="mHc study for --all / --pnet")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--masspoints", help="comma-separated masspoint names")
     group.add_argument("--all", action="store_true",
                        help="verify the full grid of the --mhc study")
+    group.add_argument("--pnet", action="store_true",
+                       help="verify the per-mHc shared-scores dirs "
+                            "(ParticleNet interpolation inputs)")
     args = parser.parse_args()
+
+    pnfs_samples = pnfs_samples_base()
+
+    if args.pnet:
+        fails = verify_pnet_mhc(pnfs_samples, args.mhc)
+        status = "OK" if not fails else f"FAIL ({len(fails)} problems)"
+        print(f"[MHc{args.mhc} shared-scores] {status}")
+        for line in fails:
+            print(f"    {line}")
+        print(f"\nVerified MHc{args.mhc} shared-scores layout: "
+              f"{len(fails)} problem(s) found.")
+        return 1 if fails else 0
 
     if args.all:
         masspoints = [interpolation_config.masspoint_name(m, args.mhc)
@@ -121,7 +170,6 @@ def main():
     else:
         masspoints = [m.strip() for m in args.masspoints.split(",") if m.strip()]
 
-    pnfs_samples = pnfs_samples_base()
     checked_shared = set()
     all_fails = []
     for mp in masspoints:
