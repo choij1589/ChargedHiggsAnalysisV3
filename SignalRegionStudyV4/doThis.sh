@@ -127,3 +127,42 @@ python3 python/plotGoFPValues.py --all
 # (docs/REPRODUCTION.md; the samples stage runs on condor):
 #python3 python/compareToV3.py --masspoint MHc130_MA90 \
 #    --v3-dir ../SignalRegionStudyV3 --stage all
+
+# ---------------------------------------------------------------------------
+# Step 5: ParticleNet interpolation  (docs/interpolation/particlenet/METHOD.md)
+# ---------------------------------------------------------------------------
+# The ParticleNet arm of the mA interpolation: model frozen 2026-08-14
+# (seeds mA=85/90/95, groups +-2.5 GeV, eps_B=20% WP, Baseline shapes
+# reused, reach mA in [82.5, 97.5] at the five trained mHc). Everything
+# below is method-aware plumbing over the Step 1-3 machinery.
+
+# 5a. Per-mHc shared-scores samples, FULL systematics (template inputs):
+#     120 jobs (5 mHc x 8 eras x {SR1E2Mu, SR3Mu, TTZ2E1Mu}) -> pnfs.
+./automize/preprocess.sh --pnet-scores
+# Anti-truncation gate (opens EVERY file; fails on CENTRAL_ONLY markers):
+for mhc in 100 115 130 145 160; do
+    python3 python/verifyInterpSamples.py --pnet --mhc $mhc
+done
+
+# 5b. Study chain: ONE 27-node DAG (thresholds -> shapes/yields ->
+#     eps model -> export -> template closure -> summary). Tracked outputs:
+#     fits/pnet/MHc{X}/{threshold_wp,eps_model}.json,
+#     closure/pnet/MHc{X}/ + summary.txt,
+#     configs/pnet_interpolation_uncertainties.json. Gate:
+#   grep -h "EXITING WITH STATUS" condor/jobs_pnet_interp_<ts>/study/logs/*.out | sort | uniq -c
+./automize/pnetInterpolation.sh --all
+
+# 5c. Template scan over configs/pnet_grid.json (155 points / 15 groups;
+#     322-node DAG per mHc). One-group E2E first, then the campaign:
+#./automize/interpTemplates.sh --mhc 115 --group MHc115_MA90 --method ParticleNet
+./automize/interpTemplates.sh --all --method ParticleNet
+python3 python/collectLimits.py --era All --method ParticleNet --signal-source interp-signal
+# check parsed/total = 155; then per-mHc limit plots:
+#for mhc in 100 115 130 145 160; do
+#    python3 python/plotLimits.py --era All --method ParticleNet \
+#        --signal-source interp-signal --mhc $mhc
+#done
+
+# 5d. GoF + impacts per group seed (66-node DAG per mHc; 15 seeds):
+./automize/interpGofImpacts.sh --all --method ParticleNet
+python3 python/plotGoFPValues.py --all --method ParticleNet

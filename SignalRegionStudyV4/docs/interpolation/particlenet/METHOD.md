@@ -6,8 +6,9 @@ arm is a thin layer on top of the frozen Baseline interpolation, not a
 parallel chain — read [../WORKFLOW.md](../WORKFLOW.md) first; this file
 records only the delta. Nuisances: [UNCERTAINTY.md](UNCERTAINTY.md).
 
-Status: **feasibility complete and the model frozen (2026-08-14)**. Template
-production (the analogue of `automize/interpTemplates.sh`) is not built yet.
+Status: **feasibility complete and the model frozen (2026-08-14)**; the
+production chain (study steps, template production, GoF/impacts) is built —
+see Procedure. Campaign results are recorded here as their gates pass.
 
 ## Why a separate layer is needed
 
@@ -188,36 +189,47 @@ check.
 
 ## Procedure
 
-Deriving and re-verifying the model. Study code lives in
-`test/pnet_interp/` (gitignored scratch); production template building is not
-implemented yet.
+The production chain (promoted 2026-08-14 from the `test/pnet_interp/`
+study scratch, which remains as the frozen feasibility record). Outputs
+are git-tracked: `fits/pnet/MHc{X}/` (threshold_wp.json, eps_model.json),
+`closure/pnet/MHc{X}/` (shape_reuse.json, yield_interp.json,
+template_closure.json, plots/), `closure/pnet/summary.txt` and
+`configs/pnet_interpolation_uncertainties.json`.
 
 ```bash
 # Samples: one dir per mHc holding every trained mA with EVERY net's score
-# branches, plus one shared background/nonprompt/data set. 3-4x cheaper than
-# the per-masspoint layout, which duplicates backgrounds once per mA.
-python3 python/preprocess.py --era 2017 --channel SR1E2Mu \
-        --shared-scores --mhc MHc115 [--central-only]
+# branches, plus one shared background/nonprompt/data set, FULL systematics
+# (these dirs are template-production inputs). 120 condor jobs -> pnfs.
+./automize/preprocess.sh --pnet-scores
+for mhc in 100 115 130 145 160; do
+    python3 python/verifyInterpSamples.py --pnet --mhc $mhc   # open EVERY file
+done
 
-# Working points (must run first -- the other two read its thresholds).
-python3 test/pnet_interp/thresholdWP.py --mhc MHc115
+# The study chain: ONE 27-node DAG (thresholds -> shapes/yields ->
+# eps model -> uncertainty export -> template closure -> summary).
+./automize/pnetInterpolation.sh --all
 
-# Shape and yield checks at the frozen WP.
-python3 test/pnet_interp/shapeReuse.py  --mhc MHc115 --wp 'epsB=20%'
-python3 test/pnet_interp/yieldInterp.py --mhc MHc115 --wp 'epsB=20%'
+# The steps it runs, for reference / single-study reruns:
+python3 python/measPnetThresholds.py --mhc MHc115     # fits/pnet WP source of truth
+python3 python/closPnetShapes.py     --mhc MHc115     # d_scale/d_res residuals
+python3 python/closPnetYields.py     --mhc MHc115     # r_model/r_eps residuals (LOO eps)
+python3 python/fitPnetEpsModel.py    --mhc MHc115     # PRODUCTION eps quadratics
+python3 python/exportPnetUncertainties.py             # -> configs/pnet_interpolation_uncertainties.json
+python3 python/closPnetTemplates.py  --mhc MHc115     # template closure + plots
+python3 python/summarizePnetStudies.py                # tables incl. Gate U1 -> summary.txt
 
-# Merged report, then the derived nuisances.
-python3 test/pnet_interp/summarize.py
-python3 test/pnet_interp/exportPnetUncertainties.py
+# Template production over the 155-point grid (322-node DAG per mHc):
+./automize/interpTemplates.sh --all --method ParticleNet
+python3 python/collectLimits.py --era All --method ParticleNet --signal-source interp-signal
 
-# End-to-end closure: interpolated template vs direct MC, absolutely
-# normalized, band = the assigned nuisances. 68 plots + one shard per mHc.
-python3 test/pnet_interp/closPnetTemplates.py --mhc MHc115
+# GoF + impacts per group seed (66-node DAG per mHc):
+./automize/interpGofImpacts.sh --all --method ParticleNet
+python3 python/plotGoFPValues.py --all --method ParticleNet
 ```
 
-On condor: `test/pnet_interp/submit.sh {preprocess-ttz|studies}`.
-`--central-only` writes the nominal tree alone and drops a `CENTRAL_ONLY`
-marker — study use only, **never** an input to a datacard.
+`preprocess.py --central-only` (study-only) writes the nominal tree alone
+and drops a `CENTRAL_ONLY` marker — **never** an input to a datacard;
+`verifyInterpSamples.py --pnet` fails on the marker.
 
 ## Decision gates
 
@@ -232,15 +244,17 @@ but the check is cheap and the failure mode is silent under-counting.
 worked":
 
 ```bash
-grep -h "EXITING WITH STATUS" test/pnet_interp/logs/*.out | sort | uniq -c
+grep -h "EXITING WITH STATUS" condor/jobs_pnet_interp_*/study/logs/*.out | sort | uniq -c
 ```
 
 Then confirm no shard is stale: every entry must carry the working point you
 intended. Mixing an old shard into a summary is the easiest mistake to make
-here, because job completion alone will not reveal it.
+here, because job completion alone will not reveal it. Every consumer
+(exportPnetUncertainties, fitPnetEpsModel, closPnetTemplates,
+makeBinnedTemplates) hard-fails on a `wp` mismatch, but the direct check is:
 
 ```bash
-python3 -c "import json,glob;print({f: next(iter(json.load(open(f))['results'].values())).get('wp') for f in glob.glob('test/pnet_interp/*.MHc*.json')})"
+python3 -c "import json,glob;print({f: next(iter(json.load(open(f))['results'].values())).get('wp') for f in glob.glob('closure/pnet/MHc*/[sy]*.json')})"
 ```
 
 **Gate B (working points)** — from `summarize.py`: **no category may sit on a
