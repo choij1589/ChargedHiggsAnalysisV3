@@ -44,6 +44,23 @@ with open(_MASSPOINTS_JSON) as _f:
 PN_TRAINED_MASSPOINTS = set(_MASSPOINTS_CONFIG["particlenet"])
 
 
+def pn_masspoints_for_mhc(mhc):
+    """Trained mass points of one mHc study, ordered by mA.
+
+    The SKNanoOutput ParticleNet skims are keyed by mHc, not by mass point:
+    every file under `*_MHc{X}_..._NoHistMode` carries the score branches of
+    EVERY trained mA of that mHc. This is the group that shares a directory
+    in the --shared-scores layout."""
+    points = sorted((mp for mp in PN_TRAINED_MASSPOINTS
+                     if masspoint_mhc_prefix(mp) == mhc),
+                    key=lambda mp: int(mp.split("_MA")[1]))
+    if not points:
+        raise ValueError(
+            f"No ParticleNet-trained mass points for {mhc}; known prefixes: "
+            f"{sorted({masspoint_mhc_prefix(mp) for mp in PN_TRAINED_MASSPOINTS})}")
+    return points
+
+
 # =============================================================================
 # Channel Mappings
 # =============================================================================
@@ -107,7 +124,7 @@ def matrix_input_dir(channel, masspoint):
 def parse_args():
     """Parse command line arguments.
 
-    Three production modes:
+    Four production modes:
       (default)             per-masspoint dir with ParticleNet scores; only
                             valid for ParticleNet-trained mass points
                             (samples/{era}/{channel}/{masspoint}/).
@@ -120,6 +137,17 @@ def parse_args():
                             SR3Mu writes BOTH lowM and highM variants (the
                             interpolation study needs signals under both
                             pairing selections).
+      --shared-scores --mhc MHcX
+                            per-mHc dir (samples/{era}/{channel}/{mhc}/)
+                            holding EVERY trained mass point of that mHc as
+                            {masspoint}.root plus one shared copy of the
+                            backgrounds/nonprompt/data, with the score
+                            branches of every trained mA retained on all of
+                            them. This is what the ParticleNet interpolation
+                            study needs (evaluate a seed's net on a
+                            neighbouring mA), and it is 3-4x cheaper than the
+                            per-masspoint layout, which duplicates the whole
+                            background set once per mA.
     """
     parser = argparse.ArgumentParser(description="Preprocess samples for SignalRegionStudyV4")
     parser.add_argument("--era", required=True, type=str, help="era (e.g., 2018, 2022EE)")
@@ -132,14 +160,34 @@ def parse_args():
                         help="produce shared (mass-independent) backgrounds/nonprompt/data")
     parser.add_argument("--shared-signal", action="store_true", dest="shared_signal",
                         help="produce only the signal into the shared dir(s)")
+    parser.add_argument("--shared-scores", action="store_true", dest="shared_scores",
+                        help="produce a per-mHc dir keeping every trained mA's score branches")
+    parser.add_argument("--mhc", type=str, default=None,
+                        help="mHc study for --shared-scores (e.g. MHc115)")
+    parser.add_argument("--central-only", action="store_true", dest="central_only",
+                        help="write only the nominal 'Central' tree (skip every "
+                             "shape systematic). Study/diagnostic use only — the "
+                             "output CANNOT be used to build datacards.")
     parser.add_argument("--pairing", choices=["lowM", "highM"], default=None,
                         help="SR3Mu pairing variant (required for --shared-backgrounds on SR3Mu)")
     parser.add_argument("--debug", action="store_true", help="debug mode")
     args = parser.parse_args()
 
-    if args.shared_backgrounds and args.shared_signal:
-        parser.error("--shared-backgrounds and --shared-signal are mutually exclusive")
-    if args.shared_backgrounds:
+    n_modes = sum([args.shared_backgrounds, args.shared_signal, args.shared_scores])
+    if n_modes > 1:
+        parser.error("--shared-backgrounds, --shared-signal and --shared-scores "
+                     "are mutually exclusive")
+    if args.mhc and not args.shared_scores:
+        parser.error("--mhc is only meaningful with --shared-scores")
+    if args.shared_scores:
+        if not args.mhc:
+            parser.error("--shared-scores requires --mhc (e.g. --mhc MHc115)")
+        if args.masspoint:
+            parser.error("--shared-scores takes no --masspoint (it writes the "
+                         "whole mHc group)")
+        if not args.mhc.startswith("MHc"):
+            parser.error(f"--mhc must look like 'MHc115', got {args.mhc!r}")
+    elif args.shared_backgrounds:
         if args.masspoint:
             parser.error("--shared-backgrounds takes no --masspoint")
         if args.channel == "SR3Mu" and not args.pairing:
@@ -342,12 +390,23 @@ class SamplePreprocessor(BasePreprocessor):
     """Preprocessor for samples with systematic variations."""
 
     def __init__(self, era, channel, masspoint=None, convSF=1.0, pairing=None,
-                 shared=False):
+                 shared=False, score_masspoints=None, central_only=False):
         super().__init__(era, channel, masspoint, pairing=pairing)
         self.convSF = convSF
+        self.central_only = central_only
         # Shared-layout production reads the standard (non-NoHistMode) skims,
         # which carry no ParticleNet score branches.
         self.include_scores = self.is_trained_sample and not shared
+        # Which nets' scores to carry through. The per-masspoint layout keeps
+        # only its own; --shared-scores keeps every trained mA of the mHc, so
+        # a neighbouring point's net can be evaluated on this sample (the
+        # ParticleNet interpolation study). The branches are already in the
+        # input skims either way — this only selects what is written out.
+        if score_masspoints is not None:
+            self.include_scores = True
+            self.score_masspoints = list(score_masspoints)
+        else:
+            self.score_masspoints = [masspoint] if self.include_scores else []
 
     def process_tree(self, input_tree_name, output_tree_name, weight_scale=1.0,
                      is_signal=False, apply_convSF=False, kfactor=1.0):
@@ -394,7 +453,8 @@ class SamplePreprocessor(BasePreprocessor):
 
         columns = ['mass', 'pT', 'mass1', 'mass2', 'weight']
         if self.include_scores:
-            columns += [f"score_{self.masspoint}_{suffix}"
+            columns += [f"score_{mp}_{suffix}"
+                        for mp in self.score_masspoints
                         for suffix in ['signal', 'nonprompt', 'diboson', 'ttZ']]
 
         if n_entries == 0:
@@ -420,7 +480,13 @@ class SamplePreprocessor(BasePreprocessor):
         logging.debug(f"Processed {n_entries} entries for {output_tree_name}")
 
     def process_systematics(self, category, syst_categories, **kwargs):
-        """Process all shape systematics for a category."""
+        """Process all shape systematics for a category.
+
+        A no-op under --central-only: studies that read the nominal 'Central'
+        tree alone (shape/yield interpolation feasibility) do not need the
+        ~100 variation trees, which are >99% of the runtime and output size."""
+        if self.central_only:
+            return
         # Preprocessed shape systematics (Up/Down pairs)
         for syst_name, variations, group in syst_categories['preprocessed_shape']:
             if category not in group:
@@ -563,6 +629,24 @@ def process_data(workdir, era, channel, masspoint, basedir, preprocessor, config
 # Main Entry Point
 # =============================================================================
 
+def mark_central_only(basedir, args):
+    """Drop a CENTRAL_ONLY marker so a study dir can never pass for production.
+
+    --central-only output has no systematic trees; makeBinnedTemplates would
+    build a datacard with silently missing shape variations. The marker makes
+    that visible on an `ls`, and the warning makes it visible in the log."""
+    if not args.central_only:
+        return
+    logging.warning("=" * 60)
+    logging.warning("--central-only: writing the nominal tree ONLY.")
+    logging.warning("This output is for studies/diagnostics and CANNOT be")
+    logging.warning("used to build templates or datacards.")
+    logging.warning("=" * 60)
+    with open(os.path.join(basedir, "CENTRAL_ONLY"), "w") as fh:
+        fh.write("Produced by preprocess.py --central-only: nominal 'Central' "
+                 "tree only, no systematic variations. Study use only.\n")
+
+
 def shared_dirname(channel, pairing):
     """Shared-layout directory name (mirrors srspaths.shared_channel_dirname)."""
     return f"SR3Mu_{pairing}" if channel == "SR3Mu" else channel
@@ -625,7 +709,7 @@ def main():
         ensure_directory(basedir, clean=False)
         preprocessor = SamplePreprocessor(args.era, args.channel, masspoint=None,
                                           convSF=convSF, pairing=args.pairing,
-                                          shared=True)
+                                          shared=True, central_only=args.central_only)
         process_backgrounds(workdir, args.era, args.channel, None, basedir,
                             preprocessor, config, syst_categories, kfactors)
         process_nonprompt(workdir, args.era, args.channel, None, basedir,
@@ -645,10 +729,56 @@ def main():
             preprocessor = SamplePreprocessor(args.era, args.channel,
                                               masspoint=args.masspoint,
                                               convSF=convSF, pairing=pairing,
-                                              shared=True)
+                                              shared=True,
+                                              central_only=args.central_only)
             run_signal(preprocessor, workdir, args.era, args.channel,
                        args.masspoint, basedir, syst_categories,
                        input_masspoint_hint=None)
+
+    elif args.shared_scores:
+        # === Per-mHc layout: every trained mA of one mHc in ONE dir, each
+        # sample keeping the score branches of ALL of them. The SKNanoOutput
+        # skims are keyed by mHc and already carry every net's scores, so the
+        # cross-scoring the ParticleNet interpolation study needs (evaluate a
+        # seed's net on a neighbouring mA) is a branch selection, not a
+        # re-production. ===
+        group = pn_masspoints_for_mhc(args.mhc)
+        basedir = (f"{workdir}/SignalRegionStudyV4/samples/{args.era}/"
+                   f"{args.channel}/{args.mhc}")
+
+        # One dir, one pairing: the whole group must resolve to the same
+        # SR3Mu variant or the backgrounds could not be shared across it.
+        pairings = {pairing_for(args.channel, masspoint=mp) for mp in group}
+        if len(pairings) > 1:
+            raise ValueError(
+                f"{args.mhc} group spans pairing variants {sorted(pairings)} "
+                f"({', '.join(group)}); a per-mHc dir cannot share backgrounds "
+                "across the mA=60 pairing boundary."
+            )
+
+        logging.info("Shared-scores %s (%s) -> %s", args.mhc, ", ".join(group), basedir)
+        logging.info("Input directory channel: %s", input_channel_dir(args.channel, group[0]))
+
+        ensure_directory(basedir, clean=True)
+        mark_central_only(basedir, args)
+        # masspoint=group[0] only resolves the per-mHc input dirs and the
+        # pairing; score_masspoints is what decides the branches written.
+        preprocessor = SamplePreprocessor(args.era, args.channel, group[0], convSF,
+                                          score_masspoints=group,
+                                          central_only=args.central_only)
+
+        if args.channel in CHANNELS_WITH_SIGNAL:
+            for masspoint in group:
+                run_signal(preprocessor, workdir, args.era, args.channel,
+                           masspoint, basedir, syst_categories,
+                           input_masspoint_hint=masspoint)
+
+        process_backgrounds(workdir, args.era, args.channel, group[0], basedir,
+                            preprocessor, config, syst_categories, kfactors)
+        process_nonprompt(workdir, args.era, args.channel, group[0], basedir,
+                          preprocessor, config)
+        process_data(workdir, args.era, args.channel, group[0], basedir,
+                     preprocessor, config)
 
     else:
         # === ParticleNet per-masspoint production (scores + NoHistMode skims) ===
@@ -668,7 +798,8 @@ def main():
         logging.info(f"Input mode: {input_mode(args.masspoint)}")
 
         ensure_directory(basedir, clean=True)
-        preprocessor = SamplePreprocessor(args.era, args.channel, args.masspoint, convSF)
+        preprocessor = SamplePreprocessor(args.era, args.channel, args.masspoint, convSF,
+                                          central_only=args.central_only)
 
         if args.channel in CHANNELS_WITH_SIGNAL:
             run_signal(preprocessor, workdir, args.era, args.channel,

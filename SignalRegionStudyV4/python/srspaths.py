@@ -106,6 +106,18 @@ def sample_dir(era, channel, masspoint, method):
                         shared_channel_dirname(channel, masspoint=masspoint))
 
 
+def mhc_sample_dir(era, channel, mhc):
+    """Per-mHc ParticleNet sample dir (preprocess.py --shared-scores).
+
+    Holds every trained mass point of one mHc plus a single shared copy of
+    the backgrounds/nonprompt/data, all keeping the score branches of every
+    trained mA — the layout the ParticleNet interpolation study needs, since
+    a member point is scored by its SEED's net. Distinct from sample_dir()'s
+    per-masspoint dirs by the directory name alone ('MHc115' vs
+    'MHc115_MA85')."""
+    return os.path.join(module_dir(), "samples", era, channel, mhc)
+
+
 SIGNAL_SOURCES = ("mc-signal", "interp-signal")
 
 

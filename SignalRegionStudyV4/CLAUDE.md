@@ -325,12 +325,40 @@ impacts (robustFit, prop_bin-filtered) at All/Combined; summaries via
 `python3 python/plotGoFPValues.py --all`. Workers
 `scripts/runGoF.sh`/`runImpacts.sh` also accept mc-signal ad hoc.
 
+## ParticleNet Interpolation
+
+A thin layer on the Baseline interpolation, **model frozen 2026-08-14**;
+full record in `docs/interpolation/particlenet/` (`METHOD.md`,
+`UNCERTAINTY.md`). Seeds at the trained mA = 85/90/95 per mHc, groups of
++-2.5 GeV on the 0.5 GeV lattice, so the arm reaches **mA in
+[82.5, 97.5]** only (155 points, 15 groups, 5 mHc); Baseline templates
+cover everything outside. Backgrounds are shared per group by the seed,
+which also fixes the net and the threshold — a **fixed eps_B = 20%**
+working point, replacing the argmax-Asimov-Z rule that left 5 of 68
+categories on 1.6-8.8 background events.
+
+Shapes reuse the Baseline surfaces verbatim (the nets are
+mass-decorrelated); the yield is
+`k_era * G_period(mA) * f_category(mA) * eps_seed(mA)` with eps a
+quadratic through the seed net's three anchors. Two new nuisances only,
+`CMS_interp_{res,eff}_pnet_{ch}_{13TeV|13p6TeV}` — there is deliberately
+no scale family (the shift is refit statistics, already carried by
+autoMCStats), and `eff` covers the eps interpolation ALONE, since the
+Baseline `CMS_interp_norm` already covers the yield model.
+
+`preprocess.py --shared-scores --mhc MHcX` writes the per-mHc sample dir
+this needs (all trained mA, one shared background set, every net's score
+branches) — also 3-4x cheaper than the per-masspoint layout.
+`--central-only` is study-only and marks its output `CENTRAL_ONLY`.
+
 ## Future Phases
 
-ParticleNet interp-signal study; a dedicated mc-vs-interp limit
-comparison plotter over `mc_points`. Nothing in V4 may hard-assume the
-template payload is binned histograms beyond the existing per-step
-contracts.
+ParticleNet interp-signal **template production** (the analogue of
+`automize/interpTemplates.sh`) is not built yet; the method and
+uncertainty records above are what it must be built against. Also: a
+dedicated mc-vs-interp limit comparison plotter over `mc_points`. Nothing
+in V4 may hard-assume the template payload is binned histograms beyond
+the existing per-step contracts.
 
 Known limitations of the frozen model, all recorded in
 docs/interpolation/WORKFLOW.md:
