@@ -1,0 +1,110 @@
+============================================================================================
+CHECK 1 -- SHAPE REUSABILITY AFTER THE SCORE CUT   [5 shards]
+  84 of 236 seed-member pairs are production-relevant (|dmA| <= 2.5)
+============================================================================================
+
+|d_scale| [sigma_eff]   (Baseline nuisance floor: 0.02)
+  ALL                           n=  84  median= 0.0150  p90= 0.0384  max= 0.0734
+    MHc100                      n=  12  median= 0.0124  p90= 0.0471  max= 0.0506
+    MHc115                      n=  24  median= 0.0149  p90= 0.0405  max= 0.0621
+    MHc130                      n=  12  median= 0.0158  p90= 0.0406  max= 0.0628
+    MHc145                      n=  24  median= 0.0159  p90= 0.0343  max= 0.0734
+    MHc160                      n=  12  median= 0.0147  p90= 0.0182  max= 0.0260
+    Run2                        n=  42  median= 0.0150  p90= 0.0367  max= 0.0621
+    Run3                        n=  42  median= 0.0150  p90= 0.0387  max= 0.0734
+    SR1E2Mu                     n=  42  median= 0.0126  p90= 0.0222  max= 0.0734
+    SR3Mu                       n=  42  median= 0.0183  p90= 0.0476  max= 0.0628
+    validation MA87/MA92        n=  16  median= 0.0132  p90= 0.0283  max= 0.0339
+
+|d_res| [rel]   (Baseline nuisance floor: 0.01)
+  ALL                           n=  84  median= 0.0091  p90= 0.0215  max= 0.0286
+    MHc100                      n=  12  median= 0.0131  p90= 0.0181  max= 0.0189
+    MHc115                      n=  24  median= 0.0057  p90= 0.0085  max= 0.0143
+    MHc130                      n=  12  median= 0.0131  p90= 0.0209  max= 0.0232
+    MHc145                      n=  24  median= 0.0124  p90= 0.0207  max= 0.0286
+    MHc160                      n=  12  median= 0.0190  p90= 0.0244  max= 0.0272
+    Run2                        n=  42  median= 0.0088  p90= 0.0215  max= 0.0286
+    Run3                        n=  42  median= 0.0109  p90= 0.0214  max= 0.0245
+    SR1E2Mu                     n=  42  median= 0.0113  p90= 0.0215  max= 0.0286
+    SR3Mu                       n=  42  median= 0.0070  p90= 0.0208  max= 0.0272
+    validation MA87/MA92        n=  16  median= 0.0073  p90= 0.0191  max= 0.0286
+
+  worst |d_scale| rows:
+    MHc145/SR1E2Mu_Run3 seed85->mA85  d_scale=+0.0734  d_res=-0.0059  eff=0.524
+    MHc130/SR3Mu_Run3 seed95->mA95  d_scale=-0.0628  d_res=-0.0232  eff=0.542
+    MHc115/SR3Mu_Run2 seed85->mA85  d_scale=+0.0621  d_res=-0.0001  eff=0.564
+    MHc100/SR3Mu_Run2 seed95->mA95  d_scale=+0.0506  d_res=-0.0069  eff=0.590
+    MHc100/SR3Mu_Run2 seed90->mA90  d_scale=-0.0483  d_res=-0.0189  eff=0.580
+
+--------------------------------------------------------------------------------------------
+  GATE U1 -- bias vs refit noise
+--------------------------------------------------------------------------------------------
+  family channel   period    signed mean      err  n_sigma     verdict
+  scale  SR1E2Mu   Run2          -0.0005   0.0028      0.2       noise
+  scale  SR1E2Mu   Run3          +0.0047   0.0049      1.0       noise
+  scale  SR3Mu     Run2          +0.0155   0.0057      2.7       noise
+  scale  SR3Mu     Run3          -0.0013   0.0060      0.2       noise
+  scale  ALL                     +0.0046   0.0026      1.8       noise
+  res    SR1E2Mu   Run2          -0.0120   0.0016      7.3        BIAS
+  res    SR1E2Mu   Run3          -0.0087   0.0019      4.6        BIAS
+  res    SR3Mu     Run2          -0.0087   0.0016      5.6        BIAS
+  res    SR3Mu     Run3          -0.0090   0.0023      3.9        BIAS
+  res    ALL                     -0.0096   0.0009     10.4        BIAS
+
+  |d_scale| / its refit stat error:  median=1.16  p90=3.64   |pull|<1: 0.44   |pull|<2: 0.76
+  (median ~1 => the scale spread is statistics, not a shift)
+
+============================================================================================
+CHECK 2 -- YIELD = BASELINE MODEL x EPS(mA)   [5 shards]
+  336 of 944 points are production-relevant (|dmA| <= 2.5)
+  r_model = Baseline model -> PN dir   r_eps = efficiency interpolation
+============================================================================================
+
+anchors, leave-one-out  [272 points]
+    r_model                     n= 272  median= 0.0169  p90= 0.0730  max= 0.1656
+    r_eps                       n= 272  median= 0.0127  p90= 0.0378  max= 0.0841
+    r_total                     n= 272  median= 0.0189  p90= 0.0831  max= 0.2337
+
+validation MA87/MA92 (blind)  [64 points]
+    r_model                     n=  64  median= 0.0241  p90= 0.0796  max= 0.1043
+    r_eps                       n=  64  median= 0.0053  p90= 0.0173  max= 0.0259
+    r_total                     n=  64  median= 0.0241  p90= 0.0863  max= 0.1103
+
+  validation, Run2  [32 points]
+    r_model                     n=  32  median= 0.0071  p90= 0.0148  max= 0.0266
+    r_eps                       n=  32  median= 0.0028  p90= 0.0090  max= 0.0142
+    r_total                     n=  32  median= 0.0076  p90= 0.0185  max= 0.0278
+
+  validation, Run3  [32 points]
+    r_model                     n=  32  median= 0.0664  p90= 0.0903  max= 0.1043
+    r_eps                       n=  32  median= 0.0082  p90= 0.0229  max= 0.0259
+    r_total                     n=  32  median= 0.0688  p90= 0.0918  max= 0.1103
+
+r_eps by mHc (the ParticleNet-specific term):
+    MHc100                      n=  48  median= 0.0251  p90= 0.0592  max= 0.0740
+    MHc115                      n=  96  median= 0.0111  p90= 0.0333  max= 0.0601
+    MHc130                      n=  48  median= 0.0099  p90= 0.0262  max= 0.0683
+    MHc145                      n=  96  median= 0.0063  p90= 0.0206  max= 0.0633
+    MHc160                      n=  48  median= 0.0098  p90= 0.0340  max= 0.0841
+
+r_model by period (inherited Baseline error):
+    Run2                        n= 168  median= 0.0094  p90= 0.0223  max= 0.0456
+    Run3                        n= 168  median= 0.0439  p90= 0.0974  max= 0.1656
+
+============================================================================================
+WORKING POINTS   [5 shards, 68 categories]
+============================================================================================
+         WP  effS med  effS min  effB med  Z/Zn med  Z/Zn min    B min  thr spread  epsS spread
+  optimized    0.5112    0.1059    0.1445    1.3141    1.1006     1.62       0.095       0.0373
+   epsB=10%    0.4090    0.3281    0.1000    1.2631    1.0205    16.65       0.038       0.0546
+   epsB=20%    0.5881    0.4811    0.1999    1.2877    1.0628    33.58       0.051       0.0334
+   epsB=30%    0.7001    0.5912    0.3000    1.2632    1.0710    50.37       0.051       0.0251
+
+low-statistics spikes -- categories whose OPTIMIZED threshold leaves B < 10 events:
+    MHc100/SR1E2Mu_Run3/seed90         thr=0.720 effB=0.0510 S=2.44 B=8.82 Z=0.789   | epsB=20%: S=4.38 B=34.61 Z=0.730
+    MHc100/SR3Mu_Run2/seed85           thr=0.910 effB=0.0085 S=4.16 B=4.24 Z=1.780   | epsB=20%: S=17.31 B=99.89 Z=1.685
+    MHc100/SR3Mu_Run2/seed95           thr=0.940 effB=0.0052 S=2.86 B=2.95 Z=1.467   | epsB=20%: S=13.85 B=112.08 Z=1.283
+    MHc100/SR3Mu_Run3/seed85           thr=0.830 effB=0.0269 S=2.03 B=4.68 Z=0.881   | epsB=20%: S=5.07 B=34.75 Z=0.841
+    MHc115/SR3Mu_Run2/seed95           thr=0.930 effB=0.0029 S=3.62 B=1.62 Z=2.250   | epsB=20%: S=20.54 B=112.14 Z=1.885
+  5 of 68 categories
+

@@ -1,0 +1,378 @@
+{
+  "meta": {
+    "working_point": "epsB=20%",
+    "rule": "rms within each mHc study, then max across studies holding >= 2 points, floored by the cell's pooled rms then by an absolute floor; residuals taken about zero so a biased family is covered bias+scatter",
+    "max_delta_mA": 2.5,
+    "floors": {
+      "res": 0.01,
+      "norm": 0.01
+    },
+    "mA_binning": "none -- the ParticleNet reach [82.5, 97.5] lies entirely inside the Baseline onZ bin",
+    "scale_family": "absent by Gate U1: the d_scale spread is consistent with refit statistics (median pull ~1), so a nuisance would double-count MC stat that autoMCStats already carries",
+    "source": "closure/pnet/MHc{X}/{shape_reuse,yield_interp}.json",
+    "command": "python/exportPnetUncertainties.py",
+    "date": "2026-08-14T19:52:05"
+  },
+  "res": {
+    "SR1E2Mu": {
+      "Run2": {
+        "value": 0.0192,
+        "driver": "MHc145",
+        "rms_max": 0.0192,
+        "pooled_rms": 0.014,
+        "per_study_rms": {
+          "MHc100": 0.0108,
+          "MHc115": 0.0058,
+          "MHc130": 0.0144,
+          "MHc145": 0.0192,
+          "MHc160": 0.0158
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false
+      },
+      "Run3": {
+        "value": 0.0155,
+        "driver": "MHc160",
+        "rms_max": 0.0155,
+        "pooled_rms": 0.0121,
+        "per_study_rms": {
+          "MHc100": 0.011,
+          "MHc115": 0.0079,
+          "MHc130": 0.0151,
+          "MHc145": 0.0125,
+          "MHc160": 0.0155
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false
+      }
+    },
+    "SR3Mu": {
+      "Run2": {
+        "value": 0.0208,
+        "driver": "MHc160",
+        "rms_max": 0.0208,
+        "pooled_rms": 0.0112,
+        "per_study_rms": {
+          "MHc100": 0.0117,
+          "MHc115": 0.0055,
+          "MHc130": 0.0059,
+          "MHc145": 0.0101,
+          "MHc160": 0.0208
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false
+      },
+      "Run3": {
+        "value": 0.0211,
+        "driver": "MHc160",
+        "rms_max": 0.0211,
+        "pooled_rms": 0.0137,
+        "per_study_rms": {
+          "MHc100": 0.0171,
+          "MHc115": 0.0073,
+          "MHc130": 0.0157,
+          "MHc145": 0.0104,
+          "MHc160": 0.0211
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false
+      }
+    }
+  },
+  "norm": {
+    "SR1E2Mu": {
+      "2016preVFP": {
+        "value": 0.0249,
+        "driver": "MHc115",
+        "rms_max": 0.0249,
+        "pooled_rms": 0.018,
+        "per_study_rms": {
+          "MHc100": 0.0149,
+          "MHc115": 0.0249,
+          "MHc130": 0.0035,
+          "MHc145": 0.0141,
+          "MHc160": 0.0201
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run2"
+      },
+      "2016postVFP": {
+        "value": 0.0285,
+        "driver": "MHc160",
+        "rms_max": 0.0285,
+        "pooled_rms": 0.0153,
+        "per_study_rms": {
+          "MHc100": 0.0115,
+          "MHc115": 0.017,
+          "MHc130": 0.0069,
+          "MHc145": 0.0055,
+          "MHc160": 0.0285
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run2"
+      },
+      "2017": {
+        "value": 0.017,
+        "driver": "MHc115",
+        "rms_max": 0.017,
+        "pooled_rms": 0.0109,
+        "per_study_rms": {
+          "MHc100": 0.0092,
+          "MHc115": 0.017,
+          "MHc130": 0.0088,
+          "MHc145": 0.0044,
+          "MHc160": 0.0071
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run2"
+      },
+      "2018": {
+        "value": 0.0197,
+        "driver": "MHc130",
+        "rms_max": 0.0197,
+        "pooled_rms": 0.0132,
+        "per_study_rms": {
+          "MHc100": 0.0165,
+          "MHc115": 0.0146,
+          "MHc130": 0.0197,
+          "MHc145": 0.0062,
+          "MHc160": 0.0075
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run2"
+      },
+      "2022": {
+        "value": 0.0567,
+        "driver": "MHc100",
+        "rms_max": 0.0567,
+        "pooled_rms": 0.0282,
+        "per_study_rms": {
+          "MHc100": 0.0567,
+          "MHc115": 0.0288,
+          "MHc130": 0.0065,
+          "MHc145": 0.0109,
+          "MHc160": 0.0205
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run3"
+      },
+      "2022EE": {
+        "value": 0.0214,
+        "driver": "MHc100",
+        "rms_max": 0.0214,
+        "pooled_rms": 0.0142,
+        "per_study_rms": {
+          "MHc100": 0.0214,
+          "MHc115": 0.005,
+          "MHc130": 0.0143,
+          "MHc145": 0.0181,
+          "MHc160": 0.0056
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run3"
+      },
+      "2023": {
+        "value": 0.0515,
+        "driver": "MHc100",
+        "rms_max": 0.0515,
+        "pooled_rms": 0.035,
+        "per_study_rms": {
+          "MHc100": 0.0515,
+          "MHc115": 0.0295,
+          "MHc130": 0.0487,
+          "MHc145": 0.0163,
+          "MHc160": 0.0359
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run3"
+      },
+      "2023BPix": {
+        "value": 0.0352,
+        "driver": "MHc100",
+        "rms_max": 0.0352,
+        "pooled_rms": 0.0209,
+        "per_study_rms": {
+          "MHc100": 0.0352,
+          "MHc115": 0.0129,
+          "MHc130": 0.021,
+          "MHc145": 0.0201,
+          "MHc160": 0.0151
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run3"
+      }
+    },
+    "SR3Mu": {
+      "2016preVFP": {
+        "value": 0.0374,
+        "driver": "MHc100",
+        "rms_max": 0.0374,
+        "pooled_rms": 0.0154,
+        "per_study_rms": {
+          "MHc100": 0.0374,
+          "MHc115": 0.0087,
+          "MHc130": 0.0079,
+          "MHc145": 0.0014,
+          "MHc160": 0.0067
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run2"
+      },
+      "2016postVFP": {
+        "value": 0.0234,
+        "driver": "MHc100",
+        "rms_max": 0.0234,
+        "pooled_rms": 0.0175,
+        "per_study_rms": {
+          "MHc100": 0.0234,
+          "MHc115": 0.022,
+          "MHc130": 0.0082,
+          "MHc145": 0.0059,
+          "MHc160": 0.0219
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run2"
+      },
+      "2017": {
+        "value": 0.0295,
+        "driver": "MHc100",
+        "rms_max": 0.0295,
+        "pooled_rms": 0.0137,
+        "per_study_rms": {
+          "MHc100": 0.0295,
+          "MHc115": 0.0114,
+          "MHc130": 0.0053,
+          "MHc145": 0.0033,
+          "MHc160": 0.0114
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run2"
+      },
+      "2018": {
+        "value": 0.0264,
+        "driver": "MHc100",
+        "rms_max": 0.0264,
+        "pooled_rms": 0.0115,
+        "per_study_rms": {
+          "MHc100": 0.0264,
+          "MHc115": 0.0067,
+          "MHc130": 0.0092,
+          "MHc145": 0.0026,
+          "MHc160": 0.0061
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run2"
+      },
+      "2022": {
+        "value": 0.0306,
+        "driver": "MHc100",
+        "rms_max": 0.0306,
+        "pooled_rms": 0.0182,
+        "per_study_rms": {
+          "MHc100": 0.0306,
+          "MHc115": 0.0151,
+          "MHc130": 0.0214,
+          "MHc145": 0.0139,
+          "MHc160": 0.0086
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run3"
+      },
+      "2022EE": {
+        "value": 0.0388,
+        "driver": "MHc100",
+        "rms_max": 0.0388,
+        "pooled_rms": 0.0214,
+        "per_study_rms": {
+          "MHc100": 0.0388,
+          "MHc115": 0.0135,
+          "MHc130": 0.0174,
+          "MHc145": 0.0109,
+          "MHc160": 0.0284
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run3"
+      },
+      "2023": {
+        "value": 0.0644,
+        "driver": "MHc100",
+        "rms_max": 0.0644,
+        "pooled_rms": 0.041,
+        "per_study_rms": {
+          "MHc100": 0.0644,
+          "MHc115": 0.0378,
+          "MHc130": 0.0193,
+          "MHc145": 0.0134,
+          "MHc160": 0.0633
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run3"
+      },
+      "2023BPix": {
+        "value": 0.0341,
+        "driver": "MHc115",
+        "rms_max": 0.0341,
+        "pooled_rms": 0.0285,
+        "per_study_rms": {
+          "MHc100": 0.0302,
+          "MHc115": 0.0341,
+          "MHc130": 0.0113,
+          "MHc145": 0.0319,
+          "MHc160": 0.0162
+        },
+        "studies_below_min_points": [],
+        "n_points": 21,
+        "on_absolute_floor": false,
+        "period": "Run3"
+      }
+    }
+  },
+  "nuisances": {
+    "res": [
+      "CMS_interp_res_pnet_SR1E2Mu_13TeV",
+      "CMS_interp_res_pnet_SR1E2Mu_13p6TeV",
+      "CMS_interp_res_pnet_SR3Mu_13TeV",
+      "CMS_interp_res_pnet_SR3Mu_13p6TeV"
+    ],
+    "eff": [
+      "CMS_interp_eff_pnet_SR1E2Mu_13TeV",
+      "CMS_interp_eff_pnet_SR1E2Mu_13p6TeV",
+      "CMS_interp_eff_pnet_SR3Mu_13TeV",
+      "CMS_interp_eff_pnet_SR3Mu_13p6TeV"
+    ]
+  }
+}
