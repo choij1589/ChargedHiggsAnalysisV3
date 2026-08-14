@@ -45,6 +45,14 @@ def _build_parser():
     p.add_argument("--fit-channel", default="Combined", type=str, dest="fit_channel",
                    help="Channel segment in the fitDiagnostics path. "
                         "SR uses 'Combined' (default); CR uses 'TTZ2E1Mu'.")
+    p.add_argument("--signal-source", dest="signal_source", type=str,
+                   default="mc-signal", choices=["mc-signal", "interp-signal"],
+                   help="mc-signal (default) or interp-signal. interp-signal "
+                        "plots a group SEED's parametric-signal templates: "
+                        "the signal fine-grid refill comes from the "
+                        "param_signal sidecar's DCB (no signal sample file "
+                        "exists), and ParticleNet backgrounds refill from "
+                        "the per-mHc shared-scores sample dirs.")
     p.add_argument("--fit-type", default="both", choices=["b", "s", "both"],
                    help="Which post-fit variant(s) to plot [default: both]")
     p.add_argument("--blind", action="store_true",
@@ -489,6 +497,15 @@ def load_subchannel_config(era, channel):
 
 def sample_path(era, channel, process):
     base_method = args.method[:-6] if args.method.endswith("_blind") else args.method
+    source = getattr(args, "signal_source", "mc-signal") or "mc-signal"
+    if source == "interp-signal" and base_method == "ParticleNet":
+        # Shared-scores layout: every net's score branches + one shared
+        # background set per mHc (per-masspoint ParticleNet dirs do not
+        # exist for interp points). Baseline interp keeps sample_dir() --
+        # the shared pairing dirs resolve for any (p-notation) masspoint.
+        mhc = args.masspoint.split("_")[0]
+        return os.path.join(
+            srspaths.mhc_sample_dir(era, channel, mhc), f"{process}.root")
     return os.path.join(
         srspaths.sample_dir(era, channel, args.masspoint, base_method),
         f"{process}.root")
@@ -1103,11 +1120,59 @@ def cached_run_period_fine(category, subera, channel, process, cfg, edges, name,
     return _FINE_CACHE[key]
 
 
+_PARAM_SIGNAL_CACHE = {}
+
+
+def _interp_signal_fine(component, edges, name):
+    """Fine-grid parametric signal for one (category, subera).
+
+    An interp-signal point has no signal sample tree to refill from; the
+    template's own model is the truth. Evaluate the DCB recorded in the
+    param_signal.{period}.{channel}.json sidecar (params interpolated from
+    the Baseline surfaces; n_pred already carries eps for ParticleNet) on a
+    fine lattice inside the template window and accumulate it onto the
+    display edges. Bin errors are zero -- the parametric shape has no MC
+    statistics (its uncertainty is carried by explicit nuisances)."""
+    from dcb_fit_utils import build_model
+    cat = component["category"]                    # e.g. SR1E2Mu_Run2
+    channel, period = cat.rsplit("_", 1)
+    cache_key = (period, channel)
+    if cache_key not in _PARAM_SIGNAL_CACHE:
+        path = os.path.join(TEMPLATE_DIR,
+                            f"param_signal.{period}.{channel}.json")
+        with open(path) as fh:
+            _PARAM_SIGNAL_CACHE[cache_key] = json.load(fh)
+    payload = _PARAM_SIGNAL_CACHE[cache_key]["categories"][cat]
+    params = {k: float(v) for k, v in payload["params"].items()}
+    lo, hi = (float(x) for x in payload["template_window"])
+    n_pred = float(payload["yields"][component["subera"]]["n_pred"])
+
+    mass = ROOT.RooRealVar(f"m_{name}", "mass", lo, hi)
+    pdf, keep = build_model(f"pdf_{name}", mass, params)
+    nfine = 2000
+    tmp = pdf.createHistogram(f"h_{name}_fine", mass,
+                              ROOT.RooFit.Binning(nfine, lo, hi))
+    tmp.SetDirectory(0)
+    integral = tmp.Integral()
+    if integral > 0:
+        tmp.Scale(n_pred / integral)
+    hist = clone_empty_like(edges, name)
+    for b in range(1, nfine + 1):
+        hist.Fill(tmp.GetBinCenter(b), tmp.GetBinContent(b))
+    for b in range(0, hist.GetNbinsX() + 2):
+        hist.SetBinError(b, 0.0)
+    del keep, pdf, tmp
+    return hist
+
+
 def fill_component_from_samples(component, category_payload, edges, cfg, name):
     if component.get("dummy_signal"):
         return clone_empty_like(edges, name)
     process = component["base_process"]
     if component.get("is_signal") or process == "signal":
+        source = getattr(args, "signal_source", "mc-signal") or "mc-signal"
+        if source == "interp-signal":
+            return _interp_signal_fine(component, edges, name)
         process = args.masspoint
     channel = component_channel(component, category_payload)
     return cached_run_period_fine(

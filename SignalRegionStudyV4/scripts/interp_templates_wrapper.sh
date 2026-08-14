@@ -109,6 +109,31 @@ case "$STEP" in
             --method "$METHOD" --signal-source interp-signal \
             --seed "$SEED" $EXTRA_ARGS
         ;;
+    plot-score)
+        # ParticleNet interp arm only: score distributions at the group
+        # seed (masspoint == seed). plotParticleNetScore.py has no
+        # --method; interp-signal implies ParticleNet.
+        python3 python/plotParticleNetScore.py \
+            --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+            --signal-source interp-signal $EXTRA_ARGS
+        ;;
+    fitdiag)
+        ./scripts/runFitDiagnostics.sh \
+            --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+            --method "$METHOD" --signal-source interp-signal \
+            --seed "$SEED" $EXTRA_ARGS
+        ;;
+    plotpostfit)
+        python3 python/plotPostfitMass.py \
+            --era "$ERA" --masspoint "$MASSPOINT" --method "$METHOD" \
+            --signal-source interp-signal --fit-type both $EXTRA_ARGS
+        ;;
+    plotpulls)
+        ./scripts/runPullPlots.sh \
+            --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+            --method "$METHOD" --signal-source interp-signal \
+            --seed "$SEED" --pull-fit both $EXTRA_ARGS
+        ;;
     *)
         echo "ERROR: unknown step '$STEP'"
         exit 1

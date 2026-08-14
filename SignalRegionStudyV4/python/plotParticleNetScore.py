@@ -35,6 +35,14 @@ parser.add_argument("--era", required=True, type=str,
 parser.add_argument("--channel", required=True, type=str,
                     help="Analysis channel (SR1E2Mu, SR3Mu, Combined)")
 parser.add_argument("--masspoint", required=True, type=str, help="Signal mass point (e.g., MHc130_MA90)")
+parser.add_argument("--signal-source", dest="signal_source", type=str,
+                    default="mc-signal", choices=["mc-signal", "interp-signal"],
+                    help="mc-signal: per-masspoint sample dirs + template-dir "
+                         "config (default, unchanged). interp-signal: the "
+                         "ParticleNet interpolation arm -- per-mHc "
+                         "shared-scores sample dirs and the frozen eps_B=20%% "
+                         "working point (fits/pnet threshold_wp.json); "
+                         "masspoint must be a group SEED (trained mA)")
 parser.add_argument("--blind", action="store_true",
                     help="Hide real data; read from the ParticleNet_blind template segment")
 parser.add_argument("--skip-histogram", action="store_true", dest="skip_histogram",
@@ -140,14 +148,31 @@ def scope_label(scope):
 
 METHOD_SEGMENT = "ParticleNet_blind" if args.blind else "ParticleNet"
 
+# interp-signal: score plots at the ParticleNet interpolation group SEEDS.
+# Samples come from the per-mHc shared-scores dirs (every trained mA + one
+# shared background set, all nets' score branches) and the window/weights/
+# threshold from the frozen working point instead of template-dir sidecars.
+IS_INTERP = args.signal_source == "interp-signal"
+SOURCE_SEGMENT = args.signal_source
+MHC_DIR = args.masspoint.split("_")[0]          # e.g. "MHc115"
+SEED_MA = int(args.masspoint.split("_MA")[1]) if IS_INTERP else None
+
 reference_era = era_list[0]
 reference_channel = "SR1E2Mu" if is_combined_channel else args.channel
 
+
+def sample_dir_for(era, channel):
+    """Preprocessed sample dir: per-masspoint (mc-signal) or per-mHc
+    shared-scores (interp-signal; dir name 'MHc115', not 'MHc115_MA90')."""
+    leaf = MHC_DIR if IS_INTERP else args.masspoint
+    return f"{WORKDIR}/SignalRegionStudyV4/samples/{era}/{channel}/{leaf}"
+
+
 # Input from samples directory (ParticleNet scores are in preprocessed samples)
 # For combined eras/channels, BASEDIR points to reference era/channel (used for config loading)
-BASEDIR = f"{WORKDIR}/SignalRegionStudyV4/samples/{reference_era}/{reference_channel}/{args.masspoint}"
+BASEDIR = sample_dir_for(reference_era, reference_channel)
 # Output to ParticleNet template directory
-OUTDIR = f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/{METHOD_SEGMENT}/mc-signal/{args.era}/{args.channel}"
+OUTDIR = f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/{METHOD_SEGMENT}/{SOURCE_SEGMENT}/{args.era}/{args.channel}"
 
 # Always generate validation plots
 VALIDATION_OUTDIR = f"{OUTDIR}/scores"
@@ -179,7 +204,7 @@ def run_period_for_era(era):
 def template_dir(era, channel):
     return (
         f"{WORKDIR}/SignalRegionStudyV4/templates/{args.masspoint}/"
-        f"{METHOD_SEGMENT}/mc-signal/{era}/{channel}"
+        f"{METHOD_SEGMENT}/{SOURCE_SEGMENT}/{era}/{channel}"
     )
 
 
@@ -209,11 +234,38 @@ def find_config_dir():
     )
 
 
-CONFIGDIR = find_config_dir()
+if IS_INTERP:
+    # Frozen working point replaces the template-dir config triple: one
+    # record per (channel, run period, seed) holding mass_window,
+    # bg_weights and the eps_B=20% threshold -- the same records template
+    # production reads. Score plots therefore need no prior template build.
+    import pnet_interp_config as _pic
+    _WP_RECORDS = _pic.wp_lookup(_pic.DEFAULT_WP, [MHC_DIR])
+    if not _WP_RECORDS:
+        raise FileNotFoundError(
+            f"no {_pic.DEFAULT_WP} records in "
+            f"{_pic.threshold_wp_path(MHC_DIR)} -- run measPnetThresholds.py "
+            "first")
+    CONFIGDIR = None
+    binning_params = None
 
+    def _wp_record(era, channel):
+        """WP record for (era, channel); TTZ2E1Mu (no WP of its own)
+        falls back to SR1E2Mu, whose window is unused for the CR anyway
+        (loadScores skips the mass cut there)."""
+        period = run_period_for_era(era) or era
+        for ch in (channel, "SR1E2Mu"):
+            rec = _WP_RECORDS.get(f"{MHC_DIR}/{ch}_{period}/seed{SEED_MA}")
+            if rec is not None:
+                return rec
+        raise KeyError(
+            f"{MHC_DIR}/{channel}_{period}/seed{SEED_MA} not in the frozen "
+            "working-point records")
+else:
+    CONFIGDIR = find_config_dir()
 
-with open(f"{CONFIGDIR}/binning.json", 'r') as f:
-    binning_params = json.load(f)
+    with open(f"{CONFIGDIR}/binning.json", 'r') as f:
+        binning_params = json.load(f)
 
 
 def category_key_for(era, channel):
@@ -243,6 +295,9 @@ def category_payload(payload, era, channel):
 
 
 def mass_window_for(era, channel):
+    if IS_INTERP:
+        lo, hi = _wp_record(era, channel)["mass_window"]
+        return float(lo), float(hi)
     payload = category_payload(binning_params, era, channel)
     return payload["mass_min"], payload["mass_max"]
 
@@ -252,6 +307,8 @@ logging.info(f"Mass window from binning: [{MASS_MIN:.2f}, {MASS_MAX:.2f}] GeV")
 
 
 def load_background_weights(era, channel):
+    if IS_INTERP:
+        return _wp_record(era, channel)["bg_weights"]
     weights_json_path = f"{CONFIGDIR}/background_weights.json"
     if not os.path.exists(weights_json_path):
         logging.warning(f"Background weights not found: {weights_json_path}")
@@ -280,7 +337,10 @@ logging.info(f"Loaded background weights: {BG_WEIGHTS}")
 
 
 def load_threshold_for(era, channel):
-    """Load the optimized ParticleNet LR threshold for an SR category."""
+    """ParticleNet LR threshold for an SR category (frozen eps_B=20% WP in
+    interp-signal mode, template-dir optimized threshold otherwise)."""
+    if IS_INTERP:
+        return float(_wp_record(era, channel)["threshold"])
     threshold_path = f"{CONFIGDIR}/threshold.json"
     if not os.path.exists(threshold_path):
         return None
@@ -734,7 +794,7 @@ def create_histograms(era, channel, masspoint, sample_channel, syst_categories,
         - stored_hists: Dict[score_type, Dict[hist_name, TH1D]] - central histograms (stat errors only)
         - all_syst_hists: Dict[score_type, Dict[process, Dict[syst_name, {'up': TH1D, 'down': TH1D}]]]
     """
-    sample_dir = f"{WORKDIR}/SignalRegionStudyV4/samples/{era}/{sample_channel}/{masspoint}"
+    sample_dir = sample_dir_for(era, sample_channel)
 
     # Check if samples exist
     if not os.path.exists(sample_dir):
@@ -1495,9 +1555,7 @@ def process_combined_era(region_label, sample_channel, show_data, region_outdir,
         if not os.path.exists(hist_file):
             cache_key = (era, input_channel, scores_region)
             if cache_key not in generated_cache:
-                sample_dir = (
-                    f"{WORKDIR}/SignalRegionStudyV4/samples/{era}/{sample_source_channel}/{args.masspoint}"
-                )
+                sample_dir = sample_dir_for(era, sample_source_channel)
                 if not os.path.exists(sample_dir):
                     logging.warning("Missing samples for %s/%s: %s", era, sample_source_channel, sample_dir)
                     generated_cache[cache_key] = None
@@ -1721,10 +1779,7 @@ if __name__ == "__main__":
             # Combined mode: discover processes from the reference sample
             # directory. Score histograms are created on demand later if the
             # cached histograms.root files are absent.
-            sample_dir = (
-                f"{WORKDIR}/SignalRegionStudyV4/samples/{reference_era}/"
-                f"{reference_channel}/{args.masspoint}"
-            )
+            sample_dir = sample_dir_for(reference_era, reference_channel)
             if not os.path.exists(sample_dir):
                 raise FileNotFoundError(
                     f"Samples directory not found: {sample_dir}\n"
@@ -1732,7 +1787,7 @@ if __name__ == "__main__":
                 )
             sample_files = [f.replace('.root', '') for f in os.listdir(sample_dir) if f.endswith('.root')]
             processes = [p for p in sample_files
-                         if p != 'data' and p != args.masspoint
+                         if p != 'data' and not p.startswith('MHc')
                          and 'Up' not in p and 'Down' not in p]
             logging.info(f"Found background processes from {reference_era}/{reference_channel} samples: {processes}")
         else:
@@ -1743,7 +1798,11 @@ if __name__ == "__main__":
                     f"Please run preprocessing first"
                 )
             sample_files = [f.replace('.root', '') for f in os.listdir(BASEDIR) if f.endswith('.root')]
-            processes = [p for p in sample_files if p != 'data' and p != args.masspoint]
+            # not p.startswith('MHc'): the interp-signal shared-scores dirs
+            # hold EVERY trained mass point; none of them is a background.
+            # (mc-signal dirs hold only args.masspoint, so this is equivalent
+            # to the old p != args.masspoint there.)
+            processes = [p for p in sample_files if p != 'data' and not p.startswith('MHc')]
             logging.info(f"Found background processes: {processes}")
         return processes
 
@@ -1964,7 +2023,7 @@ if __name__ == "__main__":
         # =================================================================
         # Single era mode: Process from raw samples
         # =================================================================
-        sample_dir = f"{WORKDIR}/SignalRegionStudyV4/samples/{args.era}/{sample_channel}/{args.masspoint}"
+        sample_dir = sample_dir_for(args.era, sample_channel)
 
         if not os.path.exists(sample_dir):
             logging.warning(f"Samples not found for {sample_channel} at {sample_dir}, skipping")
