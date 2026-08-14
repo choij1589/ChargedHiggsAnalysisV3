@@ -249,11 +249,17 @@ if args.method == "Baseline":
         print(f"Created Brazilian plot with {len(limits)} mass points (Baseline, MHc{mhc_value})")
 
 elif args.method == "ParticleNet":
-    # Load limits
-    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.Baseline.json") as f:
+    # Load limits. For interp-signal both files carry the source infix: the
+    # ParticleNet reach [82.5, 97.5] comes from the pnet scan, everything
+    # outside from the Baseline interp scan (the two arms coexist).
+    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.Baseline{_source_infix}.json") as f:
         limits_baseline = json.load(f)
-    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.ParticleNet.json") as f:
+    with open(f"{_json_dir}/limits.{args.era}{_ch_suffix}.{args.limit_type}.ParticleNet{_source_infix}.json") as f:
         limits_pnet = json.load(f)
+
+    def _ma_of(mp):
+        # p-notation-safe (MA87p5); plain ints parse identically.
+        return float(srspaths.parse_ma_token(mp.split("_MA")[1]))
 
     if args.mhc is not None:
         limits_pnet = _filter_by_mhc(limits_pnet, args.mhc)
@@ -264,11 +270,11 @@ elif args.method == "ParticleNet":
         limits_baseline = {mp: v for mp, v in limits_baseline.items() if mp in _BASELINE_CURATED}
 
     # Split regions
-    pnet_mass = [int(mp.split("_")[1][2:]) for mp in limits_pnet.keys()]
+    pnet_mass = [_ma_of(mp) for mp in limits_pnet.keys()]
     pnet_min, pnet_max = min(pnet_mass), max(pnet_mass)
 
-    limits_below = {mp: limits_baseline[mp] for mp in limits_baseline if int(mp.split("_")[1][2:]) < pnet_min}
-    limits_above = {mp: limits_baseline[mp] for mp in limits_baseline if int(mp.split("_")[1][2:]) > pnet_max}
+    limits_below = {mp: limits_baseline[mp] for mp in limits_baseline if _ma_of(mp) < pnet_min}
+    limits_above = {mp: limits_baseline[mp] for mp in limits_baseline if _ma_of(mp) > pnet_max}
 
     # Both the expected line/bands and the observed markers are continued onto the
     # ParticleNet window edge using the Baseline point sitting exactly at
@@ -280,7 +286,7 @@ elif args.method == "ParticleNet":
         if args.mhc is None:
             return {}
         return {mp: v for mp, v in limits_baseline.items()
-                if int(mp.split("_")[1][2:]) == target_ma}
+                if abs(_ma_of(mp) - target_ma) < 1e-9}
 
     anchor_below = _boundary_anchor(pnet_min)
     anchor_above = _boundary_anchor(pnet_max)
