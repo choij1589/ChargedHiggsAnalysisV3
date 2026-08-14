@@ -31,6 +31,9 @@ parser.add_argument("--method", type=str, required=True, help="Baseline, Particl
 parser.add_argument("--limit_type", type=str, default="Asymptotic",
                     choices=["Asymptotic"], help="Limit type (Asymptotic only in V4)")
 parser.add_argument("--blind", action="store_true", help="Hide observed limit (for blinded results)")
+parser.add_argument("--ymax", type=float, default=None,
+                    help="Override the automatic y-axis maximum (2x max exp+2sigma) — "
+                         "for synchronizing scales across method/mHc comparisons")
 parser.add_argument("--signal-source", type=str, default="mc-signal",
                     choices=["mc-signal", "interp-signal"],
                     help="Which collected-limits JSON to read (interp-signal: "
@@ -175,7 +178,7 @@ if args.method == "Baseline":
         if not per_mhc_limits:
             raise RuntimeError(f"No mass points found for any MHc in {mhc_values}")
 
-        y_max = max(_ymax_from(d) for d in per_mhc_limits.values())
+        y_max = args.ymax or max(_ymax_from(d) for d in per_mhc_limits.values())
         canv = CMS.cmsCanvas("limit", 15., 155., 0., y_max,
                              "m_{A} [GeV]", y_label_median,
                              square=True, iPos=_iPos, extraSpace=0.01)
@@ -216,7 +219,7 @@ if args.method == "Baseline":
             raise RuntimeError(f"No mass points found for MHc{mhc_value} in JSON")
         graphs = create_graphs(limits)
 
-        y_max = _ymax_from(limits)
+        y_max = args.ymax or _ymax_from(limits)
         x_min = 15.0
         x_max = float(mhc_value - 5)
         canv = CMS.cmsCanvas("limit", x_min, x_max, 0., y_max,
@@ -306,7 +309,7 @@ elif args.method == "ParticleNet":
     graphs_below_exp = create_graphs(limits_below_exp) if limits_below_exp else None
     graphs_above_exp = create_graphs(limits_above_exp) if limits_above_exp else None
 
-    y_max = max(_ymax_from(d) for d in (limits_pnet, limits_below_exp, limits_above_exp) if d)
+    y_max = args.ymax or max(_ymax_from(d) for d in (limits_pnet, limits_below_exp, limits_above_exp) if d)
     x_max = float(args.mhc - 5) if args.mhc is not None else 155.0
     canv = CMS.cmsCanvas("limit", 15., x_max, 0., y_max,
                          "m_{A} [GeV]", y_label_full,
