@@ -1,0 +1,73 @@
+{
+  "mhc": 100,
+  "method": "ParticleNet",
+  "era": "All",
+  "channel": "SR1E2Mu",
+  "bin_width": 1.0,
+  "signal_source": "interp-signal",
+  "method_segment": "ParticleNet",
+  "fit_type": "both",
+  "signal_line": "none",
+  "signal_mas": [],
+  "signal_line_masspoint": null,
+  "signal_line_available": false,
+  "masspoints": [
+    {
+      "name": "MHc100_MA85",
+      "source_method": "ParticleNet",
+      "ma": 85.0,
+      "mass_min": 74.83759248059611,
+      "mass_max": 95.02142265075204
+    },
+    {
+      "name": "MHc100_MA90",
+      "source_method": "ParticleNet",
+      "ma": 90.0,
+      "mass_min": 79.05501391686062,
+      "mass_max": 100.79245890029989
+    },
+    {
+      "name": "MHc100_MA95",
+      "source_method": "ParticleNet",
+      "ma": 95.0,
+      "mass_min": 83.25846615438068,
+      "mass_max": 106.57759274014929
+    }
+  ],
+  "x_range": [
+    12.0,
+    100.0
+  ],
+  "hist_range": [
+    74.0,
+    107.0
+  ],
+  "n_bins": 33,
+  "ownership": [
+    {
+      "start": 74.0,
+      "end": 75.0,
+      "masspoint": null
+    },
+    {
+      "start": 75.0,
+      "end": 88.0,
+      "masspoint": "MHc100_MA85"
+    },
+    {
+      "start": 88.0,
+      "end": 93.0,
+      "masspoint": "MHc100_MA90"
+    },
+    {
+      "start": 93.0,
+      "end": 107.0,
+      "masspoint": "MHc100_MA95"
+    }
+  ],
+  "ownership_boundaries": [
+    75.0,
+    88.0,
+    93.0
+  ]
+}

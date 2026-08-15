@@ -320,6 +320,35 @@ All numbers reproducible from the committed artifacts
   mc-signal ParticleNet GoF at MHc160_MA85/SR3Mu was already low (0.072)
   under the old threshold: a data/background feature of that phase-space
   corner, not an interpolation defect.
+- **Adversarial review notes** (2026-08-16, recorded rather than chased):
+  (a) 12 of 587 S+B FitDiagnostics fits carry status 3 (covariance forced
+  positive-definite) — all Baseline low-mA seeds (mA = 22.5 at every mHc,
+  mA = 45 at four, MHc100_MA27); every B-only fit converged, so the
+  primary postfit_b artifacts are unaffected, but read those seeds'
+  postfit_s panels with the degraded covariance in mind. (b) The Run3
+  closure deficit (interp/MC 0.92–0.97) is a coherent bias inside the
+  symmetric CMS_interp_norm budget, not scatter. (c) MHc100/130/160 have
+  no blind validation of the eps layer — MA87/MA92 exist only at
+  MHc115/145; elsewhere the eff nuisance rests on 3-anchor LOO, which is
+  extrapolation at the endpoints. (d) The MHc160_MA85/SR3Mu GoF p = 0.004
+  is a 20x drop from V3's 0.072 under the old threshold, and those
+  backgrounds are shared bitwise by all 10 group members — kept under
+  "data/background feature" on the global 3/45-cells-under-0.05 argument,
+  but the per-seed gof_plot.png is the thing to look at if that region
+  ever matters.
+- **Score distributions** (2026-08-15): 135/135 nodes — every seed at
+  {Run2, Run3, All} x {SR1E2Mu, SR3Mu, Combined} with the TTZ2E1Mu CR,
+  8 panels each, cut/window/weights from the frozen WP; LR_modified
+  panels collected to `results/plots/scores/` (225 files).
+- **FitDiagnostics + prefit/postfit + pulls** (2026-08-15, both arms at
+  group seeds, All/Combined): ParticleNet 45/45 and Baseline 1716/1716
+  nodes — 587 fitDiagnostics roots, 26 415 prefit/postfit pngs (45 per
+  seed across era/channel scopes), 1174 pull PDFs; counts verified
+  exactly. The parametric-signal fine refill (`plotPostfitMass.py
+  --signal-source interp-signal`, DCB from the param_signal sidecar)
+  closes on the shapes.root normalization at 2e-16. Stitched per-mHc
+  summaries (`plotPostfitSummary.py`, V3 port) in
+  `results/plots/postfit_summary/`.
 
 ## Known limitations
 

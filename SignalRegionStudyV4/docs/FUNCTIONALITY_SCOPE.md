@@ -36,6 +36,14 @@ argument; it is not part of any production workflow.
   `python/filterImpacts.py`, `python/plotGoFPValues.py`,
   `automize/interpGofImpacts.sh`; the scripts also accept
   `--signal-source mc-signal` ad hoc)
+- FitDiagnostics + prefit/postfit + pulls per interp-signal group seed,
+  both methods (`automize/interpFitDiag.sh`; `plotPostfitMass.py
+  --signal-source interp-signal` refills the parametric signal from the
+  param_signal DCB sidecar), with stitched per-mHc summaries
+  (`python/plotPostfitSummary.py`, ported from V3)
+- ParticleNet interp-signal score plots per seed
+  (`plotParticleNetScore.py --signal-source interp-signal`,
+  `automize/pnetScorePlots.sh`, `python/collectPnetScorePlots.py`)
 - Reproduction comparison against V3 (`python/compareToV3.py`,
   `scripts/compare_wrapper.sh`)
 - Methods: `Baseline` and `ParticleNet`

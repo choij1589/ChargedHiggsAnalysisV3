@@ -159,10 +159,22 @@ python3 python/plotPostfitMass.py --era All --masspoint MHc130_MA90 --method Bas
 ./scripts/runPullPlots.sh --era All --channel Combined --masspoint MHc130_MA90 --method Baseline --pull-fit both
 ```
 
+For the interp arms this runs per GROUP SEED (members share the seed's
+backgrounds bitwise) via `./automize/interpFitDiag.sh --all
+[--method ParticleNet]`; `plotPostfitMass.py --signal-source interp-signal`
+refills the parametric signal from the `param_signal` DCB sidecar.
+Stitched per-mHc panels: `python3 python/plotPostfitSummary.py` (V3 port)
+→ `results/plots/postfit_summary/`.
+
 ### 8. ParticleNet score plots
 
 Part of the ParticleNet DAG (`plot_score` nodes, 4 GB memory request);
 also runnable directly via `python3 python/plotParticleNetScore.py`.
+Interp arm: `--signal-source interp-signal` reads the per-mHc
+shared-scores dirs and the frozen eps_B=20% WP — driver
+`./automize/pnetScorePlots.sh --all` (every seed x {Run2,Run3,All} x
+{SR1E2Mu,SR3Mu,Combined} + TTZ2E1Mu CR), collector
+`python3 python/collectPnetScorePlots.py` → `results/plots/scores/`.
 
 ### 9. Collect and plot limits
 

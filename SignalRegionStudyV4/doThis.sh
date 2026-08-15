@@ -168,3 +168,22 @@ python3 python/collectLimits.py --era All --method ParticleNet --signal-source i
 # 5d. GoF + impacts per group seed (66-node DAG per mHc; 15 seeds):
 ./automize/interpGofImpacts.sh --all --method ParticleNet
 python3 python/plotGoFPValues.py --all --method ParticleNet
+
+# 5e. ParticleNet score distributions at every interpolation seed
+#     (V3 coverage: {Run2,Run3,All} x {SR1E2Mu,SR3Mu,Combined} per seed,
+#     TTZ2E1Mu CR auto-emitted by the per-channel jobs; 27 nodes per mHc):
+./automize/pnetScorePlots.sh --all
+python3 python/collectPnetScorePlots.py   # LR_modified -> results/plots/scores/
+
+# 5f. FitDiagnostics + prefit/postfit + pulls per GROUP SEED, both arms
+#     (members share the seed's backgrounds bitwise, so seeds carry the
+#     fit validation; All/Combined, V3 convention; 3 nodes per seed):
+./automize/interpFitDiag.sh --all --method ParticleNet    # 15 seeds, 45 nodes
+./automize/interpFitDiag.sh --all                         # Baseline: 572 seeds, 1716 nodes
+# Stitched per-mHc summary panels (postfit-summary wrapper step, one job
+# per (method, mHc)) -> results/plots/postfit_summary/:
+#   condor: interp_templates_wrapper.sh postfit-summary MHc<X> - All - --method <M>
+#   login:  python3 python/plotPostfitSummary.py --mhc 160 --methods Baseline \
+#               --eras All --signal-source interp-signal --fit-type both
+# request_memory >= 8192 for the Baseline jobs: the 12-13-seed mHc145/160
+# stitches exceeded 4 GB (cgroup kills mid-SR3Mu, 2026-08-15).
