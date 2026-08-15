@@ -134,6 +134,14 @@ case "$STEP" in
             --method "$METHOD" --signal-source interp-signal \
             --seed "$SEED" --pull-fit both $EXTRA_ARGS
         ;;
+    postfit-summary)
+        # MASSPOINT carries the mHc token (e.g. MHc160); one job per
+        # (method, mHc) stitches the seeds' postfit spectra.
+        python3 python/plotPostfitSummary.py \
+            --mhc "${MASSPOINT#MHc}" --methods "$METHOD" \
+            --eras "$ERA" --channels Combined SR1E2Mu SR3Mu \
+            --signal-source interp-signal --fit-type both $EXTRA_ARGS
+        ;;
     *)
         echo "ERROR: unknown step '$STEP'"
         exit 1
