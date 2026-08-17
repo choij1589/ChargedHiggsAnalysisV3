@@ -112,6 +112,51 @@ _PARAM_TITLES = {
     "c1": "c_{1}", "c2": "c_{2}",
 }
 
+# Study channels rendered as final states. The SR3Mu pairing variant is kept:
+# it is the one piece of the category key that neither the axes nor the
+# luminosity header carries.
+_CHANNEL_LABELS = {
+    "SR1E2Mu": "e#mu#mu",
+    "SR3Mu": "#mu#mu#mu",
+    "SR3Mu_lowM": "#mu#mu#mu (lowM)",
+    "SR3Mu_highM": "#mu#mu#mu (highM)",
+}
+
+
+# In-plot information text, in the style of the V3 paper figures
+# (plotPaper*.py -> ComparisonCanvas._draw_channel_text): a left-aligned block
+# under the CMS logo, region tag in bold on the first line and the final state
+# in the regular font one text height below. The y start assumes iPos=11, i.e.
+# "CMS"/"Simulation Preliminary" inside the frame.
+INFO_TEXT_POS = (0.22, 0.72)
+INFO_TEXT_SIZE = 0.05
+REGION_TAG = "SR"
+
+
+def draw_info_text(lines, posX=INFO_TEXT_POS[0], posY=INFO_TEXT_POS[1],
+                   size=INFO_TEXT_SIZE):
+    """Paper-style information block: first line bold (font 62), the rest in
+    the regular font (42), stacked downwards one text height apart."""
+    for i, line in enumerate(lines):
+        CMS.drawText(line, posX=posX, posY=posY - i * size,
+                     font=62 if i == 0 else 42, align=0, size=size)
+
+
+def param_title(param):
+    """Axis title for a shape parameter."""
+    return _PARAM_TITLES.get(param, param)
+
+
+def channel_label(cat_key):
+    """Final-state label for a study channel or a `{channel}_{period}`
+    category key; the run period is dropped (the lumi header states it)."""
+    name = cat_key
+    for period in ("_Run2", "_Run3"):
+        if name.endswith(period):
+            name = name[:-len(period)]
+            break
+    return _CHANNEL_LABELS.get(name, name)
+
 
 def plot_parameter_vs_mA(cat_key, param, points, fit_info, outdir, all_ma,
                          mhc, period):
@@ -578,50 +623,108 @@ def plot_shape_delta_series(key, syst, model_key, outdir):
 
 # ------------------------------------------------------ (mHc, mA) surfaces
 
-def plot_surface_slices(title, xtitle, ytitle, per_mhc, outdir, name,
-                        period_or_era, logy=False):
-    """One curve per mHc study plus that study's measured points.
+def _drop_wide_error_points(series, ys_all, max_error_frac, name):
+    """Return the series with the points whose error exceeds max_error_frac
+    of the plotted value range removed, reporting how many went."""
+    if not max_error_frac or max_error_frac <= 0:
+        return series
+    span = max(ys_all) - min(ys_all)
+    if span <= 0:
+        return series
+    limit = max_error_frac * span
+    filtered, n_dropped = {}, 0
+    for key, block in series.items():
+        px, py, pe = block["points"]
+        keep = [i for i, e in enumerate(pe) if abs(e) <= limit]
+        n_dropped += len(px) - len(keep)
+        filtered[key] = dict(block, points=([px[i] for i in keep],
+                                            [py[i] for i in keep],
+                                            [pe[i] for i in keep]))
+    if n_dropped:
+        print(f"  {name}: hid {n_dropped} point(s) with an error bar above "
+              f"{max_error_frac:g} x the plotted range")
+    return filtered
 
-    The readable way to show a (mHc, mA) surface to a physicist: seven
-    slices over a common mA axis, each with its own points in the matching
-    colour, so the borrowing across studies is visible directly.
 
-    per_mhc: {mhc: {"curve": (xs, ys), "points": (xs, ys, yerrs)}}
+def mhc_legend_label(mhc):
+    return f"m_{{H^{{#pm}}}} = {mhc} GeV"
+
+
+def plot_surface_slices(title, xtitle, ytitle, series, outdir, name,
+                        period_or_era, logy=False, headroom_factor=None,
+                        max_error_frac=None, legend_label=mhc_legend_label,
+                        key_order=None, yrange=None):
+    """One curve per series key plus that series' measured points.
+
+    The readable way to show a (mHc, mA) surface to a physicist: the seven
+    mHc slices over a common mA axis, each with its own points in the
+    matching colour, so the borrowing across studies is visible directly.
+    The same layout carries the era shares of one study, where the series
+    are the eras of a run period at fixed mHc.
+
+    series: {key: {"curve": (xs, ys), "points": (xs, ys, yerrs)}}
+    title: one information-text line, or a sequence of them (first bold).
+    headroom_factor: put the axis maximum at this multiple of the largest
+    entry, leaving the top of the frame free for the CMS block, the legend
+    and the information text. Multiplicative on both scales; the log axis
+    uses 2 when unset.
+    max_error_frac: drop points whose error bar is longer than this fraction
+    of the plotted value range. Display only — those points were still used
+    by the fit; the count dropped is reported on stdout.
+    legend_label: key -> legend text.
+    key_order: draw order; sorted(series) when unset.
+    yrange: explicit (ymin, ymax), overriding the automatic range — for
+    quantities with a natural fixed scale.
     """
     xs_all, ys_all = [], []
-    for block in per_mhc.values():
+    for block in series.values():
         xs_all += list(block["curve"][0])
         ys_all += list(block["curve"][1])
         ys_all += list(block["points"][1])
     if not ys_all:
         return
+
+    # An error bar spanning a sizeable fraction of the frame says nothing
+    # about the surface and squashes every other point; the fit already
+    # down-weighted it. Filter against the full range, then take the axis
+    # range from what survives.
+    series = _drop_wide_error_points(series, ys_all, max_error_frac, name)
+    ys_all = []
+    for block in series.values():
+        ys_all += list(block["curve"][1]) + list(block["points"][1])
+    if not ys_all:
+        return
+
     lo, hi = min(ys_all), max(ys_all)
     pad = 0.10 * (hi - lo) if hi > lo else max(abs(hi), 1.0) * 0.1
-    ymin, ymax = (max(lo * 0.5, 1e-6), hi * 2.0) if logy else (lo - pad,
-                                                               hi + pad * 2)
+    if yrange is not None:
+        ymin, ymax = yrange
+    elif logy:
+        ymin = max(lo * 0.5, 1e-6)
+        ymax = hi * (headroom_factor if headroom_factor is not None else 2.0)
+    elif headroom_factor is not None and hi > 0:
+        ymin, ymax = lo - pad, hi * headroom_factor
+    else:
+        ymin, ymax = lo - pad, hi + pad * 2
     canv = graph_canvas(name, xtitle, ytitle, min(xs_all) - 2,
                         max(xs_all) + 2, ymin, ymax, period_or_era, logy=logy)
     leg = CMS.cmsLeg(0.62, 0.60, 0.92, 0.90, textSize=0.028)
     keep = []
-    for i, mhc in enumerate(sorted(per_mhc)):
+    for i, key in enumerate(key_order or sorted(series)):
         color = PALETTE_LONG[i % len(PALETTE_LONG)]
-        cx, cy = per_mhc[mhc]["curve"]
+        cx, cy = series[key]["curve"]
         g = curve_graph(list(cx), list(cy), color=color)
         CMS.cmsObjectDraw(g, "L")
-        px, py, pe = per_mhc[mhc]["points"]
+        px, py, pe = series[key]["points"]
         keep.append(g)
         if len(px):
             gp = points_graph(list(px), list(py), list(pe), color=color)
             CMS.cmsObjectDraw(gp, "PE")
             keep.append(gp)
-            leg.AddEntry(gp, f"m_{{H^{{#pm}}}} = {mhc} GeV", "pe")
+            leg.AddEntry(gp, legend_label(key), "pe")
         else:
-            leg.AddEntry(g, f"m_{{H^{{#pm}}}} = {mhc} GeV", "l")
-    lat = ROOT.TLatex()
-    lat.SetNDC(True)
-    lat.SetTextFont(42)
-    lat.SetTextSize(0.030)
-    lat.DrawLatex(0.16, 0.90, title)
+            leg.AddEntry(g, legend_label(key), "l")
+    draw_info_text([title] if isinstance(title, str) else list(title))
     canv.RedrawAxis()
     _save(canv, outdir, name)
 
