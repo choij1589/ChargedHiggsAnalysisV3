@@ -74,14 +74,35 @@ python3 python/plotInterpNuisances.py
 #./automize/interpTemplates.sh --mhc 160
 #./automize/interpTemplates.sh --mhc 160 --group MHc160_MA90
 
-# Collect the scan (source token keeps it apart from mc-signal) and plot:
-python3 python/collectLimits.py --era All --method Baseline --signal-source interp-signal
-python3 python/collectLimits.py --era All --channel SR1E2Mu --method Baseline --signal-source interp-signal
-python3 python/collectLimits.py --era All --channel SR3Mu   --method Baseline --signal-source interp-signal
-for mhc in 70 85 100 115 130 145 160; do
-    python3 python/plotLimits.py --era All --method Baseline --signal-source interp-signal --mhc $mhc
+# Collect the scan (source token keeps it apart from mc-signal) and plot.
+# Both units are produced, as in V3: BR = B_sig, xsec = sigma(pp->ttbar) x
+# B_sig in fb -> results/{json,plots}/{BR,xsec}/. The two differ by the
+# constant sigma_ttbar(13 TeV), but each is collected from the Combine
+# output so the JSONs can never drift apart.
+for mode in BR xsec; do
+    for ch in Combined SR1E2Mu SR3Mu; do
+        python3 python/collectLimits.py --era All --channel $ch --method Baseline \
+            --signal-source interp-signal --mode $mode
+    done
+    for mhc in 70 85 100 115 130 145 160; do
+        python3 python/plotLimits.py --era All --method Baseline \
+            --signal-source interp-signal --mode $mode --mhc $mhc
+    done
+    python3 python/plotLimits.py --era All --method Baseline \
+        --signal-source interp-signal --mode $mode --compare-mhc
+    # 2D map over the (m_H+, m_A) plane: one column per measured m_H+, never
+    # interpolated between them (the model interpolates in m_A alone).
+    for q in exp0 obs; do
+        python3 python/plotLimits2D.py --era All --method Baseline \
+            --signal-source interp-signal --mode $mode --quantity $q
+        # ...and the same map with m_H+ interpolated too (Delaunay over the
+        # scan points), which trades the staircase for the straight
+        # kinematic edge m_A = m_H+ - 5. Rendering choice, not a prediction.
+        python3 python/plotLimits2D.py --era All --method Baseline \
+            --signal-source interp-signal --mode $mode --quantity $q \
+            --interpolate-mhc
+    done
 done
-python3 python/plotLimits.py --era All --method Baseline --signal-source interp-signal --compare-mhc
 
 # ---------------------------------------------------------------------------
 # Step 3: GoF + impacts per group seed  (docs/interpolation/WORKFLOW.md)
@@ -97,11 +118,14 @@ python3 python/plotLimits.py --era All --method Baseline --signal-source interp-
 #./automize/interpGofImpacts.sh --all --gof-only
 #./automize/interpGofImpacts.sh --all --impacts-only
 
-# p-value summaries per mHc (reads each seed's gof.json):
-python3 python/plotGoFPValues.py --all
 # Per-seed outputs: combine_output/gof/{gof.json,gof_plot.png} and
 # combine_output/impacts_obs/{impacts.pdf,impacts_filtered.pdf} under
 # templates/{seed}/Baseline/interp-signal/All/{target}/.
+#
+# The per-mHc p-value summary is NOT drawn here: the Baseline panel also
+# carries the ParticleNet seeds as open markers, so it needs the Step 5d GoF
+# to exist and is drawn there. For a Baseline-only campaign, draw it now with
+#   python3 python/plotGoFPValues.py --all --overlay ""
 
 # ---------------------------------------------------------------------------
 # Step 4: direct-MC chain and comparison  (docs/FUNCTIONALITY_SCOPE.md)
@@ -157,17 +181,39 @@ done
 #     mA = 95 MC endpoint). One-group E2E first, then the campaign:
 #./automize/interpTemplates.sh --mhc 115 --group MHc115_MA90 --method ParticleNet
 ./automize/interpTemplates.sh --all --method ParticleNet
-python3 python/collectLimits.py --era All --method ParticleNet --signal-source interp-signal
-# check parsed/total = 150; then per-mHc limit plots (--ymax syncs the
-# y-scale to the Baseline counterpart for method comparison):
-#for mhc in 100 115 130 145 160; do
-#    python3 python/plotLimits.py --era All --method ParticleNet \
-#        --signal-source interp-signal --mhc $mhc
-#done
+# check parsed/total = 150 on every collect; then per-mHc limit plots
+# (--ymax syncs the y-scale to the Baseline counterpart for method
+# comparison). Both units again, and the per-mHc plots need the Baseline
+# JSON of the same mode for the off-window regions:
+for mode in BR xsec; do
+    for ch in Combined SR1E2Mu SR3Mu; do
+        python3 python/collectLimits.py --era All --channel $ch --method ParticleNet \
+            --signal-source interp-signal --mode $mode
+    done
+    for mhc in 100 115 130 145 160; do
+        python3 python/plotLimits.py --era All --method ParticleNet \
+            --signal-source interp-signal --mode $mode --mhc $mhc
+    done
+    # 2D map with the ParticleNet arm stitched into its m_A window on the
+    # five trained columns (m_H+ = 70, 85 stay Baseline), window edges
+    # dashed in. Same fixed colour scale as the Baseline map above, so the
+    # two can be laid side by side.
+    for q in exp0 obs; do
+        python3 python/plotLimits2D.py --era All --method ParticleNet \
+            --signal-source interp-signal --mode $mode --quantity $q
+        python3 python/plotLimits2D.py --era All --method ParticleNet \
+            --signal-source interp-signal --mode $mode --quantity $q \
+            --interpolate-mhc
+    done
+done
 
 # 5d. GoF + impacts per group seed (66-node DAG per mHc; 15 seeds):
 ./automize/interpGofImpacts.sh --all --method ParticleNet
-python3 python/plotGoFPValues.py --all --method ParticleNet
+# Both arms' GoF now exist, so draw the per-mHc summaries deferred from
+# Step 3. ONE panel per mHc carries both arms: Baseline filled, ParticleNet
+# open markers (absent at mHc = 70, 85, which have no ParticleNet grid).
+# `--method ParticleNet` or `--overlay ""` give single-arm panels ad hoc.
+python3 python/plotGoFPValues.py --all
 
 # 5e. ParticleNet score distributions at every interpolation seed
 #     (V3 coverage: {Run2,Run3,All} x {SR1E2Mu,SR3Mu,Combined} per seed,
@@ -180,10 +226,62 @@ python3 python/collectPnetScorePlots.py   # LR_modified -> results/plots/scores/
 #     fit validation; All/Combined, V3 convention; 3 nodes per seed):
 ./automize/interpFitDiag.sh --all --method ParticleNet    # 15 seeds, 45 nodes
 ./automize/interpFitDiag.sh --all                         # Baseline: 572 seeds, 1716 nodes
-# Stitched per-mHc summary panels (postfit-summary wrapper step, one job
-# per (method, mHc)) -> results/plots/postfit_summary/:
-#   condor: interp_templates_wrapper.sh postfit-summary MHc<X> - All - --method <M>
-#   login:  python3 python/plotPostfitSummary.py --mhc 160 --methods Baseline \
-#               --eras All --signal-source interp-signal --fit-type both
-# request_memory >= 8192 for the Baseline jobs: the 12-13-seed mHc145/160
-# stitches exceeded 4 GB (cgroup kills mid-SR3Mu, 2026-08-15).
+# Stitched per-mHc summary panels -> results/plots/postfit_summary/.
+# The summary stitches EVERY group seed of the study (Baseline: 64 at mHc70
+# to 95 at mHc160; ParticleNet: those 3 on top), not just the seeds of the
+# mc_points -- that earlier restriction left the panel mostly empty.
+#
+# Parallelized at the SEED level: building a seed's fine-mass hists out of
+# its fitDiagnostics shapes (160 per seed/channel) is the whole cost and is
+# per-seed independent, so the DAG fans that out and the summary node then
+# stitches from cache in seconds. Serially it was hours per mHc.
+#
+# ORDER MATTERS: a ParticleNet panel stitches the Baseline seeds too and
+# reads THEIR caches. Each arm warms only its own seeds, so Baseline must
+# finish first -- otherwise the ParticleNet panel finds no Baseline cache.
+./automize/postfitSummary.sh --all                      # 572 cache + 7 summary
+./automize/postfitSummary.sh --all --method ParticleNet # then: 15 cache + 5 summary
+# Variants:
+#   --mhc 160            one study
+#   --summary-only       caches already warm; skip straight to stitching
+#   --dry-run
+# Cache nodes ask 4 GB, summary nodes 32 GB (at the old 12-13-seed scope
+# 4 GB already died with cgroup kills mid-SR3Mu, 2026-08-15).
+# Single point on the login node (needs its caches warm):
+#   python3 python/plotPostfitSummary.py --mhc 160 --methods Baseline \
+#       --eras All --signal-source interp-signal --fit-type both
+#
+# Paper figures (Step 6) consume these caches, so run them after this.
+
+# ---------------------------------------------------------------------------
+# Step 6: paper figures  (docs/FUNCTIONALITY_SCOPE.md)
+# ---------------------------------------------------------------------------
+# Vector PDFs in the publication style, ported from V3 2026-08-18. Wording,
+# colours and legend geometry are defined once in plotPaperLRModified.py and
+# imported by the other two, so the figure sets cannot drift apart. All three
+# default to --signal-source interp-signal. Output: results/plots/paper/.
+#
+# Light enough for the login node: the LR panels read the cached score
+# histograms plotParticleNetScore.py leaves under templates/.../scores/, and
+# the template panels read shapes.root + fitDiagnostics directly.
+
+# 6a. ParticleNet LR_modified, SR and TTZ CR, at the three showcase points
+#     (MHc160_MA85, MHc130_MA90, MHc100_MA95) -> paper/{SR,TTZCR}/:
+python3 python/plotPaperLRModified.py --region all --masspoint all
+# The legend is drawn inside each panel, in two columns, with the signal
+# entry carrying the exact mass point. --standalone-legend instead publishes
+# it once as its own panel (legend.pdf / legend_nosignal.pdf).
+
+# 6b. Pre-fit / B-only / S+B mass templates, one panel per Run-period
+#     category ({Run2,Run3} x {SR1E2Mu,SR3Mu}) -> paper/templates/{mp}/:
+python3 python/plotPaperTemplates.py --masspoint MHc130_MA90 --method ParticleNet
+# --masspoint all sweeps every point with an All/Combined fitdiag, which
+# under interp-signal is all 572 Baseline seeds -- name the points you want.
+
+# 6c. B-only postfit mA summary for mHc160/ParticleNet, split into the three
+#     paper mA regions (<85, 85-95, >95) -> paper/Postfit/:
+python3 python/plotPaperPostfitSummary.py
+# Reads the fine-mass caches from Step 5f, so run that first. Legend is drawn
+# inside each panel (top-right, two columns) as in 6a, which pushes the mA
+# range and fit stage into the left-hand text block; --standalone-legend
+# restores the shared legend panel.

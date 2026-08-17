@@ -134,6 +134,17 @@ case "$STEP" in
             --method "$METHOD" --signal-source interp-signal \
             --seed "$SEED" --pull-fit both $EXTRA_ARGS
         ;;
+    postfit-cache)
+        # One group seed's fine-mass caches (all three channels). Per-seed
+        # independent, so the whole seed set runs in parallel ahead of the
+        # postfit-summary jobs, which then stitch straight from cache.
+        # MASSPOINT carries the mHc token, SEED the group seed.
+        python3 python/plotPostfitSummary.py \
+            --warm-cache --seed "$SEED" \
+            --mhc "${MASSPOINT#MHc}" --methods $METHOD \
+            --eras "$ERA" --channels Combined SR1E2Mu SR3Mu \
+            --signal-source interp-signal --fit-type both $EXTRA_ARGS
+        ;;
     postfit-summary)
         # MASSPOINT carries the mHc token (e.g. MHc160); one job per
         # (method, mHc) stitches the seeds' postfit spectra.

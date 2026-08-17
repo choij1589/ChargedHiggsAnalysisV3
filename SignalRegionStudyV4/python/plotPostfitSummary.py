@@ -24,6 +24,7 @@ from types import SimpleNamespace
 import ROOT
 
 import plotPostfitMass as pm
+from plotter import LumiInfoExact, EnergyInfo
 
 
 MASSPOINT_RE = re.compile(r"^MHc(?P<mhc>\d+)_MA(?P<ma>\d+(?:p\d+)?)$")
@@ -74,6 +75,15 @@ def parse_args():
                         help="Draw alternate 21:9 signal-region summary plots without method text or mass-ownership guide lines")
     parser.add_argument("--plot-only", action="store_true",
                         help="Require cached fine-mass hists from plotPostfitMass.py")
+    parser.add_argument("--warm-cache", action="store_true",
+                        help="Build the fine-mass caches for --seed and exit "
+                             "without plotting. Each seed's cache is "
+                             "independent, so this is the parallel unit: "
+                             "warm every seed on condor, then the summary "
+                             "runs from cache in seconds")
+    parser.add_argument("--seed", default=None,
+                        help="Single group seed for --warm-cache (a masspoint "
+                             "name, e.g. MHc160_MA90)")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--blind", action="store_true",
                         help="Asimov mode ({method}_blind segment); "
@@ -115,9 +125,14 @@ def fitdiagnostics_path(args, era, method, masspoint):
 
 
 def candidate_seeds(args, method, mhc):
-    """The fitdiag'd point set of one (method, mHc): interp-signal group
-    seeds (Baseline: the group seeds of the mc_points, deduped;
-    ParticleNet: the trained seeds), or the mc-signal masspoints list."""
+    """The fitdiag'd point set of one (method, mHc): every interp-signal
+    group seed of the study, or the mc-signal masspoints list.
+
+    interpFitDiag.sh runs at every group seed of grid.json / pnet_grid.json
+    (Baseline: 572 seeds over the seven studies), so the summary stitches
+    the whole mA range. Restricting Baseline to the seeds of the mc_points
+    -- 6 to 23 of 64 to 95 per study -- left the panel mostly empty.
+    """
     import srspaths
     import interpolation_config
     if args.signal_source == "mc-signal":
@@ -126,19 +141,11 @@ def candidate_seeds(args, method, mhc):
             (mp for mp in srspaths.masspoints_config()[key]
              if mp.startswith(f"MHc{mhc}_")),
             key=lambda mp: extract_mhc_ma(mp)[1])
-    if method == "ParticleNet":
-        cfg = srspaths.pnet_grid_config()["grids"][f"MHc{mhc}"]
-        seeds = [interpolation_config.masspoint_name(g["seed"], mhc)
-                 for g in cfg["groups"]]
-    else:
-        cfg = srspaths.grid_config()["grids"][f"MHc{mhc}"]
-        seeds = []
-        for mc in cfg["mc_points"]:
-            seed = interpolation_config.group_seed(
-                interpolation_config.masspoint_name(mc, mhc), method)
-            if seed not in seeds:
-                seeds.append(seed)
-    return sorted(seeds, key=lambda mp: extract_mhc_ma(mp)[1])
+    cfg = (srspaths.pnet_grid_config() if method == "ParticleNet"
+           else srspaths.grid_config())["grids"][f"MHc{mhc}"]
+    seeds = [interpolation_config.masspoint_name(g["seed"], mhc)
+             for g in cfg["groups"]]
+    return sorted(set(seeds), key=lambda mp: extract_mhc_ma(mp)[1])
 
 
 def discover_method_masspoints(args, era, method, mhc):
@@ -150,11 +157,27 @@ def discover_method_masspoints(args, era, method, mhc):
 
 
 def discover_masspoint_sources(args, era, method, mhc):
-    # V4 keeps the two interp arms separate (V3 mixed Baseline sources into
-    # the ParticleNet summary because PN only existed at trained points).
+    """Owning (masspoint, source_method) pairs of one panel.
+
+    As in V3: a ParticleNet panel is the UNION of both arms, so the
+    Baseline seeds fill the mA range outside the ParticleNet reach
+    (mA in [82.5, 97.5]) and ParticleNet wins wherever it exists -- here by
+    overwriting the dict, and in owner_index by SOURCE_METHOD_PRIORITY.
+    A Baseline panel stays pure Baseline.
+    """
+    if method != "ParticleNet":
+        return [
+            {"masspoint": masspoint, "source_method": method}
+            for masspoint in discover_method_masspoints(args, era, method, mhc)
+        ]
+
+    selected = {}
+    for source_method in ("Baseline", "ParticleNet"):
+        for masspoint in discover_method_masspoints(args, era, source_method, mhc):
+            selected[masspoint] = source_method
     return [
-        {"masspoint": masspoint, "source_method": method}
-        for masspoint in discover_method_masspoints(args, era, method, mhc)
+        {"masspoint": masspoint, "source_method": selected[masspoint]}
+        for masspoint in sorted(selected, key=lambda mp: extract_mhc_ma(mp)[1])
     ]
 
 
@@ -469,7 +492,9 @@ def collect_ownership(results, edges):
     for ibin in range(len(edges) - 1):
         center = 0.5 * (edges[ibin] + edges[ibin + 1])
         idx = owner_index(center, results)
-        owners.append(None if idx is None else results[idx]["masspoint"])
+        owners.append((None, None) if idx is None else
+                      (results[idx]["masspoint"],
+                       results[idx].get("source_method")))
 
     intervals = []
     if not owners:
@@ -482,14 +507,16 @@ def collect_ownership(results, edges):
         intervals.append({
             "start": start,
             "end": edges[idx],
-            "masspoint": current,
+            "masspoint": current[0],
+            "source_method": current[1],
         })
         start = edges[idx]
         current = owner
     intervals.append({
         "start": start,
         "end": edges[-1],
-        "masspoint": current,
+        "masspoint": current[0],
+        "source_method": current[1],
     })
     return intervals
 
@@ -584,13 +611,25 @@ def signal_hists_for(args, results, fit_type):
 
 
 def ownership_boundaries(intervals, x_range):
-    boundaries = set()
+    """x positions where the owning SOURCE METHOD changes.
+
+    Per-seed boundaries are not drawn: with every group seed stitched in
+    (64-95 per Baseline study) they were one dashed line every few GeV,
+    which is noise, and the seed a bin came from is already recorded in the
+    sidecar JSON. What is worth marking is where the panel switches arm --
+    so a Baseline panel gets no lines at all, and a ParticleNet panel gets
+    exactly the two edges of the ParticleNet window.
+    """
     x_min, x_max = x_range
+    boundaries = set()
+    previous = None
     for interval in intervals:
         if interval["masspoint"] is None:
             continue
-        boundaries.add(float(interval["start"]))
-        boundaries.add(float(interval["end"]))
+        source = interval.get("source_method")
+        if previous is not None and source != previous:
+            boundaries.add(float(interval["start"]))
+        previous = source
     return sorted(x for x in boundaries if x_min < x < x_max)
 
 
@@ -615,11 +654,18 @@ def draw_ownership_guides(canvas, intervals, x_range):
 
 
 def summary_header_text(era_scope):
+    """Luminosity header shared with plotLimits.py / plotLimits2D.py /
+    plotGoFPValues.py: un-rounded per-period luminosities, each period
+    quoted with its own energy, no "Run 2+3,"-style prefix and no rounded
+    200 fb^-1 total."""
     if era_scope == "All":
-        lumi = pm._LUMI_CONFIG["All"]["combined"]
-        e2 = pm._LUMI_CONFIG["Run2"]["energy_TeV"]
-        e3 = pm._LUMI_CONFIG["Run3"]["energy_TeV"]
-        return f"Run 2+3, {lumi:g} fb^{{#minus1}} ({e2:g}/{e3:g} TeV)"
+        return (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} "
+                f"({EnergyInfo['Run2']:g} TeV) + "
+                f"{LumiInfoExact['Run3']:g} fb^{{#minus1}} "
+                f"({EnergyInfo['Run3']:g} TeV)")
+    if era_scope in ("Run2", "Run3"):
+        return (f"{LumiInfoExact[era_scope]:g} fb^{{#minus1}} "
+                f"({EnergyInfo[era_scope]:g} TeV)")
     return pm._build_header_text(era_scope)
 
 
@@ -923,8 +969,10 @@ def process_target(args, era, channel, method, mhc, fit_types):
     os.makedirs(output_dir, exist_ok=True)
     tag = blinding_tag(args)
     style_tag = ".signal_region" if args.signal_region_style else ""
-    source_tag = "" if args.signal_source == "mc-signal" \
-        else f".{args.signal_source}"
+    # interp-signal is the production source, so it carries no token; the
+    # ad hoc mc-signal run is the one that is marked, which keeps the two
+    # from colliding while leaving the production names clean.
+    source_tag = ".mc-signal" if args.signal_source == "mc-signal" else ""
     prefix = output_dir / (
         f"postfit_summary.mHc{mhc}.{era}.{channel}.{method}{source_tag}")
 
@@ -947,6 +995,35 @@ def process_target(args, era, channel, method, mhc, fit_types):
     write_sidecar(f"{prefix}.{tag}{style_tag}.json", args, era, channel, method, mhc, results, edges)
 
 
+def warm_seed_cache(args, fit_types):
+    """Fill one seed's fine-mass caches, one per requested channel.
+
+    This is the expensive half of a summary (160 hists per seed/channel,
+    read out of the seed's fitDiagnostics shapes) and it is per-seed
+    independent: the cache lives under that seed's own
+    templates/{seed}/{method}/.../combine_output/fitdiag/cached/. Warming
+    every seed in parallel on condor turns a multi-hour serial stitch into
+    a short one.
+
+    The cache path carries the METHOD segment, so a seed that both arms
+    own needs one cache per arm -- the ParticleNet panel stitches its own
+    seeds from the ParticleNet cache and every other seed from the
+    Baseline one. Hence no early exit here.
+    """
+    for era in args.eras:
+        for channel in args.channels:
+            for method in args.methods:
+                path = fitdiagnostics_path(args, era, method, args.seed)
+                if not path.exists():
+                    logging.info("skip %s %s/%s/%s: no fitDiagnostics",
+                                 args.seed, era, channel, method)
+                    continue
+                load_one_masspoint(args, era, method, channel,
+                                   args.seed, fit_types)
+                logging.info("warmed %s %s/%s/%s",
+                             args.seed, era, channel, method)
+
+
 def main():
     args = parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO,
@@ -955,6 +1032,13 @@ def main():
     ROOT.gStyle.SetOptStat(0)
 
     fit_types = fit_types_from_arg(args.fit_type)
+
+    if args.warm_cache:
+        if not args.seed:
+            raise ValueError("--warm-cache requires --seed MASSPOINT")
+        warm_seed_cache(args, fit_types)
+        return
+
     for mhc in args.mhc:
         for method in args.methods:
             for era in args.eras:

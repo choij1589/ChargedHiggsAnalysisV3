@@ -140,10 +140,15 @@ _CHANNEL_LABELS = {
 }
 _channel_label_txt = _CHANNEL_LABELS[args.channel]
 
-# CMS label position: iPos=11 puts "CMS"/"Preliminary" inside the frame at top-left, matching
-# the paper figures. Kept for both modes -- with iPos=0 the out-of-frame "Preliminary" runs
-# into the luminosity string on the xsec plots, whose y-axis title is wider.
+# CMS label position: iPos=11 puts "CMS"/"Preliminary" inside the frame at top-left,
+# matching the paper figures and plotLimits2D.py. The luminosity then has the header line
+# to itself, so the split per-period string fits at full size.
 _iPos = 11
+
+# Information text, stacked under the in-frame CMS block.
+_INFO_X = 0.20
+_INFO_Y_CHANNEL = 0.76
+_INFO_Y_MHC = 0.71
 
 
 def _ymax_from(limits_dict):
@@ -204,7 +209,7 @@ if args.method == "Baseline":
         ch_label.SetNDC(True)
         ch_label.SetTextFont(42)
         ch_label.SetTextSize(0.04)
-        ch_label.DrawLatex(0.20, 0.76, _channel_label_txt)
+        ch_label.DrawLatex(_INFO_X, _INFO_Y_CHANNEL, _channel_label_txt)
 
         n_entries = len(graphs_compare)
         leg = CMS.cmsLeg(0.65, 0.90 - 0.05*n_entries, 0.90, 0.90, textSize=0.035)
@@ -238,8 +243,8 @@ if args.method == "Baseline":
         mhc_label_txt.SetNDC(True)
         mhc_label_txt.SetTextFont(42)
         mhc_label_txt.SetTextSize(0.04)
-        mhc_label_txt.DrawLatex(0.20, 0.71, f"m_{{H^{{+}}}} = {mhc_value} GeV")
-        mhc_label_txt.DrawLatex(0.20, 0.76, _channel_label_txt)
+        mhc_label_txt.DrawLatex(_INFO_X, _INFO_Y_MHC, f"m_{{H^{{+}}}} = {mhc_value} GeV")
+        mhc_label_txt.DrawLatex(_INFO_X, _INFO_Y_CHANNEL, _channel_label_txt)
 
         n_entries = 4 if not args.blind else 3
         leg = CMS.cmsLeg(0.65, 0.90 - 0.05*n_entries, 0.90, 0.90, textSize=0.035)
@@ -367,8 +372,8 @@ elif args.method == "ParticleNet":
     ch_label_pn.SetTextFont(42)
     ch_label_pn.SetTextSize(0.04)
     if args.mhc is not None:
-        ch_label_pn.DrawLatex(0.20, 0.71, f"m_{{H^{{+}}}} = {args.mhc} GeV")
-    ch_label_pn.DrawLatex(0.20, 0.76, _channel_label_txt)
+        ch_label_pn.DrawLatex(_INFO_X, _INFO_Y_MHC, f"m_{{H^{{+}}}} = {args.mhc} GeV")
+    ch_label_pn.DrawLatex(_INFO_X, _INFO_Y_CHANNEL, _channel_label_txt)
 
     # Legend
     n_entries = (4 if not args.blind else 3) + (1 if args.stack_baseline else 0)

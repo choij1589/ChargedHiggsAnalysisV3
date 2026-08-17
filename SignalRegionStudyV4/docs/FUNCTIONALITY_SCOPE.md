@@ -26,8 +26,9 @@ argument; it is not part of any production workflow.
   (`scripts/runFitDiagnostics.sh`, `python/plotPostfitMass.py`,
   `scripts/runPullPlots.sh`)
 - ParticleNet score plots (`python/plotParticleNetScore.py`)
-- Limit collection and plotting (`python/collectLimits.py`,
-  `python/plotLimits.py`)
+- Limit collection and plotting, in both `BR` and `xsec` units
+  (`python/collectLimits.py`, `python/plotLimits.py`, and the
+  (mA, mHc) map `python/plotLimits2D.py`)
 - interp-signal template production over the scan grid
   (`makeBinnedTemplates.py --signal-source interp-signal`,
   `python/param_signal.py`, `automize/interpTemplates.sh`)
@@ -44,6 +45,14 @@ argument; it is not part of any production workflow.
 - ParticleNet interp-signal score plots per seed
   (`plotParticleNetScore.py --signal-source interp-signal`,
   `automize/pnetScorePlots.sh`, `python/collectPnetScorePlots.py`)
+- Paper figures, ported from V3 2026-08-18 (`python/plotPaperLRModified.py`
+  — SR and TTZ CR LR_modified panels plus the standalone legend;
+  `python/plotPaperTemplates.py` — prefit/B-only/S+B mass templates per
+  Run-period category; `python/plotPaperPostfitSummary.py` — b-only mA
+  summary in the three paper mA regions). Wording, colours and legend
+  machinery are defined once in `plotPaperLRModified.py` and imported by
+  the other two, so the figure sets cannot drift apart. Output:
+  `results/plots/paper/`
 - Reproduction comparison against V3 (`python/compareToV3.py`,
   `scripts/compare_wrapper.sh`)
 - Methods: `Baseline` and `ParticleNet`
@@ -58,7 +67,6 @@ and docs make no reference to them:
 - HybridNew, signal injection / bias tests
 - Look-elsewhere-effect (LEE) toys
 - TTZ control-region templates and GoF
-- Paper-figure scripts
 - Cut-and-count (CnC) datacards
 - PTOptimized method
 - Interpolated signal templates (V3-style double-Gaussian central-only;

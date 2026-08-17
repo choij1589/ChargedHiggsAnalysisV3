@@ -67,7 +67,8 @@ if not WORKDIR:
 
 # Add path to Common/Tools for plotter imports
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
-from plotter import ComparisonCanvas, EnergyInfo, get_CoM_energy, LumiInfo
+from plotter import (ComparisonCanvas, EnergyInfo, get_CoM_energy, LumiInfo,
+                     LumiInfoExact)
 from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
 
@@ -100,6 +101,36 @@ def get_CoM_energy_extended(era):
     if era == "All":
         return f"{EnergyInfo['Run2']:g}/{EnergyInfo['Run3']:g}"
     return get_CoM_energy(era)
+
+
+def lumi_header(era):
+    """(run_label, CoM) reproducing the limit plots' luminosity header:
+    un-rounded per-period luminosities from LumiInfoExact, each run period
+    quoted with its own energy. Returns (None, None) for a single era, which
+    keeps the existing "<era>, <lumi> fb^-1" form.
+
+    cmsstyle renders "<run_label> (<CoM>)", so for the combined header only
+    the Run3 energy can live in CoM; the whole Run2 term is baked into the
+    label. Same construction as python/plotLimits.py.
+    """
+    if era == "All":
+        return (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} "
+                f"({EnergyInfo['Run2']:g} TeV) + "
+                f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}",
+                f"{EnergyInfo['Run3']:g} TeV")
+    if era in ("Run2", "Run3"):
+        return (f"{LumiInfoExact[era]:g} fb^{{#minus1}}",
+                f"{EnergyInfo[era]:g} TeV")
+    return (None, None)
+
+
+def masspoint_label(masspoint):
+    """(m_H+, m_A) = (130, 90) GeV — the physics values, not the directory
+    token. p-notation mA (MA87p5) renders as 87.5."""
+    mhc, ma = masspoint.split("_MA")
+    mhc = float(mhc.replace("MHc", ""))
+    ma = float(ma.replace("p", "."))
+    return f"(m_{{H^{{+}}}}, m_{{A}}) = ({mhc:g}, {ma:g}) GeV"
 
 
 era_list = expand_eras(args.era)
@@ -1244,10 +1275,11 @@ def build_canvas_config(era, region_label, x_title, plot_key, colors, com_energy
         config["chi2_test"] = True
         config["normalize_chi2"] = False
         config["chi2_posY"] = 0.58  # Lower position to avoid overlap with masspoint label
-    # "All" era: show "Run2 + Run3" label with combined luminosity.
-    # Uses plotter.LumiInfo["All"] (populated from Luminosity.json).
-    if era == "All":
-        config["run_label"] = f"Run2 + Run3, {LumiInfo['All']} fb^{{#minus1}}"
+    # Luminosity header, identical to the limit plots (see lumi_header).
+    run_label, com = lumi_header(era)
+    if run_label is not None:
+        config["run_label"] = run_label
+        config["CoM"] = com
     return config
 
 
@@ -1274,7 +1306,7 @@ def draw_signal_overlay(plotter, signal_hist, scale=6.0):
     primitives = current_pad.GetListOfPrimitives()
     for obj in primitives:
         if obj.InheritsFrom("TLegend"):
-            obj.AddEntry(signal_hist, f"signal (r={int(scale)})", "l")
+            obj.AddEntry(signal_hist, f"signal (#times{int(scale)})", "l")
             break
 
 
@@ -1427,7 +1459,7 @@ def draw_blind_plot(bkg_hists_with_errors, signal_hist, config, output_path, mas
         scale = 6.0
         signal_hist.Scale(scale)
         signal_hist.Draw("HIST SAME")
-        CMS.addToLegend(leg, (signal_hist, f"signal (r={int(scale)})", "l"))
+        CMS.addToLegend(leg, (signal_hist, f"signal (#times{int(scale)})", "l"))
 
     # Channel text (match ComparisonCanvas behaviour)
     if "channel" in config:
@@ -1439,7 +1471,8 @@ def draw_blind_plot(bkg_hists_with_errors, signal_hist, config, output_path, mas
                      size=config.get("channelSize", 0.05))
 
     # Masspoint label
-    CMS.drawText(f"{masspoint}", posX=0.2, posY=0.76, font=61, align=0, size=0.03)
+    CMS.drawText(masspoint_label(masspoint), posX=0.2, posY=0.76,
+                 font=42, align=0, size=0.03)
 
     canv.RedrawAxis()
     canv.SaveAs(output_path)
@@ -1474,7 +1507,8 @@ def draw_plot(data_hist, bkg_hists_with_errors, signal_hist, config, output_path
 
     # Draw additional text
     plotter.canv.cd()
-    CMS.drawText(f"{masspoint}", posX=0.2, posY=0.76, font=61, align=0, size=0.03)
+    CMS.drawText(masspoint_label(masspoint), posX=0.2, posY=0.76,
+                 font=42, align=0, size=0.03)
 
     # Save
     plotter.canv.SaveAs(output_path)

@@ -163,8 +163,16 @@ For the interp arms this runs per GROUP SEED (members share the seed's
 backgrounds bitwise) via `./automize/interpFitDiag.sh --all
 [--method ParticleNet]`; `plotPostfitMass.py --signal-source interp-signal`
 refills the parametric signal from the `param_signal` DCB sidecar.
-Stitched per-mHc panels: `python3 python/plotPostfitSummary.py` (V3 port)
-→ `results/plots/postfit_summary/`.
+Stitched per-mHc panels: `./automize/postfitSummary.sh --all` then
+`--all --method ParticleNet` → `results/plots/postfit_summary/`. The
+summary stitches EVERY group seed of the study (Baseline 64-95,
+ParticleNet those 3 on top); building a seed's fine-mass hists is the
+whole cost and is per-seed independent, so the DAG fans it out
+(`postfit-cache`, one node per seed, 4 GB) and the `postfit-summary` node
+(32 GB) then stitches from cache. Run Baseline FIRST — a ParticleNet
+panel reads the Baseline seeds' caches, and each arm warms only its own.
+The production `interp-signal` source carries no filename token (the ad
+hoc `mc-signal` run is the one tagged).
 
 ### 8. ParticleNet score plots
 
@@ -188,6 +196,33 @@ silently produces a partial JSON, so check the parsed/total count it
 reports. `--masspoint` + `--output` give a side-effect-free single-point
 collect.
 
+`plotLimits2D.py` draws the 2D map over the (mHc, mA) plane — mHc on x,
+mA on y, colour = the limit — as ONE VERTICAL COLUMN PER MEASURED mHc,
+each filled by linear interpolation along its own mA curve. Nothing is
+interpolated between columns, because the model does not interpolate in
+mHc; cells beyond a column's mA reach are left unpainted, which draws the
+kinematic boundary mA <= mHc - 5 and leaves the upper-left corner white
+for the information text. The colour range is FIXED per mode
+(`DEFAULT_ZRANGE`: BR 5e-7 to 1e-5, xsec its image under the same
+sigma_ttbar factor) so every map of the campaign is read on one scale;
+`--zrange ZMIN ZMAX` overrides it. `--method ParticleNet` stitches the
+ParticleNet arm into its mA window on the columns that have one (mHc =
+70, 85 stay Baseline) and dashes in the on-Z/off-Z window edges per
+column; `--quantity {exp0,obs}` picks expected or observed.
+`--interpolate-mhc` (filename token `.smooth`) instead hands the scan
+points to a `TGraph2D` and lets ROOT's Delaunay triangulation fill the
+plane: every column's top point lies on mA = mHc - 5, so the hull edge
+is that straight line and the staircase disappears. It is a rendering
+choice — the model still has no mHc interpolation — so both styles are
+produced and the column one stays the default.
+
+Both scripts take `--mode {BR,xsec}` (default `BR`) and the production
+carries both units: `BR` is `B_sig`, `xsec` is
+`sigma(pp->ttbar) x B_sig` in fb, i.e. the same limit times
+`sigma_ttbar(13 TeV) = 833.9 pb`. Each is collected from the Combine
+output in its own pass — never rescale one JSON into the other — and
+lands in `results/{json,plots}/{BR,xsec}/`. `doThis.sh` loops both modes.
+
 ## Batch Workflow (condor)
 
 ```bash
@@ -204,6 +239,25 @@ datacard → validate → asymptotic per target/channel; fitdiag/postfit/pulls
 on All/Combined only; plot_score for ParticleNet. Shared generation helpers
 live in `automize/dag_lib.sh`; mass-point arrays come from
 `automize/load_masspoints.sh` (name-keyed parsing).
+
+### 10. Paper figures
+
+Ported from V3 2026-08-18. Vector PDFs in the publication style, all
+three sharing one set of wording/colour/legend constants defined in
+`plotPaperLRModified.py` (the other two import them, so the figure sets
+cannot drift apart). Output root `results/plots/paper/`.
+
+```bash
+python3 python/plotPaperLRModified.py --region all --masspoint all
+python3 python/plotPaperTemplates.py --masspoint MHc130_MA90 --method ParticleNet
+python3 python/plotPaperPostfitSummary.py            # mHc160, ParticleNet, b-only
+```
+
+All three default to `--signal-source interp-signal` (the V4 production
+arm) and resolve every path through `srspaths`. The legend is published
+once as its own panel; `--keep-legends` puts it back inside each plot.
+`plotPaperPostfitSummary.py` reads the fine-mass caches written by the
+postfit-summary step, so run that first.
 
 ## Configuration
 

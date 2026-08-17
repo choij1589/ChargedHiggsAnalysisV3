@@ -14,6 +14,11 @@
 # Usage:
 #   ./automize/pnetScorePlots.sh --all [--dry-run]
 #   ./automize/pnetScorePlots.sh --mhc 115 [--group MHc115_MA90]
+#
+# --replot passes --skip-histogram to every node: the cached histograms.root
+# files are re-drawn without touching the score trees. That is the cheap pass
+# to run after a styling-only change (~30 s per node instead of the full
+# reprocessing).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,6 +28,7 @@ source "$SCRIPT_DIR/scripts/env.sh"
 MHC_LIST=()
 GROUP_SEED=""
 DRY_RUN=false
+REPLOT=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -30,11 +36,15 @@ while [[ $# -gt 0 ]]; do
         --all) MHC_LIST=(100 115 130 145 160); shift ;;
         --group) GROUP_SEED="$2"; shift 2 ;;
         --dry-run) DRY_RUN=true; shift ;;
+        --replot) REPLOT=true; shift ;;
         -h|--help) grep '^#' "$0" | head -16; exit 0 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 [[ ${#MHC_LIST[@]} -gt 0 ]] || { echo "ERROR: --mhc N or --all required"; exit 1; }
+
+EXTRA=""
+if $REPLOT; then EXTRA="--skip-histogram"; fi
 
 generate_dag() {
     local mhc=$1
@@ -83,7 +93,7 @@ EOF
                 period_nodes+=("$node")
                 {
                     echo "JOB $node jobs.sub"
-                    echo "VARS $node step=\"plot-score\" masspoint=\"$seed\" seed=\"$seed\" era=\"$era\" channel=\"$channel\" extra=\"\""
+                    echo "VARS $node step=\"plot-score\" masspoint=\"$seed\" seed=\"$seed\" era=\"$era\" channel=\"$channel\" extra=\"$EXTRA\""
                     echo "RETRY $node 1"
                 } >> "$dag_file"
                 n_nodes=$((n_nodes + 1))
@@ -94,7 +104,7 @@ EOF
             allch_nodes+=("$node")
             {
                 echo "JOB $node jobs.sub"
-                echo "VARS $node step=\"plot-score\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"$channel\" extra=\"\""
+                echo "VARS $node step=\"plot-score\" masspoint=\"$seed\" seed=\"$seed\" era=\"All\" channel=\"$channel\" extra=\"$EXTRA\""
                 echo "PARENT ${period_nodes[*]} CHILD $node"
                 echo "RETRY $node 1"
             } >> "$dag_file"
@@ -104,7 +114,7 @@ EOF
             node="score_${seed}_${era}_Combined"
             {
                 echo "JOB $node jobs.sub"
-                echo "VARS $node step=\"plot-score\" masspoint=\"$seed\" seed=\"$seed\" era=\"$era\" channel=\"Combined\" extra=\"\""
+                echo "VARS $node step=\"plot-score\" masspoint=\"$seed\" seed=\"$seed\" era=\"$era\" channel=\"Combined\" extra=\"$EXTRA\""
                 echo "PARENT ${period_nodes[*]} ${allch_nodes[*]} CHILD $node"
                 echo "RETRY $node 1"
             } >> "$dag_file"
