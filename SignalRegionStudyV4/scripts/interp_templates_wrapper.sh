@@ -6,7 +6,7 @@
 # validate/asymptotic jobs are JSON/histogram-level.
 #
 # Arguments: STEP MASSPOINT SEED ERA CHANNEL [EXTRA...]
-#   STEP: template | merge | datacard | validate | asymptotic
+#   STEP: template | merge | datacard | validate | asymptotic | significance
 #         | gof-data | gof-toys (EXTRA = toy seed) | gof-collect | impacts
 set -euo pipefail
 
@@ -85,6 +85,12 @@ case "$STEP" in
         ;;
     asymptotic)
         ./scripts/runAsymptotic.sh \
+            --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+            --method "$METHOD" --signal-source interp-signal \
+            --seed "$SEED" $EXTRA_ARGS
+        ;;
+    significance)
+        ./scripts/runSignificance.sh \
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
             --method "$METHOD" --signal-source interp-signal \
             --seed "$SEED" $EXTRA_ARGS

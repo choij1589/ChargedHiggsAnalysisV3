@@ -20,6 +20,8 @@ ones worth keeping are copied into the tracked results tree.
         pulls/nuisance_pulls[_filtered]_{fit}_{era}_{channel}.pdf
         mass/{prefit,postfit_b,...}_mass_{era_scope}_{channel_scope}.png
         scores/{era}_{channel}[_TTZ2E1Mu]_{plot}.png
+        limits.json                               (this point, per channel)
+        significance.json                         (this point, per channel)
 
 GoF runs at All x {SR1E2Mu, SR3Mu, Combined}; impacts, FitDiagnostics and
 the mass plots at All/Combined only — so the per-artifact channel lists
@@ -33,6 +35,7 @@ which is a different axis from the fitted category and is left untouched.
 """
 import argparse
 import glob
+import json
 import os
 import shutil
 
@@ -50,6 +53,8 @@ DEFAULT_POINTS = {
 GOF_CHANNELS = ["SR1E2Mu", "SR3Mu", "Combined"]
 FIT_CHANNELS = ["Combined"]
 SCORE_CHANNELS = ["SR1E2Mu", "SR3Mu", "Combined"]
+LIMIT_CHANNELS = ["SR1E2Mu", "SR3Mu", "Combined"]
+LIMIT_MODES = ["BR", "xsec"]
 
 IMPACT_PLOTS = ["impacts", "impacts_filtered", "impacts_filtered_summary"]
 # Written by runPullPlots.sh; the suffix is the --pull-fit mode it ran
@@ -169,6 +174,66 @@ def collect_scores(coll, masspoint, method, era, outroot, source):
                           f"{tag}_{name}.png")
 
 
+def collect_limits(coll, masspoint, method, era, outroot, source):
+    """This point's own limit, per channel and in both units, lifted out
+    of the campaign JSONs collectLimits.py already writes.
+
+    Taken from the collected JSON rather than re-read from the point's
+    Combine output so the bundle can never disagree with the published
+    limit curves — the same numbers, indexed by mass point instead of by
+    channel.  A missing entry means the collection has not been rerun
+    since this point was produced.
+    """
+    payload = {}
+    for mode in LIMIT_MODES:
+        for channel in LIMIT_CHANNELS:
+            path = srspaths.limits_json(era, channel, method, mode=mode,
+                                        source=source)
+            if not os.path.exists(path):
+                coll.missing.append(path)
+                continue
+            with open(path) as f:
+                limits = json.load(f)
+            if masspoint not in limits:
+                coll.missing.append(f"{path}::{masspoint}")
+                continue
+            payload.setdefault(mode, {})[channel] = limits[masspoint]
+    if not payload:
+        return
+    os.makedirs(outroot, exist_ok=True)
+    with open(os.path.join(outroot, "limits.json"), "w") as f:
+        json.dump({"masspoint": masspoint, "method": method, "era": era,
+                   "signal_source": source, "limits": payload}, f, indent=2)
+        f.write("\n")
+    coll.copied += 1
+
+
+def collect_significance(coll, masspoint, method, era, outroot, source):
+    """This point's observed local significance, per channel, lifted out
+    of the collectSignificance.py JSON for the same reason limits are
+    lifted out of the limit JSONs.  Uncapped Z (a deficit keeps its sign)
+    and the one-sided tail p; both LOCAL, no trials correction."""
+    source_infix = "" if source == "mc-signal" else f".{source}"
+    path = os.path.join(srspaths.module_dir(), "results", "json",
+                        f"significance.{era}{source_infix}.json")
+    if not os.path.exists(path):
+        coll.missing.append(path)
+        return
+    with open(path) as f:
+        record = json.load(f)
+    entry = record.get(method, {}).get(masspoint)
+    if not entry:
+        coll.missing.append(f"{path}::{method}/{masspoint}")
+        return
+    os.makedirs(outroot, exist_ok=True)
+    with open(os.path.join(outroot, "significance.json"), "w") as f:
+        json.dump({"masspoint": masspoint, "method": method, "era": era,
+                   "signal_source": source, "significance": entry},
+                  f, indent=2, sort_keys=True)
+        f.write("\n")
+    coll.copied += 1
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -209,6 +274,10 @@ def main():
                               args.signal_source)
                 collect_mass(coll, masspoint, method, era, outroot,
                              args.signal_source)
+                collect_limits(coll, masspoint, method, era, outroot,
+                               args.signal_source)
+                collect_significance(coll, masspoint, method, era, outroot,
+                                     args.signal_source)
                 if method == "ParticleNet":
                     collect_scores(coll, masspoint, method, era, outroot,
                                    args.signal_source)

@@ -47,9 +47,17 @@ argument; it is not part of any production workflow.
   `automize/pnetScorePlots.sh`, `python/collectPnetScorePlots.py`)
 - Template-point artifact bundle (`python/collectTemplatePlots.py`) —
   promotes GoF, impacts (full/filtered/summary), nuisance pulls
-  (full/filtered), prefit/postfit mass plots and the ParticleNet score
-  panels of the curated representative mass points out of the gitignored
-  template dirs into `results/templates/{method}/{masspoint}/`
+  (full/filtered), prefit/postfit mass plots, the ParticleNet score
+  panels and the point's per-channel limits of the curated representative
+  mass points out of the gitignored template dirs into
+  `results/templates/{method}/{masspoint}/`
+- Per-channel limit plots: `plotLimits.py` / `plotLimits2D.py` are run for
+  `SR1E2Mu` and `SR3Mu` as well as `Combined`, each reading its own
+  channel's collected JSON
+- Observed local significance on selected points
+  (`scripts/runSignificance.sh`, `automize/significance.sh`,
+  `python/collectSignificance.py`) — uncapped `combine -M Significance`,
+  All × 3 channels, collected into `results/json/significance.*.json`
 - Paper figures, ported from V3 2026-08-18 (`python/plotPaperLRModified.py`
   — SR and TTZ CR LR_modified panels plus the standalone legend;
   `python/plotPaperTemplates.py` — prefit/B-only/S+B mass templates per

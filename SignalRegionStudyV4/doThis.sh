@@ -84,23 +84,35 @@ for mode in BR xsec; do
         python3 python/collectLimits.py --era All --channel $ch --method Baseline \
             --signal-source interp-signal --mode $mode
     done
-    for mhc in 70 85 100 115 130 145 160; do
-        python3 python/plotLimits.py --era All --method Baseline \
-            --signal-source interp-signal --mode $mode --mhc $mhc
-    done
-    python3 python/plotLimits.py --era All --method Baseline \
-        --signal-source interp-signal --mode $mode --compare-mhc
-    # 2D map over the (m_H+, m_A) plane: one column per measured m_H+, never
-    # interpolated between them (the model interpolates in m_A alone).
-    for q in exp0 obs; do
-        python3 python/plotLimits2D.py --era All --method Baseline \
-            --signal-source interp-signal --mode $mode --quantity $q
-        # ...and the same map with m_H+ interpolated too (Delaunay over the
-        # scan points), which trades the staircase for the straight
-        # kinematic edge m_A = m_H+ - 5. Rendering choice, not a prediction.
-        python3 python/plotLimits2D.py --era All --method Baseline \
-            --signal-source interp-signal --mode $mode --quantity $q \
-            --interpolate-mhc
+    # Every plot is drawn per channel as well as for the combination: the
+    # single-channel JSONs are collected above anyway, and the e-mu-mu /
+    # mu-mu-mu curves are what shows which final state drives the
+    # combination. --channel only picks the input JSON and the in-plot
+    # label; Combined carries no filename token, the others do.
+    for ch in Combined SR1E2Mu SR3Mu; do
+        for mhc in 70 85 100 115 130 145 160; do
+            python3 python/plotLimits.py --era All --channel $ch --method Baseline \
+                --signal-source interp-signal --mode $mode --mhc $mhc
+        done
+        python3 python/plotLimits.py --era All --channel $ch --method Baseline \
+            --signal-source interp-signal --mode $mode --compare-mhc
+        # 2D map over the (m_H+, m_A) plane: one column per measured m_H+,
+        # never interpolated between them (the model interpolates in m_A
+        # alone). The colour scale is the mode's fixed DEFAULT_ZRANGE for
+        # every channel, so the three maps are read against each other; the
+        # single channels are weaker and a handful of their cells (<1%) sit
+        # above the top of the scale.
+        for q in exp0 obs; do
+            python3 python/plotLimits2D.py --era All --channel $ch --method Baseline \
+                --signal-source interp-signal --mode $mode --quantity $q
+            # ...and the same map with m_H+ interpolated too (Delaunay over
+            # the scan points), which trades the staircase for the straight
+            # kinematic edge m_A = m_H+ - 5. Rendering choice, not a
+            # prediction.
+            python3 python/plotLimits2D.py --era All --channel $ch --method Baseline \
+                --signal-source interp-signal --mode $mode --quantity $q \
+                --interpolate-mhc
+        done
     done
 done
 
@@ -190,20 +202,25 @@ for mode in BR xsec; do
         python3 python/collectLimits.py --era All --channel $ch --method ParticleNet \
             --signal-source interp-signal --mode $mode
     done
-    for mhc in 100 115 130 145 160; do
-        python3 python/plotLimits.py --era All --method ParticleNet \
-            --signal-source interp-signal --mode $mode --mhc $mhc
-    done
-    # 2D map with the ParticleNet arm stitched into its m_A window on the
-    # five trained columns (m_H+ = 70, 85 stay Baseline), window edges
-    # dashed in. Same fixed colour scale as the Baseline map above, so the
-    # two can be laid side by side.
-    for q in exp0 obs; do
-        python3 python/plotLimits2D.py --era All --method ParticleNet \
-            --signal-source interp-signal --mode $mode --quantity $q
-        python3 python/plotLimits2D.py --era All --method ParticleNet \
-            --signal-source interp-signal --mode $mode --quantity $q \
-            --interpolate-mhc
+    # Per channel as well as combined, as in Step 2. Both JSONs are read
+    # with the SAME channel, so a single-channel panel stitches that
+    # channel's ParticleNet window onto that channel's Baseline scan.
+    for ch in Combined SR1E2Mu SR3Mu; do
+        for mhc in 100 115 130 145 160; do
+            python3 python/plotLimits.py --era All --channel $ch --method ParticleNet \
+                --signal-source interp-signal --mode $mode --mhc $mhc
+        done
+        # 2D map with the ParticleNet arm stitched into its m_A window on
+        # the five trained columns (m_H+ = 70, 85 stay Baseline), window
+        # edges dashed in. Same fixed colour scale as the Baseline map
+        # above, so the two can be laid side by side.
+        for q in exp0 obs; do
+            python3 python/plotLimits2D.py --era All --channel $ch --method ParticleNet \
+                --signal-source interp-signal --mode $mode --quantity $q
+            python3 python/plotLimits2D.py --era All --channel $ch --method ParticleNet \
+                --signal-source interp-signal --mode $mode --quantity $q \
+                --interpolate-mhc
+        done
     done
 done
 
@@ -287,8 +304,33 @@ python3 python/plotPaperPostfitSummary.py
 # restores the shared legend panel.
 
 # ---------------------------------------------------------------------------
-# Step 7: template-point artifact bundle
+# Step 7: observed significance + template-point artifact bundle
 # ---------------------------------------------------------------------------
+# 7a. Observed local significance at the template points, plus whatever the
+#     obs/exp sweep singles out. Not a scan step: the fit is cheap but the
+#     point list is a judgement call, so it is explicit. One node per
+#     (point, channel), All x 3 channels.
+#
+# Run UNCAPPED (--uncapped 1 --rMin -5, frozen in scripts/runSignificance.sh):
+# the capped default floors a downward fluctuation at Z = 0, which would
+# report every deficit as the same "0". Uncapped, a deficit keeps its sign
+# and the two agree wherever Z > 0.
+SIG_POINTS="--point Baseline:MHc145_MA17p5 --point Baseline:MHc160_MA17p5 \
+            --point Baseline:MHc115_MA18   --point Baseline:MHc85_MA23p4 \
+            --point Baseline:MHc160_MA39   --point Baseline:MHc100_MA44 \
+            --point ParticleNet:MHc130_MA82p5 --point ParticleNet:MHc160_MA97p5"
+./automize/significance.sh --template-points $SIG_POINTS
+# ...then collect into results/json/significance.All.interp-signal.json.
+# The collector MERGES into an existing file, so a later run on a different
+# point list adds to it instead of dropping what is already there.
+python3 python/collectSignificance.py --template-points $SIG_POINTS
+# The eight extra points are the extremes of the obs/exp sweep over the scan
+# (max/min observed-over-expected per arm and channel, 2026-08-18). Full
+# record incl. method, GoF cross-check and trials caveat: docs/SIGNIFICANCE.md.
+# Re-derive the list before reusing it -- the extremes are a property of the
+# data, not of the code.
+
+# 7b. The bundle itself.
 # The per-mass-point fit diagnostics of the campaign live in 572 gitignored
 # template dirs. This promotes the curated TEMPLATE POINTS -- one bundle per
 # arm corner -- into the tracked tree, the same way collectPnetScorePlots.py
@@ -299,8 +341,12 @@ python3 python/plotPaperPostfitSummary.py
 #
 # Per point: GoF (All x 3 channels), impacts full/filtered/summary, nuisance
 # pulls full/filtered, the prefit / postfit_b / postfit_s / prefit-vs-postfit
-# mass plots, and -- ParticleNet only -- the score panels including the
-# TTZ2E1Mu CR. ~16 MB, 512 files -> results/templates/{method}/{masspoint}/.
+# mass plots, -- ParticleNet only -- the score panels including the TTZ2E1Mu
+# CR, limits.json (that point's limit per channel, both units, read out of
+# the Step 2 / 5c campaign JSONs -- so run those first) and
+# significance.json (from 7a). Neither number is re-read from Combine here,
+# so the bundle can never disagree with the published values.
+# ~16 MB, 526 files -> results/templates/{method}/{masspoint}/.
 python3 python/collectTemplatePlots.py
 # --point METHOD:MASSPOINT (repeatable) collects a different set;
 # --eras adds Run2/Run3 (only the score plots exist there).

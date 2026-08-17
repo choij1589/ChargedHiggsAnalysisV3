@@ -151,6 +151,28 @@ Frozen Combine command: `combine -M AsymptoticLimits datacard.txt
 -n .{mp}.{method} -m 120 --rAbsAcc 0.0001 --rRelAcc 0.01`.
 Output: `combine_output/asymptotic/higgsCombine.{mp}.{method}.AsymptoticLimits.mH120.root`.
 
+**Observed significance** is a follow-up on the same datacards, not a scan
+step — the fit is cheap but the point list is a judgement call, so it is
+always explicit:
+
+```bash
+./automize/significance.sh --template-points --point Baseline:MHc160_MA17p5
+python3 python/collectSignificance.py --template-points --point Baseline:MHc160_MA17p5
+```
+
+Frozen Combine command: `combine -M Significance datacard.txt
+-n .{mp}.{method} -m 120 --uncapped 1 --rMin -5`. **Uncapped** is the
+point: the capped default floors a downward fluctuation at Z = 0, which
+would report every deficit as the same "0"; uncapped, a deficit keeps its
+sign and the two agree wherever Z > 0. One node per (point, channel) at
+All × 3 channels; `collectSignificance.py` merges into
+`results/json/significance.{era}.{source}.json`, so a later run on
+different points adds to it rather than replacing it. Z and its one-sided
+p are **local** — no look-elsewhere correction, and on the 0.5 GeV scan
+lattice the trials factor is large. The measured excesses and deficits,
+the ranking method behind the point list, and the GoF cross-check are
+recorded in `docs/SIGNIFICANCE.md`.
+
 ### 7. FitDiagnostics, postfit mass plots, pulls
 
 Run for `All/Combined` in `--mode all` batch runs.
@@ -197,6 +219,17 @@ python3 python/plotLimits.py --era All --method Baseline --mhc 130
 silently produces a partial JSON, so check the parsed/total count it
 reports. `--masspoint` + `--output` give a side-effect-free single-point
 collect.
+
+Everything is produced **per channel as well as combined**: both plotters
+take `--channel {Combined,SR1E2Mu,SR3Mu}`, which selects the input JSON
+and the in-plot final-state label. `Combined` carries no filename token,
+`SR1E2Mu`/`SR3Mu` insert one after the era
+(`limit.All.SR3Mu.Asymptotic....`). A single-channel ParticleNet panel
+reads the Baseline JSON of the SAME channel for the off-window regions,
+so the arms are never mixed across channels. The 2D colour scale stays
+the mode's fixed `DEFAULT_ZRANGE` for every channel so the three maps are
+read against each other; the single channels are weaker and <1% of their
+cells sit above the top of the scale.
 
 `plotLimits2D.py` draws the 2D map over the (mHc, mA) plane — mHc on x,
 mA on y, colour = the limit — as ONE VERTICAL COLUMN PER MEASURED mHc,
@@ -278,7 +311,11 @@ ParticleNet `MHc160_MA85, MHc130_MA90, MHc100_MA95` (all seven are group
 seeds, which is where GoF/impacts/fitdiag run). Per point: GoF at All ×
 3 channels, impacts full/filtered/summary, nuisance pulls full/filtered,
 the prefit / postfit_b / postfit_s / prefit-vs-postfit mass plots, and —
-ParticleNet only — the score panels incl. the TTZ2E1Mu CR. `--point
+ParticleNet only — the score panels incl. the TTZ2E1Mu CR. Plus
+`limits.json` and `significance.json`: that point's own limit (per
+channel, both units) and observed local significance, lifted out of the
+campaign JSONs rather than re-read from Combine, so the bundle can never
+disagree with the published values. `--point
 METHOD:MASSPOINT` (repeatable) collects a different set; the script
 exits 1 listing every missing source, so a partial campaign cannot pass
 silently.
