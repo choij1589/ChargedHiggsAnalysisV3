@@ -44,6 +44,8 @@ samples/{era}/{channel}/{masspoint}/         ParticleNet per-masspoint dirs (sco
                                              NoHistMode skims; incl. TTZ2E1Mu)
 templates/{masspoint}/{method}/{era}/{channel}/
 results/json/{BR,xsec}/{era}/limits.{era}[.{channel}].Asymptotic.{method}.json
+results/templates/{method}/{masspoint}/      promoted diagnostics of the curated template
+                                             points: gof/ impacts/ pulls/ mass/ scores/
 fits/MHc{X}/                                 mA-interpolation fit artifacts (dcb_fits, polynomials,
                                              yield model, shape_deltas, validation plots); global
                                              surface panels in fits/{params,yield}/
@@ -254,10 +256,32 @@ python3 python/plotPaperPostfitSummary.py            # mHc160, ParticleNet, b-on
 ```
 
 All three default to `--signal-source interp-signal` (the V4 production
-arm) and resolve every path through `srspaths`. The legend is published
-once as its own panel; `--keep-legends` puts it back inside each plot.
-`plotPaperPostfitSummary.py` reads the fine-mass caches written by the
-postfit-summary step, so run that first.
+arm) and resolve every path through `srspaths`. The legend is drawn
+inside each panel, in two columns, with the signal entry carrying the
+exact mass point; `--standalone-legend` instead publishes it once as its
+own panel. `plotPaperPostfitSummary.py` reads the fine-mass caches
+written by the postfit-summary step, so run that first.
+
+### 11. Template-point artifact bundle
+
+The per-mass-point fit diagnostics live in gitignored template dirs, so
+the curated **template points** — one bundle per corner of each arm's
+reach — are promoted into the tracked tree, the same rule
+`collectPnetScorePlots.py` applies to the LR panels:
+
+```bash
+python3 python/collectTemplatePlots.py          # -> results/templates/
+```
+
+Baseline `MHc70_MA15, MHc100_MA60, MHc130_MA90, MHc160_MA155`;
+ParticleNet `MHc160_MA85, MHc130_MA90, MHc100_MA95` (all seven are group
+seeds, which is where GoF/impacts/fitdiag run). Per point: GoF at All ×
+3 channels, impacts full/filtered/summary, nuisance pulls full/filtered,
+the prefit / postfit_b / postfit_s / prefit-vs-postfit mass plots, and —
+ParticleNet only — the score panels incl. the TTZ2E1Mu CR. `--point
+METHOD:MASSPOINT` (repeatable) collects a different set; the script
+exits 1 listing every missing source, so a partial campaign cannot pass
+silently.
 
 ## Configuration
 

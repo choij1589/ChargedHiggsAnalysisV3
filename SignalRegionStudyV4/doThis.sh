@@ -285,3 +285,23 @@ python3 python/plotPaperPostfitSummary.py
 # inside each panel (top-right, two columns) as in 6a, which pushes the mA
 # range and fit stage into the left-hand text block; --standalone-legend
 # restores the shared legend panel.
+
+# ---------------------------------------------------------------------------
+# Step 7: template-point artifact bundle
+# ---------------------------------------------------------------------------
+# The per-mass-point fit diagnostics of the campaign live in 572 gitignored
+# template dirs. This promotes the curated TEMPLATE POINTS -- one bundle per
+# arm corner -- into the tracked tree, the same way collectPnetScorePlots.py
+# promotes the LR panels:
+#
+#   Baseline:    MHc70_MA15, MHc100_MA60, MHc130_MA90, MHc160_MA155
+#   ParticleNet: MHc160_MA85, MHc130_MA90, MHc100_MA95
+#
+# Per point: GoF (All x 3 channels), impacts full/filtered/summary, nuisance
+# pulls full/filtered, the prefit / postfit_b / postfit_s / prefit-vs-postfit
+# mass plots, and -- ParticleNet only -- the score panels including the
+# TTZ2E1Mu CR. ~16 MB, 512 files -> results/templates/{method}/{masspoint}/.
+python3 python/collectTemplatePlots.py
+# --point METHOD:MASSPOINT (repeatable) collects a different set;
+# --eras adds Run2/Run3 (only the score plots exist there).
+# Exits 1 listing anything missing, so a partial campaign cannot pass silently.

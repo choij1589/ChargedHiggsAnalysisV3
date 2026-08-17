@@ -45,6 +45,11 @@ argument; it is not part of any production workflow.
 - ParticleNet interp-signal score plots per seed
   (`plotParticleNetScore.py --signal-source interp-signal`,
   `automize/pnetScorePlots.sh`, `python/collectPnetScorePlots.py`)
+- Template-point artifact bundle (`python/collectTemplatePlots.py`) —
+  promotes GoF, impacts (full/filtered/summary), nuisance pulls
+  (full/filtered), prefit/postfit mass plots and the ParticleNet score
+  panels of the curated representative mass points out of the gitignored
+  template dirs into `results/templates/{method}/{masspoint}/`
 - Paper figures, ported from V3 2026-08-18 (`python/plotPaperLRModified.py`
   — SR and TTZ CR LR_modified panels plus the standalone legend;
   `python/plotPaperTemplates.py` — prefit/B-only/S+B mass templates per
