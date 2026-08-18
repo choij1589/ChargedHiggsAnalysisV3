@@ -351,3 +351,20 @@ python3 python/collectTemplatePlots.py
 # --point METHOD:MASSPOINT (repeatable) collects a different set;
 # --eras adds Run2/Run3 (only the score plots exist there).
 # Exits 1 listing anything missing, so a partial campaign cannot pass silently.
+
+# 7c. Look-elsewhere effect: the global significance of the scan maxima.
+# Unlike 7a this IS a scan step -- the trials correction counts how often the
+# observed Z(mA) curve crosses a level, so it needs Z at every scan point.
+# 7401 Baseline + 450 ParticleNet nodes, one DAG per (arm, mHc), ~33 s each.
+./automize/significance.sh --grid          # 2467 points x 3 channels
+./automize/significance.sh --pnet-grid     #  150 points x 3 channels
+python3 python/collectSignificance.py --grid --pnet-grid
+# Then the trials estimate itself (no jobs). Gross-Vitells, NOT V3's toy
+# campaign: V4 samples mA at the resolution, so the number of scan points is
+# not a trials count and the toy recipe would cost ~68,000 CPU-h. Scope is
+# frozen at the mA scan ALONE, per (arm, channel, mHc) column.
+python3 python/estimateLEE.py              # -> results/json/lee.All.interp-signal.json
+python3 python/plotLEE.py --all            # -> results/plots/lee/
+# --statistic bandpull runs the whole thing off the limit JSONs instead, with
+# no Significance fits at all; it is the cross-check, ~0.3 sigma noisier.
+# Method, results and caveats: docs/LEE.md.

@@ -11,10 +11,11 @@ inputs are the same `results/json/{BR,xsec}/All/limits.*.json` the
 published curves are drawn from — nothing here is re-derived from Combine
 by hand.
 
-**Everything below is LOCAL.** No look-elsewhere correction is applied
-anywhere in this document, and the trials factor on this scan is large
-(see [Trials](#trials-what-these-numbers-are-not)). None of these are
-claims of a signal.
+**Every Z below is LOCAL.** The trials factor on this scan is large
+(≈200 for a Baseline column), and the global significances live in
+**`docs/LEE.md`**, not here — the largest local excess, +3.75, is +2.09
+global. See [Trials](#trials-what-these-numbers-are-not). None of these
+are claims of a signal.
 
 ## Method
 
@@ -89,15 +90,36 @@ single point is the largest by all of them — the biggest single-channel
 departure and the biggest combined one are different features in
 different arms — which is why this is a table and not a headline number.
 
-| measure | arm | point | channel | obs/exp | Z (local) |
+Since 2026-08-18 the significance is fitted at **every** scan point
+(7851 (point, channel) fits; `automize/significance.sh --grid`, run for
+the look-elsewhere estimate of `docs/LEE.md`), so the extremes below are
+now read off the full scan rather than off the sweep. Every one of them
+moved: the sweep's ranked points are close to, but not at, the true
+maxima, and the neighbouring lattice points that were never fitted are
+larger. The "sweep" column is what this document reported before the
+scan existed, kept because the sweep is still how a *reader* re-derives
+candidates cheaply.
+
+| measure | arm | point | channel | Z (local) | sweep-era value |
 |---|---|---|---|---|---|
-| largest in any single channel | Baseline | `MHc145_MA17p5` | SR1E2Mu | 3.03× | **+3.02** |
-| largest in Combined | ParticleNet | `MHc130_MA82p5` | Combined | 2.58× | **+2.79** |
-| largest Baseline Combined | Baseline | `MHc115_MA18` | Combined | 2.40× | +2.41 |
-| largest in SR3Mu | Baseline | `MHc85_MA23p4` | SR3Mu | 2.31× | +2.70 |
-| largest deficit, Combined | Baseline | `MHc160_MA39` | Combined | 0.47× | **−2.33** |
-| largest deficit, single channel | Baseline | `MHc160_MA39` | SR3Mu | 0.48× | −2.61 |
-| largest deficit, ParticleNet | ParticleNet | `MHc160_MA97p5` | Combined | 0.52× | −2.21 |
+| largest in any single channel | Baseline | `MHc145_MA17p7` | SR1E2Mu | **+3.75** | +3.02 at `MA17p5` |
+| largest deficit, any channel | Baseline | `MHc100_MA44p5` | SR1E2Mu | **−3.70** | −2.61 at `MHc160_MA39` |
+| largest Baseline Combined | Baseline | `MHc145_MA17p7` | Combined | **+2.93** | +2.41 at `MHc115_MA18` |
+| largest deficit, Baseline Combined | Baseline | `MHc160_MA39p5` | Combined | **−2.85** | −2.33 at `MA39` |
+| largest in SR3Mu | Baseline | `MHc130_MA23p4` | SR3Mu | +2.78 | +2.70 at `MHc85_MA23p4` |
+| largest ParticleNet, any channel | ParticleNet | `MHc115_MA82p5` | SR3Mu | **+2.92** | +2.79 (Combined) |
+| largest ParticleNet Combined | ParticleNet | `MHc130_MA82p5` | Combined | +2.79 | +2.79 |
+| largest deficit, ParticleNet | ParticleNet | `MHc160_MA97p5` | Combined | −2.21 | −2.21 |
+
+Excesses and deficits moved by comparable amounts, which is the
+signature of a trials-dominated scan rather than of a signal: sampling a
+Gaussian field more finely raises the observed maximum *and* deepens the
+observed minimum. **The global significances are in `docs/LEE.md`**; the
+largest, +3.75 local, is +2.09 global over its own mA scan.
+
+The per-point discussion below is unchanged and still quotes the
+originally fitted points — the features are the same, and those points
+carry the GoF, impacts and postfit diagnostics.
 
 Three distinct excess features appear, in different channels and at
 different mA — they are not one effect seen three ways:
@@ -117,7 +139,7 @@ studies.
 
 | point | Combined | SR1E2Mu | SR3Mu |
 |---|---|---|---|
-| `MHc145_MA17p5` | 2.14×, Z = +2.25 (p = 0.012) | 3.03×, **Z = +3.02** (p = 0.001) | 0.82×, Z = −0.76 |
+| `MHc145_MA17p5` | 2.14×, Z = +2.25 (p = 0.012) | 3.03×, **Z = +3.02** (p = 0.0013) | 0.82×, Z = −0.76 |
 | `MHc160_MA17p5` | 2.16×, Z = +2.23 (p = 0.013) | 2.96×, Z = +2.85 (p = 0.002) | 0.91×, Z = −0.44 |
 | `MHc115_MA18` | 2.40×, Z = +2.41 (p = 0.008) | 2.78×, Z = +2.61 (p = 0.005) | 1.41×, Z = +0.68 |
 
@@ -160,9 +182,10 @@ A secondary, much weaker feature sits at mA ≈ 62–64 for mHc ≥ 100.
   constrained exactly where the excess is.
 - **It is a handful of events.** At mA ≈ 18 the fitted DCB width is
   σ ≈ 0.15–0.22 GeV per category (`fits/MHc160/dcb_fits.json`), so the
-  ~1 GeV window is about ±3σ, and the 0.5 GeV scan lattice puts ~3 points
-  per σ. The many scan points in the window are the same events seen
-  repeatedly.
+  ~1 GeV window is about ±3σ, and the scan lattice there — 0.1 GeV, the
+  [15, 30) band of `configs/grid.json`, not the 0.5 GeV of the [60, 100)
+  band — puts ~1.5–2 points per σ, i.e. about ten scan points across the
+  window. They are the same events seen repeatedly.
 
 ## The other two excess features
 
@@ -272,29 +295,38 @@ the collected JSON so a bundle can never disagree with this document.
 
 ## Trials: what these numbers are not
 
-Z = +3.02 is p = 0.0013 **at one pre-selected mass point**. It was not
-pre-selected: it is the maximum of a sweep over 2467 Baseline scan points
-in three channels. Three facts bound how much that matters:
+Every Z in this document is **local**: the p-value of that point taken on
+its own. None of them was pre-selected — they are the extremes of a scan
+over 2467 Baseline points and 150 ParticleNet points in three channels,
+so a trials correction is mandatory before any of them means anything.
 
-1. The scan lattice is 0.5 GeV while the signal resolution at low mA is
-   σ ≈ 0.15–0.22 GeV, so neighbouring points are strongly correlated —
-   the effective number of independent mA cells is far below 2467, but it
-   is not one either.
-2. The seven mHc columns share one dataset and, at fixed mA, nearly the
-   same signal shape, so the seven "independent" maxima at mA ≈ 18 are
-   one observation, not seven.
-3. Two arms and three channels were scanned and the reported maxima are
-   over all of them. The arms are not independent either: ParticleNet is
-   a score-cut subset of the same events the Baseline arm uses, over the
-   sub-range mA ∈ [82.5, 97.5].
+That correction is now done, asymptotically, and lives in
+**`docs/LEE.md`**. The headline: the largest local excess, +3.75 in eμμ
+at mA = 17.7, is **+2.09 global** (p = 0.018) over the mA scan of its own
+mHc column and channel; the ParticleNet maximum, +2.92, is **+1.93
+global** over its own 15 GeV window. Trials factors are ≈200 for a
+Baseline column and ≈15 for a ParticleNet one.
 
-Converting this to a global p-value needs a proper look-elsewhere
-treatment (toy-based, or the standard asymptotic trials estimate over the
-scanned range) and **has not been done**. Until it is, the honest
-statement is: the largest local departures in the scan are ~3σ — eμμ at
-mA ≈ 17.5 in the region where the interpolation is least constrained, and
-the ParticleNet combination at the low edge of its window — and the
-analysis has no global significance.
+Two things about that number are worth keeping in mind here:
+
+1. **It corrects for the mA scan only.** The seven mHc columns and the
+   three channels were also scanned, and the maxima quoted above are over
+   all of them. The columns are +0.84 to +1.00 correlated (they share one
+   dataset and nearly the same signal shape at fixed mA), the two
+   exclusive channels are uncorrelated (−0.13), so the extra multiplicity
+   is ≈2–3, not 21 — but it is not 1. Folding it in costs a further
+   ≈0.3–0.4σ. `docs/LEE.md` §3 states the scope decision and the bound.
+2. **Counting scan points is not the trials factor.** The lattice is set
+   at the mass resolution by construction (step/σ_eff = 0.86–0.89), so
+   the point count is a property of the lattice, not of the search; the
+   correction is built from the upcrossing rate of the scan instead.
+   This is why V3's toy campaign was not ported — see `docs/LEE.md` §1.
+
+The honest summary is unchanged in spirit: the largest departures in the
+scan are ~3.7σ local and ~2σ global, in the eμμ channel at mA ≈ 17.7
+where the interpolation is least constrained, with a deficit of almost
+the same size (−3.70) elsewhere in the same channel. Nothing here is a
+signal claim.
 
 ## Reproducing
 
@@ -312,6 +344,14 @@ python3 python/collectSignificance.py --template-points $POINTS
 python3 python/collectTemplatePlots.py
 ```
 
-Related: `docs/interpolation/WORKFLOW.md` (the low-mA grid limitation),
+The sweep in step 1 is now only a cheap way to find candidates: since
+2026-08-18 the significance exists at every scan point, so the extremes
+are read straight off it (`--grid`, see `docs/LEE.md` §7) and the sweep's
+ranking is a cross-check rather than the source. Steps 2-3 remain the way
+a QUOTED point gets its diagnostics: only the explicitly named points
+carry GoF, impacts, postfit plots and a template bundle.
+
+Related: `docs/LEE.md` (global significance / trials),
+`docs/interpolation/WORKFLOW.md` (the low-mA grid limitation),
 `docs/interpolation/UNCERTAINTY.md` (interpolation nuisances),
 `docs/FUNCTIONALITY_SCOPE.md` (what is and is not in V4).
