@@ -294,6 +294,15 @@ def pnet_closure_dir(mhc=None):
     return os.path.join(base, _mhc_dirname(mhc)) if mhc is not None else base
 
 
+def pnet_closure_plots_dir(kind):
+    """Plots of ParticleNet-layer closure products that span every study:
+    closure/pnet/plots/{kind}. Currently kind "residual" — the LOO
+    residual scatters behind CMS_interp_{res,eff}_pnet."""
+    if kind != "residual":
+        raise ValueError(f"unknown pnet closure plot kind: {kind}")
+    return os.path.join(pnet_closure_dir(), "plots", kind)
+
+
 def interpolation_fit_plots_dir(mhc, kind):
     """Per-study fit-validation plots, kind in {fits, params, yields,
     deltas}: fits/MHc{X}/plots/{kind}."""
@@ -309,11 +318,13 @@ def interpolation_closure_plots_dir(mhc, kind):
 def interpolation_global_plots_dir(kind):
     """Plots of objects that span every study. The surface panels live with
     the fit artifacts (kind "params" -> fits/params, "yield" ->
-    fits/yield); the nuisance-rule summary with the closure products
-    (kind "nuisance" -> closure/interpolation/plots/nuisance)."""
+    fits/yield); the nuisance-rule summary and the LOO residual scatters
+    with the closure products (kind "nuisance" ->
+    closure/interpolation/plots/nuisance, kind "residual" ->
+    closure/interpolation/plots/residual)."""
     if kind in ("params", "yield"):
         return os.path.join(interpolation_fits_dir(), kind)
-    if kind == "nuisance":
+    if kind in ("nuisance", "residual"):
         return os.path.join(interpolation_closure_dir(), "plots", kind)
     raise ValueError(f"unknown global plot kind: {kind}")
 

@@ -417,6 +417,7 @@ therefore runs in three passes, each fully complete before the next:
 python3 python/exportInterpUncertainties.py --loo --all --pooled --write-config
 python3 python/plotInterpSurfaces.py --all      # global surface plots
 python3 python/plotInterpNuisances.py           # nuisance-rule plots
+python3 python/plotInterpResiduals.py --all     # signed LOO residual scatters
 ```
 
 Outputs under `fits/MHc{X}/` (per-study fit artifacts + plots, global

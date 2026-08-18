@@ -80,9 +80,11 @@ done
 # Uncertainties + production config (JSON-only, login node fine).
 python3 python/exportInterpUncertainties.py --loo --all --pooled --write-config
 
-# Global plots: surfaces and the nuisance rule.
+# Global plots: surfaces, the nuisance rule, and the LOO residuals it
+# was derived from (both arms).
 python3 python/plotInterpSurfaces.py --all
 python3 python/plotInterpNuisances.py
+python3 python/plotInterpResiduals.py --all
 ```
 
 ## Decision gates

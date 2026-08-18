@@ -114,11 +114,17 @@ def _envelope(points, floor, production_only=False):
     return max([floor] + vals), len(vals)
 
 
-def _collect_loo_points(mhc):
+def collect_loo_points(mhc, signed=False):
     """Per-point LOO records of one mHc, before any envelope is taken.
 
     Returns (shape_detail, norm_detail, grid, warnings); every record
-    carries mA and production_pairing so the caller can slice."""
+    carries mA and production_pairing so the caller can slice.
+
+    `value` is the ABSOLUTE residual, which is what the envelope rule
+    consumes. With signed=True each kept record additionally carries
+    `signed` — the same residual with its sign — for plotters that need to
+    show bias and scatter separately (plotInterpResiduals.py). The extra
+    key is opt-in so the exported artifacts stay byte identical."""
     study = interpolation_config.study(mhc)
     grid = study["all"]
     per_point = _loo_point_files(mhc, grid)
@@ -147,8 +153,10 @@ def _collect_loo_points(mhc):
                         excluded_n, value = "extrapolation", None
                     else:
                         excluded_n, value = None, abs(rec_n["rel"])
-                    norm_detail.setdefault((channel, era), []).append(
-                        {**base, "value": value, "excluded": excluded_n})
+                    pt_n = {**base, "value": value, "excluded": excluded_n}
+                    if signed and excluded_n is None:
+                        pt_n["signed"] = float(rec_n["rel"])
+                    norm_detail.setdefault((channel, era), []).append(pt_n)
 
                 cat_key = interpolation_config.category_key(channel, period)
                 rec = closure.get(cat_key, {}).get(mp)
@@ -171,14 +179,16 @@ def _collect_loo_points(mhc):
                     slot["scale"].append(pt)
                     slot["res"].append(dict(pt))
                     continue
-                slot["scale"].append({
-                    **base, "excluded": None,
-                    "value": abs(rec["predicted"]["x0"] - rec["x0_direct"])
-                    / rec["sigma_eff_direct"]})
-                slot["res"].append({
-                    **base, "excluded": None,
-                    "value": abs(rec["sigma_eff_pred"]
-                                 / rec["sigma_eff_direct"] - 1.0)})
+                d_scale = ((rec["predicted"]["x0"] - rec["x0_direct"])
+                           / rec["sigma_eff_direct"])
+                d_res = rec["sigma_eff_pred"] / rec["sigma_eff_direct"] - 1.0
+                pt_s = {**base, "excluded": None, "value": abs(d_scale)}
+                pt_r = {**base, "excluded": None, "value": abs(d_res)}
+                if signed:
+                    pt_s["signed"] = float(d_scale)
+                    pt_r["signed"] = float(d_res)
+                slot["scale"].append(pt_s)
+                slot["res"].append(pt_r)
 
     return shape_detail, norm_detail, grid, warnings
 
@@ -190,7 +200,7 @@ def export_loo_one(mhc):
     Its norm block keeps the plain per-study max and is a DIAGNOSTIC: the
     production norm nuisance is mA-binned, pooled over mHc and set by the
     per-study rms rule in loo_uncertainties.pooled.json (--pooled)."""
-    shape_detail, norm_detail, grid, warnings = _collect_loo_points(
+    shape_detail, norm_detail, grid, warnings = collect_loo_points(
         mhc)
 
     def blocks(production_only):
@@ -390,7 +400,7 @@ def export_loo_pooled(mhcs, write_config=False):
     norm_all = {}      # (channel, era, ma_bin) -> [records]
     warnings, grids = [], {}
     for mhc in mhcs:
-        shape_detail, norm_detail, grid, warn = _collect_loo_points(
+        shape_detail, norm_detail, grid, warn = collect_loo_points(
             mhc)
         grids[mhc] = grid
         warnings.extend(f"[MHc{mhc}] {w}" for w in warn)

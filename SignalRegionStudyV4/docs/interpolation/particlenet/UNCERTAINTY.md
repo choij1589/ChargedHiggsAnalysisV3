@@ -172,6 +172,30 @@ as the model: MHc100 has the smallest signal yields of the five studies and
 carried 4 of the 5 historical low-B threshold spikes. Treat these cells as
 MHc100-limited, not as a statement about the other four studies.
 
+## Diagnostic plots
+
+```bash
+python3 python/plotInterpResiduals.py --method ParticleNet
+```
+
+→ `closure/pnet/plots/residual/`, 20 panels (4 res + 16 eff): the signed
+residual against mA, one colour per mHc study on the same colour key as the
+Baseline arm, with the adopted envelope as a symmetric band about zero and
+the pooled rms dotted. Filled markers are the trained anchors (85/90/95),
+open the two blind validation points (mA 87, 92).
+
+The res panels are where **Gate U1 becomes visible**: the points sit almost
+entirely below zero (signed mean −0.87% to −1.20% per cell, printed on each
+panel), which is the coherent narrowing the score cut produces. That is the
+whole reason the rule takes the rms **about zero rather than about the
+mean** — a mean-subtracted width would leave the bias uncovered, since the
+Baseline σ surfaces are deliberately reused untouched. The eff panels are
+the contrast: `r_eps` scatters symmetrically about zero, so its envelope is
+pure scatter.
+
+Each panel asserts its own point count against `n_points` in the config, so
+a figure cannot disagree with the value it justifies.
+
 ## Gate U3 — review before adopting
 
 Mirror of the Baseline Gate C. Read `pnet_uncertainties.json` in this order:
