@@ -771,3 +771,143 @@ def plot_nuisance_cell(channel, era, regions, outdir):
                               "dashed = pooled rms")
     canv.RedrawAxis()
     _save(canv, outdir, f"norm.{channel}.{era}")
+
+
+def mhc_color(mhc):
+    """Colour of an mHc study, keyed by its slot in the study grid.
+
+    Keying on the grid rather than on whatever studies happen to populate
+    a panel keeps one study the same colour in every panel and in both
+    interpolation arms, so panels can be read against each other."""
+    import interpolation_config
+    grid = interpolation_config.mhc_grid()
+    mhc = int(mhc)
+    if mhc not in grid:
+        raise ValueError(f"mHc={mhc} is not a study of the grid {grid}")
+    return PALETTE_LONG[grid.index(mhc) % len(PALETTE_LONG)]
+
+
+def plot_residual_vs_mA(name, header, series, bands, outdir, period_or_era,
+                        xrange, ytitle, info_lines=(), yscale=100.0):
+    """Signed LOO residual vs mA for one uncertainty cell.
+
+    The layer under `plot_nuisance_cell`: that one shows the rms-then-max
+    rule over per-study summaries, this one shows the residuals the rule
+    was applied to, so a cell's adopted size can be read against the
+    scatter it is meant to cover.
+
+      series  {mhc: {"used": [(mA, resid), ...],
+                     "unused": [(mA, resid), ...]}}
+              used = entered the envelope (filled marker); unused = kept
+              out by the production-pairing restriction (open marker).
+      bands   {"adopted": [(x_lo, x_hi, value, inherited_bool), ...],
+               "pooled": float or None}
+              `adopted` is a list of segments so a flat scale/res band and
+              the mA-binned norm step function share one code path; a
+              segment omitted from the list is drawn as a gap, which is how
+              structurally unreachable mA bins say "no nuisance here".
+
+    Residuals and band values are in the same raw units and both are
+    multiplied by `yscale` for display (100 -> percent, 1 -> sigma_eff).
+    """
+    used_all = [v for s in series.values() for _, v in s.get("used", ())]
+    unused_all = [v for s in series.values() for _, v in s.get("unused", ())]
+    band_vals = [v for _, _, v, _ in bands.get("adopted", ())]
+    if not used_all and not unused_all and not band_vals:
+        return False
+    # Wide enough for the outliers, tall enough that the band is not a
+    # sliver on the axis, then doubled so the scatter reads as a cloud
+    # inside the frame rather than filling it.
+    span = max([abs(v) for v in used_all + unused_all] or [0.0])
+    ymax = 2.0 * yscale * max(1.25 * span, 3.0 * max(band_vals or [0.0]),
+                              1e-3)
+
+    xmin, xmax = xrange
+    canv = graph_canvas(name, "m_{A} [GeV]", ytitle, xmin, xmax,
+                        -ymax, ymax, period_or_era)
+    keep = []
+
+    # The band is the reference the panel is read against, so the channel
+    # and the legend are placed above it and the cell's numbers below it,
+    # in NDC derived from where the band actually lands in the frame.
+    band_half = yscale * max(band_vals or [0.0])
+    _frame_lo, _frame_hi = canv.GetBottomMargin(), 1.0 - canv.GetTopMargin()
+
+    def _ndc(y):
+        return _frame_lo + (y + ymax) / (2.0 * ymax) * (_frame_hi - _frame_lo)
+
+    band_top_ndc, band_bot_ndc = _ndc(band_half), _ndc(-band_half)
+
+    # Bands first so the points sit on top of them. Hatched rather than
+    # solid-filled: the assigned uncertainty is a band, not a measurement,
+    # and a hatch cannot be misread as data.
+    for x_lo, x_hi, value, inherited in bands.get("adopted", ()):
+        lo, hi = max(x_lo, xmin), min(x_hi, xmax)
+        if not hi > lo:
+            continue
+        g = band_graph([lo, hi], [0.0, 0.0], [yscale * value] * 2)
+        # 3ijk hatchings take their line colour from SetFillColor; the
+        # predefined 30xx stipples ignore it and render black, and the
+        # alpha form band_graph uses does too. Opposite diagonals mark an
+        # inherited value apart from a measured one.
+        g.SetFillColor(_BAND_COLOR)
+        g.SetFillStyle(3454 if inherited else 3345)
+        CMS.cmsObjectDraw(g, "E3")
+        keep.append(g)
+
+    pooled = bands.get("pooled")
+    if pooled is not None:
+        for sign in (+1.0, -1.0):
+            g = curve_graph([xmin, xmax], [sign * yscale * pooled] * 2,
+                            color=ROOT.kGray + 2)
+            g.SetLineStyle(ROOT.kDotted)
+            CMS.cmsObjectDraw(g, "L")
+            keep.append(g)
+
+    zero = ROOT.TLine()
+    zero.SetLineStyle(ROOT.kDotted)
+    zero.DrawLine(xmin, 0.0, xmax, 0.0)
+
+    # Legend above the band, on the right so it clears the CMS block.
+    # Anchored at the top of the frame and grown downwards: one column
+    # always fits that way, and one column cannot overlap itself.
+    n_entries = max(len(series), 1)
+    leg_top = _frame_hi - 0.01
+    leg = CMS.cmsLeg(0.66, leg_top - n_entries * 0.036, 0.93, leg_top,
+                     textSize=0.026)
+    for mhc in sorted(series):
+        color = mhc_color(mhc)
+        block = series[mhc]
+        entry = None
+        for kind, filled in (("used", True), ("unused", False)):
+            pts = sorted(block.get(kind, ()))
+            if not pts:
+                continue
+            xs, ys = zip(*pts)
+            g = points_graph(xs, [yscale * y for y in ys], [0.0] * len(xs),
+                             filled=filled, color=color)
+            CMS.cmsObjectDraw(g, "P")
+            keep.append(g)
+            if filled or entry is None:
+                entry = g
+        if entry is not None:
+            leg.AddEntry(entry, mhc_legend_label(mhc), "p")
+
+    # Channel block in the paper style (plotPaper*.py -> ComparisonCanvas
+    # ._draw_channel_text): region tag bold, final state one text height
+    # below, at the shared INFO_TEXT_POS. Held above the band, which the
+    # paper position already clears for every cell here.
+    if header:
+        draw_info_text([REGION_TAG, header], posX=INFO_TEXT_POS[0],
+                       posY=max(INFO_TEXT_POS[1],
+                                band_top_ndc + 2.0 * INFO_TEXT_SIZE),
+                       size=INFO_TEXT_SIZE)
+    # The cell's numbers along the bottom of the panel, last line just
+    # above the axis.
+    for i, line in enumerate(info_lines):
+        CMS.drawText(line, posX=INFO_TEXT_POS[0],
+                     posY=_frame_lo + 0.020 + (len(info_lines) - 1 - i) * 0.030,
+                     font=42, align=0, size=0.030)
+    canv.RedrawAxis()
+    _save(canv, outdir, name)
+    return True

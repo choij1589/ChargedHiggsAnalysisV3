@@ -42,7 +42,10 @@ def shard_path(mhc, stem):
 
 
 def load_res(mhcs, wp):
-    """(mHc, channel, period, d_res) for production-relevant pairs."""
+    """(mHc, channel, period, d_res, mA) for production-relevant pairs.
+
+    mA rides along for plotInterpResiduals.py; apply_rule selects on the
+    leading fields and reads value_idx=3, so the trailing field is inert."""
     rows = []
     for mhc in mhcs:
         path = shard_path(mhc, "shape_reuse")
@@ -58,12 +61,14 @@ def load_res(mhcs, wp):
             for m in e["members"].values():
                 if abs(m["mA"] - e["seed_mA"]) <= MAX_DELTA_MA:
                     rows.append((e["mhc"], e["channel"], e["period"],
-                                 m["d_res_rel"]))
+                                 m["d_res_rel"], m["mA"]))
     return rows
 
 
 def load_norm(mhcs, wp):
-    """(mHc, channel, period, era, r_eps) for production-relevant points."""
+    """(mHc, channel, period, era, r_eps, mA) for production-relevant
+    points. mA rides along for plotInterpResiduals.py; apply_rule reads
+    value_idx=4 and selects on the leading fields."""
     rows = []
     for mhc in mhcs:
         path = shard_path(mhc, "yield_interp")
@@ -79,7 +84,7 @@ def load_norm(mhcs, wp):
             for p in e["points"].values():
                 if abs(p["mA"] - e["seed_mA"]) <= MAX_DELTA_MA:
                     rows.append((e["mhc"], e["channel"], e["period"],
-                                 p["era"], p["r_eps"]))
+                                 p["era"], p["r_eps"], p["mA"]))
     return rows
 
 

@@ -56,6 +56,8 @@ python3 python/exportInterpUncertainties.py --loo --all --pooled --write-config
 # Global surface + nuisance-rule plots:
 python3 python/plotInterpSurfaces.py --all
 python3 python/plotInterpNuisances.py
+# Signed LOO residuals behind every nuisance cell (both arms):
+python3 python/plotInterpResiduals.py --all
 # Recovery: --start-from/--stop-after a named step; merge interrupted shards
 # with mergeInterpResults.py --stage; rescue DAGs with plain condor_submit_dag.
 

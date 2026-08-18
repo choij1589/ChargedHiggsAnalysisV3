@@ -121,8 +121,24 @@ Minuit reconvergence noise (max 2.6e-4 absolute across 76 cells); one
 cell (SR3Mu_lowM/2017) sat on a rounding boundary and reads 1.180 where
 the earlier fit would have rounded to 1.181.
 
-Diagnostic plots: `python3 python/plotInterpNuisances.py` → per-cell
-per-study rms vs mHc with the adopted value and the pooled rms.
+Diagnostic plots, two layers:
+
+- `python3 python/plotInterpNuisances.py` → the **rule**: per-cell
+  per-study rms vs mHc with the adopted value and the pooled rms
+  (`closure/interpolation/plots/nuisance/`).
+- `python3 python/plotInterpResiduals.py --method Baseline` → the
+  **residuals the rule was applied to**: signed LOO residual vs mA, one
+  colour per mHc study, the adopted envelope as a symmetric band and the
+  pooled rms dotted (`closure/interpolation/plots/residual/`, 36 panels —
+  6 scale + 6 res + 24 norm). Each panel prints its signed mean, so the
+  unbiasedness claim above is checkable off the plot; the norm band is
+  drawn as a step at the `NORM_MA_BINS` edges, which is where the wide
+  below-Z / narrow on-Z contrast that motivated the binning is visible.
+  Unreachable bins get no band at all and inherited bins a dashed one, so
+  the SR3Mu_lowM panels show directly that its onZ value rests on no
+  point. Every panel asserts its own count against `n_points` and
+  re-derives rms-then-max from the points it draws, so a figure cannot
+  disagree with the number it justifies.
 
 ## Evidence
 
@@ -252,6 +268,7 @@ measured value; a cell landing exactly on a floor is a review trigger
 ./automize/interpolation.sh --loo --all        # after passes 1-3; condor
 python3 python/exportInterpUncertainties.py --loo --all --pooled --write-config
 python3 python/plotInterpNuisances.py
+python3 python/plotInterpResiduals.py --method Baseline
 ```
 
 The correlation study reads the same LOO outputs
