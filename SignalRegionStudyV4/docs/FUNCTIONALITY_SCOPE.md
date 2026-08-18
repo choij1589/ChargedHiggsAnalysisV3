@@ -58,6 +58,13 @@ argument; it is not part of any production workflow.
   (`scripts/runSignificance.sh`, `automize/significance.sh`,
   `python/collectSignificance.py`) — uncapped `combine -M Significance`,
   All × 3 channels, collected into `results/json/significance.*.json`
+- Look-elsewhere effect / global significance
+  (`automize/significance.sh --grid|--pnet-grid`,
+  `python/estimateLEE.py`, `python/plotLEE.py`) — the **asymptotic
+  Gross-Vitells** trials estimate from the upcrossing rate of the observed
+  Z(mA) scan, scoped to the mA scan alone per (arm, channel, mHc). This is
+  NOT V3's toy campaign, which is still not ported and would not be the
+  right object on a lattice sampled at the mass resolution; see `docs/LEE.md`
 - Paper figures, ported from V3 2026-08-18 (`python/plotPaperLRModified.py`
   — SR and TTZ CR LR_modified panels plus the standalone legend;
   `python/plotPaperTemplates.py` — prefit/B-only/S+B mass templates per
@@ -78,7 +85,9 @@ These exist only in older modules and are intentionally not ported. V4 code
 and docs make no reference to them:
 
 - HybridNew, signal injection / bias tests
-- Look-elsewhere-effect (LEE) toys
+- Look-elsewhere-effect (LEE) **toys** — V4 corrects for trials
+  asymptotically instead (see Active above); the toy campaign itself is not
+  ported
 - TTZ control-region templates and GoF
 - Cut-and-count (CnC) datacards
 - PTOptimized method

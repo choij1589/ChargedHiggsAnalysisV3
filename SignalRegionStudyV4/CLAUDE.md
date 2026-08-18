@@ -168,10 +168,39 @@ sign and the two agree wherever Z > 0. One node per (point, channel) at
 All × 3 channels; `collectSignificance.py` merges into
 `results/json/significance.{era}.{source}.json`, so a later run on
 different points adds to it rather than replacing it. Z and its one-sided
-p are **local** — no look-elsewhere correction, and on the 0.5 GeV scan
-lattice the trials factor is large. The measured excesses and deficits,
-the ranking method behind the point list, and the GoF cross-check are
-recorded in `docs/SIGNIFICANCE.md`.
+p are **local**; the trials correction is a separate step (§6b). The
+measured excesses and deficits, the ranking method behind the point list,
+and the GoF cross-check are recorded in `docs/SIGNIFICANCE.md`.
+
+### 6b. Look-elsewhere effect
+
+The trials correction **is** a scan step — it counts how often the
+observed Z(mA) curve crosses a level, so it needs Z everywhere, not at
+the quoted points:
+
+```bash
+./automize/significance.sh --grid          # 2467 x 3 nodes, ~33 s each
+./automize/significance.sh --pnet-grid     #  150 x 3
+python3 python/collectSignificance.py --grid --pnet-grid
+python3 python/estimateLEE.py              # -> results/json/lee.{era}.{source}.json
+python3 python/plotLEE.py --all            # -> results/plots/lee/
+```
+
+**Asymptotic (Gross-Vitells), not V3's toys**, and that follows from the
+grid: V3 tested 35 points spaced far above the resolution, so each was an
+independent test and a toy campaign over the tested set was the right
+object. V4's lattice sits AT the resolution (step/σ_eff = 0.86–0.89), so
+the point count is not a trials count — a finer lattice would inflate it
+without adding one independent test — and the same campaign would cost
+~68,000 CPU-h. What is invariant is the upcrossing rate:
+`<N_u(u)> = N_0 e^(−u/2)`, `p_global ≈ p_local + <N_u(Z²)>`, with `N_0`
+measured from the observed scan over a ladder of low thresholds.
+
+**Frozen scope**: the mA scan ALONE, per (arm, channel, mHc) column. The
+extra multiplicity from also scanning 7 mHc columns and 3 channels is
+bounded in `docs/LEE.md` from the measured curve correlations, not folded
+in. `--statistic bandpull` reruns everything off the limit JSONs with no
+fits at all, as a cross-check. Full record: `docs/LEE.md`.
 
 ### 7. FitDiagnostics, postfit mass plots, pulls
 
