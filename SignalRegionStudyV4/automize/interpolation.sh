@@ -24,6 +24,7 @@ START_FROM_SET=false
 DRY_RUN=false
 LOCAL_RUN=false
 LOO_MODE=false
+REPLOT_MODE=false
 STOP_AFTER=""
 STOP_AFTER_SET=false
 
@@ -50,6 +51,10 @@ while [[ $# -gt 0 ]]; do
             LOCAL_RUN=true
             shift
             ;;
+        --replot)
+            REPLOT_MODE=true
+            shift
+            ;;
         --loo)
             LOO_MODE=true
             shift
@@ -74,6 +79,8 @@ while [[ $# -gt 0 ]]; do
             echo "                       --stop-after fit-frozen, then --start-from"
             echo "                       polynomials --stop-after yields, then"
             echo "                       --start-from yield-model."
+            echo "  --replot             Redraw the yield-closure PNGs only"
+            echo "                       (--plots-only; frozen JSONs untouched)"
             echo "  --loo                Leave-one-out sweep: one node per mass point"
             echo "                       (models refit on the grid minus that point,"
             echo "                       closure at that point) + per-mHc aggregation."
@@ -98,6 +105,17 @@ fi
 if [[ "$LOO_MODE" == "true" && "$START_FROM_SET" == "true" ]]; then
     echo "ERROR: --start-from does not apply to the --loo sweep (flat DAG)"
     exit 1
+fi
+
+if [[ "$REPLOT_MODE" == "true" ]]; then
+    if [[ "$LOO_MODE" == "true" ]]; then
+        echo "ERROR: --replot already covers the LOO points; drop --loo"
+        exit 1
+    fi
+    if [[ "$START_FROM_SET" == "true" || "$STOP_AFTER_SET" == "true" ]]; then
+        echo "ERROR: --replot is a single redraw step; --start-from/--stop-after do not apply"
+        exit 1
+    fi
 fi
 
 if [[ "$ALL_MHC" == "true" ]]; then
@@ -364,10 +382,38 @@ EOF
     done
 }
 
+# Yield-closure replot DAG: redraw only. One node for the study's own
+# closure PNGs and one per LOO point, all --plots-only, so the frozen
+# closure JSONs are never rewritten. Used when the PLOTTING code changes
+# and the numbers do not -- e.g. the cmsstyle header-ordering fix.
+generate_replot_dag_file() {
+    local mhc=$1
+    local dag_file=$2
+    local masspoints mp_list
+    mp_list=$(study_masspoints_for "$mhc") || exit 1
+    read -r -a masspoints <<< "$mp_list"
+
+    cat > "$dag_file" << EOF
+# Yield-closure replot DAG for MHc${mhc}
+CONFIG dagman.config
+
+EOF
+
+    echo "JOB replot_study jobs.sub" >> "$dag_file"
+    echo "VARS replot_study step=\"yield_replot\" mhc=\"${mhc}\" masspoint=\"-\" extra_args=\"\" job_request_memory=\"2048\"" >> "$dag_file"
+
+    local mp
+    for mp in "${masspoints[@]}"; do
+        echo "JOB replot_${mp} jobs.sub" >> "$dag_file"
+        echo "VARS replot_${mp} step=\"yield_replot\" mhc=\"${mhc}\" masspoint=\"${mp}\" extra_args=\"\" job_request_memory=\"2048\"" >> "$dag_file"
+    done
+}
+
 submit_condor_dags() {
     local job_dir jobdir_prefix
     jobdir_prefix="interp"
     [[ "$LOO_MODE" == "true" ]] && jobdir_prefix="interp_loo"
+    [[ "$REPLOT_MODE" == "true" ]] && jobdir_prefix="interp_replot"
     job_dir=$(dag_new_jobdir "$jobdir_prefix")
 
     local mhc
@@ -389,7 +435,9 @@ getenv = True
 should_transfer_files = NO
 queue
 EOF
-        if [[ "$LOO_MODE" == "true" ]]; then
+        if [[ "$REPLOT_MODE" == "true" ]]; then
+            generate_replot_dag_file "$mhc" "$mp_dir/dag.dag"
+        elif [[ "$LOO_MODE" == "true" ]]; then
             generate_loo_dag_file "$mhc" "$mp_dir/dag.dag"
         else
             generate_dag_file "$mhc" "$mp_dir/dag.dag"

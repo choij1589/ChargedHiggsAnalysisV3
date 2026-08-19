@@ -571,6 +571,13 @@ python3 python/plotInterpNuisances.py           # nuisance-rule plots
 python3 python/plotInterpResiduals.py --all     # signed LOO residual scatters
 ```
 
+`./automize/interpolation.sh --replot --all` redraws the yield-closure
+PNGs alone (7 study nodes + 78 LOO nodes, `closInterpYields.py
+--plots-only`). Those JSON payloads carry a timestamp and the argv, so a
+plain re-run dirties the frozen production files even when every number is
+identical; `--plots-only` skips the write. Use it when the PLOTTING code
+changes and the numbers do not.
+
 Outputs under `fits/MHc{X}/` (per-study fit artifacts + plots, global
 surface panels in `fits/{params,yield}/`) and `closure/interpolation/`
 (per-study closures, `loo/MHc{X}_MA{Y}/` leave-one-out dirs, pooled

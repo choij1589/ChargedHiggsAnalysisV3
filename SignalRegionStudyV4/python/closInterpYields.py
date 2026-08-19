@@ -95,8 +95,17 @@ def main():
                              "MHc{X}_MA{Y}/ (where yield_closure.json and "
                              "plots are written too); measured yields come "
                              "from the adopted yields.json")
+    parser.add_argument("--plots-only", action="store_true",
+                        help="redraw the closure PNGs and skip the JSON "
+                             "write. The payload carries a timestamp and "
+                             "the argv, so a plain re-run would dirty the "
+                             "frozen production JSON even when every "
+                             "number is identical; this redraws without "
+                             "touching it.")
     args = parser.parse_args()
 
+    if args.plots_only and args.output:
+        parser.error("--plots-only writes no JSON; drop --output")
     if args.loo_ma is not None and args.masspoints:
         raise ValueError("--loo-ma already selects its single mass point; "
                          "do not combine with --masspoints")
@@ -238,6 +247,12 @@ def main():
         "closure": output,
         "warnings": warnings,
     }
+    if args.plots_only:
+        print(f"Redrew {len(masspoints)} mass point(s) under {plot_base} "
+              "(--plots-only: JSON left untouched)")
+        for w in warnings:
+            print(f"  warning: {w}")
+        return
     if args.output:
         outpath = args.output
     elif loo_dir is not None:

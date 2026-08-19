@@ -553,12 +553,16 @@ def plot_yield_template_closure(cat_key, mp, hist, pred, n_pred, err_pred,
     nbins = hist.GetNbinsX()
     lo, hi = hist.GetXaxis().GetXmin(), hist.GetXaxis().GetXmax()
     mc = np.array([hist.GetBinContent(i) for i in range(1, nbins + 1)])
+    # Header state FIRST: cmsstyle draws CMS_lumi inside cmsDiCanvas, so
+    # setting these afterwards labels the plot with whatever the previous
+    # call left behind (and the very first plot of a process with
+    # cmsstyle's defaults).
+    CMS.SetExtraText("Simulation Preliminary")
+    _set_lumi_energy(period)
     canv = CMS.cmsDiCanvas(
         f"tmpl_{cat_key}_{mp}", lo, hi, 0.0, 1.3 * max(mc.max(), pred.max()),
         0.5, 1.5, "m(#mu#mu) [GeV]", "Events / bin", "Pred / MC",
         square=True, iPos=11, extraSpace=0.02)
-    CMS.SetExtraText("Simulation Preliminary")
-    _set_lumi_energy(period)
     canv.cd(1)
     h_pred = hist.Clone(f"h_pred_{cat_key}_{mp}")
     h_pred.Reset()
@@ -569,12 +573,12 @@ def plot_yield_template_closure(cat_key, mp, hist, pred, n_pred, err_pred,
     leg = CMS.cmsLeg(0.55, 0.72, 0.90, 0.88, textSize=0.030)
     leg.AddEntry(hist, "MC", "pe")
     leg.AddEntry(h_pred, f"predicted (N={n_pred:.1f}#pm{err_pred:.1f})", "l")
-    lat = ROOT.TLatex()
-    lat.SetNDC(True)
-    lat.SetTextFont(42)
-    lat.SetTextSize(0.030)
-    lat.DrawLatex(0.20, 0.83, f"{cat_key}  {mp}")
-    lat.DrawLatex(0.20, 0.79, f"#chi^{{2}}/ndf={chi2:.1f}/{ndf}")
+    # Below the CMS block, not on top of it: at NDC y = 0.83/0.79 this text
+    # ran straight through the "CMS" / "Simulation Preliminary" logo drawn
+    # inside the frame by iPos=11.
+    draw_info_text([f"{cat_key}  {mp}",
+                    f"#chi^{{2}}/ndf={chi2:.1f}/{ndf}"],
+                   posX=0.20, posY=0.68, size=0.032, step=0.042)
     canv.cd(1).RedrawAxis()
 
     canv.cd(2)
@@ -628,10 +632,10 @@ def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
     drawn as separate bands so a discrepancy can be attributed to the model
     or to MC noise.
 
-    Unlike plot_yield_template_closure, the luminosity header and the extra
-    text are set BEFORE the canvas is built -- cmsstyle draws the header
-    inside cmsDiCanvas, so setting them afterwards labels the plot with
-    whatever the previous call left behind.
+    The luminosity header and the extra text are set BEFORE the canvas is
+    built -- cmsstyle draws the header inside cmsDiCanvas, so setting them
+    afterwards labels the plot with whatever the previous call left behind
+    (the bug plot_yield_template_closure carried until 2026-08-19).
     """
     lo = h_mc.GetXaxis().GetXmin()
     hi = h_mc.GetXaxis().GetXmax()
