@@ -463,13 +463,30 @@ Per-category outputs land in the point's own template dir,
 (members nest under their seed); the JSON carries the per-bin MC/interp
 arrays so the chi2 can be re-derived without reopening ROOT.
 
-The panel follows the paper figures: the caption block is the bold region
-tag, the final state below it (`e#mu#mu` / `#mu#mu#mu`), then the mass point
-in `plotPaperLRModified.format_signal_label`'s own wording -- imported from
-that module rather than restated, so this figure cannot drift from the
-published ones. The ratio panel treats the interpolated template as the
-prediction: `MC / interp.`, its uncertainty the shaded band at unity and
-the MC the points that either sit in it or do not.
+The panel is drawn in the **line style of the fake-rate closure**
+(`MeasFakeRateV4/plotClosure.py` -> `plotter.ComparisonCanvas`): the signal
+MC is the observed (black points), the interpolated template the expected
+(filled histogram), the hatched band its uncertainty, and the ratio is
+`Obs / Exp` with the band at unity -- built by the same
+`build_ratio_uncertainty_band` / `build_ratio_histogram` helpers that
+canvas uses, so the two figure families cannot diverge in what the ratio
+means. The errors stay **split**: the band is the interpolation
+uncertainty, the points keep their MC statistical error. The extra text is
+`Simulation Preliminary`, not `ComparisonCanvas`'s hardcoded
+`Preliminary` -- these panels contain no data at all.
+
+The caption block follows the paper figures: bold region tag, the final
+state below it (`e#mu#mu` / `#mu#mu#mu`), then the mass point in
+`plotPaperLRModified.format_signal_label`'s own wording, imported from that
+module rather than restated so this figure cannot drift from the published
+ones.
+
+`--skip-histogram` (driver: `./automize/templateClosure.sh --replot`)
+redraws from the cached `histograms.{cat}.root` beside the figures instead
+of refilling the MC from the sample trees, which is the whole cost of a
+node. Use it for styling changes; the numbers are recomputed from the
+cached histograms and the JSON's metadata fields carry over from the full
+run that wrote the cache.
 `collectTemplateClosure.py` promotes the figures only, to
 `results/plots/closure/{method}/{masspoint}/`, and exits 1 listing every
 missing source.

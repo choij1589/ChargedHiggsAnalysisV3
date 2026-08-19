@@ -18,6 +18,10 @@
 # --skip-existing emits only the nodes whose closure PNG is not already on
 # disk: the job is deterministic, so re-running a finished one only wastes
 # a slot.
+#
+# --replot passes --skip-histogram to every node: the cached
+# histograms.{cat}.root is redrawn instead of refilling the MC from the
+# sample trees, which is the whole cost. Use it for styling changes.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,6 +33,7 @@ METHOD="Baseline"
 POINTS=()
 MHC_FILTER=""
 SKIP_EXISTING=false
+REPLOT=false
 DRY_RUN=false
 ERAS=(Run2 Run3)
 CHANNELS=(SR1E2Mu SR3Mu)
@@ -42,6 +47,7 @@ while [[ $# -gt 0 ]]; do
         --masspoint) POINTS+=("$2"); shift 2 ;;
         --mhc) MHC_FILTER="$2"; shift 2 ;;
         --skip-existing) SKIP_EXISTING=true; shift ;;
+        --replot) REPLOT=true; shift ;;
         --eras) IFS=',' read -ra ERAS <<< "$2"; shift 2 ;;
         --channels) IFS=',' read -ra CHANNELS <<< "$2"; shift 2 ;;
         --memory) MEMORY="$2"; shift 2 ;;
@@ -135,6 +141,7 @@ emit_dag() {
     local n=0
     local extra=""
     [[ "$METHOD" == "ParticleNet" ]] && extra="--method ParticleNet"
+    [[ "$REPLOT" == "true" ]] && extra="$extra --skip-histogram"
     write_submit "$dag_dir"
     : > "$dag_file"
     while read -r masspoint seed era channel; do
@@ -161,6 +168,11 @@ if [[ -z "$SPECS" ]]; then
     exit 1
 fi
 
+if [[ "$REPLOT" == "true" && "$SKIP_EXISTING" == "true" ]]; then
+    echo "ERROR: --replot redraws every node; --skip-existing would skip them all" >&2
+    exit 1
+fi
+
 JOB_DIR=$(dag_new_jobdir "template_closure")
 MP_DIR=$(dag_new_masspoint_dir "$JOB_DIR" "$METHOD")
 TOTAL_NODES=$(printf '%s\n' "$SPECS" | emit_dag "$MP_DIR")
@@ -173,6 +185,7 @@ echo "Eras:     ${ERAS[*]}"
 echo "Channels: ${CHANNELS[*]}"
 echo "Nodes:    $TOTAL_NODES"
 echo "Memory:   $MEMORY"
+echo "Replot:   $REPLOT"
 echo "Dry run:  $DRY_RUN"
 echo "============================================================"
 

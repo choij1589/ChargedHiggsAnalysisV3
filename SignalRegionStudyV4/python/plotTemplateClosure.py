@@ -256,6 +256,43 @@ def build_mc_template(masspoint, method, channel, suberas, binning, seed,
     return total
 
 
+def cache_path(outdir, cat):
+    return os.path.join(outdir, f"histograms.{cat}.root")
+
+
+def write_cache(outdir, cat, h_mc, h_interp):
+    """Both histograms, so a pure restyle never touches the samples again.
+
+    The MC fill is four RDataFrame passes over the per-sub-era signal trees
+    (with the ParticleNet score cut on that arm); everything else in this
+    script is JSON and one small shapes.root. Caching is what makes a
+    redraw of the 380-category campaign cheap.
+    """
+    os.makedirs(outdir, exist_ok=True)
+    fh = ROOT.TFile.Open(cache_path(outdir, cat), "RECREATE")
+    h_mc.Write("mc")
+    h_interp.Write("interp")
+    fh.Close()
+
+
+def read_cache(outdir, cat):
+    path = cache_path(outdir, cat)
+    if not os.path.exists(path):
+        raise SystemExit(f"{path} missing -- --skip-histogram needs a "
+                         "previous full run of this category")
+    fh = ROOT.TFile.Open(path)
+    out = []
+    for key in ("mc", "interp"):
+        hist = fh.Get(key)
+        if not hist:
+            raise SystemExit(f"{path}: no '{key}' histogram")
+        hist = hist.Clone(f"cached_{key}")
+        hist.SetDirectory(0)
+        out.append(hist)
+    fh.Close()
+    return out[0], out[1]
+
+
 def closure_numbers(h_mc, h_interp):
     nbins = h_mc.GetNbinsX()
     mc = np.array([h_mc.GetBinContent(i) for i in range(1, nbins + 1)])
@@ -300,6 +337,12 @@ def main():
                              "parametric production template")
     parser.add_argument("--ratio-range", nargs=2, type=float,
                         default=[0.5, 1.5], metavar=("MIN", "MAX"))
+    parser.add_argument("--skip-histogram", action="store_true",
+                        dest="skip_histogram",
+                        help="redraw from the cached histograms.{cat}.root "
+                             "instead of refilling the MC from the sample "
+                             "trees -- the expensive step. Needs a previous "
+                             "full run of this category.")
     parser.add_argument("--outdir", default=None,
                         help="override the output dir "
                              "[{template leaf}/closure]")
@@ -310,72 +353,90 @@ def main():
     cat = run_period_utils.category_name(args.channel, args.era)
     suberas = run_period_utils.RUN_PERIODS[args.era]
 
-    binning = load_json(os.path.join(leaf, "binning.json"),
-                        "run the interp-signal template step first")
-    if cat not in binning["categories"]:
-        raise SystemExit(f"{leaf}/binning.json: no category {cat}")
-    cat_binning = dict(binning["categories"][cat])
-    cat_binning["_period"] = args.era
+    outdir = args.outdir or os.path.join(leaf, "closure")
 
-    categories = load_json(os.path.join(leaf, "categories.json"),
-                           "run the interp-signal template step first")
-    processes = categories["categories"][cat]["processes"]
-    components = [p["name"] for p in processes if p["is_signal"]]
-    comp_suberas = [p["subera"] for p in processes if p["is_signal"]]
-    if comp_suberas != list(suberas):
-        raise SystemExit(f"{leaf}: signal components {comp_suberas} do not "
-                         f"match the {args.era} sub-eras {list(suberas)}")
+    if args.skip_histogram:
+        # Restyle path: everything the panel needs is in the two cached
+        # histograms, and the metadata fields in the JSON this run rewrites
+        # are carried over from the full run that produced the cache.
+        h_mc, h_interp = read_cache(outdir, cat)
+        meta_path = os.path.join(outdir, f"closure.{cat}.json")
+        meta = load_json(meta_path, "--skip-histogram needs the JSON of a "
+                                    "previous full run")
+        extra = {k: meta[k] for k in ("bin_edges", "group_seed",
+                                      "interp_shape_nuisances",
+                                      "interp_lnN_nuisances") if k in meta}
+    else:
+        binning = load_json(os.path.join(leaf, "binning.json"),
+                            "run the interp-signal template step first")
+        if cat not in binning["categories"]:
+            raise SystemExit(f"{leaf}/binning.json: no category {cat}")
+        cat_binning = dict(binning["categories"][cat])
+        cat_binning["_period"] = args.era
 
-    extra_syst = load_json(
-        os.path.join(leaf,
-                     f"extra_systematics.{args.era}.{args.channel}.json"),
-        "interp nuisance sidecar (run the interp-signal template step)")
+        categories = load_json(os.path.join(leaf, "categories.json"),
+                               "run the interp-signal template step first")
+        processes = categories["categories"][cat]["processes"]
+        components = [p["name"] for p in processes if p["is_signal"]]
+        comp_suberas = [p["subera"] for p in processes if p["is_signal"]]
+        if comp_suberas != list(suberas):
+            raise SystemExit(f"{leaf}: signal components {comp_suberas} do "
+                             f"not match the {args.era} sub-eras "
+                             f"{list(suberas)}")
 
-    # Prefer the pre-prune archive when it exists; signal columns are
-    # byte-identical in both (printDatacard skips signal), but the archive
-    # is the untouched makeBinnedTemplates output.
-    shapes_path = os.path.join(leaf, "shapes_original.root")
-    if not os.path.exists(shapes_path):
-        shapes_path = os.path.join(leaf, "shapes.root")
-    if not os.path.exists(shapes_path):
-        raise SystemExit(f"{leaf}: no shapes.root")
+        extra_syst = load_json(
+            os.path.join(leaf,
+                         f"extra_systematics.{args.era}.{args.channel}.json"),
+            "interp nuisance sidecar (run the interp-signal template step)")
 
-    fh = ROOT.TFile.Open(shapes_path)
-    cat_dir = fh.Get(cat)
-    if not cat_dir:
-        raise SystemExit(f"{shapes_path}: no directory {cat}")
-    prefix = components[0]
-    shape_keys = set()
-    for key in cat_dir.GetListOfKeys():
-        name = key.GetName()
-        if not name.startswith(prefix):
-            continue
-        # Member leaves drop the separating underscore (see get() below).
-        stem = name[len(prefix):]
-        stem = stem[1:] if stem.startswith("_") else stem
-        for direction in ("Up", "Down"):
-            if stem.endswith(direction):
-                shape_keys.add(stem[:-len(direction)])
-                break
-    fh.Close()
+        # Prefer the pre-prune archive when it exists; signal columns are
+        # byte-identical in both (printDatacard skips signal), but the
+        # archive is the untouched makeBinnedTemplates output.
+        shapes_path = os.path.join(leaf, "shapes_original.root")
+        if not os.path.exists(shapes_path):
+            shapes_path = os.path.join(leaf, "shapes.root")
+        if not os.path.exists(shapes_path):
+            raise SystemExit(f"{leaf}: no shapes.root")
 
-    shapes, lnns = interp_nuisances(extra_syst, suberas, args.channel,
-                                    shape_keys)
-    h_interp = read_interp_template(shapes_path, cat, components, shapes,
-                                    lnns, suberas)
-    h_mc = build_mc_template(args.masspoint, args.method, args.channel,
-                             suberas, cat_binning, seed, leaf)
+        fh = ROOT.TFile.Open(shapes_path)
+        cat_dir = fh.Get(cat)
+        if not cat_dir:
+            raise SystemExit(f"{shapes_path}: no directory {cat}")
+        prefix = components[0]
+        shape_keys = set()
+        for key in cat_dir.GetListOfKeys():
+            name = key.GetName()
+            if not name.startswith(prefix):
+                continue
+            # Member leaves drop the separating underscore (see get()).
+            stem = name[len(prefix):]
+            stem = stem[1:] if stem.startswith("_") else stem
+            for direction in ("Up", "Down"):
+                if stem.endswith(direction):
+                    shape_keys.add(stem[:-len(direction)])
+                    break
+        fh.Close()
+
+        shapes, lnns = interp_nuisances(extra_syst, suberas, args.channel,
+                                        shape_keys)
+        h_interp = read_interp_template(shapes_path, cat, components,
+                                        shapes, lnns, suberas)
+        h_mc = build_mc_template(args.masspoint, args.method, args.channel,
+                                 suberas, cat_binning, seed, leaf)
+        write_cache(outdir, cat, h_mc, h_interp)
+        extra = {
+            "bin_edges": cat_binning["bin_edges"], "group_seed": seed,
+            "interp_shape_nuisances": sorted(shapes),
+            "interp_lnN_nuisances": {k: lnns[k] for k in sorted(lnns)},
+        }
 
     summary = closure_numbers(h_mc, h_interp)
     summary.update({
         "masspoint": args.masspoint, "method": args.method,
-        "category": cat, "group_seed": seed,
-        "bin_edges": cat_binning["bin_edges"],
-        "interp_shape_nuisances": sorted(shapes),
-        "interp_lnN_nuisances": {k: lnns[k] for k in sorted(lnns)},
+        "category": cat,
     })
+    summary.update(extra)
 
-    outdir = args.outdir or os.path.join(leaf, "closure")
     interp_plot_utils.plot_template_closure(
         cat, args.masspoint, h_mc, h_interp, summary, args.era, outdir,
         ratio_range=tuple(args.ratio_range))

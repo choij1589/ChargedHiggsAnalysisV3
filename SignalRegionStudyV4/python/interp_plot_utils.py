@@ -22,7 +22,10 @@ import cmsstyle as CMS
 
 import srspaths
 
-from plotter import LumiInfo, PALETTE_LONG, get_CoM_energy
+from plotter import (LumiInfo, PALETTE, PALETTE_LONG,
+                     build_ratio_histogram,
+                     build_ratio_uncertainty_band,
+                     get_CoM_energy)
 
 ROOT.gROOT.SetBatch(True)
 
@@ -603,51 +606,37 @@ _CAPTION_SIZE = 0.042
 _CAPTION_STEP = 0.048
 
 
-def _band_from_hist(hist, name, scale=None):
-    """Filled band graph from a TH1's bin contents +- bin errors.
-
-    ``scale`` (a TH1 with the same binning) divides both the central value
-    and the error, turning the band into the ratio-panel version; bins where
-    it is non-positive are dropped rather than drawn at an arbitrary value.
-    """
-    graph = ROOT.TGraphAsymmErrors()
-    n = 0
-    for i in range(1, hist.GetNbinsX() + 1):
-        axis = hist.GetXaxis()
-        centre = axis.GetBinCenter(i)
-        half = 0.5 * axis.GetBinWidth(i)
-        value, error = hist.GetBinContent(i), hist.GetBinError(i)
-        if scale is not None:
-            denom = scale.GetBinContent(i)
-            if denom <= 0:
-                continue
-            value, error = value / denom, error / denom
-        graph.SetPoint(n, centre, value)
-        graph.SetPointError(n, half, half, error, error)
-        n += 1
-    graph.SetName(name)
-    return graph
-
-
 def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
                           outdir, ratio_range=(0.5, 1.5)):
     """Signal MC vs the interpolated template, on the PRODUCTION binning.
 
-    ``h_mc`` carries MC statistical errors, ``h_interp`` carries the
-    assigned interpolation uncertainty in its bin errors (the quadrature of
-    every CMS_interp_* nuisance -- see plotTemplateClosure.py).  The two are
-    drawn as separate bands so a discrepancy can be attributed to the model
-    or to MC noise.
+    Drawn in the line style of the fake-rate closure
+    (MeasFakeRateV4/plotClosure.py -> plotter.ComparisonCanvas): the signal
+    MC is the OBSERVED, black points; the interpolated template is the
+    EXPECTED, a filled histogram; the hatched band is the uncertainty on
+    the expectation. The ratio panel is Obs / Exp with the band at unity,
+    built by the very same plotter helpers that canvas uses
+    (build_ratio_uncertainty_band / build_ratio_histogram), so the two
+    figure families cannot diverge in what the ratio means.
+
+    The errors stay SPLIT, which is the point of this particular closure:
+    ``h_interp`` carries the assigned interpolation uncertainty in its bin
+    errors (the quadrature of every CMS_interp_* nuisance -- see
+    plotTemplateClosure.py) and shows up as the band, while ``h_mc`` keeps
+    its own statistical error on the points. A discrepancy is then
+    attributable to the model or to MC noise.
 
     The luminosity header and the extra text are set BEFORE the canvas is
     built -- cmsstyle draws the header inside cmsDiCanvas, so setting them
     afterwards labels the plot with whatever the previous call left behind
-    (the bug plot_yield_template_closure carried until 2026-08-19).
+    (the bug plot_yield_template_closure carried until 2026-08-19). Unlike
+    ComparisonCanvas, which hardcodes "Preliminary", these panels say
+    "Simulation Preliminary": they contain no data at all.
     """
     lo = h_mc.GetXaxis().GetXmin()
     hi = h_mc.GetXaxis().GetXmax()
-    # Headroom for the CMS block, the legend and the three-line paper
-    # caption stacked above the peak.
+    # Headroom for the CMS block, the legend and the paper caption stacked
+    # above the peak.
     y_max = 1.85 * max(h_mc.GetMaximum(), h_interp.GetMaximum())
 
     CMS.SetExtraText("Simulation Preliminary")
@@ -655,24 +644,29 @@ def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
     canv = CMS.cmsDiCanvas(
         f"clos_{cat_key}_{mp}".replace("-", "_"), lo, hi, 0.0, y_max,
         ratio_range[0], ratio_range[1],
-        "m(#mu#mu) [GeV]", "Events / bin", "MC / interp.",
+        "m(#mu#mu) [GeV]", "Events / bin", "Obs / Exp",
         square=True, iPos=11, extraSpace=0.02)
 
     canv.cd(1)
-    band = _band_from_hist(h_interp, f"band_{cat_key}_{mp}")
-    band.SetFillColorAlpha(_CURVE_COLOR, 0.30)
-    band.SetLineWidth(0)
-    band.Draw("2 same")
-    CMS.cmsObjectDraw(h_interp, "hist", LineColor=_CURVE_COLOR, LineWidth=2)
+    # The band must be a CLONE: cmsObjectDraw sets the attributes on the
+    # object itself and ROOT paints with whatever they are at the end, so
+    # drawing h_interp twice would render the filled histogram with the
+    # band's hatching too. ComparisonCanvas gets this for free -- its stack
+    # and its uncertainty histogram are different objects.
+    band = h_interp.Clone(f"band_{cat_key}_{mp}")
+    band.SetDirectory(0)
+    CMS.cmsObjectDraw(h_interp, "hist", FillColor=PALETTE[0],
+                      LineColor=PALETTE[0], FillStyle=1001, LineWidth=1)
+    CMS.cmsObjectDraw(band, "FE2", FillStyle=3004, LineWidth=0,
+                      FillColor=12, MarkerSize=0)
     CMS.cmsObjectDraw(h_mc, "PE", MarkerStyle=ROOT.kFullCircle,
-                      MarkerSize=0.8, LineColor=ROOT.kBlack,
-                      MarkerColor=ROOT.kBlack)
+                      MarkerSize=1.0, MarkerColor=1, LineColor=1)
 
-    leg = CMS.cmsLeg(0.60, 0.72 - 3 * _CAPTION_STEP,
-                     0.94, 0.90 - 3 * _CAPTION_STEP, textSize=0.030)
-    leg.AddEntry(h_mc, "signal MC", "pe")
-    leg.AddEntry(h_interp, "interpolated", "l")
-    leg.AddEntry(band, "interp. uncertainty", "f")
+    leg = CMS.cmsLeg(0.60, 0.72 - 1.5 * _CAPTION_STEP,
+                     0.94, 0.90 - 1.5 * _CAPTION_STEP, textSize=0.030)
+    leg.AddEntry(h_mc, "signal MC", "PE")
+    leg.AddEntry(h_interp, "interpolated", "F")
+    CMS.addToLegend(leg, (band, "interp. uncertainty", " FE2"))
     leg.Draw("same")
 
     # Paper-style block: region tag bold, final state below it, then the
@@ -693,31 +687,18 @@ def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
     canv.cd(1).RedrawAxis()
 
     canv.cd(2)
-    # The interpolated template is the PREDICTION, so it is the reference:
-    # its uncertainty is the shaded band at unity and the MC is the
-    # measurement, drawn as points carrying their statistical error.
-    # Reading the panel is then the usual question -- do the points sit in
-    # the band?
-    ratio_band = _band_from_hist(h_interp, f"rband_{cat_key}_{mp}",
-                                 scale=h_interp)
-    ratio_band.SetFillColorAlpha(_CURVE_COLOR, 0.30)
-    ratio_band.SetLineWidth(0)
-    ratio_band.Draw("2 same")
-
-    ratio = h_mc.Clone(f"h_ratio_{cat_key}_{mp}")
-    ratio.SetDirectory(0)
-    for i in range(1, ratio.GetNbinsX() + 1):
-        denom = h_interp.GetBinContent(i)
-        ratio.SetBinContent(i, h_mc.GetBinContent(i) / denom
-                            if denom > 0 else 0.0)
-        ratio.SetBinError(i, h_mc.GetBinError(i) / denom
-                          if denom > 0 else 0.0)
     ref = ROOT.TLine()
     ref.SetLineStyle(ROOT.kDotted)
+    ref.SetLineColor(ROOT.kBlack)
+    ref.SetLineWidth(2)
     ref.DrawLine(lo, 1.0, hi, 1.0)
+    ratio_band = build_ratio_uncertainty_band(h_interp,
+                                              f"rband_{cat_key}_{mp}")
+    ratio = build_ratio_histogram(h_mc, h_interp, f"ratio_{cat_key}_{mp}")
+    CMS.cmsObjectDraw(ratio_band, "FE2", FillStyle=3004, LineWidth=0,
+                      FillColor=12, MarkerSize=0)
     CMS.cmsObjectDraw(ratio, "PE", MarkerStyle=ROOT.kFullCircle,
-                      MarkerSize=0.8, LineColor=ROOT.kBlack,
-                      MarkerColor=ROOT.kBlack)
+                      MarkerSize=1.0, MarkerColor=1, LineColor=1)
     canv.cd(2).RedrawAxis()
 
     _save_both(canv, outdir, f"closure.{cat_key}")
