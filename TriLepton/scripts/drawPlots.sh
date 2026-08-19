@@ -219,7 +219,7 @@ elif [[ $CHANNEL == "WZ1E2Mu" ]]; then
         "ZCand/pt" "ZCand/eta" "ZCand/phi" "ZCand/mass"
     )
     parallel draw_plot ::: ${histkeys[@]}
-    if [[ "$ERA" == "202"* ]]; then
+    if [[ "$ERA" == "202"* || "$ERA" == "Run3" ]]; then
         parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
     fi
 elif [[ $CHANNEL == "WZ3Mu" ]]; then
@@ -237,7 +237,7 @@ elif [[ $CHANNEL == "WZ3Mu" ]]; then
         "nZCand/pt" "nZCand/eta" "nZCand/phi" "nZCand/mass"
     )
     parallel draw_plot ::: ${histkeys[@]}
-    if [[ "$ERA" == "202"* ]]; then
+    if [[ "$ERA" == "202"* || "$ERA" == "Run3" ]]; then
         parallel draw_plot_exclude_WZSF ::: ${histkeys[@]}
     fi
 fi

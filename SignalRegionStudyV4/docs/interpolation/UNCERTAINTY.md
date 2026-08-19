@@ -114,9 +114,11 @@ norm (lnN):
 unreachable, no nuisance emitted.
 
 64 norm cells: unrounded mean 10.2%, median 9.1%, max 23.4%. Run3 cells
-above 10% carry the upstream per-sample scatter
-([EXPERIMENTS.md](EXPERIMENTS.md) Y6) — the REFERENCE's error, not the
-model's. The 2026-08-13 re-run reproduced the 2026-08-12 envelopes within
+above 10% carry the per-sample acceptance scatter
+([EXPERIMENTS.md](EXPERIMENTS.md) Y6; mechanism re-diagnosed in Y9:
+bookkeeping verified exact against the produced files, the scatter is
+genuine acceptance structure of the reference samples) — the
+REFERENCE's error, not the model's. The 2026-08-13 re-run reproduced the 2026-08-12 envelopes within
 Minuit reconvergence noise (max 2.6e-4 absolute across 76 cells); one
 cell (SR3Mu_lowM/2017) sat on a rounding boundary and reads 1.180 where
 the earlier fit would have rounded to 1.181.
@@ -254,9 +256,14 @@ measured value; a cell landing exactly on a floor is a review trigger
   15 → 30 → 55 gaps — and one extra MC point in each gap would do more
   than a finer binning, which would only hand the sparse cells back to
   single points.
-- **Run3 norm carries the upstream per-sample scatter** (8–24%), a
+- **Run3 norm carries the per-sample acceptance scatter** (8–24%), a
   property of the reference samples, deliberately absorbed rather than
-  modelled.
+  modelled. A 2026-08-19 audit ([EXPERIMENTS.md](EXPERIMENTS.md) Y9)
+  verified against the produced files that this is NOT a bookkeeping or
+  normalization error (sumW/nmc exact, n_eff ≈ nmc, filterEff
+  era-consistent to <0.6%): it is genuine acceptance structure —
+  low-mA/W-threshold physics shared with Run2 (Run2–Run3 residual
+  correlation +0.78) plus a Run3-specific off-shell-W component.
 - **SR3Mu_lowM onZ is an inherited value** (no usable point in the bin).
 - **Closure pulls are uncalibrated** (assumed 1% Run2 G error vs ~5%
   surface residual); the envelopes use relative residuals and are

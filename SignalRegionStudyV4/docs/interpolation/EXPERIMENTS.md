@@ -281,7 +281,9 @@ templates. Run2 is clean at 1–2%.
 better acceptance estimate than any single noisy sample; the scatter is
 absorbed into the Run3 norm nuisances
 ([UNCERTAINTY.md](UNCERTAINTY.md)) and this finding is why they exceed
-10%.
+10%. *(Mechanism re-diagnosed 2026-08-19, see Y9: the weight bookkeeping
+is exact — "only partially compensates" is disproven — and the scatter
+is genuine acceptance structure. The absorption stays correct.)*
 
 ### Y7 — G(mA) and k_era become (mHc, mA) surfaces (`joint`)
 
@@ -316,6 +318,76 @@ Smoothness compared on 14 datasets.
 Run3, the origin of a +95% lowM yield-closure blow-up under /fsig.
 **Conclusion.** Raw-fraction decomposition adopted; yield chain decoupled
 from the shape chain.
+
+### Y9 — Y6 mechanism re-diagnosed: bookkeeping exact, scatter is real acceptance structure (2026-08-19)
+
+**Motivation.** Y6 attributed the 10–20% Run3 closure scatter to sample
+production bookkeeping that "only partially compensates" the ×4
+raw-skim size variations. That hypothesis was never verified against
+the produced files. AN review (v15) forced the question.
+
+**Setup.** Four independent audits against the actual production, all on
+the `Run3_v13_Run2_v9` inputs the analysis uses:
+
+1. *File-level bookkeeping*: for every signal sample of all four Run3
+   eras (4 × 78), sum `Runs.genEventCount` / `genEventSumw` /
+   `genEventSumw2` over every file in the ForSNU `path` list (uproot on
+   the storage host, `/gv0/DATA/SKNano/Run3NanoAODv13p1/`) and compare
+   with the stored `nmc` / `sumW`; effective sample size
+   n_eff = (Σw)²/Σw².
+2. *filterEff reproducibility*: cross-era max/min per mass point vs the
+   binomial expectation from ~300k generated events.
+3. *Production-pipeline correlation*: LOO |residual| split by sample
+   type — central-style crab (`..._13p6TeV_madgraph-pythia8`) vs local
+   `_cff` productions (30 of 78 points, multi-batch merges included).
+4. *Gen-level content*: fraction of post-filter events with ≥3 status-1
+   e/μ (pT > 8, |η| < 2.6) plus the gen dimuon mass median, for the
+   mA = 15 line across mHc in 2022/2023BPix **and 2018** (Run2
+   reference); per-point LOO residuals decomposed into period averages
+   (production pairing only).
+
+**Results.**
+
+- Bookkeeping is EXACT everywhere: `nmc` matches to 0, `sumW` to
+  ≲1e-8 (float summation order), zero missing/broken files, and
+  n_eff/nmc > 0.9999 in all 312 (era, sample) cells — including every
+  multi-batch merge. Total normalization is lumi × xsec × filterEff to
+  machine precision; Y6's "bookkeeping only partially compensates" is
+  **disproven**.
+- filterEff cross-era spread: max 0.61%, median 0.23%, zero points
+  above 3× the statistical expectation.
+- Production pipeline: mean |rel| 5.0% (cff) vs 6.3% (crab) — no
+  correlation; the pipeline mix is not the cause.
+- Gen content: the worst point, MHc100_MA15 (−28% Run3 closure), has
+  IDENTICAL post-filter lepton content in 2018 / 2022 / 2023BPix
+  (proxy 0.7176 / 0.7178 / 0.7170) and the correct mass (medM 15.02).
+  Its ~8% dip off the mA15-line proxy trend is present in BOTH periods:
+  physical structure at the W-on-shell threshold (mHc − mA = 85 GeV),
+  not a Run3 production defect.
+- Residual decomposition (156 production-pairing points): rms 5.5%
+  (Run2) vs 6.4% (Run3), Run2–Run3 correlation **r = +0.78**,
+  rms(Run3 − Run2) = 4.1%. The largest residuals are SHARED with the
+  same sign — MHc100_MA15 (−31%/−28%), MHc130_MA15 (+26%/+22%),
+  MHc115_MA27 (−17%/−15%) — all in the low-mA turn-on / W-threshold
+  region. The Run3-specific tail (MHc145_MA120 SR1E2Mu: −0.5% Run2 vs
+  −14.9% Run3; MHc160_MA105: −0.1% vs −8.4%; also 70/65, 100/90,
+  115/100) clusters in the far off-shell-W region (mHc − mA < m_W),
+  consistent with the 13.6 TeV gridpacks (newer MadGraph) producing
+  genuinely different W* kinematics than the Run2 ones, on top of the
+  harsher Run3 reco selection (PUPPI + b-tag; A×ε roughly half of
+  Run2's, visibly jagged in the AN's SigEff table).
+
+**Conclusion.** The Run3 scatter is genuine acceptance structure that a
+smooth surface cannot follow: mostly threshold/turn-on physics shared
+with Run2, plus a Run3-specific off-shell-W component — NOT a
+normalization error. Everything downstream of Y6 stands: the residual
+is a property of the reference samples, equally affects direct-MC
+templates, and is correctly absorbed into the norm nuisances. Only the
+mechanism wording changes ("per-sample normalization scatter" →
+"per-sample acceptance scatter"). Ruled out for the record: sumW/nmc
+bookkeeping, weight heterogeneity (n_eff), filterEff bookkeeping,
+production pipeline mix, jet veto maps (era-specific, ~3%, wrong
+signature vs the era-common residuals).
 
 ---
 

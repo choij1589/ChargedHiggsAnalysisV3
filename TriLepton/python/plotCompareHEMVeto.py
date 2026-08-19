@@ -9,7 +9,6 @@ import logging
 import argparse
 import json
 import ROOT
-from math import sqrt
 from plotter import KinematicCanvasWithRatio, get_CoM_energy
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
                         calculate_systematics, sum_histograms, load_era_configs,
@@ -122,13 +121,10 @@ def _apply_conv_sf(hist, sample, era, conv_sf):
         zg_channel = conv_sf[era]["zg_channel"]
         sf_central = cset[f"ConvSF_{zg_channel}_{era}_Central"].evaluate()
         hist.Scale(sf_central)
-        sf_pu = cset[f"ConvSF_{zg_channel}_{era}_prompt_up"].evaluate()
-        sf_pd = cset[f"ConvSF_{zg_channel}_{era}_prompt_down"].evaluate()
-        sf_nu = cset[f"ConvSF_{zg_channel}_{era}_nonprompt_up"].evaluate()
-        sf_nd = cset[f"ConvSF_{zg_channel}_{era}_nonprompt_down"].evaluate()
-        p_rel = max(abs(sf_pu - sf_central), abs(sf_central - sf_pd)) / sf_central
-        n_rel = max(abs(sf_nu - sf_central), abs(sf_central - sf_nd)) / sf_central
-        apply_rate_uncertainty(hist, sqrt(p_rel**2 + n_rel**2))
+        sf_up = cset[f"ConvSF_{zg_channel}_{era}_total_up"].evaluate()
+        sf_dn = cset[f"ConvSF_{zg_channel}_{era}_total_down"].evaluate()
+        rel = max(abs(sf_up - sf_central), abs(sf_central - sf_dn)) / sf_central
+        apply_rate_uncertainty(hist, rel)
     except Exception as e:
         logging.warning(f"Failed to apply ConvSF to {sample}: {e}")
     return hist
