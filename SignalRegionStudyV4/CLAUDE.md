@@ -451,8 +451,9 @@ These points are **in-sample** — the surfaces were fitted using them — so
 this is a production-model closure. `closure/interpolation/loo/` remains the
 out-of-sample statement.
 
-Two chi2 are quoted per category: against MC stat alone, and against MC
-stat (+) the assigned band. The first is large by construction (signal MC
+Two chi2 are recorded per category **in the JSON** (the panel itself
+carries no fit numbers): against MC stat alone, and against MC stat (+) the
+assigned band. The first is large by construction (signal MC
 stat is ~0.5% in the peak, so a percent-level shape residual is a multi-sigma
 pull); the second is the one that answers whether the closure sits inside
 what the analysis quotes.
@@ -461,6 +462,14 @@ Per-category outputs land in the point's own template dir,
 `templates/{mp}/{method}/interp-signal/{era}/{channel}/closure/closure.{cat}.{png,pdf,json}`
 (members nest under their seed); the JSON carries the per-bin MC/interp
 arrays so the chi2 can be re-derived without reopening ROOT.
+
+The panel follows the paper figures: the caption block is the bold region
+tag, the final state below it (`e#mu#mu` / `#mu#mu#mu`), then the mass point
+in `plotPaperLRModified.format_signal_label`'s own wording -- imported from
+that module rather than restated, so this figure cannot drift from the
+published ones. The ratio panel treats the interpolated template as the
+prediction: `MC / interp.`, its uncertainty the shaded band at unity and
+the MC the points that either sit in it or do not.
 `collectTemplateClosure.py` promotes the figures only, to
 `results/plots/closure/{method}/{masspoint}/`, and exits 1 listing every
 missing source.

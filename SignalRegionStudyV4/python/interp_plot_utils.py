@@ -639,14 +639,16 @@ def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
     """
     lo = h_mc.GetXaxis().GetXmin()
     hi = h_mc.GetXaxis().GetXmax()
-    y_max = 1.55 * max(h_mc.GetMaximum(), h_interp.GetMaximum())
+    # Headroom for the CMS block, the legend and the three-line paper
+    # caption stacked above the peak.
+    y_max = 1.85 * max(h_mc.GetMaximum(), h_interp.GetMaximum())
 
     CMS.SetExtraText("Simulation Preliminary")
     _set_lumi_energy(period)
     canv = CMS.cmsDiCanvas(
         f"clos_{cat_key}_{mp}".replace("-", "_"), lo, hi, 0.0, y_max,
         ratio_range[0], ratio_range[1],
-        "m(#mu#mu) [GeV]", "Events / bin", "interp. / MC",
+        "m(#mu#mu) [GeV]", "Events / bin", "MC / interp.",
         square=True, iPos=11, extraSpace=0.02)
 
     canv.cd(1)
@@ -659,56 +661,51 @@ def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
                       MarkerSize=0.8, LineColor=ROOT.kBlack,
                       MarkerColor=ROOT.kBlack)
 
-    leg = CMS.cmsLeg(0.53, 0.68, 0.92, 0.88, textSize=0.030)
+    leg = CMS.cmsLeg(0.60, 0.72, 0.94, 0.90, textSize=0.030)
     leg.AddEntry(h_mc, f"signal MC (N={summary['n_mc']:.1f})", "pe")
     leg.AddEntry(h_interp,
                  f"interpolated (N={summary['n_interp']:.1f})", "l")
     leg.AddEntry(band, "interp. uncertainty", "f")
     leg.Draw("same")
 
-    mhc, mA = srspaths.masspoint_mhc_ma(mp)
-    chi2_line = "#chi^{2}/ndf = "
-    if summary["ndf"]:
-        chi2_line += (f"{summary['chi2_stat'] / summary['ndf']:.2f}"
-                      f" (MC stat), "
-                      f"{summary['chi2_total'] / summary['ndf']:.2f}"
-                      f" (+ unc.)")
-    else:
-        chi2_line += "n/a"
-    draw_info_text([f"{REGION_TAG}, {channel_label(cat_key)}",
-                    f"m_{{H^{{#pm}}}} = {mhc:g}, m_{{A}} = {mA:g} GeV",
-                    f"N_{{interp}}/N_{{MC}} = {summary['norm_ratio']:.3f}",
-                    chi2_line],
-                   posX=0.20, posY=0.66, size=0.034, step=0.044)
+    # Paper-style block: region tag bold, final state below it, then the
+    # mass point in the paper's own wording. format_signal_label is the
+    # single definition of that wording -- plotPaperLRModified is the module
+    # the other paper figures import their constants from -- so this panel
+    # cannot drift from the published ones. Imported lazily so
+    # interp_plot_utils stays importable without the paper stack.
+    from plotPaperLRModified import format_signal_label
+    draw_info_text([REGION_TAG, channel_label(cat_key),
+                    format_signal_label(mp)],
+                   posX=0.22, posY=0.72, size=0.042, step=0.048)
     canv.cd(1).RedrawAxis()
 
     canv.cd(2)
-    # Grey band at 1: the MC statistical error the model is measured
-    # against. Red band: the assigned interpolation uncertainty, drawn
-    # around the ratio itself, so the test is whether it reaches the grey.
-    unity = h_mc.Clone(f"h_unity_{cat_key}_{mp}")
-    unity.SetDirectory(0)
-    mc_band = _band_from_hist(h_mc, f"mcband_{cat_key}_{mp}", scale=unity)
-    mc_band.SetFillColorAlpha(ROOT.kGray + 1, 0.45)
-    mc_band.SetLineWidth(0)
-    mc_band.Draw("2 same")
+    # The interpolated template is the PREDICTION, so it is the reference:
+    # its uncertainty is the shaded band at unity and the MC is the
+    # measurement, drawn as points carrying their statistical error.
+    # Reading the panel is then the usual question -- do the points sit in
+    # the band?
     ratio_band = _band_from_hist(h_interp, f"rband_{cat_key}_{mp}",
-                                 scale=h_mc)
+                                 scale=h_interp)
     ratio_band.SetFillColorAlpha(_CURVE_COLOR, 0.30)
     ratio_band.SetLineWidth(0)
     ratio_band.Draw("2 same")
 
-    ratio = h_interp.Clone(f"h_ratio_{cat_key}_{mp}")
+    ratio = h_mc.Clone(f"h_ratio_{cat_key}_{mp}")
     ratio.SetDirectory(0)
     for i in range(1, ratio.GetNbinsX() + 1):
-        denom = h_mc.GetBinContent(i)
-        ratio.SetBinContent(i, h_interp.GetBinContent(i) / denom
+        denom = h_interp.GetBinContent(i)
+        ratio.SetBinContent(i, h_mc.GetBinContent(i) / denom
                             if denom > 0 else 0.0)
-        ratio.SetBinError(i, 0.0)
+        ratio.SetBinError(i, h_mc.GetBinError(i) / denom
+                          if denom > 0 else 0.0)
     ref = ROOT.TLine()
     ref.SetLineStyle(ROOT.kDotted)
     ref.DrawLine(lo, 1.0, hi, 1.0)
-    CMS.cmsObjectDraw(ratio, "hist", LineColor=_CURVE_COLOR, LineWidth=2)
+    CMS.cmsObjectDraw(ratio, "PE", MarkerStyle=ROOT.kFullCircle,
+                      MarkerSize=0.8, LineColor=ROOT.kBlack,
+                      MarkerColor=ROOT.kBlack)
     canv.cd(2).RedrawAxis()
 
     _save_both(canv, outdir, f"closure.{cat_key}")
