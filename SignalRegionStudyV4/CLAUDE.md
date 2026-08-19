@@ -227,6 +227,63 @@ panel reads the Baseline seeds' caches, and each arm warms only its own.
 The production `interp-signal` source carries no filename token (the ad
 hoc `mc-signal` run is the one tagged).
 
+### 7b. Uncertainty breakdown
+
+`sigma(r)` split into signal-model, background-normalization,
+experimental and statistical components, at the curated template points.
+Cumulative `MultiDimFit --algo grid` scans with `--freezeNuisanceGroups`;
+each group's contribution is the quadrature difference between
+consecutive scans.
+
+```bash
+./automize/breakdown.sh --template-points     # 7 points x 8 nodes = 56
+python3 python/collectBreakdown.py --template-points
+python3 python/plotBreakdown.py
+```
+
+Frozen Combine commands: one best fit `combine -M MultiDimFit
+grouped_workspace.root --algo none --setParameterRanges r={RMIN},{RMAX}
+--saveWorkspace -n .{mp}.{method}.bestfit -m 120`, then EVERY scan off
+that snapshot -- `combine -M MultiDimFit {bestfit.root} --snapshotName
+MultiDimFit --algo grid --points 200 --setParameterRanges
+r={RMIN},{RMAX} [--freezeNuisanceGroups {cumulative,csv}] -n
+.{mp}.{method}.{total|freeze_{tag}} -m 120`.
+
+**The shared snapshot is load-bearing.** Quadrature subtraction compares
+intervals across scans, so they must share a minimum. V3 let the total
+grid scan be its own snapshot source; ported verbatim that failed on real
+data at the three template points whose total scan pinned r-hat at
+0.000 -- freezing RAISED sigma, and two returned `stat > total`. See
+docs/BREAKDOWN.md "Recipe correction".
+
+Groups live in `configs/nuisance_groups.json`, whose array order IS the
+cumulative freeze order: `signal_theory` (theory **and** `CMS_interp_*` —
+the interpolation nuisances are signal-model errors), `prompt_norm`,
+`nonprompt_norm`, `experimental`, then the residual `stat`. The residual
+deliberately carries the autoMCStats `prop_bin*` parameters, which
+`text2workspace` generates and which therefore cannot be named in a
+`group =` line. An unmatched nuisance is a **hard error**, not a
+catch-all, so a new systematic family surfaces instead of being
+mis-attributed.
+
+The datacard is never modified: `python/nuisanceGroups.py` appends the
+group block to a throwaway `grouped_datacard.txt`, so the production
+campaign never needs regenerating.
+
+**The scan range is per point, not fixed** — the one real departure from
+V3. V3's `r=-5,5 --points 100` is a step of 0.1 while `sigma(r)` here is
+0.08-0.45, i.e. 0.2-1.2 grid steps per sigma, which cannot resolve the
+`2*deltaNLL=1` crossing. `resolve_scan_range()` reads the point's own
+asymptotic ROOT (`limit` tree already in `r`), takes
+`sigma ~ exp0/1.96`, and scans `+-5 sigma` with 200 points: 20 grid
+points per sigma at every point. Note `runImpacts.sh resolve_r_range()`
+only ever WIDENS past +-5 and cannot be reused.
+
+`collectBreakdown.py` recomputes the components from the scan ROOTs with
+the same spline `plot1DScan.py` uses, so the JSON and the PDF cannot
+disagree; a negative quadrature subtraction is recorded as `null`, never
+zero. Full record: `docs/BREAKDOWN.md`.
+
 ### 8. ParticleNet score plots
 
 Part of the ParticleNet DAG (`plot_score` nodes, 4 GB memory request);
