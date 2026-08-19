@@ -596,6 +596,13 @@ def plot_yield_template_closure(cat_key, mp, hist, pred, n_pred, err_pred,
     _save(canv, outdir, f"closure.{cat_key}.{mp}")
 
 
+# Caption geometry of the template-closure panel, shared with the legend
+# placement below it.
+_CAPTION_Y = 0.72
+_CAPTION_SIZE = 0.042
+_CAPTION_STEP = 0.048
+
+
 def _band_from_hist(hist, name, scale=None):
     """Filled band graph from a TH1's bin contents +- bin errors.
 
@@ -661,10 +668,10 @@ def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
                       MarkerSize=0.8, LineColor=ROOT.kBlack,
                       MarkerColor=ROOT.kBlack)
 
-    leg = CMS.cmsLeg(0.60, 0.72, 0.94, 0.90, textSize=0.030)
-    leg.AddEntry(h_mc, f"signal MC (N={summary['n_mc']:.1f})", "pe")
-    leg.AddEntry(h_interp,
-                 f"interpolated (N={summary['n_interp']:.1f})", "l")
+    leg = CMS.cmsLeg(0.60, 0.72 - 3 * _CAPTION_STEP,
+                     0.94, 0.90 - 3 * _CAPTION_STEP, textSize=0.030)
+    leg.AddEntry(h_mc, "signal MC", "pe")
+    leg.AddEntry(h_interp, "interpolated", "l")
     leg.AddEntry(band, "interp. uncertainty", "f")
     leg.Draw("same")
 
@@ -675,9 +682,14 @@ def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
     # cannot drift from the published ones. Imported lazily so
     # interp_plot_utils stays importable without the paper stack.
     from plotPaperLRModified import format_signal_label
-    draw_info_text([REGION_TAG, channel_label(cat_key),
-                    format_signal_label(mp)],
-                   posX=0.22, posY=0.72, size=0.042, step=0.048)
+    draw_info_text([REGION_TAG, channel_label(cat_key)],
+                   posX=0.22, posY=_CAPTION_Y, size=_CAPTION_SIZE,
+                   step=_CAPTION_STEP)
+    # One line lower than the block it belongs to, so the region tag and
+    # the final state read as a unit and the mass point as a caption.
+    CMS.drawText(format_signal_label(mp), posX=0.22,
+                 posY=_CAPTION_Y - 3 * _CAPTION_STEP, font=42, align=0,
+                 size=_CAPTION_SIZE)
     canv.cd(1).RedrawAxis()
 
     canv.cd(2)
