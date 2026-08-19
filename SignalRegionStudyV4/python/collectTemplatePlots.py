@@ -234,6 +234,37 @@ def collect_significance(coll, masspoint, method, era, outroot, source):
     coll.copied += 1
 
 
+def collect_breakdown(coll, masspoint, method, era, outroot, source):
+    """The grouped uncertainty breakdown: the plot1DScan panel, plus this
+    point's component sigmas lifted out of the collectBreakdown.py JSON
+    for the same reason limits and significance are lifted out of theirs
+    -- the bundle can then never disagree with the published values."""
+    src = point_dir(masspoint, method, era, "Combined", source)
+    bdir = os.path.join(src, "combine_output", "breakdown")
+    for name in ("breakdown.pdf", "breakdown.png"):
+        coll.copy(os.path.join(bdir, name), outroot, name)
+
+    source_infix = "" if source == "mc-signal" else f".{source}"
+    path = os.path.join(srspaths.module_dir(), "results", "json",
+                        f"breakdown.{era}{source_infix}.json")
+    if not os.path.exists(path):
+        coll.missing.append(path)
+        return
+    with open(path) as f:
+        record = json.load(f)
+    entry = record.get(method, {}).get(masspoint)
+    if not entry:
+        coll.missing.append(f"{path}::{method}/{masspoint}")
+        return
+    os.makedirs(outroot, exist_ok=True)
+    with open(os.path.join(outroot, "breakdown.json"), "w") as f:
+        json.dump({"masspoint": masspoint, "method": method, "era": era,
+                   "signal_source": source, "breakdown": entry},
+                  f, indent=2, sort_keys=True)
+        f.write("\n")
+    coll.copied += 1
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -278,6 +309,8 @@ def main():
                                args.signal_source)
                 collect_significance(coll, masspoint, method, era, outroot,
                                      args.signal_source)
+                collect_breakdown(coll, masspoint, method, era, outroot,
+                                  args.signal_source)
                 if method == "ParticleNet":
                     collect_scores(coll, masspoint, method, era, outroot,
                                    args.signal_source)

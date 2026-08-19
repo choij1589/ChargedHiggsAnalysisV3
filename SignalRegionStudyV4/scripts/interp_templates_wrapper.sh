@@ -8,6 +8,9 @@
 # Arguments: STEP MASSPOINT SEED ERA CHANNEL [EXTRA...]
 #   STEP: template | merge | datacard | validate | asymptotic | significance
 #         | gof-data | gof-toys (EXTRA = toy seed) | gof-collect | impacts
+#         | breakdown-setup | breakdown-bestfit | breakdown-total
+#         | breakdown-freeze (EXTRA = group index) | breakdown-plot
+#         | template-closure
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -114,6 +117,27 @@ case "$STEP" in
             --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
             --method "$METHOD" --signal-source interp-signal \
             --seed "$SEED" $EXTRA_ARGS
+        ;;
+    breakdown-setup|breakdown-bestfit|breakdown-total|breakdown-plot)
+        ./scripts/runBreakdown.sh \
+            --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+            --method "$METHOD" --signal-source interp-signal \
+            --seed "$SEED" --step "${STEP#breakdown-}" $EXTRA_ARGS
+        ;;
+    breakdown-freeze)
+        # first EXTRA arg = 1-based cumulative group index
+        GROUP_INDEX=$1; shift
+        ./scripts/runBreakdown.sh \
+            --era "$ERA" --channel "$CHANNEL" --masspoint "$MASSPOINT" \
+            --method "$METHOD" --signal-source interp-signal \
+            --seed "$SEED" --step freeze --group-index "$GROUP_INDEX" "$@"
+        ;;
+    template-closure)
+        # MC vs interpolation closure of the final binned template; one
+        # node per category (era/channel = the category).
+        python3 python/plotTemplateClosure.py \
+            --masspoint "$MASSPOINT" --method "$METHOD" \
+            --era "$ERA" --channel "$CHANNEL" $EXTRA_ARGS
         ;;
     plot-score)
         # ParticleNet interp arm only: score distributions at the group

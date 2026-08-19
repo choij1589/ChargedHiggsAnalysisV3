@@ -332,7 +332,52 @@ python3 python/collectSignificance.py --template-points $SIG_POINTS
 # Re-derive the list before reusing it -- the extremes are a property of the
 # data, not of the code.
 
-# 7b. The bundle itself.
+# 7b. Uncertainty breakdown of sigma(r) at the same template points.
+# Cumulative MultiDimFit scans freezing nuisance groups; each group's share is
+# the quadrature difference between consecutive scans, and whatever still
+# floats at the end (data stat + the autoMCStats prop_bin params, which cannot
+# be put in a datacard group line) is the residual "stat".
+# 7 points x 8 nodes: setup -> bestfit -> {total, 4 freezes} in parallel -> plot.
+# Every scan hangs off the one --algo none best-fit snapshot: quadrature
+# subtraction compares intervals across scans, so they must share a minimum.
+# V3 chained the freezes off the total grid scan instead, which broke on the
+# points whose total scan pinned r-hat at 0 (docs/BREAKDOWN.md).
+./automize/breakdown.sh --template-points
+# The datacard is never modified -- the group lines go into a throwaway
+# grouped_datacard.txt, so the Step 2 campaign needs no regeneration.
+# Groups: configs/nuisance_groups.json, array order = freeze order.
+# CMS_interp_* sits in signal_theory: it is a signal-MODEL error, like the
+# scale/PDF/PS ones. An unmatched nuisance is a hard error, not a catch-all.
+# The scan range is derived PER POINT (~5 sigma, 200 points => 20 points per
+# sigma). V3's fixed r=-5,5 / 100 points is 0.2-1.2 steps per sigma here and
+# cannot resolve the crossing. That and the shared best-fit snapshot are the
+# two departures from V3 -- which never actually ran this study at all.
+python3 python/collectBreakdown.py --template-points
+python3 python/plotBreakdown.py            # -> results/plots/breakdown/
+# collectBreakdown recomputes the components with the same spline
+# plot1DScan.py uses, so the JSON and the panel cannot disagree; a negative
+# quadrature subtraction is recorded as null, never zero. docs/BREAKDOWN.md.
+
+# 7b2. MC-vs-interpolation closure of the final binned template.
+# The limits come from parametric templates everywhere, so at the mass points
+# that HAVE signal MC the two can be compared directly -- on the FINAL
+# production adaptive binning, not the 100 uniform bins the LOO closures use.
+# The interpolated template is read out of the interp-signal shapes.root; the
+# MC is filled onto those same edges with binned_template_core.getHist, the
+# function makeBinnedTemplates itself uses -- so it is the production MC
+# template, and no mc-signal campaign is needed.
+# Uncertainties are drawn separately and that is the point: the red band is
+# the full CMS_interp_* up/down envelope, the MC keeps its own stat bars.
+# Scope: configs/masspoints.json baseline (78) + particlenet (17), i.e. the
+# mc_points of the two grids, x {Run2,Run3} x {SR1E2Mu,SR3Mu}.
+./automize/templateClosure.sh --method Baseline        # 312 nodes, ~1 min each
+./automize/templateClosure.sh --method ParticleNet     #  68 nodes
+python3 python/collectTemplateClosure.py               # -> results/plots/closure/
+# These points are IN-SAMPLE (the surfaces were fitted using them), so this is
+# a production-model closure; closure/interpolation/loo/ stays the
+# out-of-sample statement. CLAUDE.md section 12.
+
+# 7c. The bundle itself.
 # The per-mass-point fit diagnostics of the campaign live in 572 gitignored
 # template dirs. This promotes the curated TEMPLATE POINTS -- one bundle per
 # arm corner -- into the tracked tree, the same way collectPnetScorePlots.py
@@ -346,7 +391,7 @@ python3 python/collectSignificance.py --template-points $SIG_POINTS
 # mass plots, -- ParticleNet only -- the score panels including the TTZ2E1Mu
 # CR, limits.json (that point's limit per channel, both units, read out of
 # the Step 2 / 5c campaign JSONs -- so run those first) and
-# significance.json (from 7a). Neither number is re-read from Combine here,
+# significance.json (from 7a) and breakdown.json (from 7b). No number is re-read from Combine here,
 # so the bundle can never disagree with the published values.
 # ~16 MB, 526 files -> results/templates/{method}/{masspoint}/.
 python3 python/collectTemplatePlots.py
@@ -354,7 +399,7 @@ python3 python/collectTemplatePlots.py
 # --eras adds Run2/Run3 (only the score plots exist there).
 # Exits 1 listing anything missing, so a partial campaign cannot pass silently.
 
-# 7c. Look-elsewhere effect: the global significance of the scan maxima.
+# 7d. Look-elsewhere effect: the global significance of the scan maxima.
 # Unlike 7a this IS a scan step -- the trials correction counts how often the
 # observed Z(mA) curve crosses a level, so it needs Z at every scan point.
 # 7401 Baseline + 450 ParticleNet nodes, one DAG per (arm, mHc), ~33 s each.

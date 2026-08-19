@@ -227,6 +227,63 @@ panel reads the Baseline seeds' caches, and each arm warms only its own.
 The production `interp-signal` source carries no filename token (the ad
 hoc `mc-signal` run is the one tagged).
 
+### 7b. Uncertainty breakdown
+
+`sigma(r)` split into signal-model, background-normalization,
+experimental and statistical components, at the curated template points.
+Cumulative `MultiDimFit --algo grid` scans with `--freezeNuisanceGroups`;
+each group's contribution is the quadrature difference between
+consecutive scans.
+
+```bash
+./automize/breakdown.sh --template-points     # 7 points x 8 nodes = 56
+python3 python/collectBreakdown.py --template-points
+python3 python/plotBreakdown.py
+```
+
+Frozen Combine commands: one best fit `combine -M MultiDimFit
+grouped_workspace.root --algo none --setParameterRanges r={RMIN},{RMAX}
+--saveWorkspace -n .{mp}.{method}.bestfit -m 120`, then EVERY scan off
+that snapshot -- `combine -M MultiDimFit {bestfit.root} --snapshotName
+MultiDimFit --algo grid --points 200 --setParameterRanges
+r={RMIN},{RMAX} [--freezeNuisanceGroups {cumulative,csv}] -n
+.{mp}.{method}.{total|freeze_{tag}} -m 120`.
+
+**The shared snapshot is load-bearing.** Quadrature subtraction compares
+intervals across scans, so they must share a minimum. V3 let the total
+grid scan be its own snapshot source; ported verbatim that failed on real
+data at the three template points whose total scan pinned r-hat at
+0.000 -- freezing RAISED sigma, and two returned `stat > total`. See
+docs/BREAKDOWN.md "Recipe correction".
+
+Groups live in `configs/nuisance_groups.json`, whose array order IS the
+cumulative freeze order: `signal_theory` (theory **and** `CMS_interp_*` —
+the interpolation nuisances are signal-model errors), `prompt_norm`,
+`nonprompt_norm`, `experimental`, then the residual `stat`. The residual
+deliberately carries the autoMCStats `prop_bin*` parameters, which
+`text2workspace` generates and which therefore cannot be named in a
+`group =` line. An unmatched nuisance is a **hard error**, not a
+catch-all, so a new systematic family surfaces instead of being
+mis-attributed.
+
+The datacard is never modified: `python/nuisanceGroups.py` appends the
+group block to a throwaway `grouped_datacard.txt`, so the production
+campaign never needs regenerating.
+
+**The scan range is per point, not fixed** — the one real departure from
+V3. V3's `r=-5,5 --points 100` is a step of 0.1 while `sigma(r)` here is
+0.08-0.45, i.e. 0.2-1.2 grid steps per sigma, which cannot resolve the
+`2*deltaNLL=1` crossing. `resolve_scan_range()` reads the point's own
+asymptotic ROOT (`limit` tree already in `r`), takes
+`sigma ~ exp0/1.96`, and scans `+-5 sigma` with 200 points: 20 grid
+points per sigma at every point. Note `runImpacts.sh resolve_r_range()`
+only ever WIDENS past +-5 and cannot be reused.
+
+`collectBreakdown.py` recomputes the components from the scan ROOTs with
+the same spline `plot1DScan.py` uses, so the JSON and the PDF cannot
+disagree; a negative quadrature subtraction is recorded as `null`, never
+zero. Full record: `docs/BREAKDOWN.md`.
+
 ### 8. ParticleNet score plots
 
 Part of the ParticleNet DAG (`plot_score` nodes, 4 GB memory request);
@@ -349,6 +406,126 @@ METHOD:MASSPOINT` (repeatable) collects a different set; the script
 exits 1 listing every missing source, so a partial campaign cannot pass
 silently.
 
+### 12. Template closure (MC vs interpolation)
+
+The production limits come from parametric templates everywhere, so at the
+mass points that HAVE signal MC the two can be compared directly. This is
+that comparison, drawn on the **final production adaptive binning**:
+
+```bash
+./automize/templateClosure.sh --method Baseline        # 78 pts x 4 cats = 312 nodes
+./automize/templateClosure.sh --method ParticleNet     # 17 pts x 4 cats =  68
+python3 python/collectTemplateClosure.py               # -> results/plots/closure/
+```
+
+Scope is `configs/masspoints.json` `baseline` (78) and `particlenet` (17)
+— exactly the `mc_points` of the two scan grids — times
+{Run2, Run3} x {SR1E2Mu, SR3Mu}. One node per category, no DAG edges.
+
+The interpolated template is read straight out of the interp-signal
+`shapes.root` and summed over the run period's sub-era components; the
+signal MC is filled onto **those same bin edges** with
+`binned_template_core.getHist`, the function `makeBinnedTemplates` itself
+uses for the MC signal component — so it is the production MC template, not
+a rebin, and no `mc-signal` campaign is needed. Verified at
+Baseline MHc130_MA90 / Run2 / SR1E2Mu: 33.596 against the stored mc-signal
+template's 33.600, and N_interp = 33.017 against the `param_signal` sidecar's
+own 33.018.
+
+Uncertainties are drawn **separately**, which is the point of the figure:
+the red band on the prediction is the quadrature of every `CMS_interp_*`
+nuisance the datacard carries (`scale`/`res` as shape templates, `norm` —
+and `eff_pnet` on the ParticleNet arm — as lnN), while the MC keeps its own
+statistical bars. Each family is period-level, i.e. ONE nuisance spanning
+the period's sub-eras, so its sub-era shifts add linearly and only the
+families add in quadrature. The nuisance set is **discovered** from
+`extra_systematics.json` and cross-checked against the `shapes.root` keys:
+a family in one and not the other is a hard error, never a silent drop.
+
+Two deliberate departures from the production signal build, both recorded
+in the script docstring: `cap_stat_errors` is not applied (the honest MC
+stat error is what is being drawn against), and the nuisance set is
+discovered rather than hardcoded.
+
+These points are **in-sample** — the surfaces were fitted using them — so
+this is a production-model closure. `closure/interpolation/loo/` remains the
+out-of-sample statement.
+
+Two chi2 are recorded per category **in the JSON** (the panel itself
+carries no fit numbers): against MC stat alone, and against MC stat (+) the
+assigned band. The first is large by construction (signal MC
+stat is ~0.5% in the peak, so a percent-level shape residual is a multi-sigma
+pull); the second is the one that answers whether the closure sits inside
+what the analysis quotes.
+
+Per-category outputs land in the point's own template dir,
+`templates/{mp}/{method}/interp-signal/{era}/{channel}/closure/closure.{cat}.{png,pdf,json}`
+(members nest under their seed); the JSON carries the per-bin MC/interp
+arrays so the chi2 can be re-derived without reopening ROOT.
+
+The panel is drawn in the **line style of the fake-rate closure**
+(`MeasFakeRateV4/plotClosure.py` -> `plotter.ComparisonCanvas`): the signal
+MC is the observed (black points), the interpolated template the expected
+(filled histogram), the hatched band its uncertainty, and the ratio is
+`Obs / Exp` with the band at unity -- built by the same
+`build_ratio_uncertainty_band` / `build_ratio_histogram` helpers that
+canvas uses, so the two figure families cannot diverge in what the ratio
+means. The errors stay **split**: the band is the interpolation
+uncertainty, the points keep their MC statistical error. The extra text is
+`Simulation Preliminary`, not `ComparisonCanvas`'s hardcoded
+`Preliminary` -- these panels contain no data at all.
+
+The caption block follows the paper figures: bold region tag, the final
+state below it (`e#mu#mu` / `#mu#mu#mu`), then the mass point in
+`plotPaperLRModified.format_signal_label`'s own wording, imported from that
+module rather than restated so this figure cannot drift from the published
+ones.
+
+`--skip-histogram` (driver: `./automize/templateClosure.sh --replot`)
+redraws from the cached `histograms.{cat}.root` beside the figures instead
+of refilling the MC from the sample trees, which is the whole cost of a
+node. Use it for styling changes; the numbers are recomputed from the
+cached histograms and the JSON's metadata fields carry over from the full
+run that wrote the cache.
+`collectTemplateClosure.py` promotes the figures only, to
+`results/plots/closure/{method}/{masspoint}/`, and exits 1 listing every
+missing source.
+
+**Campaign result (2026-08-19, 380 categories, all nodes clean).**
+Baseline: N_interp/N_MC median 0.998, |dev| p90 7.8%; chi2/ndf (+unc)
+median 0.60, p90 1.58. ParticleNet: median 0.999, |dev| p90 6.4%;
+chi2/ndf median 0.78, p90 2.11. Splitting the Baseline arm at the known
+grid-density boundary: |dev| median 2.0% / p90 6.6% above mA = 45, versus
+3.6% / 13.8% below it.
+
+Only **6 of 380** categories exceed chi2/ndf (+unc) = 3, and **five sit at
+mA = 15** — the documented low-mA grid-density limit, now quantified:
+
+| point | category | N_interp/N_MC | chi2/ndf (+unc) |
+|---|---|---|---|
+| MHc100_MA15 | SR1E2Mu_Run2 | 1.454 | 8.97 |
+| MHc100_MA15 | SR1E2Mu_Run3 | 1.393 | 8.95 |
+| MHc130_MA15 | SR3Mu_Run3 | 0.828 | 5.82 |
+| MHc160_MA98 | SR3Mu_Run2 | 1.015 | 4.86 |
+| MHc130_MA15 | SR3Mu_Run2 | 0.798 | 4.33 |
+| MHc145_MA15 | SR3Mu_Run3 | 0.906 | 3.35 |
+
+**MHc100_MA15 is the worst point of the study and is not covered**: +37% to
++45% in all four categories against a `belowZ` norm nuisance of 9%. This is
+NOT new and NOT an artifact of this comparison — the frozen
+`closure/interpolation/MHc100/yield_closure.json` already records exactly
+these ratios (1.454 / 1.393 / 1.373 / 1.321) at 15-20 sigma per-era pulls.
+Reproducing them through a completely separate path (production
+`shapes.root` + `getHist` on the production adaptive binning) is the
+strongest available check that this closure is measuring what it claims.
+What is new is that the module docs named MHc115 and MHc130 as the binding
+low-mA cases; MHc100_MA15 is worse than either. Its `mc_points` gap
+(15 -> 24) is not unusually wide, so the cause is the global surface, not
+grid density alone. MHc160_MA98 is the one non-mA=15 entry and is a pure
+shape effect (ratio 1.015).
+
+Every other point closes inside the assigned band.
+
 ## Configuration
 
 - `configs/masspoints.json` — keys `baseline`, `particlenet`, `limits` only.
@@ -419,6 +596,13 @@ python3 python/plotInterpSurfaces.py --all      # global surface plots
 python3 python/plotInterpNuisances.py           # nuisance-rule plots
 python3 python/plotInterpResiduals.py --all     # signed LOO residual scatters
 ```
+
+`./automize/interpolation.sh --replot --all` redraws the yield-closure
+PNGs alone (7 study nodes + 78 LOO nodes, `closInterpYields.py
+--plots-only`). Those JSON payloads carry a timestamp and the argv, so a
+plain re-run dirties the frozen production files even when every number is
+identical; `--plots-only` skips the write. Use it when the PLOTTING code
+changes and the numbers do not.
 
 Outputs under `fits/MHc{X}/` (per-study fit artifacts + plots, global
 surface panels in `fits/{params,yield}/`) and `closure/interpolation/`

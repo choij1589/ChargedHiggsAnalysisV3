@@ -20,7 +20,12 @@ import numpy as np
 import ROOT
 import cmsstyle as CMS
 
-from plotter import LumiInfo, PALETTE_LONG, get_CoM_energy
+import srspaths
+
+from plotter import (LumiInfo, PALETTE, PALETTE_LONG,
+                     build_ratio_histogram,
+                     build_ratio_uncertainty_band,
+                     get_CoM_energy)
 
 ROOT.gROOT.SetBatch(True)
 
@@ -103,6 +108,15 @@ def _save(canv, outdir, name):
     canv.Close()
 
 
+def _save_both(canv, outdir, name):
+    """PNG + PDF, the results/plots convention (plotBreakdown.py)."""
+    os.makedirs(outdir, exist_ok=True)
+    base = os.path.join(outdir, name)
+    canv.SaveAs(f"{base}.png")
+    canv.SaveAs(f"{base}.pdf")
+    canv.Close()
+
+
 # --------------------------------------------------------- shape parameters
 
 _PARAM_TITLES = {
@@ -134,11 +148,15 @@ REGION_TAG = "SR"
 
 
 def draw_info_text(lines, posX=INFO_TEXT_POS[0], posY=INFO_TEXT_POS[1],
-                   size=INFO_TEXT_SIZE):
+                   size=INFO_TEXT_SIZE, step=None):
     """Paper-style information block: first line bold (font 62), the rest in
-    the regular font (42), stacked downwards one text height apart."""
+    the regular font (42), stacked downwards one text height apart.
+
+    `step` overrides the line pitch; lines carrying both a subscript and a
+    superscript need more than one text height to clear each other."""
+    pitch = size if step is None else step
     for i, line in enumerate(lines):
-        CMS.drawText(line, posX=posX, posY=posY - i * size,
+        CMS.drawText(line, posX=posX, posY=posY - i * pitch,
                      font=62 if i == 0 else 42, align=0, size=size)
 
 
@@ -538,12 +556,16 @@ def plot_yield_template_closure(cat_key, mp, hist, pred, n_pred, err_pred,
     nbins = hist.GetNbinsX()
     lo, hi = hist.GetXaxis().GetXmin(), hist.GetXaxis().GetXmax()
     mc = np.array([hist.GetBinContent(i) for i in range(1, nbins + 1)])
+    # Header state FIRST: cmsstyle draws CMS_lumi inside cmsDiCanvas, so
+    # setting these afterwards labels the plot with whatever the previous
+    # call left behind (and the very first plot of a process with
+    # cmsstyle's defaults).
+    CMS.SetExtraText("Simulation Preliminary")
+    _set_lumi_energy(period)
     canv = CMS.cmsDiCanvas(
         f"tmpl_{cat_key}_{mp}", lo, hi, 0.0, 1.3 * max(mc.max(), pred.max()),
         0.5, 1.5, "m(#mu#mu) [GeV]", "Events / bin", "Pred / MC",
         square=True, iPos=11, extraSpace=0.02)
-    CMS.SetExtraText("Simulation Preliminary")
-    _set_lumi_energy(period)
     canv.cd(1)
     h_pred = hist.Clone(f"h_pred_{cat_key}_{mp}")
     h_pred.Reset()
@@ -554,12 +576,12 @@ def plot_yield_template_closure(cat_key, mp, hist, pred, n_pred, err_pred,
     leg = CMS.cmsLeg(0.55, 0.72, 0.90, 0.88, textSize=0.030)
     leg.AddEntry(hist, "MC", "pe")
     leg.AddEntry(h_pred, f"predicted (N={n_pred:.1f}#pm{err_pred:.1f})", "l")
-    lat = ROOT.TLatex()
-    lat.SetNDC(True)
-    lat.SetTextFont(42)
-    lat.SetTextSize(0.030)
-    lat.DrawLatex(0.20, 0.83, f"{cat_key}  {mp}")
-    lat.DrawLatex(0.20, 0.79, f"#chi^{{2}}/ndf={chi2:.1f}/{ndf}")
+    # Below the CMS block, not on top of it: at NDC y = 0.83/0.79 this text
+    # ran straight through the "CMS" / "Simulation Preliminary" logo drawn
+    # inside the frame by iPos=11.
+    draw_info_text([f"{cat_key}  {mp}",
+                    f"#chi^{{2}}/ndf={chi2:.1f}/{ndf}"],
+                   posX=0.20, posY=0.68, size=0.032, step=0.042)
     canv.cd(1).RedrawAxis()
 
     canv.cd(2)
@@ -575,6 +597,111 @@ def plot_yield_template_closure(cat_key, mp, hist, pred, n_pred, err_pred,
                       MarkerColor=_CURVE_COLOR, LineColor=_CURVE_COLOR)
     canv.cd(2).RedrawAxis()
     _save(canv, outdir, f"closure.{cat_key}.{mp}")
+
+
+# Caption geometry of the template-closure panel, shared with the legend
+# placement below it.
+_CAPTION_Y = 0.72
+_CAPTION_SIZE = 0.042
+_CAPTION_STEP = 0.048
+
+
+def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
+                          outdir, ratio_range=(0.5, 1.5)):
+    """Signal MC vs the interpolated template, on the PRODUCTION binning.
+
+    Drawn in the line style of the fake-rate closure
+    (MeasFakeRateV4/plotClosure.py -> plotter.ComparisonCanvas): the signal
+    MC is the OBSERVED, black points; the interpolated template is the
+    EXPECTED, a filled histogram; the hatched band is the uncertainty on
+    the expectation. The ratio panel is Obs / Exp with the band at unity,
+    built by the very same plotter helpers that canvas uses
+    (build_ratio_uncertainty_band / build_ratio_histogram), so the two
+    figure families cannot diverge in what the ratio means.
+
+    The errors stay SPLIT, which is the point of this particular closure:
+    ``h_interp`` carries the assigned interpolation uncertainty in its bin
+    errors (the quadrature of every CMS_interp_* nuisance -- see
+    plotTemplateClosure.py) and shows up as the band, while ``h_mc`` keeps
+    its own statistical error on the points. A discrepancy is then
+    attributable to the model or to MC noise.
+
+    The luminosity header and the extra text are set BEFORE the canvas is
+    built -- cmsstyle draws the header inside cmsDiCanvas, so setting them
+    afterwards labels the plot with whatever the previous call left behind
+    (the bug plot_yield_template_closure carried until 2026-08-19). Unlike
+    ComparisonCanvas, which hardcodes "Preliminary", these panels say
+    "Simulation Preliminary": they contain no data at all.
+    """
+    lo = h_mc.GetXaxis().GetXmin()
+    hi = h_mc.GetXaxis().GetXmax()
+    # Headroom for the CMS block, the legend and the paper caption stacked
+    # above the peak.
+    y_max = 1.85 * max(h_mc.GetMaximum(), h_interp.GetMaximum())
+
+    CMS.SetExtraText("Simulation Preliminary")
+    _set_lumi_energy(period)
+    canv = CMS.cmsDiCanvas(
+        f"clos_{cat_key}_{mp}".replace("-", "_"), lo, hi, 0.0, y_max,
+        ratio_range[0], ratio_range[1],
+        "m(#mu#mu) [GeV]", "Events / bin", "Obs / Exp",
+        square=True, iPos=11, extraSpace=0.02)
+
+    canv.cd(1)
+    # The band must be a CLONE: cmsObjectDraw sets the attributes on the
+    # object itself and ROOT paints with whatever they are at the end, so
+    # drawing h_interp twice would render the filled histogram with the
+    # band's hatching too. ComparisonCanvas gets this for free -- its stack
+    # and its uncertainty histogram are different objects.
+    band = h_interp.Clone(f"band_{cat_key}_{mp}")
+    band.SetDirectory(0)
+    CMS.cmsObjectDraw(h_interp, "hist", FillColor=PALETTE[0],
+                      LineColor=PALETTE[0], FillStyle=1001, LineWidth=1)
+    CMS.cmsObjectDraw(band, "FE2", FillStyle=3004, LineWidth=0,
+                      FillColor=12, MarkerSize=0)
+    CMS.cmsObjectDraw(h_mc, "PE", MarkerStyle=ROOT.kFullCircle,
+                      MarkerSize=1.0, MarkerColor=1, LineColor=1)
+
+    leg = CMS.cmsLeg(0.60, 0.72 - 1.5 * _CAPTION_STEP,
+                     0.94, 0.90 - 1.5 * _CAPTION_STEP, textSize=0.030)
+    leg.AddEntry(h_mc, "signal MC", "PE")
+    leg.AddEntry(h_interp, "interpolated", "F")
+    CMS.addToLegend(leg, (band, "interp. uncertainty", " FE2"))
+    leg.Draw("same")
+
+    # Paper-style block: region tag bold, final state below it, then the
+    # mass point in the paper's own wording. format_signal_label is the
+    # single definition of that wording -- plotPaperLRModified is the module
+    # the other paper figures import their constants from -- so this panel
+    # cannot drift from the published ones. Imported lazily so
+    # interp_plot_utils stays importable without the paper stack.
+    from plotPaperLRModified import format_signal_label
+    draw_info_text([REGION_TAG, channel_label(cat_key)],
+                   posX=0.22, posY=_CAPTION_Y, size=_CAPTION_SIZE,
+                   step=_CAPTION_STEP)
+    # One line lower than the block it belongs to, so the region tag and
+    # the final state read as a unit and the mass point as a caption.
+    CMS.drawText(format_signal_label(mp), posX=0.22,
+                 posY=_CAPTION_Y - 3 * _CAPTION_STEP, font=42, align=0,
+                 size=_CAPTION_SIZE)
+    canv.cd(1).RedrawAxis()
+
+    canv.cd(2)
+    ref = ROOT.TLine()
+    ref.SetLineStyle(ROOT.kDotted)
+    ref.SetLineColor(ROOT.kBlack)
+    ref.SetLineWidth(2)
+    ref.DrawLine(lo, 1.0, hi, 1.0)
+    ratio_band = build_ratio_uncertainty_band(h_interp,
+                                              f"rband_{cat_key}_{mp}")
+    ratio = build_ratio_histogram(h_mc, h_interp, f"ratio_{cat_key}_{mp}")
+    CMS.cmsObjectDraw(ratio_band, "FE2", FillStyle=3004, LineWidth=0,
+                      FillColor=12, MarkerSize=0)
+    CMS.cmsObjectDraw(ratio, "PE", MarkerStyle=ROOT.kFullCircle,
+                      MarkerSize=1.0, MarkerColor=1, LineColor=1)
+    canv.cd(2).RedrawAxis()
+
+    _save_both(canv, outdir, f"closure.{cat_key}")
 
 
 # -------------------------------------------------------------- shape deltas

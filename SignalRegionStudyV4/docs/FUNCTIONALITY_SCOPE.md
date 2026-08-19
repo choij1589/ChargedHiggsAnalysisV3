@@ -65,6 +65,21 @@ argument; it is not part of any production workflow.
   Z(mA) scan, scoped to the mA scan alone per (arm, channel, mHc). This is
   NOT V3's toy campaign, which is still not ported and would not be the
   right object on a lattice sampled at the mass resolution; see `docs/LEE.md`
+- Grouped uncertainty breakdown of `sigma(r)`
+  (`scripts/runBreakdown.sh`, `automize/breakdown.sh`,
+  `python/nuisanceGroups.py`, `python/collectBreakdown.py`,
+  `python/plotBreakdown.py`) — cumulative `MultiDimFit
+  --freezeNuisanceGroups` scans at the curated template points, groups
+  defined in `configs/nuisance_groups.json`. V3 has an unrun
+  implementation of this; V4 establishes the number and derives the scan
+  range per point rather than fixing it. See `docs/BREAKDOWN.md`
+- MC-vs-interpolation template closure
+  (`python/plotTemplateClosure.py`, `automize/templateClosure.sh`,
+  `python/collectTemplateClosure.py`) — the interpolated signal template
+  against the signal MC filled onto the SAME production adaptive binning,
+  at the 78 Baseline / 17 ParticleNet mass points that have MC, with the
+  full `CMS_interp_*` up/down band drawn separately from the MC
+  statistical error. Promoted to `results/plots/closure/`
 - Paper figures, ported from V3 2026-08-18 (`python/plotPaperLRModified.py`
   — SR and TTZ CR LR_modified panels plus the standalone legend;
   `python/plotPaperTemplates.py` — prefit/B-only/S+B mass templates per

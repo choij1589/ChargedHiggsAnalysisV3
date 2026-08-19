@@ -130,6 +130,19 @@ case "$STEP" in
         python3 python/closInterpShapes.py     --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
         python3 python/closInterpYields.py     --mhc "$MHC" --loo-ma "$LOO_MA" $EXTRA_ARGS
         ;;
+    yield_replot)
+        # Redraw the yield-closure PNGs of one study, or of one LOO point
+        # when MASSPOINT is MHc{X}_MA{Y}. --plots-only leaves the frozen
+        # closure JSONs bitwise untouched (they carry a timestamp and the
+        # argv, so a plain re-run would dirty them regardless).
+        if [[ "$MASSPOINT" == "-" ]]; then
+            python3 python/closInterpYields.py --mhc "$MHC" --plots-only \
+                $EXTRA_ARGS
+        else
+            python3 python/closInterpYields.py --mhc "$MHC" \
+                --loo-ma "${MASSPOINT##*_MA}" --plots-only $EXTRA_ARGS
+        fi
+        ;;
     export_loo)
         python3 python/exportInterpUncertainties.py --loo --mhc "$MHC" $EXTRA_ARGS
         ;;
@@ -138,6 +151,7 @@ case "$STEP" in
         echo "Valid steps: fit_float, merge_float, fit_frozen, merge_frozen, polynomials,"
         echo "  closure, merge_closure, yields, merge_yields, yield_model, yield_closure,"
         echo "  merge_yield_closure, deltas, merge_deltas, delta_model,"
+        echo "  yield_replot,"
         echo "  loo, export_loo"
         exit 1
         ;;

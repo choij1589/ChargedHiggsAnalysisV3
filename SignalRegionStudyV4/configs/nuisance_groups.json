@@ -1,0 +1,46 @@
+{
+    "comment": "Nuisance groups for the uncertainty breakdown (docs/BREAKDOWN.md). The array order IS the cumulative freeze order: scan i freezes groups[0..i]. Whatever still floats after the last group is the residual 'stat' component -- that deliberately includes the autoMCStats prop_bin parameters, which text2workspace creates and which therefore cannot be named in a datacard group line. The classification must be exhaustive: an unmatched nuisance is an error, not a catch-all, so a new systematic family surfaces instead of being absorbed silently.",
+    "groups": [
+        {
+            "name": "signal_theory",
+            "label": "Signal model",
+            "patterns": [
+                "^QCDScale_mu[RF]_BSMsignal(?:_|$)",
+                "^pdf(_alphas)?(?:_|$)",
+                "^ps_(isr|fsr)(?:_|$)",
+                "^CMS_interp_"
+            ]
+        },
+        {
+            "name": "prompt_norm",
+            "label": "Prompt bkg norm.",
+            "patterns": [
+                "^CMS_B2G25013_Norm_(WZ|ZZ|ttW|ttZ|ttH|tZq|conversion|others)(?:_|$)"
+            ]
+        },
+        {
+            "name": "nonprompt_norm",
+            "label": "Nonprompt norm.",
+            "patterns": [
+                "^CMS_B2G25013_Norm_nonprompt_"
+            ]
+        },
+        {
+            "name": "experimental",
+            "label": "Experimental",
+            "patterns": [
+                "^CMS_scale_",
+                "^CMS_res_",
+                "^CMS_eff_",
+                "^CMS_btag_",
+                "^CMS_pileup",
+                "^CMS_l1_prefiring",
+                "^lumi"
+            ]
+        }
+    ],
+    "residual": {
+        "name": "stat",
+        "label": "Statistical"
+    }
+}
