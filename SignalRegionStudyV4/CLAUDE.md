@@ -406,6 +406,100 @@ METHOD:MASSPOINT` (repeatable) collects a different set; the script
 exits 1 listing every missing source, so a partial campaign cannot pass
 silently.
 
+### 12. Template closure (MC vs interpolation)
+
+The production limits come from parametric templates everywhere, so at the
+mass points that HAVE signal MC the two can be compared directly. This is
+that comparison, drawn on the **final production adaptive binning**:
+
+```bash
+./automize/templateClosure.sh --method Baseline        # 78 pts x 4 cats = 312 nodes
+./automize/templateClosure.sh --method ParticleNet     # 17 pts x 4 cats =  68
+python3 python/collectTemplateClosure.py               # -> results/plots/closure/
+```
+
+Scope is `configs/masspoints.json` `baseline` (78) and `particlenet` (17)
+— exactly the `mc_points` of the two scan grids — times
+{Run2, Run3} x {SR1E2Mu, SR3Mu}. One node per category, no DAG edges.
+
+The interpolated template is read straight out of the interp-signal
+`shapes.root` and summed over the run period's sub-era components; the
+signal MC is filled onto **those same bin edges** with
+`binned_template_core.getHist`, the function `makeBinnedTemplates` itself
+uses for the MC signal component — so it is the production MC template, not
+a rebin, and no `mc-signal` campaign is needed. Verified at
+Baseline MHc130_MA90 / Run2 / SR1E2Mu: 33.596 against the stored mc-signal
+template's 33.600, and N_interp = 33.017 against the `param_signal` sidecar's
+own 33.018.
+
+Uncertainties are drawn **separately**, which is the point of the figure:
+the red band on the prediction is the quadrature of every `CMS_interp_*`
+nuisance the datacard carries (`scale`/`res` as shape templates, `norm` —
+and `eff_pnet` on the ParticleNet arm — as lnN), while the MC keeps its own
+statistical bars. Each family is period-level, i.e. ONE nuisance spanning
+the period's sub-eras, so its sub-era shifts add linearly and only the
+families add in quadrature. The nuisance set is **discovered** from
+`extra_systematics.json` and cross-checked against the `shapes.root` keys:
+a family in one and not the other is a hard error, never a silent drop.
+
+Two deliberate departures from the production signal build, both recorded
+in the script docstring: `cap_stat_errors` is not applied (the honest MC
+stat error is what is being drawn against), and the nuisance set is
+discovered rather than hardcoded.
+
+These points are **in-sample** — the surfaces were fitted using them — so
+this is a production-model closure. `closure/interpolation/loo/` remains the
+out-of-sample statement.
+
+Two chi2 are quoted per category: against MC stat alone, and against MC
+stat (+) the assigned band. The first is large by construction (signal MC
+stat is ~0.5% in the peak, so a percent-level shape residual is a multi-sigma
+pull); the second is the one that answers whether the closure sits inside
+what the analysis quotes.
+
+Per-category outputs land in the point's own template dir,
+`templates/{mp}/{method}/interp-signal/{era}/{channel}/closure/closure.{cat}.{png,pdf,json}`
+(members nest under their seed); the JSON carries the per-bin MC/interp
+arrays so the chi2 can be re-derived without reopening ROOT.
+`collectTemplateClosure.py` promotes the figures only, to
+`results/plots/closure/{method}/{masspoint}/`, and exits 1 listing every
+missing source.
+
+**Campaign result (2026-08-19, 380 categories, all nodes clean).**
+Baseline: N_interp/N_MC median 0.998, |dev| p90 7.8%; chi2/ndf (+unc)
+median 0.60, p90 1.58. ParticleNet: median 0.999, |dev| p90 6.4%;
+chi2/ndf median 0.78, p90 2.11. Splitting the Baseline arm at the known
+grid-density boundary: |dev| median 2.0% / p90 6.6% above mA = 45, versus
+3.6% / 13.8% below it.
+
+Only **6 of 380** categories exceed chi2/ndf (+unc) = 3, and **five sit at
+mA = 15** — the documented low-mA grid-density limit, now quantified:
+
+| point | category | N_interp/N_MC | chi2/ndf (+unc) |
+|---|---|---|---|
+| MHc100_MA15 | SR1E2Mu_Run2 | 1.454 | 8.97 |
+| MHc100_MA15 | SR1E2Mu_Run3 | 1.393 | 8.95 |
+| MHc130_MA15 | SR3Mu_Run3 | 0.828 | 5.82 |
+| MHc160_MA98 | SR3Mu_Run2 | 1.015 | 4.86 |
+| MHc130_MA15 | SR3Mu_Run2 | 0.798 | 4.33 |
+| MHc145_MA15 | SR3Mu_Run3 | 0.906 | 3.35 |
+
+**MHc100_MA15 is the worst point of the study and is not covered**: +37% to
++45% in all four categories against a `belowZ` norm nuisance of 9%. This is
+NOT new and NOT an artifact of this comparison — the frozen
+`closure/interpolation/MHc100/yield_closure.json` already records exactly
+these ratios (1.454 / 1.393 / 1.373 / 1.321) at 15-20 sigma per-era pulls.
+Reproducing them through a completely separate path (production
+`shapes.root` + `getHist` on the production adaptive binning) is the
+strongest available check that this closure is measuring what it claims.
+What is new is that the module docs named MHc115 and MHc130 as the binding
+low-mA cases; MHc100_MA15 is worse than either. Its `mc_points` gap
+(15 -> 24) is not unusually wide, so the cause is the global surface, not
+grid density alone. MHc160_MA98 is the one non-mA=15 entry and is a pure
+shape effect (ratio 1.015).
+
+Every other point closes inside the assigned band.
+
 ## Configuration
 
 - `configs/masspoints.json` — keys `baseline`, `particlenet`, `limits` only.

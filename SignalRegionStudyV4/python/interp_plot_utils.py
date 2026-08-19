@@ -20,6 +20,8 @@ import numpy as np
 import ROOT
 import cmsstyle as CMS
 
+import srspaths
+
 from plotter import LumiInfo, PALETTE_LONG, get_CoM_energy
 
 ROOT.gROOT.SetBatch(True)
@@ -103,6 +105,15 @@ def _save(canv, outdir, name):
     canv.Close()
 
 
+def _save_both(canv, outdir, name):
+    """PNG + PDF, the results/plots convention (plotBreakdown.py)."""
+    os.makedirs(outdir, exist_ok=True)
+    base = os.path.join(outdir, name)
+    canv.SaveAs(f"{base}.png")
+    canv.SaveAs(f"{base}.pdf")
+    canv.Close()
+
+
 # --------------------------------------------------------- shape parameters
 
 _PARAM_TITLES = {
@@ -134,11 +145,15 @@ REGION_TAG = "SR"
 
 
 def draw_info_text(lines, posX=INFO_TEXT_POS[0], posY=INFO_TEXT_POS[1],
-                   size=INFO_TEXT_SIZE):
+                   size=INFO_TEXT_SIZE, step=None):
     """Paper-style information block: first line bold (font 62), the rest in
-    the regular font (42), stacked downwards one text height apart."""
+    the regular font (42), stacked downwards one text height apart.
+
+    `step` overrides the line pitch; lines carrying both a subscript and a
+    superscript need more than one text height to clear each other."""
+    pitch = size if step is None else step
     for i, line in enumerate(lines):
-        CMS.drawText(line, posX=posX, posY=posY - i * size,
+        CMS.drawText(line, posX=posX, posY=posY - i * pitch,
                      font=62 if i == 0 else 42, align=0, size=size)
 
 
@@ -575,6 +590,124 @@ def plot_yield_template_closure(cat_key, mp, hist, pred, n_pred, err_pred,
                       MarkerColor=_CURVE_COLOR, LineColor=_CURVE_COLOR)
     canv.cd(2).RedrawAxis()
     _save(canv, outdir, f"closure.{cat_key}.{mp}")
+
+
+def _band_from_hist(hist, name, scale=None):
+    """Filled band graph from a TH1's bin contents +- bin errors.
+
+    ``scale`` (a TH1 with the same binning) divides both the central value
+    and the error, turning the band into the ratio-panel version; bins where
+    it is non-positive are dropped rather than drawn at an arbitrary value.
+    """
+    graph = ROOT.TGraphAsymmErrors()
+    n = 0
+    for i in range(1, hist.GetNbinsX() + 1):
+        axis = hist.GetXaxis()
+        centre = axis.GetBinCenter(i)
+        half = 0.5 * axis.GetBinWidth(i)
+        value, error = hist.GetBinContent(i), hist.GetBinError(i)
+        if scale is not None:
+            denom = scale.GetBinContent(i)
+            if denom <= 0:
+                continue
+            value, error = value / denom, error / denom
+        graph.SetPoint(n, centre, value)
+        graph.SetPointError(n, half, half, error, error)
+        n += 1
+    graph.SetName(name)
+    return graph
+
+
+def plot_template_closure(cat_key, mp, h_mc, h_interp, summary, period,
+                          outdir, ratio_range=(0.5, 1.5)):
+    """Signal MC vs the interpolated template, on the PRODUCTION binning.
+
+    ``h_mc`` carries MC statistical errors, ``h_interp`` carries the
+    assigned interpolation uncertainty in its bin errors (the quadrature of
+    every CMS_interp_* nuisance -- see plotTemplateClosure.py).  The two are
+    drawn as separate bands so a discrepancy can be attributed to the model
+    or to MC noise.
+
+    Unlike plot_yield_template_closure, the luminosity header and the extra
+    text are set BEFORE the canvas is built -- cmsstyle draws the header
+    inside cmsDiCanvas, so setting them afterwards labels the plot with
+    whatever the previous call left behind.
+    """
+    lo = h_mc.GetXaxis().GetXmin()
+    hi = h_mc.GetXaxis().GetXmax()
+    y_max = 1.55 * max(h_mc.GetMaximum(), h_interp.GetMaximum())
+
+    CMS.SetExtraText("Simulation Preliminary")
+    _set_lumi_energy(period)
+    canv = CMS.cmsDiCanvas(
+        f"clos_{cat_key}_{mp}".replace("-", "_"), lo, hi, 0.0, y_max,
+        ratio_range[0], ratio_range[1],
+        "m(#mu#mu) [GeV]", "Events / bin", "interp. / MC",
+        square=True, iPos=11, extraSpace=0.02)
+
+    canv.cd(1)
+    band = _band_from_hist(h_interp, f"band_{cat_key}_{mp}")
+    band.SetFillColorAlpha(_CURVE_COLOR, 0.30)
+    band.SetLineWidth(0)
+    band.Draw("2 same")
+    CMS.cmsObjectDraw(h_interp, "hist", LineColor=_CURVE_COLOR, LineWidth=2)
+    CMS.cmsObjectDraw(h_mc, "PE", MarkerStyle=ROOT.kFullCircle,
+                      MarkerSize=0.8, LineColor=ROOT.kBlack,
+                      MarkerColor=ROOT.kBlack)
+
+    leg = CMS.cmsLeg(0.53, 0.68, 0.92, 0.88, textSize=0.030)
+    leg.AddEntry(h_mc, f"signal MC (N={summary['n_mc']:.1f})", "pe")
+    leg.AddEntry(h_interp,
+                 f"interpolated (N={summary['n_interp']:.1f})", "l")
+    leg.AddEntry(band, "interp. uncertainty", "f")
+    leg.Draw("same")
+
+    mhc, mA = srspaths.masspoint_mhc_ma(mp)
+    chi2_line = "#chi^{2}/ndf = "
+    if summary["ndf"]:
+        chi2_line += (f"{summary['chi2_stat'] / summary['ndf']:.2f}"
+                      f" (MC stat), "
+                      f"{summary['chi2_total'] / summary['ndf']:.2f}"
+                      f" (+ unc.)")
+    else:
+        chi2_line += "n/a"
+    draw_info_text([f"{REGION_TAG}, {channel_label(cat_key)}",
+                    f"m_{{H^{{#pm}}}} = {mhc:g}, m_{{A}} = {mA:g} GeV",
+                    f"N_{{interp}}/N_{{MC}} = {summary['norm_ratio']:.3f}",
+                    chi2_line],
+                   posX=0.20, posY=0.66, size=0.034, step=0.044)
+    canv.cd(1).RedrawAxis()
+
+    canv.cd(2)
+    # Grey band at 1: the MC statistical error the model is measured
+    # against. Red band: the assigned interpolation uncertainty, drawn
+    # around the ratio itself, so the test is whether it reaches the grey.
+    unity = h_mc.Clone(f"h_unity_{cat_key}_{mp}")
+    unity.SetDirectory(0)
+    mc_band = _band_from_hist(h_mc, f"mcband_{cat_key}_{mp}", scale=unity)
+    mc_band.SetFillColorAlpha(ROOT.kGray + 1, 0.45)
+    mc_band.SetLineWidth(0)
+    mc_band.Draw("2 same")
+    ratio_band = _band_from_hist(h_interp, f"rband_{cat_key}_{mp}",
+                                 scale=h_mc)
+    ratio_band.SetFillColorAlpha(_CURVE_COLOR, 0.30)
+    ratio_band.SetLineWidth(0)
+    ratio_band.Draw("2 same")
+
+    ratio = h_interp.Clone(f"h_ratio_{cat_key}_{mp}")
+    ratio.SetDirectory(0)
+    for i in range(1, ratio.GetNbinsX() + 1):
+        denom = h_mc.GetBinContent(i)
+        ratio.SetBinContent(i, h_interp.GetBinContent(i) / denom
+                            if denom > 0 else 0.0)
+        ratio.SetBinError(i, 0.0)
+    ref = ROOT.TLine()
+    ref.SetLineStyle(ROOT.kDotted)
+    ref.DrawLine(lo, 1.0, hi, 1.0)
+    CMS.cmsObjectDraw(ratio, "hist", LineColor=_CURVE_COLOR, LineWidth=2)
+    canv.cd(2).RedrawAxis()
+
+    _save_both(canv, outdir, f"closure.{cat_key}")
 
 
 # -------------------------------------------------------------- shape deltas

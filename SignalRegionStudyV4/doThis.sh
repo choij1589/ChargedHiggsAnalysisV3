@@ -358,6 +358,25 @@ python3 python/plotBreakdown.py            # -> results/plots/breakdown/
 # plot1DScan.py uses, so the JSON and the panel cannot disagree; a negative
 # quadrature subtraction is recorded as null, never zero. docs/BREAKDOWN.md.
 
+# 7b2. MC-vs-interpolation closure of the final binned template.
+# The limits come from parametric templates everywhere, so at the mass points
+# that HAVE signal MC the two can be compared directly -- on the FINAL
+# production adaptive binning, not the 100 uniform bins the LOO closures use.
+# The interpolated template is read out of the interp-signal shapes.root; the
+# MC is filled onto those same edges with binned_template_core.getHist, the
+# function makeBinnedTemplates itself uses -- so it is the production MC
+# template, and no mc-signal campaign is needed.
+# Uncertainties are drawn separately and that is the point: the red band is
+# the full CMS_interp_* up/down envelope, the MC keeps its own stat bars.
+# Scope: configs/masspoints.json baseline (78) + particlenet (17), i.e. the
+# mc_points of the two grids, x {Run2,Run3} x {SR1E2Mu,SR3Mu}.
+./automize/templateClosure.sh --method Baseline        # 312 nodes, ~1 min each
+./automize/templateClosure.sh --method ParticleNet     #  68 nodes
+python3 python/collectTemplateClosure.py               # -> results/plots/closure/
+# These points are IN-SAMPLE (the surfaces were fitted using them), so this is
+# a production-model closure; closure/interpolation/loo/ stays the
+# out-of-sample statement. CLAUDE.md section 12.
+
 # 7c. The bundle itself.
 # The per-mass-point fit diagnostics of the campaign live in 572 gitignored
 # template dirs. This promotes the curated TEMPLATE POINTS -- one bundle per
