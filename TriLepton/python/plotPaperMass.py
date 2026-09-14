@@ -16,8 +16,9 @@ sys.path.insert(0, str(Path(WORKDIR) / "Common" / "Tools"))
 
 import ROOT
 
-from paper_plotting import (PaperPlotOptions, build_legend_output_path,
-                            render_paper_legend, render_paper_plot)
+from paper_plotting import (SIGNAL_COLORS, PaperPlotOptions,
+                            build_legend_output_path, render_paper_legend,
+                            render_paper_plot)
 
 
 ROOT.gROOT.SetBatch(True)
@@ -36,10 +37,9 @@ PAPER_PLOTS = {
 }
 
 DEFAULT_SIGNALS = ["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"]
-PAPER_SIGNAL_COLORS = ["#5790fc", "#f89c20", "#964a8b", "#e42536"]
 
-# The plots carry no legend of their own; it is published once as its own panel
-# so the paper can lay the figures out 2x2 with the legend in the fourth slot.
+# Each plot carries its own legend, and the same legend is published separately
+# as its own panel for layouts that drop the in-plot ones (slides, --no-legends).
 LEGEND_KEY = "legend"
 
 
@@ -66,11 +66,11 @@ def main():
     parser.add_argument("--signal-scale", default=2.0, type=float,
                         help="scale factor for signal histograms")
     parser.add_argument("--blind", action="store_true", help="blind data")
-    parser.add_argument("--keep-legends", action="store_true",
-                        help="draw the legends inside each plot instead of only in the legend panel")
+    parser.add_argument("--no-legends", dest="legends", action="store_false",
+                        help="drop the in-plot legends and publish them as a standalone panel instead")
     parser.add_argument("--legend-text-size", default=0.040, type=float,
                         help="text size of the standalone legend panel")
-    parser.add_argument("--y-headroom", default=1.5, type=float,
+    parser.add_argument("--y-headroom", default=1.35, type=float,
                         help="linear-scale y-axis multiplier above the tallest bin")
     parser.add_argument("--adaptive-binning", action="store_true",
                         help="merge 2 GeV base bins using expected background only")
@@ -101,8 +101,8 @@ def main():
         adaptive_min_bkg=args.adaptive_min_bkg,
         adaptive_max_width=args.adaptive_max_width,
         adaptive_base_width=args.adaptive_base_width,
-        signal_colors=PAPER_SIGNAL_COLORS,
-        draw_legends=args.keep_legends,
+        signal_colors=SIGNAL_COLORS,
+        draw_legends=args.legends,
         legend_panel_text_size=args.legend_text_size,
         y_headroom=args.y_headroom,
     )

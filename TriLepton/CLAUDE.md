@@ -52,7 +52,8 @@ TriLepton/
 ├── doThis.sh                      # Main: drawPlots for all eras/channels
 ├── doSampleBreakdown.sh           # Event yield extraction with errors
 ├── docs/
-│   └── systematics.md             # Systematic treatment for plot.py + sampleBreakdown.py
+│   ├── systematics.md             # Systematic treatment for plot.py + sampleBreakdown.py
+│   └── PaperPlotting.md           # Layout/style of the Run2+3 paper mass plots
 ├── configs/
 │   ├── histkeys.json              # 100+ kinematic histogram definitions
 │   ├── histkeys.score.json        # ML score distributions per signal mass point
@@ -62,6 +63,8 @@ TriLepton/
 │   └── signals.json               # 38 signal mass points
 ├── python/
 │   ├── plot.py                    # Data-MC with signal overlay, blinding, K-factors
+│   ├── plotPaperMass.py           # Run2+3 paper mass plots (see docs/PaperPlotting.md)
+│   ├── paper_plotting.py          # Paper plot rendering + shared legend panel
 │   ├── sampleBreakdown.py         # Event yields with stat/syst error breakdown
 │   ├── measConvSF.py              # Conversion SF from ZG control regions
 │   ├── measWZNjSF.py              # WZ Njet SF from WZ control regions

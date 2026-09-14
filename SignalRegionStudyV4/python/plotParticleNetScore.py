@@ -67,8 +67,8 @@ if not WORKDIR:
 
 # Add path to Common/Tools for plotter imports
 sys.path.insert(0, f"{WORKDIR}/Common/Tools")
-from plotter import (ComparisonCanvas, EnergyInfo, get_CoM_energy, LumiInfo,
-                     LumiInfoExact)
+from plotter import (ComparisonCanvas, EnergyInfo, get_CoM_energy,
+                     LumiInfo)
 from plotter import PALETTE_LONG as PALETTE
 import cmsstyle as CMS
 
@@ -105,7 +105,7 @@ def get_CoM_energy_extended(era):
 
 def lumi_header(era):
     """(run_label, CoM) reproducing the limit plots' luminosity header:
-    un-rounded per-period luminosities from LumiInfoExact, each run period
+    rounded per-period luminosities from LumiInfo, each run period
     quoted with its own energy. Returns (None, None) for a single era, which
     keeps the existing "<era>, <lumi> fb^-1" form.
 
@@ -114,12 +114,12 @@ def lumi_header(era):
     label. Same construction as python/plotLimits.py.
     """
     if era == "All":
-        return (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} "
+        return (f"{LumiInfo['Run2']:g} fb^{{#minus1}} "
                 f"({EnergyInfo['Run2']:g} TeV) + "
-                f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}",
+                f"{LumiInfo['Run3']:g} fb^{{#minus1}}",
                 f"{EnergyInfo['Run3']:g} TeV")
     if era in ("Run2", "Run3"):
-        return (f"{LumiInfoExact[era]:g} fb^{{#minus1}}",
+        return (f"{LumiInfo[era]:g} fb^{{#minus1}}",
                 f"{EnergyInfo[era]:g} TeV")
     return (None, None)
 

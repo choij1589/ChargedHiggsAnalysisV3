@@ -12,11 +12,14 @@ from types import SimpleNamespace
 
 import ROOT
 
+import cmsstyle as CMS
 import plotPostfitSummary as summary
 # Paper wording is defined once in the LR_modified script; reuse it so the two
 # figure sets cannot drift apart. These plots keep their legend in-panel, so
 # only the labels are shared, not the standalone-legend machinery.
-from plotPaperLRModified import (BKG_LABELS, DATA_LABEL,  # noqa: E402
+from plotPaperLRModified import (BKG_LABELS, CHANNEL_POS, CHANNEL_SIZE,  # noqa: E402
+                                 CMS_LABEL_POS, CMS_LABEL_SIZE, DATA_LABEL,
+                                 HIDE_ORIGIN_Y_LABEL,
                                  SIGNAL_SOURCE,
                                  LEGEND_KEY, MASS_LABEL_OFFSET_PT,
                                  MASS_LABEL_POS, MASS_LABEL_SIZE, RATIO_LABEL,
@@ -29,7 +32,7 @@ WORKDIR = Path(os.environ.get("WORKDIR", MODULE_DIR.parent))
 
 sys.path.insert(0, str(WORKDIR / "Common" / "Tools"))
 from plotter import (ComparisonCanvas, EnergyInfo,  # noqa: E402
-                     LumiInfoExact, PALETTE_LONG)
+                     LumiInfo, PALETTE_LONG, reanchor_lumi_header)
 
 
 ROOT.gROOT.SetBatch(True)
@@ -74,11 +77,44 @@ CHANNEL_LABELS = {
 # stage take over the top-right corner it used to occupy. Position, size and
 # nudge are the mass-point label's from plotPaperLRModified.py, so the two
 # figure sets carry their annotation in exactly the same place.
-# Left-hand text block, below the two channel lines drawn at channelPosY.
-REGION_LABEL_POS = (0.22, 0.60)
+# Left-hand text block, below the two channel lines drawn at channelPosY. Kept
+# relative to CHANNEL_POS/CHANNEL_SIZE so it follows the shared caption block
+# instead of having to be re-tuned whenever that moves: the region line sits at
+# channelPosY - channelSize, and this clears it by one more caption row.
+REGION_LABEL_POS = (CHANNEL_POS[0], CHANNEL_POS[1] - 2 * CHANNEL_SIZE - 0.007)
 REGION_LABEL_SIZE = 0.035
 STAGE_LABEL_GAP = 0.05  # drop from the mA range line to the fit-stage line
 FIT_STAGE_LABEL = "B-only Post-fit"
+
+# --- Full-range panel -------------------------------------------------------
+# One stitched b-only spectrum over the whole mA reach, following
+# results/plots/postfit_summary/mHc160/ParticleNet/
+# postfit_summary.mHc160.All.{channel}.ParticleNet.postfit_b.unblind.pdf and
+# redrawn in the paper style. This is the published postfit figure; the three
+# mA windows (REGIONS, --mode regions) are kept for diagnostics.
+FULL_RANGE_STEM = "postfit_b_only"
+# cmsDiCanvas is near-square, and 15-160 GeV of 1 GeV bins is unreadable in it,
+# so the panel is published 16:9.
+FULL_RANGE_CANVAS_SIZE = (1600, 900)
+# The legend keeps its height but moves into the right-hand third: on a 16:9
+# frame LEGEND_BOX would span half the width. Its left edge is not fixed --
+# place_full_range_legend() pushes it clear of the on-Z handover line, which is
+# drawn over the full frame height and would otherwise run through the box.
+FULL_RANGE_LEGEND = (0.70, 0.54, 0.985, 0.86)
+FULL_RANGE_LEGEND_CLEARANCE = 0.035
+# Label placement on this panel is derived from the pad margins rather than
+# fixed, because resize_canvas() rescales those for 16:9. Insets are measured
+# from the frame's top-left corner.
+FULL_RANGE_STAGE_GAP = 0.022   # blank below the caption's second row
+# Bigger than the windows' REGION_LABEL_SIZE: this panel is the published one
+# and the stage line is the only thing naming the fit, so it is sized between
+# the mA-window labels and the CHANNEL_SIZE caption above it.
+FULL_RANGE_STAGE_SIZE = 0.045
+FULL_RANGE_RRANGE = [0.0, 3.0]
+# Display range of the reference, [12, mHc]: the stitched edges run to 178 GeV
+# because the topmost seed's fit window does, but mA <= mHc - 5 is the model's
+# reach and anything past mHc is filled by nearest-owner extrapolation.
+FULL_RANGE_XRANGE = (12.0, float(MHC))
 
 
 def parse_args():
@@ -86,7 +122,17 @@ def parse_args():
         description="Create paper b-only postfit summary PDFs for mHc=160."
     )
     parser.add_argument("--output-root", default="results/plots/paper/Postfit")
-    parser.add_argument("--channels", nargs="+", choices=DEFAULT_CHANNELS, default=list(DEFAULT_CHANNELS))
+    parser.add_argument("--mode", choices=("full-range", "regions"),
+                        default="full-range",
+                        help="'full-range' is the published panel: one stitched "
+                             "spectrum over the whole mA reach. 'regions' is the "
+                             "older split into the three mA windows, kept for "
+                             "diagnostics (default: %(default)s)")
+    parser.add_argument("--channels", nargs="+", choices=DEFAULT_CHANNELS,
+                        default=None,
+                        help="default: Combined for --mode full-range (the "
+                             "published e-mu-mu + mu-mu-mu panel), all three "
+                             "for --mode regions")
     parser.add_argument("--rebuild-cache", action="store_true",
                         help="allow refilling fine-mass hists if a cache is missing")
     parser.add_argument("--standalone-legend", action="store_true",
@@ -279,7 +325,7 @@ def visible_y_range(data, backgrounds, x_min, x_max):
     )
     if max_value <= 0.0:
         max_value = 1.0
-    # No in-plot legend to clear, so the stack can use the vertical space.
+    # Headroom for the in-frame CMS block, the caption block and the legend.
     return [0.0, max_value * Y_HEADROOM]
 
 
@@ -292,12 +338,12 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high,
     return {
         "era": "All",
         # Per-energy luminosities, CMS style for multi-energy combinations:
-        # "138 fb^-1 (13 TeV) + 62.4 fb^-1 (13.6 TeV)". cmsstyle appends the
+        # "138 fb^-1 (13 TeV) + 62 fb^-1 (13.6 TeV)". cmsstyle appends the
         # CoM in parentheses, so the Run3 energy is carried by "CoM" and the
         # Run2 term is baked into "run_label".
         "CoM": f"{EnergyInfo['Run3']:g} TeV",
-        "run_label": (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
-                      f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}"),
+        "run_label": (f"{LumiInfo['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
+                      f"{LumiInfo['Run3']:g} fb^{{#minus1}}"),
         "xTitle": "m(#mu^{+}, #mu^{-}) [GeV]",
         "yTitle": f"Events / {BIN_WIDTH:g} GeV",
         "rTitle": RATIO_LABEL,
@@ -308,12 +354,20 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high,
         "maxDigits": 3,
         "overflow": False,
         "iPos": 11,
+        # The figure places the CMS block itself; see plotPaperLRModified.
+        "cmsPosX": CMS_LABEL_POS[0],
+        "cmsPosY": CMS_LABEL_POS[1],
+        "cmsLabelSize": CMS_LABEL_SIZE,
+        "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
         # Two columns: data + 5 background groups + Stat.+Syst. fill four rows.
         # The right edge stops short of the frame so the longest label
         # ("Nonprompt") clears the right-hand axis ticks.
         # Two columns in the top-right corner, matching the LR_modified
         # panels. Data + 5 background groups + Stat.+Syst. fill four rows.
-        "legend": (0.46, 0.58, 0.97, 0.90),
+        # Same vertical placement as the LR_modified panels' LEGEND_BOX: air
+        # above the box rather than pressed against the frame top. The left
+        # edge stays at 0.46 -- these entries are shorter than the LR ones.
+        "legend": (0.46, 0.54, 0.97, 0.86),
         "legendTextSize": 0.030,
         "legendColumns": 2,
         # In-plot by default; --standalone-legend publishes it as its own panel.
@@ -321,10 +375,10 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high,
         "colors": [LABEL_COLORS[name] for name in backgrounds.keys()],
         "channel": channel_label,
         "region": region_label,
-        "channelPosX": 0.22,
-        # iPos=11 puts "CMS"/"Preliminary" inside the frame, so the channel
-        # block starts lower to clear them.
-        "channelPosY": 0.72,
+        # Directly below the self-placed CMS block.
+        "channelPosX": CHANNEL_POS[0],
+        "channelPosY": CHANNEL_POS[1],
+        "channelSize": CHANNEL_SIZE,
         "chi2_test": False,
         "normalize_chi2": False,
     }
@@ -343,35 +397,218 @@ def ndc_text_width(pad, latex):
     return width_px.value / pad_width_px if pad_width_px else 0.0
 
 
-def draw_region_label(plotter, label):
+def draw_region_label(plotter, label, pos=None, align=11, size=None):
     """mA range and fit stage, left-aligned under the channel block.
 
     The in-plot legend owns the top-right corner these used to sit in, so
     they join the left-hand stack (CMS / Preliminary / SR / final state),
     which is where the non-paper postfit summaries put the same two lines.
+
+    `label` may be None -- the full-range panel covers the whole scan, so it
+    has no mA window to name, and the mHc is already carried by the caption of
+    the figure. The fit stage then moves up into the freed line.
     """
     plotter.canv.cd(1)
 
-    region = ROOT.TLatex()
-    region.SetNDC(True)
-    region.SetTextFont(42)
-    region.SetTextSize(REGION_LABEL_SIZE)
-    region.SetTextAlign(11)
-    region.DrawLatex(*REGION_LABEL_POS, label)
+    pos = REGION_LABEL_POS if pos is None else pos
+    size = REGION_LABEL_SIZE if size is None else size
+    labels = []
+    stage_y = pos[1]
+    if label is not None:
+        region = ROOT.TLatex()
+        region.SetNDC(True)
+        region.SetTextFont(42)
+        region.SetTextSize(size)
+        region.SetTextAlign(align)
+        region.DrawLatex(*pos, label)
+        labels.append(region)
+        stage_y -= STAGE_LABEL_GAP
 
     stage = ROOT.TLatex()
     stage.SetNDC(True)
     stage.SetTextFont(62)
-    stage.SetTextSize(REGION_LABEL_SIZE)
-    stage.SetTextAlign(11)
-    stage.DrawLatex(REGION_LABEL_POS[0],
-                    REGION_LABEL_POS[1] - STAGE_LABEL_GAP, FIT_STAGE_LABEL)
+    stage.SetTextSize(size)
+    stage.SetTextAlign(align)
+    stage.DrawLatex(pos[0], stage_y, FIT_STAGE_LABEL)
+    labels.append(stage)
 
-    plotter._paper_region_labels = [region, stage]
+    plotter._paper_region_labels = labels
 
 
 def output_path(output_root, channel, region_name):
     return output_root / f"postfit_b_mHc{MHC}_{channel}_{region_name}.pdf"
+
+
+def full_range_output_path(output_root, channel):
+    """Combined carries no filename token, as everywhere else in the module."""
+    token = "" if channel == "Combined" else f"_{channel}"
+    return output_root / f"{FULL_RANGE_STEM}{token}.pdf"
+
+
+def build_full_range_content(results):
+    """Every seed stitched into one spectrum over the full mA reach."""
+    edges = summary.build_edges(results, BIN_WIDTH)
+    _prefit, postfit, data = build_stitched_content_fill_gaps(results, FIT_TYPE, edges)
+    data.SetTitle(DATA_LABEL)
+    return data, merge_backgrounds(postfit), edges
+
+
+def resize_canvas(plotter, size):
+    """Reshape the canvas, and undo what that does to the y-axis spacing.
+
+    ROOT measures y-axis label and title offsets against the pad WIDTH, so
+    making the canvas proportionally wider pushes the numbers and the axis
+    title away from the axis by exactly that factor -- on a 16:9 frame that is
+    nearly 2x the gap the square panels have. Dividing both offsets by the
+    stretch puts them back. Must run before drawPadUp: the pads size
+    themselves from the canvas, and everything placed later is in NDC.
+    """
+    width, height = size
+    stretch = ((width / height)
+               / (plotter.canv.GetWindowWidth() / plotter.canv.GetWindowHeight()))
+    upper = plotter.canv.cd(1)
+    # Margins as the SQUARE paper panels have them, kept so the CMS block can be
+    # given the same offsets from the frame corner that those panels use.
+    plotter._paper_resize = {"stretch": stretch,
+                             "left": upper.GetLeftMargin(),
+                             "top": upper.GetTopMargin()}
+    plotter.canv.SetCanvasSize(width, height)
+    plotter.canv.SetWindowSize(width, height)
+    for pad_index in (1, 2):
+        pad = plotter.canv.cd(pad_index)
+        # Same story as the offsets: the side margins are fractions of the pad
+        # WIDTH, so cmsstyle's 0.15/0.05 become half the panel of empty paper
+        # once the canvas is 16:9. Dividing them by the stretch keeps the same
+        # physical room for the y title and labels and gives the rest to the
+        # spectrum.
+        pad.SetLeftMargin(pad.GetLeftMargin() / stretch)
+        pad.SetRightMargin(pad.GetRightMargin() / stretch)
+        axis = CMS.GetCmsCanvasHist(pad).GetYaxis()
+        axis.SetLabelOffset(axis.GetLabelOffset() / stretch)
+        axis.SetTitleOffset(axis.GetTitleOffset() / stretch)
+    # cmsstyle's CMS_lumi() already ran inside cmsDiCanvas and right-aligned the
+    # luminosity header to the margin it saw then, so after the rescale it stops
+    # short of the frame.
+    reanchor_lumi_header(plotter.canv.cd(1), width, height)
+    plotter.canv.Modified()
+    plotter.canv.Update()
+
+
+def place_full_range_labels(plotter, x_range, boundaries):
+    """CMS block into the frame's top-left corner, caption over the below-Z arm.
+
+    Both are anchored on the live pad margins, which resize_canvas() has just
+    rescaled, so the block sits against the corner at any canvas shape. The
+    caption is centred on the region LEFT of the first handover guide -- the
+    below-Z part of the spectrum it describes -- rather than at a fixed x.
+    """
+    pad = plotter.canv.cd(1)
+    left, right, top = (pad.GetLeftMargin(), pad.GetRightMargin(),
+                        pad.GetTopMargin())
+    span = 1.0 - left - right
+    frame_top = 1.0 - top
+    resize = plotter._paper_resize
+
+    # Same offsets from the frame corner that CMS_LABEL_POS gives the square
+    # paper panels. The x offset is a fraction of WIDTH, so it is divided by
+    # the stretch to stay the same physical inset; the y offset is not.
+    inset_x = (CMS_LABEL_POS[0] - resize["left"]) / resize["stretch"]
+    inset_y = (1.0 - resize["top"]) - CMS_LABEL_POS[1]
+    plotter._cms_label["posX"] = left + inset_x
+    plotter._cms_label["posY"] = frame_top - inset_y
+
+    # SR / final state / fit stage: one left-aligned block over the below-Z
+    # part of the spectrum, starting at the same height as the CMS block so the
+    # two read as one row of captions.
+    x_min, x_max = x_range
+    first_guide = min(boundaries) if boundaries else x_max
+    guide_ndc = left + (first_guide - x_min) / (x_max - x_min) * span
+    caption_x = 0.5 * (left + guide_ndc)
+    caption_top = frame_top - inset_y
+    plotter.config["channelPosX"] = caption_x
+    plotter.config["channelPosY"] = caption_top
+    plotter.config["channelAlign"] = 13   # left, top -- all three lines flush
+    # The caption is two rows of CHANNEL_SIZE hanging off channelPosY, so the
+    # fit-stage line has to start below both of them, not below the first.
+    return (caption_x, caption_top - 2 * CHANNEL_SIZE - FULL_RANGE_STAGE_GAP)
+
+
+def place_full_range_legend(plotter, boundaries, x_range):
+    """Push the legend clear of the rightmost arm-handover guide.
+
+    The guides span the full frame height, so a legend starting at or before
+    the upper on-Z boundary gets a dashed line drawn straight through it. The
+    box is anchored off the guide rather than at a fixed NDC so it stays clear
+    if the ParticleNet window, the display range or the margins ever move.
+    """
+    pad = plotter.canv.cd(1)
+    left, right = pad.GetLeftMargin(), pad.GetRightMargin()
+    x_min, x_max = x_range
+    x1 = FULL_RANGE_LEGEND[0]
+    if boundaries:
+        guide_ndc = (left + (max(boundaries) - x_min) / (x_max - x_min)
+                     * (1.0 - left - right))
+        x1 = max(x1, guide_ndc + FULL_RANGE_LEGEND_CLEARANCE)
+    plotter.leg.SetX1NDC(x1)
+    plotter.leg.SetX2NDC(FULL_RANGE_LEGEND[2])
+    plotter.leg.SetY1NDC(FULL_RANGE_LEGEND[1])
+    plotter.leg.SetY2NDC(FULL_RANGE_LEGEND[3])
+
+
+def hide_top_ratio_label(plotter):
+    """Drop the ratio axis' topmost label.
+
+    Same defect as the upper pad's origin label and the same reason: cmsstyle
+    gives the ratio pad a ZERO top margin, so a label sitting on the top of its
+    range is cut in half by the pad edge -- and with rRange [0, 3] the ladder
+    ends exactly there. Widening the margin instead would open a gap between
+    the two frames.
+    """
+    axis = CMS.GetCmsCanvasHist(plotter.canv.cd(2)).GetYaxis()
+    axis.ChangeLabel(-1, -1, 0.0)
+
+
+def draw_full_range(output_root, channel, plot_only, debug, draw_legend=True):
+    results = load_channel_results(channel, plot_only, debug)
+    logging.info("%s: loaded %d cached masspoints", channel, len(results))
+
+    data, backgrounds, edges = build_full_range_content(results)
+    config = build_config(channel, edges, data, backgrounds,
+                          FULL_RANGE_XRANGE[0], FULL_RANGE_XRANGE[1],
+                          draw_legend=draw_legend)
+    config["rRange"] = FULL_RANGE_RRANGE
+    config["legend"] = FULL_RANGE_LEGEND
+    logging.info("%s/full-range: x [%s, %s], y [%s, %s], backgrounds=%s",
+                 channel, edges[0], edges[-1],
+                 config["yRange"][0], config["yRange"][1],
+                 ", ".join(backgrounds.keys()))
+
+    out_path = full_range_output_path(output_root, channel)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    plotter = ComparisonCanvas(data.Clone(f"data_{channel}_full"), {
+        name: hist.Clone(f"{name}_{channel}_full")
+        for name, hist in backgrounds.items()
+    }, config)
+    resize_canvas(plotter, FULL_RANGE_CANVAS_SIZE)
+    # The two dashed verticals mark where the panel hands over between the
+    # Baseline and ParticleNet arms -- the only ownership change worth drawing,
+    # as ownership_boundaries() explains. Per-seed edges are deliberately not.
+    intervals = summary.collect_ownership(results, edges)
+    boundaries = summary.ownership_boundaries(intervals, FULL_RANGE_XRANGE)
+    stage_pos = place_full_range_labels(plotter, FULL_RANGE_XRANGE, boundaries)
+
+    plotter.drawPadUp()
+    # No mA window to name on the full-range panel, and no mHc line: the
+    # b-only spectrum does not depend on the signal hypothesis being scanned.
+    draw_region_label(plotter, None, pos=stage_pos, align=13,
+                      size=FULL_RANGE_STAGE_SIZE)
+    plotter.drawPadDown()
+    hide_top_ratio_label(plotter)
+    summary.draw_ownership_guides(plotter.canv, intervals, FULL_RANGE_XRANGE)
+    place_full_range_legend(plotter, boundaries, FULL_RANGE_XRANGE)
+    plotter.canv.SaveAs(str(out_path))
+    logging.info("Wrote %s", out_path)
 
 
 def draw_channel(output_root, channel, plot_only, debug, draw_legend=False):
@@ -435,9 +672,17 @@ def main():
     if args.standalone_legend:
         logging.info("Wrote %s", render_paper_legend(output_root, with_signal=False))
 
-    for channel in args.channels:
-        draw_channel(output_root, channel, plot_only, args.debug,
-                     draw_legend=not args.standalone_legend)
+    channels = args.channels
+    if channels is None:
+        channels = ["Combined"] if args.mode == "full-range" else list(DEFAULT_CHANNELS)
+
+    for channel in channels:
+        if args.mode == "full-range":
+            draw_full_range(output_root, channel, plot_only, args.debug,
+                            draw_legend=not args.standalone_legend)
+        else:
+            draw_channel(output_root, channel, plot_only, args.debug,
+                         draw_legend=not args.standalone_legend)
 
 
 if __name__ == "__main__":

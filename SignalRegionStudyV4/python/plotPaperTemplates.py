@@ -31,15 +31,17 @@ sys.path.insert(0, str(WORKDIR / "Common" / "Tools"))
 sys.path.insert(0, str(MODULE_DIR / "python"))
 import srspaths  # noqa: E402
 from plotter import (ComparisonCanvas, EnergyInfo,  # noqa: E402
-                     LumiInfoExact, PALETTE_LONG, build_ratio_uncertainty_band)
+                     LumiInfo, PALETTE_LONG, build_ratio_uncertainty_band)
 import plotPostfitMass as pfm  # noqa: E402
 import cmsstyle as CMS  # noqa: E402
 # Paper wording is defined once in the LR_modified script; reuse it so the
 # figure sets cannot drift apart. These panels keep their legend in-plot, so
 # only the labels are shared, not the standalone-legend machinery.
-from plotPaperLRModified import (BKG_LABELS, DATA_LABEL,  # noqa: E402
+from plotPaperLRModified import (BKG_LABELS, CHANNEL_POS,  # noqa: E402
+                                 CHANNEL_SIZE, DATA_LABEL, data_maximum,
                                  RATIO_LABEL, SIGNAL_LEGEND_OPT,
-                                 SIGNAL_LINE_WIDTH, SYST_LABEL)
+                                 SIGNAL_LINE_WIDTH, SYST_LABEL,
+                                 HIDE_ORIGIN_Y_LABEL)
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(0)
@@ -111,6 +113,25 @@ SIGNAL_LEGEND_TEXT_SIZE = 0.038
 # full-width single-entry legend would draw a line twice as long as the
 # two-column entries above it. Match them instead.
 SIGNAL_LEGEND_MARGIN = 0.12
+
+# Left-hand caption block. The x and the text size are the other paper panels'
+# (plotPaperLRModified.CHANNEL_POS / CHANNEL_SIZE), so the region tag and the
+# final state are drawn identically across the three figure sets. Only the y is
+# local: iPos=0 puts the CMS block ABOVE the frame here, so the caption starts
+# at the top of the frame instead of below the block. The two annotation lines
+# hang off it, one caption row apart, so they follow if the block ever moves.
+CHANNEL_POS_Y = 0.80
+STAGE_LABEL_POS = (CHANNEL_POS[0], CHANNEL_POS_Y - 2 * CHANNEL_SIZE - 0.010)
+STAGE_LABEL_SIZE = 0.040
+XSEC_LABEL_POS = (CHANNEL_POS[0], STAGE_LABEL_POS[1] - 0.060)
+XSEC_LABEL_SIZE = 0.040
+
+# Headroom above the tallest drawn point. Because y_max already includes the
+# data error bars (see build_config), the top of the tallest bar always lands
+# at 1/Y_HEADROOM of the frame -- 0.56 here -- whatever the panel's counts are,
+# so the clearance below XSEC_LABEL_POS is an invariant of this constant rather
+# than something tuned per panel.
+Y_HEADROOM = 1.8
 
 
 def parse_args():
@@ -304,26 +325,33 @@ def stack_maximum(bkgs):
 def build_config(era_scope, channel_scope, edges, data, bkgs, signal,
                  show_signal, ratio_max):
     channel_label, region_label = CHANNEL_LABELS[channel_scope]
-    y_max = max(stack_maximum(bkgs), data.GetMaximum(),
+    # data_maximum(), not GetMaximum(): the panel draws Poisson error bars, and
+    # a low-count bin's bar reaches far above its marker -- at Run3/SR1E2Mu the
+    # 5-event bin runs to ~7.2 -- which is what used to collide with the
+    # left-hand caption block. Shared with plotPaperLRModified so both figure
+    # sets scale the axis on the same quantity.
+    y_max = max(stack_maximum(bkgs), data_maximum(data),
                 signal.GetMaximum() if show_signal else 0.0)
     return {
         "era": era_scope,
         "CoM": EnergyInfo[era_scope],
-        # Exact per-period sum (137.6, not the rounded 138) so every paper
-        # figure quotes the same Run2 luminosity.
-        "run_label": f"{LumiInfoExact[era_scope]:g} fb^{{#minus1}}",
+        # Rounded per-period value from LumiInfo (138, not the 137.6 era sum),
+        # the value CMS quotes for a single period, so every paper figure
+        # across the repository agrees.
+        "run_label": f"{LumiInfo[era_scope]:g} fb^{{#minus1}}",
         "xTitle": "m(#mu^{+}, #mu^{-}) [GeV]",
         "yTitle": "Events",
         "rTitle": RATIO_LABEL,
         "systSrc": SYST_LABEL,
         "xRange": [edges[0], edges[-1]],
-        "yRange": [0.0, (y_max if y_max > 0 else 1.0) * 2.0],
+        "yRange": [0.0, (y_max if y_max > 0 else 1.0) * Y_HEADROOM],
         "rRange": [0.0, ratio_max],
         "maxDigits": 3,
         "overflow": False,
         # Single-energy header on these per-Run panels, so "CMS" stays above
         # the frame and the full frame height is available for the plot.
         "iPos": 0,
+        "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
         # Two columns: data + 5 background groups + Stat+Syst fill four rows.
         # The signal gets its own full-width line below (see draw_panel), so the
         # long mass label never has to fit inside a half-width column.
@@ -333,8 +361,9 @@ def build_config(era_scope, channel_scope, edges, data, bkgs, signal,
         "colors": [LABEL_COLORS[name] for name in bkgs.keys()],
         "channel": channel_label,
         "region": region_label,
-        "channelPosX": 0.22,
-        "channelPosY": 0.78,
+        "channelPosX": CHANNEL_POS[0],
+        "channelPosY": CHANNEL_POS_Y,
+        "channelSize": CHANNEL_SIZE,
         "chi2_test": False,
         "normalize_chi2": False,
     }
@@ -383,8 +412,8 @@ def draw_panel(out_path, era_scope, channel_scope, fit_stage,
     stage_label = ROOT.TLatex()
     stage_label.SetNDC(True)
     stage_label.SetTextFont(42)
-    stage_label.SetTextSize(0.040)
-    stage_label.DrawLatex(0.22, 0.66, STAGE_LABELS[fit_stage])
+    stage_label.SetTextSize(STAGE_LABEL_SIZE)
+    stage_label.DrawLatex(*STAGE_LABEL_POS, STAGE_LABELS[fit_stage])
     plotter.stage_label = stage_label  # keep alive
 
     if fit_stage in XSEC_QUOTE_STAGES:
@@ -393,8 +422,8 @@ def draw_panel(out_path, era_scope, channel_scope, fit_stage,
             xsec_label = ROOT.TLatex()
             xsec_label.SetNDC(True)
             xsec_label.SetTextFont(42)
-            xsec_label.SetTextSize(0.040)
-            xsec_label.DrawLatex(0.22, 0.60, quote)
+            xsec_label.SetTextSize(XSEC_LABEL_SIZE)
+            xsec_label.DrawLatex(*XSEC_LABEL_POS, quote)
             plotter.xsec_label = xsec_label  # keep alive
 
     plotter.drawPadDown()

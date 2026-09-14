@@ -23,7 +23,7 @@ parser.add_argument("--signal-source", type=str, default="mc-signal",
                     help="Template signal source (interp-signal: the scan "
                          "grid of configs/grid.json; Baseline only)")
 parser.add_argument("--mode", type=str, default="BR", choices=["BR", "xsec"],
-                    help="Limit unit: BR (relative branching ratio, default) or xsec (sigma(pp->ttbar) x B_sig in fb)")
+                    help="Limit unit: BR (relative branching ratio, default) or xsec (sigma_sig = 2 sigma(ttbar) B_sig in fb)")
 parser.add_argument("--available-only", action="store_true",
                     help="Discover and collect mass points with existing Combine output files for the requested settings")
 parser.add_argument("--masspoint", type=str, default=None,
@@ -77,15 +77,28 @@ REFERENCE_XSEC = 5.0  # fb
 # NNLO+NNLL, https://twiki.cern.ch/twiki/bin/view/LHCPhysics/TtbarNNLO
 TTBAR_XEC_13TEV = 833.9e3  # fb
 TTBAR_XEC_13p6TEV = 923.6e3  # fb
-BR_TTBAR_TO_LEPTON = 2 * 0.5456  # 2 for charge conjugation, 0.5456 for non-hadronic decay of two W bosons
+BR_WW_NONHADRONIC = 0.5456  # non-hadronic decay of the two W bosons
+BR_TTBAR_TO_LEPTON = 2 * BR_WW_NONHADRONIC  # the extra 2 is charge conjugation
 
 
 def _convert(r, mode):
-    """Convert signal-strength limit r to BR or xsec units."""
+    """Convert signal-strength limit r to BR or xsec units.
+
+    r = 1 is a visible cross section of REFERENCE_XSEC = 5 fb, defined as
+    sigma_sig x BR_WW_NONHADRONIC with
+
+        sigma_sig = 2 x sigma(pp -> ttbar) x B_sig
+
+    ALREADY inclusive of charge conjugation (t -> H+b or tbar -> H-bbar).
+    So B_sig carries both factors and sigma_sig carries only the W one;
+    dividing sigma_sig by the charge-conjugation 2 as well would report
+    sigma_ttbar x B_sig, i.e. half of the AN's Eq. (sigma_sig) quantity.
+    """
     if mode == "BR":
         return r * REFERENCE_XSEC / TTBAR_XEC_13TEV / BR_TTBAR_TO_LEPTON
     if mode == "xsec":
-        return r * REFERENCE_XSEC / BR_TTBAR_TO_LEPTON  # fb; equals B_sig * sigma_ttbar
+        # fb; equals sigma_sig = 2 x sigma_ttbar x B_sig
+        return r * REFERENCE_XSEC / BR_WW_NONHADRONIC
     raise ValueError(f"Unknown mode: {mode}")
 
 

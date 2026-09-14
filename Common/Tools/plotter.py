@@ -11,14 +11,20 @@ _LUMI_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "Data", "Luminos
 with open(_LUMI_JSON_PATH, "r") as f:
     _LUMI_CONFIG = json.load(f)
 
+# Keys that describe the period itself rather than one of its eras. Anything
+# non-numeric (e.g. the "note" strings) is metadata too, so filter on the value.
+_NON_ERA_KEYS = ("combined", "energy_TeV")
+
+
+def _era_lumis(period):
+    return {era: lumi for era, lumi in _LUMI_CONFIG[period].items()
+            if era not in _NON_ERA_KEYS and isinstance(lumi, (int, float))}
+
+
 # Build LumiInfo dictionary for backward compatibility
 LumiInfo = {}  # /fb
-for era, lumi in _LUMI_CONFIG["Run2"].items():
-    if era not in ("combined", "energy_TeV"):
-        LumiInfo[era] = lumi
-for era, lumi in _LUMI_CONFIG["Run3"].items():
-    if era not in ("combined", "energy_TeV"):
-        LumiInfo[era] = lumi
+LumiInfo.update(_era_lumis("Run2"))
+LumiInfo.update(_era_lumis("Run3"))
 LumiInfo["Run2"] = _LUMI_CONFIG["Run2"]["combined"]
 LumiInfo["Run3"] = _LUMI_CONFIG["Run3"]["combined"]
 LumiInfo["All"] = _LUMI_CONFIG["All"]["combined"]
@@ -28,8 +34,7 @@ LumiInfo["All"] = _LUMI_CONFIG["All"]["combined"]
 # the periods side by side ("137.6 fb^-1 (13 TeV) + 62.4 fb^-1 (13.6 TeV)")
 # need the exact sums so the two terms add up to the combined total.
 LumiInfoExact = {
-    period: sum(lumi for era, lumi in _LUMI_CONFIG[period].items()
-                if era not in ("combined", "energy_TeV"))
+    period: sum(_era_lumis(period).values())
     for period in ("Run2", "Run3")
 }
 LumiInfoExact["All"] = LumiInfoExact["Run2"] + LumiInfoExact["Run3"]
@@ -86,6 +91,82 @@ def get_CoM_energy(era):
         return EnergyInfo["Run3"]
     else:
         raise ValueError(f"Unknown era: {era}")
+
+def configure_cms_label(config):
+    """Take the CMS block over from cmsstyle when the figure places it itself.
+
+    cmsstyle hardcodes the in-frame offsets of "CMS"/"Preliminary" at 3.5% of the
+    frame from its top-left corner, which at paper panel sizes puts the text right
+    on the axis ticks. When the config supplies cmsPosX/cmsPosY, cmsstyle is told
+    to draw neither string and draw_cms_label() draws the block instead.
+
+    Must be called immediately BEFORE the canvas is created, since that is what
+    triggers cmsstyle's CMS_lumi(). Returns the state to hand to draw_cms_label()
+    and restore_cms_label(), or None when the figure wants cmsstyle's own block.
+    """
+    if "cmsPosX" not in config and "cmsPosY" not in config:
+        return None
+
+    state = {
+        "cmsText": config.get("cmsText", "CMS"),
+        "extraText": config.get("extraText", "Preliminary"),
+        "posX": config.get("cmsPosX", 0.20),
+        "posY": config.get("cmsPosY", 0.86),
+        "size": config.get("cmsLabelSize", 0.06),
+    }
+    CMS.SetCmsText("")
+    CMS.SetExtraText("")
+    return state
+
+
+def restore_cms_label(state):
+    """Put cmsstyle's globals back, so the override cannot leak into the next
+    canvas built in the same process."""
+    if state is None:
+        return
+    CMS.SetCmsText("CMS")
+    CMS.SetExtraText(state["extraText"])
+
+
+def draw_cms_label(state):
+    """Draw the CMS block at the configured position, top-left aligned like
+    cmsstyle's in-frame variant."""
+    if state is None:
+        return
+    size = state["size"]
+    CMS.drawText(state["cmsText"], posX=state["posX"], posY=state["posY"],
+                 font=61, align=13, size=size)
+    if state["extraText"]:
+        # Same relative offset and size ratio cmsstyle uses between the two.
+        CMS.drawText(state["extraText"], posX=state["posX"],
+                     posY=state["posY"] - 1.2 * size,
+                     font=52, align=13, size=0.76 * size)
+
+
+# cmsstyle right-aligns the luminosity header on the ADVANCE width, and the
+# header ends in ")", whose right side bearing leaves the INK about a fifth of a
+# glyph height short of the anchor. Pushing the anchor out by that puts the ink,
+# not the advance, on the axis.
+LUMI_RIGHT_BEARING = 0.20
+
+
+def reanchor_lumi_header(pad, canvas_width, canvas_height,
+                         bearing=LUMI_RIGHT_BEARING):
+    """Re-align the luminosity header to the pad's CURRENT right margin.
+
+    cmsstyle's CMS_lumi() runs while the canvas is built, so a figure that
+    changes its margins or shape afterwards leaves the header anchored to the
+    margin cmsstyle saw. The header is the pad's only right-aligned (align 31)
+    TLatex, which is what identifies it here.
+    """
+    for primitive in pad.GetListOfPrimitives():
+        if isinstance(primitive, ROOT.TLatex) and primitive.GetTextAlign() == 31:
+            # Text size is a fraction of PAD height; SetX wants a fraction of
+            # CANVAS width, so the bearing is converted between the two.
+            text_height = primitive.GetTextSize() * pad.GetHNDC()
+            shift = bearing * text_height * canvas_height / canvas_width
+            primitive.SetX(1.0 - pad.GetRightMargin() + shift)
+
 
 class BaseCanvas():
     """
@@ -242,6 +323,19 @@ class BaseCanvas():
         CMS.SetLumi(lumiInfo, run=run)
 
         return lumiInfo, run
+
+    def _configure_cms_label(self, config):
+        """Take the CMS block over from cmsstyle when the figure places it itself."""
+        self._cms_label = configure_cms_label(config)
+
+    def _restore_cms_label(self):
+        """Put cmsstyle's globals back, so the override cannot leak into the next
+        canvas built in the same process."""
+        restore_cms_label(getattr(self, "_cms_label", None))
+
+    def _draw_cms_label(self):
+        """Draw the CMS block at the config's position."""
+        draw_cms_label(getattr(self, "_cms_label", None))
 
     def _make_legend(self, coords, textSize, columns=None, draw=True):
         """
@@ -483,6 +577,7 @@ class ComparisonCanvas(BaseCanvas):
         CMS.SetExtraText("Preliminary")
 
         # Create canvas — single-pad when no_ratio, two-pad otherwise
+        self._configure_cms_label(config)
         if no_ratio:
             self.canv = CMS.cmsCanvas("", xmin, xmax,
                                           ymin, ymax,
@@ -509,6 +604,20 @@ class ComparisonCanvas(BaseCanvas):
                 self.canv.cd(1).SetLogx()
                 self.canv.cd(2).SetLogx()
             hdf = CMS.GetCmsCanvasHist(self.canv.cd(1))
+
+        self._restore_cms_label()
+
+        # cmsDiCanvas gives the upper pad a 1.5% bottom margin, but it also
+        # scales the y-label size up by H_ref/Hup (0.04 -> ~0.058), so a label
+        # sitting on the axis origin is more than half a glyph taller than the
+        # margin and the pad edge cuts it in half. Enlarging the margin would
+        # fix the glyph but open a white strip between the two frames, so the
+        # label is dropped instead -- the ratio pad's axis starts immediately
+        # below and carries the reader past the origin anyway. Guarded on the
+        # axis actually starting at zero, so this can never hide a real value.
+        if config.get("hideOriginYLabel") and not no_ratio:
+            if hdf.GetMinimum() == 0.0:
+                hdf.GetYaxis().ChangeLabel(1, -1, 0.0)
 
         hdf.GetYaxis().SetMaxDigits(config.get("maxDigits", 3))
 
@@ -570,6 +679,7 @@ class ComparisonCanvas(BaseCanvas):
         CMS.addToLegend(self.leg, (self.systematics, self.config.get("systSrc", "Stat+Syst"), " FE2"))
 
         # Draw channel text using base class method
+        self._draw_cms_label()
         self._draw_channel_text(self.config)
 
         # Draw chi^2 text if calculated
@@ -593,6 +703,9 @@ class ComparisonCanvas(BaseCanvas):
         draw_sigleg = self.config.get("drawSignalLegend", True)
         self.sigleg = self._make_legend(sig_legend, sig_text_size,
                                         columns=sig_columns, draw=draw_sigleg)
+        sig_header = self.config.get("signalLegendHeader")
+        if sig_header:
+            self.sigleg.SetHeader(sig_header, "")
 
         # Process all signals
         for idx, (name, hist) in enumerate(signals.items()):

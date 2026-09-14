@@ -157,3 +157,50 @@ can flip a bin edge and produce a structurally different datacard, so
 3. Bisect the offending V4 file against its V3 original (Stage-A files are
    byte-identical modulo the module-name rename; Stage-B diffs are
    deletions-only).
+
+## Conversion Fix: sigma_sig Charge-Conjugation Factor (2026-08-20)
+
+A conversion-level correction in `python/collectLimits._convert`. No
+Combine job was rerun; the limits themselves are untouched.
+
+`r = 1` is a visible cross section of 5 fb, defined as
+`sigma_sig x 0.5456`, where 0.5456 removes the both-W-hadronic decays and
+`sigma_sig = 2 x sigma(pp -> ttbar) x B_sig` is **already** inclusive of
+charge conjugation (t -> H+b or tbar -> H-bbar). `B_sig` therefore
+carries both factors and `sigma_sig` only the W one. The `xsec` branch
+divided by `BR_TTBAR_TO_LEPTON = 2 x 0.5456`, i.e. removed the
+charge-conjugation 2 a second time, so every `sigma_sig` published to
+date was `sigma_ttbar x B_sig = sigma_sig / 2`. Caught in the
+AN-verification pass: `results/json/xsec` / `results/json/BR` came out at
+exactly 833.9e3 = sigma_ttbar where the AN equation requires
+2 x sigma_ttbar. The `BR` branch was correct and is untouched.
+
+Fixed: the xsec branch now divides by `BR_WW_NONHADRONIC = 0.5456`
+alone. `plotLimits2D.DEFAULT_ZRANGE["xsec"]` moved with it, 0.41695-8.339
+-> 0.8339-16.678, since it is defined as the image of the fixed BR range
+under this conversion and the two maps must stay pixel-for-pixel
+comparable. The `--mode` help strings of `collectLimits`/`plotLimits`/
+`plotLimits2D` now say `sigma_sig = 2 sigma(ttbar) B_sig in fb`.
+
+Regenerated: the six `results/json/xsec/All/*.interp-signal.json`
+(All x {Combined, SR1E2Mu, SR3Mu} x {Baseline, ParticleNet}; 2467/2467
+Baseline and 150/150 ParticleNet points parsed on every collect) and all
+126 files under `results/plots/xsec/`, with the `doThis.sh` Step 2 / Step
+5 invocations. Gates: **A** the 150 files under `results/json/BR/` and
+`results/plots/BR/` are checksum-identical; **B** every one of the 47 106
+regenerated xsec values is bit-exactly twice its pre-fix value, with
+identical key sets; **C** xsec/BR = 2 x 833.9e3 = 1.6678e6 fb to 1.3 ulp
+(max relative deviation 2.8e-16, the two branches rounding in different
+division orders).
+
+Recomputed sigma_sig over the All/Combined interp-signal scan, split as
+in the AN:
+
+| region | n | exp0 [fb] | obs [fb] |
+|---|---|---|---|
+| mA < 82.5 (Baseline) | 2167 | 1.065 - 3.974 | 0.851 - 6.067 |
+| 82.5 <= mA <= 97.5 (ParticleNet) | 150 | 1.808 - 8.520 | 1.357 - 11.387 |
+| mA > 97.5 (Baseline) | 150 | 2.237 - 4.045 | 1.262 - 5.820 |
+
+The AN's Result.tex still quotes the pre-fix (halved) ranges; that edit
+and the figure rebuild happen in the AN session, not here.

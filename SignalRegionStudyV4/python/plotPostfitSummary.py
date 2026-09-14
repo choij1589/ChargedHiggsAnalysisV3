@@ -24,7 +24,7 @@ from types import SimpleNamespace
 import ROOT
 
 import plotPostfitMass as pm
-from plotter import LumiInfoExact, EnergyInfo
+from plotter import LumiInfo, EnergyInfo
 
 
 MASSPOINT_RE = re.compile(r"^MHc(?P<mhc>\d+)_MA(?P<ma>\d+(?:p\d+)?)$")
@@ -655,16 +655,16 @@ def draw_ownership_guides(canvas, intervals, x_range):
 
 def summary_header_text(era_scope):
     """Luminosity header shared with plotLimits.py / plotLimits2D.py /
-    plotGoFPValues.py: un-rounded per-period luminosities, each period
-    quoted with its own energy, no "Run 2+3,"-style prefix and no rounded
+    plotGoFPValues.py: rounded per-period luminosities, each period
+    quoted with its own energy, no "Run 2+3,"-style prefix and no combined
     200 fb^-1 total."""
     if era_scope == "All":
-        return (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} "
+        return (f"{LumiInfo['Run2']:g} fb^{{#minus1}} "
                 f"({EnergyInfo['Run2']:g} TeV) + "
-                f"{LumiInfoExact['Run3']:g} fb^{{#minus1}} "
+                f"{LumiInfo['Run3']:g} fb^{{#minus1}} "
                 f"({EnergyInfo['Run3']:g} TeV)")
     if era_scope in ("Run2", "Run3"):
-        return (f"{LumiInfoExact[era_scope]:g} fb^{{#minus1}} "
+        return (f"{LumiInfo[era_scope]:g} fb^{{#minus1}} "
                 f"({EnergyInfo[era_scope]:g} TeV)")
     return pm._build_header_text(era_scope)
 

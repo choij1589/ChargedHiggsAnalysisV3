@@ -27,7 +27,7 @@ import ROOT
 import cmsstyle as CMS
 
 import srspaths
-from plotter import LumiInfo, LumiInfoExact, EnergyInfo, get_CoM_energy
+from plotter import LumiInfo, EnergyInfo, get_CoM_energy
 
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
 
@@ -43,10 +43,11 @@ MA_BIN_WIDTH = 0.5
 MA_MIN, MA_MAX = 15.0, 155.0
 
 # Fixed colour range, so every map of the campaign is read on one scale.
-# The two modes are the same limit in different units (xsec = BR x
-# sigma_ttbar(13 TeV) = 833.9 pb, see collectLimits.py), so the ranges are
-# each other's image and the two renderings are pixel-for-pixel comparable.
-DEFAULT_ZRANGE = {"BR": (5e-7, 1e-5), "xsec": (0.41695, 8.339)}
+# The two modes are the same limit in different units (xsec = sigma_sig =
+# 2 x sigma_ttbar(13 TeV) x BR, sigma_ttbar = 833.9 pb, see
+# collectLimits.py), so the ranges are each other's image and the two
+# renderings are pixel-for-pixel comparable.
+DEFAULT_ZRANGE = {"BR": (5e-7, 1e-5), "xsec": (0.8339, 16.678)}
 
 # Delaunay rendering grid for --interpolate-mhc, ~0.5 GeV in both directions.
 SMOOTH_NPX, SMOOTH_NPY = 180, 280
@@ -82,7 +83,7 @@ parser.add_argument("--limit_type", type=str, default="Asymptotic",
                     choices=["Asymptotic"], help="Limit type (Asymptotic only in V4)")
 parser.add_argument("--mode", type=str, default="BR", choices=["BR", "xsec"],
                     help="Limit unit: BR (relative branching ratio, default) "
-                         "or xsec (sigma(pp->ttbar) x B_sig in fb)")
+                         "or xsec (sigma_sig = 2 sigma(ttbar) B_sig in fb)")
 parser.add_argument("--quantity", type=str, default="exp0",
                     choices=["exp0", "obs"],
                     help="Median expected (default) or observed limit")
@@ -240,12 +241,12 @@ CMS.ResetAdditionalInfo()
 CMS.SetLumi(None, run="")
 CMS.SetEnergy(0, unit="")
 if args.era == "All":
-    lumi_text = (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} "
+    lumi_text = (f"{LumiInfo['Run2']:g} fb^{{#minus1}} "
                  f"({EnergyInfo['Run2']:g} TeV) + "
-                 f"{LumiInfoExact['Run3']:g} fb^{{#minus1}} "
+                 f"{LumiInfo['Run3']:g} fb^{{#minus1}} "
                  f"({EnergyInfo['Run3']:g} TeV)")
 elif args.era in ("Run2", "Run3"):
-    lumi_text = (f"{LumiInfoExact[args.era]:g} fb^{{#minus1}} "
+    lumi_text = (f"{LumiInfo[args.era]:g} fb^{{#minus1}} "
                  f"({EnergyInfo[args.era]:g} TeV)")
 else:
     lumi_text = (f"{LumiInfo[args.era]:g} fb^{{#minus1}} "

@@ -460,3 +460,70 @@ the other six.
 See [UNCERTAINTY.md](UNCERTAINTY.md) — the rms-then-max rule, the mA
 binning of norm, the floors, and the residual-correlation study that
 justifies pooling by rms.
+
+### V4 — The delta transfer closes over the whole grid, not just at one point
+
+**Motivation.** V1 validated the shape-delta transfer at a single held-out
+point. In production every simulated point is a fit anchor
+(`meta.held_out_ma == []` in all seven `delta_model.json`), so stage 2's
+own held-out closure is empty and nothing tests the transfer at the other
+77 points.
+**Setup.** `python3 python/closInterpShapeDeltasLOO.py` — JSON + numpy on
+a login node, ~1 min for all seven studies. Per series — (era|channel,
+systematic, direction, quantity ∈ {dm, dsig, dN}) — drop one anchor at a
+time, refit with production's own `fitInterpShapeDeltas.fit_series` (the
+up-only [0, 1] F-test ladder, `DELTA_ERR_FLOOR`, and the two-pass
+rescaling of the errors to the first-pass residual RMS), evaluate the
+refit at the dropped mA and record `resid = predicted − measured`.
+17 088 series, 142 272 residuals. Two gates, both PASS: **A**, the
+no-drop refit must return the stored production `order` and `coeffs`
+(1e-9 relative / 1e-12 absolute) — every series, which is what makes the
+LOO refit the production fit rather than a lookalike; **B**, the medians
+must be within 100× of V1 — they sit 11–14× above it, the expected cost
+of dropping a genuine anchor from a sparse grid. An anchor is dropped
+only while ≥ 2 remain: 864 series skipped at mHc = 70 (SR3Mu_highM holds
+the single anchor mA = 65) and 864 at mHc = 85 (mA = 70, 80); zero
+elsewhere.
+**Results.** All named systematics, all seven studies:
+
+| quantity | n | median &#124;resid&#124; | p95 | max | worst series |
+|---|---|---|---|---|---|
+| dm | 47 424 | 1.5e-6 | 3.5e-5 | 4.7e-4 | MHc100 mA=90 2023BPix\|SR3Mu_highM ps_fsr Down |
+| dsig | 47 424 | 9.4e-5 | 2.2e-3 | 2.5e-2 | MHc130 mA=30 2023BPix\|SR1E2Mu ps_fsr Down |
+| dN | 47 424 | 2.4e-4 | 3.9e-3 | 3.5e-2 | MHc115 mA=57 2022EE\|SR3Mu_lowM ps_fsr Down |
+
+- Scale: the median residual is 0.9% (dm) / 3.0% (dsig) / 0.3% (dN) of
+  the p95 delta it carries — an error *on a systematic*, second order in
+  the template. |resid| exceeds 1% for no dm residual, 0.26% of dsig and
+  0.88% of dN.
+- The tail is parton shower, not detector: ps_fsr and ps_isr own 183 of
+  the 200 worst residuals (172 of them dN), the JES trees the other 17.
+  Both are Down-heavy, and `ps_fsr` Down is the worst series of every
+  quantity.
+- Subsets (median dm / dsig / dN): JES+JER+unclustered *by name*, V1's
+  subset, 2.3e-6 / 1.4e-4 / 2.9e-4; the trees stage 1 *measured* as
+  unpaired 3.4e-6 / 2.0e-4 / 2.0e-4; weight-only (paired) 1.2e-6 /
+  7.5e-5 / 2.6e-4. The two definitions of "kinematic" disagree, so both
+  are reported: `CMS_scale_met_unclustered_energy_*` is paired
+  everywhere, `CMS_scale_m_*` is unpaired everywhere and is absent from
+  the name list, and `CMS_scale_e_*` / `CMS_res_e_*` / `ps_isr` /
+  `ps_fsr` are unpaired only in the categories holding the affected
+  object.
+- Per-study dN medians run 2.2e-4 (mHc160) to 2.7e-4 (mHc70, mHc85) —
+  flat in mHc. Unlike the yield model, this closure is not driven by grid
+  density.
+- Production picks order 0 for 14 078 of 17 088 series and order 1 for
+  3 010: the F-test upgrades roughly one series in six.
+- `--pdf-members` (off by default; run at mHc = 70): 26 400 replica
+  residuals, medians 1.2e-7 / 7.7e-6 / 1.4e-5 — one to two orders below
+  the named systematics, as expected for 100 small weight-only
+  variations.
+**Conclusion.** The delta parametrisation transfers to an unseen mass
+point at the 1e-6 (dm) / 1e-4 (dsig) / 2e-4 (dN) level in the median, and
+worst case a few percent on dN in the parton-shower trees — smaller than
+the systematic being transferred, and far below the `CMS_interp_*`
+nuisances the datacard already carries. V1's datacard-level check stands
+as the end-to-end corroboration: the B↔C comparison found interpolation
+nuisances cost nothing in the limit. Outputs:
+`fits/MHc{X}/shape_deltas/loo_closure.json` (per-series residuals) and
+`fits/loo_closure_summary.json`.

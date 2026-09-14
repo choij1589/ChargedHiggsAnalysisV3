@@ -12,7 +12,7 @@ import cmsstyle as CMS
 import ROOT
 
 from plotter import (ComparisonCanvas, PALETTE, PALETTE_LONG, EnergyInfo,
-                     LumiInfoExact, get_era_list)
+                     LumiInfo, get_era_list)
 from HistoUtils import (
     setup_missing_histogram_logging,
     load_histogram,
@@ -51,9 +51,13 @@ BKG_LABELS = {
     "others": "Others",
 }
 
+# Signals are drawn as unfilled solid outlines: a translucent fill washes out
+# against the stacked colours, and a dashed line breaks up at paper size. Hues are
+# deliberately disjoint from BKG_COLORS (blue/orange/red/grey/purple) so a signal
+# never reads as one of the fills it is drawn over; the mass point that peaks on
+# the Z peak, where the stack is busiest, gets black.
 SIGNAL_LINE_WIDTH = 3
-SIGNAL_FILL_ALPHA = 0.18
-SIGNAL_FILL_STYLE = 1001
+SIGNAL_COLORS = ["#d81b60", "#2ca02c", "#000000", "#0099b4"]
 DATA_LABEL = "Data"
 SYST_LABEL = "Stat.+Syst."
 # Uncertainty band style, mirrored from ComparisonCanvas.drawPadUp so the shared
@@ -61,20 +65,40 @@ SYST_LABEL = "Stat.+Syst."
 SYST_FILL_STYLE = 3004
 SYST_FILL_COLOR = 12
 
-# Standalone legend panel: the plots publish no legend of their own, so the 2x2
-# paper figures spend their fourth panel on this one. Geometry is in NDC of a
-# canvas the same size as a plot panel.
+# CMS block. cmsstyle's own in-frame placement sits on the top-left ticks, so the
+# paper plots position and size it themselves (see BaseCanvas._configure_cms_label).
+CMS_LABEL_POS = (0.20, 0.865)
+CMS_LABEL_SIZE = 0.070
+# Channel/region caption, directly below the CMS block.
+CHANNEL_POS = (0.20, 0.665)
+CHANNEL_SIZE = 0.063
+# The longest caption, "Z+nonprompt CR", reaches as far as the Z peak at this
+# size, so the control regions get more headroom than the signal regions.
+CR_Y_HEADROOM_SCALE = 1.2
+
+# In-plot legends, both in the right-hand column: data and backgrounds on top,
+# signal mass points below. That column covers the top end of the mass range,
+# which is empty in every one of these distributions, so the legends cost no
+# headroom -- a middle column would sit over the Z peak and force the axis ~30%
+# taller. The mass points share a header so each row fits one column.
+BKG_LEGEND = (0.650, 0.545, 0.970, 0.870)
+BKG_LEGEND_TEXT_SIZE = 0.036
+SIGNAL_LEGEND = (0.650, 0.270, 0.970, 0.515)
+SIGNAL_LEGEND_TEXT_SIZE = 0.034
+SIGNAL_LEGEND_HEADER = "(m_{H^{+}}, m_{A}) [GeV]"
+
+# Standalone legend panel, published alongside the plots: slides lay the figures
+# out without their own legends, and it is also what a 2x2 paper layout would
+# spend its fourth panel on. Geometry is in NDC of a canvas the size of a plot.
 LEGEND_PANEL_ROW_SPACING = 1.55  # row pitch in units of the text size
-# Two side-by-side columns: signals on the left, backgrounds on the right. The
-# mass-point labels are far longer than the process names, so the columns are
-# unequal and each sets its own symbol width (the TLegend margin) to leave the
-# text as much room as it needs.
-LEGEND_PANEL_LEFT = 0.03
-LEGEND_PANEL_COLUMN_GAP = 0.01
+# Two side-by-side columns, mirroring the plots: signals on the left, data and
+# backgrounds on the right. Each sets its own symbol width (the TLegend margin)
+# to leave its text as much room as it needs; the pair is centred on the panel.
+LEGEND_PANEL_COLUMN_GAP = 0.04
 LEGEND_PANEL_BKG_WIDTH = 0.33
 LEGEND_PANEL_BKG_MARGIN = 0.30
-LEGEND_PANEL_SIGNAL_WIDTH = 0.62
-LEGEND_PANEL_SIGNAL_MARGIN = 0.16
+LEGEND_PANEL_SIGNAL_WIDTH = 0.34
+LEGEND_PANEL_SIGNAL_MARGIN = 0.28
 
 CHANNEL_LABELS = {
     "SR1E2Mu": ("SR", "e#mu#mu"),
@@ -102,12 +126,10 @@ class PaperPlotOptions:
     adaptive_min_bkg: float = 10.0
     adaptive_max_width: float = 10.0
     adaptive_base_width: float = 2.0
-    signal_colors: list[str] = field(default_factory=lambda: ["#5790fc", "#f89c20", "#964a8b", "#e42536"])
-    # Legends are identical in every paper plot, so they are dropped from the
-    # plots and published once via render_paper_legend().
-    draw_legends: bool = False
+    signal_colors: list[str] = field(default_factory=lambda: list(SIGNAL_COLORS))
+    draw_legends: bool = True
     legend_panel_text_size: float = 0.040
-    y_headroom: float = 1.5
+    y_headroom: float = 1.35
 
 
 def get_plot_era_list(era):
@@ -139,7 +161,8 @@ def format_signal_label(signal_mass):
     if not match:
         return signal_mass
     mhc, ma = match.groups()
-    return f"(m_{{H^{{+}}}}, m_{{A}}) = ({mhc}, {ma}) GeV"
+    # Units and the symbols live in the legend header, so the row is just the pair.
+    return f"({mhc}, {ma})"
 
 
 def load_common_data(workdir):
@@ -212,10 +235,10 @@ def build_config(histkey, channel, options):
     # CoM in parentheses, so the Run3 energy is carried by "CoM" and the
     # Run2 term is baked into "run_label".
     config["CoM"] = f"{EnergyInfo['Run3']:g} TeV"
-    config["run_label"] = (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
-                           f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}")
+    config["run_label"] = (f"{LumiInfo['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
+                           f"{LumiInfo['Run3']:g} fb^{{#minus1}}")
     config["rTitle"] = "Data / Pred."
-    # No in-plot legend to clear, so the stack can use the vertical space.
+    # Enough headroom that the stack stays clear of the in-plot legends.
     config["yHeadroom"] = options.y_headroom
     # Signal regions are statistics-limited over most of the mass range, so the
     # ratio needs the wider window; the control regions stay on the tight one
@@ -225,22 +248,24 @@ def build_config(histkey, channel, options):
     config["blind"] = options.blind
     config["overflow"] = True
     config["iPos"] = 11
-    config["legend"] = (0.72, 0.55, 0.99, 0.89)
-    config["legendTextSize"] = 0.038
-    config["signalLegend"] = (0.32, 0.63, 0.73, 0.87)
-    config["signalLegendTextSize"] = 0.034
-    # Both legends live in the shared panel unless the caller asks for the
-    # self-contained version of the plots.
+    config["cmsPosX"], config["cmsPosY"] = CMS_LABEL_POS
+    config["cmsLabelSize"] = CMS_LABEL_SIZE
+    config["legend"] = BKG_LEGEND
+    config["legendTextSize"] = BKG_LEGEND_TEXT_SIZE
+    config["signalLegend"] = SIGNAL_LEGEND
+    config["signalLegendTextSize"] = SIGNAL_LEGEND_TEXT_SIZE
+    config["signalLegendHeader"] = SIGNAL_LEGEND_HEADER
+    # Legends live in the plots; the shared panel is only built when the caller
+    # explicitly turns the in-plot ones off.
     config["drawLegend"] = options.draw_legends
     config["drawSignalLegend"] = options.draw_legends
     config["signalLineWidth"] = SIGNAL_LINE_WIDTH
-    config["signalFill"] = True
-    config["signalFillAlpha"] = SIGNAL_FILL_ALPHA
-    config["signalFillStyle"] = SIGNAL_FILL_STYLE
+    config["signalFill"] = False
     config["signalColors"] = [ROOT.TColor.GetColor(color) for color in options.signal_colors]
     config["systSrc"] = SYST_LABEL
     config["chi2_test"] = False
     if histkey == "ZCand/mass":
+        config["yHeadroom"] = options.y_headroom * CR_Y_HEADROOM_SCALE
         config["xRange"] = [81, 101]
         config["yTitle"] = "Events"
         if channel == "TTZ2E1Mu":
@@ -250,9 +275,8 @@ def build_config(histkey, channel, options):
         config["no_ratio"] = True
 
     config["channel"], config["region"] = CHANNEL_LABELS[channel]
-    # Same block position as the SignalRegionStudyV3 paper panels.
-    config["channelPosY"] = 0.72
-    config["channelPosX"] = 0.22
+    config["channelPosX"], config["channelPosY"] = CHANNEL_POS
+    config["channelSize"] = CHANNEL_SIZE
     return config
 
 
@@ -564,11 +588,8 @@ def build_legend_proxies(options, prefix="legend"):
         proxy.SetLineColor(color)
         proxy.SetLineWidth(SIGNAL_LINE_WIDTH)
         proxy.SetMarkerSize(0)
-        # Signals are drawn as a translucent fill with a solid outline, so the
-        # legend shows the same filled box rather than a bare line.
-        proxy.SetFillColorAlpha(color, SIGNAL_FILL_ALPHA)
-        proxy.SetFillStyle(SIGNAL_FILL_STYLE)
-        signal_entries.append((proxy, format_signal_label(signal_mass), "F"))
+        # Signals are drawn as bare outlines, so the legend shows a line.
+        signal_entries.append((proxy, format_signal_label(signal_mass), "L"))
 
     return bkg_entries, signal_entries, proxies
 
@@ -597,7 +618,9 @@ def render_paper_legend(options, with_signals=True):
         return 0.5 - 0.5 * height, 0.5 + 0.5 * height
 
     if signal_entries:
-        signal_x1 = LEGEND_PANEL_LEFT
+        total_width = (LEGEND_PANEL_SIGNAL_WIDTH + LEGEND_PANEL_COLUMN_GAP
+                       + LEGEND_PANEL_BKG_WIDTH)
+        signal_x1 = 0.5 * (1.0 - total_width)
         bkg_x1 = signal_x1 + LEGEND_PANEL_SIGNAL_WIDTH + LEGEND_PANEL_COLUMN_GAP
     else:
         # Nothing to sit beside, so the single column is centred instead.
@@ -605,9 +628,12 @@ def render_paper_legend(options, with_signals=True):
 
     legends = []
     if signal_entries:
-        y1, y2 = block_y(len(signal_entries))
+        # The header occupies a row of its own, so the box has to be sized for
+        # one more than the number of entries or TLegend squeezes them all.
+        y1, y2 = block_y(len(signal_entries) + 1)
         signal_leg = CMS.cmsLeg(signal_x1, y1, signal_x1 + LEGEND_PANEL_SIGNAL_WIDTH, y2,
                                 textSize=text_size)
+        signal_leg.SetHeader(SIGNAL_LEGEND_HEADER, "")
         signal_leg.SetMargin(LEGEND_PANEL_SIGNAL_MARGIN)
         CMS.addToLegend(signal_leg, *signal_entries)
         legends.append(signal_leg)

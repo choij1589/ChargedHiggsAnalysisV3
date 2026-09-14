@@ -22,7 +22,7 @@ import cmsstyle as CMS
 
 import srspaths
 import nuisanceGroups
-from plotter import LumiInfo, LumiInfoExact, EnergyInfo, get_CoM_energy
+from plotter import LumiInfo, EnergyInfo, get_CoM_energy
 
 ROOT.gROOT.SetBatch(True)
 
@@ -59,12 +59,12 @@ def set_lumi_header(era):
     CMS.ResetAdditionalInfo()
     if era == "All":
         CMS.SetLumi(None, run=(
-            f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} "
+            f"{LumiInfo['Run2']:g} fb^{{#minus1}} "
             f"({EnergyInfo['Run2']:g} TeV) + "
-            f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}"))
+            f"{LumiInfo['Run3']:g} fb^{{#minus1}}"))
         CMS.SetEnergy(0, unit=f"{EnergyInfo['Run3']:g} TeV")
     elif era in ("Run2", "Run3"):
-        CMS.SetLumi(None, run=f"{LumiInfoExact[era]:g} fb^{{#minus1}}")
+        CMS.SetLumi(None, run=f"{LumiInfo[era]:g} fb^{{#minus1}}")
         CMS.SetEnergy(EnergyInfo[era])
     else:
         CMS.SetLumi(LumiInfo[era], run=era)

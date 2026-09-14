@@ -30,6 +30,28 @@ PALETTE = [
     ROOT.TColor.GetColor("#7a21dd")
 ]
 
+# Paper style (TriLepton/docs/PaperPlotting.md). The CMS block goes inside the
+# frame (iPos=11), but cmsstyle hardcodes its in-frame offset at 3.5% of the
+# frame from the top-left corner, which puts the text on the axis ticks. So
+# cmsstyle is told to draw neither string and draw_cms_label() places the block
+# itself, "CMS" over "Preliminary" as in the paper figures.
+CMS_LABEL_POS = (0.145, 0.875)
+CMS_LABEL_SIZE = 0.058
+# "Preliminary" follows at 0.76x the size, 1.2 sizes below, as in cmsstyle.
+CMS_EXTRA_SIZE_SCALE = 0.76
+CMS_EXTRA_OFFSET_SCALE = 1.2
+
+# The three eta curves all sit below 0.6 while the axis runs to 1, so the whole
+# top-right quadrant is free: the legend takes it at paper text size, sitting
+# below the top ticks and clearing the in-frame CMS block on the left.
+LEGEND = (0.50, 0.575, 0.95, 0.825)
+LEGEND_TEXT_SIZE = 0.050
+
+# One marker shape for every eta bin -- the colours already separate them.
+MARKER_STYLE = ROOT.kFullCircle
+MARKER_SIZE = 1.2
+LINE_WIDTH = 3
+
 WORKDIR = os.environ['WORKDIR']
 subdir = "noHEMVeto/" if args.noHEMVeto else ""
 ptcorr_bins = []
@@ -58,6 +80,14 @@ def setHistStyle(projections):
         projection.GetYaxis().SetRangeUser(0., 1.)
         projection.GetYaxis().SetTitle(title)
 
+def draw_cms_label():
+    """Draw the CMS block at CMS_LABEL_POS, top-left aligned inside the frame."""
+    CMS.drawText("CMS", posX=CMS_LABEL_POS[0], posY=CMS_LABEL_POS[1],
+                 font=61, align=13, size=CMS_LABEL_SIZE)
+    CMS.drawText("Preliminary", posX=CMS_LABEL_POS[0],
+                 posY=CMS_LABEL_POS[1] - CMS_EXTRA_OFFSET_SCALE * CMS_LABEL_SIZE,
+                 font=52, align=13, size=CMS_EXTRA_SIZE_SCALE * CMS_LABEL_SIZE)
+
 def plot_fakerate(h, output_path):
     """Plot fake rate histogram and save to output_path."""
     ## prepare projections
@@ -70,30 +100,35 @@ def plot_fakerate(h, output_path):
     CoM = 13 if "201" in args.era else 13.6
     CMS.SetEnergy(CoM)
     CMS.SetLumi(-1, run=f"{args.era}, Prescaled")
-    CMS.SetExtraText("Preliminary")
+    # The block is drawn by draw_cms_label(), not by cmsstyle's CMS_lumi().
+    CMS.SetCmsText("")
+    CMS.SetExtraText("")
 
     canvas = CMS.cmsCanvas("", ptcorr_bins[0], 100.,
                           0., 1.,
                           "p_{T}^{corr} [GeV]",
                           title,
                           square=False,
-                          iPos=0,
+                          iPos=11,
                           extraSpace=0.015)
     hdf = CMS.GetCmsCanvasHist(canvas)
     hdf.GetYaxis().SetMaxDigits(1)
 
-    legend = CMS.cmsLeg(0.6, 0.84 - 0.05*3, 0.92, 0.84, textSize=0.04, columns=1)
+    legend = CMS.cmsLeg(*LEGEND, textSize=LEGEND_TEXT_SIZE, columns=1)
 
     canvas.cd()
     eta_label = "|#eta_{SC}|" if args.measure == "electron" else "|#eta|"
-    CMS.cmsObjectDraw(projections["eta1"], "", LineColor=PALETTE[0], LineWidth=3, LineStyle=ROOT.kSolid)
-    CMS.cmsObjectDraw(projections["eta2"], "", LineColor=PALETTE[1], LineWidth=3, LineStyle=ROOT.kSolid)
-    CMS.cmsObjectDraw(projections["eta3"], "", LineColor=PALETTE[2], LineWidth=3, LineStyle=ROOT.kSolid)
-    CMS.addToLegend(legend, (projections["eta1"], f"{abseta_bins[0]} < {eta_label} < {abseta_bins[1]}", "lep"))
-    CMS.addToLegend(legend, (projections["eta2"], f"{abseta_bins[1]} < {eta_label} < {abseta_bins[2]}", "lep"))
-    CMS.addToLegend(legend, (projections["eta3"], f"{abseta_bins[2]} < {eta_label} < {abseta_bins[3]}", "lep"))
+    for idx, key in enumerate(["eta1", "eta2", "eta3"]):
+        CMS.cmsObjectDraw(projections[key], "",
+                          LineColor=PALETTE[idx], LineWidth=LINE_WIDTH, LineStyle=ROOT.kSolid,
+                          MarkerColor=PALETTE[idx], MarkerStyle=MARKER_STYLE,
+                          MarkerSize=MARKER_SIZE)
+        CMS.addToLegend(legend, (projections[key],
+                                 f"{abseta_bins[idx]} < {eta_label} < {abseta_bins[idx+1]}",
+                                 "lep"))
     canvas.RedrawAxis()
     legend.Draw("same")
+    draw_cms_label()
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     canvas.SaveAs(output_path)

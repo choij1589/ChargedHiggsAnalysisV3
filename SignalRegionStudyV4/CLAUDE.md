@@ -317,6 +317,30 @@ the mode's fixed `DEFAULT_ZRANGE` for every channel so the three maps are
 read against each other; the single channels are weaker and <1% of their
 cells sit above the top of the scale.
 
+`plotLimits.py --compare-mhc` (filename token `.compareMHc`) overlays the
+MEDIAN expected limit of every mHc column on one panel and carries a **ratio
+panel underneath, `--ratio-ref` (default 160)**. The ratio is formed point by
+point in mA and **nothing is interpolated**: the mA lattice of `configs/grid.json`
+does not depend on mHc, so every column's lattice is a subset of the widest
+one's and the quotient exists exactly where the column already has a point. A
+point the reference column does not reach carries no ratio — skipped and
+logged, the `collectLimits.py` convention — because filling it in would
+interpolate the reference in mA, which is a model statement this figure does
+not make (there is no mHc interpolation either; see
+`docs/interpolation/WORKFLOW.md`). The reference divides itself out and is not
+drawn in the lower pad. Panel-specific geometry, all of it forced by the split:
+the upper ceiling is `1.55 x` the tallest MEDIAN rather than `2 x exp+2sigma`
+(no band is drawn here, and the old rule left the curves in the bottom quarter);
+the legend goes to two columns, since seven entries in one reached down onto the
+Z peak; and both y-axis titles are scaled by `_COMPARE_YTITLE_SCALE` because
+`cmsDiCanvas` sizes them for short labels like `Events / bin` while these run to
+39 characters along a pad the split has shortened. `_shape_dicanvas()` is
+`_shape_panel()` applied per PAD — on a two-pad canvas the margins and offsets
+live on the sub-pads, so the single-pad helper would rescale nothing. Note the
+Brazilian panels of the production set are built with `--panels-per-row 2`
+(900x600) while `compareMHc` keeps the square default; the two are not
+interchangeable layouts.
+
 `plotLimits2D.py` draws the 2D map over the (mHc, mA) plane — mHc on x,
 mA on y, colour = the limit — as ONE VERTICAL COLUMN PER MEASURED mHc,
 each filled by linear interpolation along its own mA curve. Nothing is
@@ -324,9 +348,9 @@ interpolated between columns, because the model does not interpolate in
 mHc; cells beyond a column's mA reach are left unpainted, which draws the
 kinematic boundary mA <= mHc - 5 and leaves the upper-left corner white
 for the information text. The colour range is FIXED per mode
-(`DEFAULT_ZRANGE`: BR 5e-7 to 1e-5, xsec its image under the same
-sigma_ttbar factor) so every map of the campaign is read on one scale;
-`--zrange ZMIN ZMAX` overrides it. `--method ParticleNet` stitches the
+(`DEFAULT_ZRANGE`: BR 5e-7 to 1e-5, xsec its image 0.8339 to 16.678 fb
+under the same conversion) so every map of the campaign is read on one
+scale; `--zrange ZMIN ZMAX` overrides it. `--method ParticleNet` stitches the
 ParticleNet arm into its mA window on the columns that have one (mHc =
 70, 85 stay Baseline) and dashes in the on-Z/off-Z window edges per
 column; `--quantity {exp0,obs}` picks expected or observed.
@@ -338,11 +362,16 @@ choice — the model still has no mHc interpolation — so both styles are
 produced and the column one stays the default.
 
 Both scripts take `--mode {BR,xsec}` (default `BR`) and the production
-carries both units: `BR` is `B_sig`, `xsec` is
-`sigma(pp->ttbar) x B_sig` in fb, i.e. the same limit times
-`sigma_ttbar(13 TeV) = 833.9 pb`. Each is collected from the Combine
-output in its own pass — never rescale one JSON into the other — and
-lands in `results/{json,plots}/{BR,xsec}/`. `doThis.sh` loops both modes.
+carries both units: `BR` is `B_sig`, `xsec` is the AN's
+`sigma_sig = 2 x sigma(pp->ttbar) x B_sig` in fb, i.e. the same limit
+times `2 x sigma_ttbar(13 TeV) = 1667.8 pb`. **The 2 is charge
+conjugation and belongs to sigma_sig**: `r = 1` is 5 fb visible
+= `sigma_sig x 0.5456`, so `B_sig` divides by `2 x 0.5456` and
+`sigma_sig` by 0.5456 alone. Dividing the 2 out twice was the bug fixed
+2026-08-20 (docs/REPRODUCTION.md, "Conversion Fix"). Each unit is
+collected from the Combine output in its own pass — never rescale one
+JSON into the other — and lands in `results/{json,plots}/{BR,xsec}/`.
+`doThis.sh` loops both modes.
 
 ## Batch Workflow (condor)
 
@@ -374,12 +403,147 @@ python3 python/plotPaperTemplates.py --masspoint MHc130_MA90 --method ParticleNe
 python3 python/plotPaperPostfitSummary.py            # mHc160, ParticleNet, b-only
 ```
 
+`plotPaperPostfitSummary.py` has two modes. **`--mode full-range` (default)**
+is the published panel — ONE stitched b-only spectrum over the whole mA reach
+for `Combined` (e-mu-mu + mu-mu-mu), written to
+`results/plots/paper/Postfit/postfit_b_only.pdf` (a single channel carries a
+filename token, `Combined` does not). It follows
+`results/plots/postfit_summary/mHc160/ParticleNet/postfit_summary.mHc160.All.
+Combined.ParticleNet.postfit_b.unblind.pdf`: same content and the same two
+dashed verticals marking where the panel hands over between the Baseline and
+ParticleNet arms, redrawn in the paper style. Specifics: 16:9 canvas
+(`FULL_RANGE_CANVAS_SIZE`), display range `[12, mHc]` as in the reference —
+the stitched edges reach 178 GeV only because the topmost seed's fit window
+does, and past mHc every bin is nearest-owner extrapolation — ratio range
+`[0, 3]`, and the left-hand block carries NO mHc line: a b-only spectrum does
+not depend on the signal hypothesis being scanned, so `draw_region_label(...,
+None)` drops it and moves the fit stage up into the freed line.
+
+**Everything NDC is a fraction of pad WIDTH, so the 16:9 reshape doubles it.**
+`resize_canvas()` divides three things by the stretch: the y-axis label offset
+and title offset (or the numbers and the title stand ~2x too far off the
+axis), and the left/right pad margins (cmsstyle's 0.15/0.05 otherwise leave
+about half a panel of blank paper on each side). It then **re-anchors the
+luminosity header**: `CMS_lumi()` already ran inside `cmsDiCanvas` and
+right-aligned it to the margin it saw then, so after the rescale it stops short
+of the frame; the header is the pad's only align-31 TLatex, and its x is reset
+to `1 - rightMargin` so its last tick meets the right axis.
+
+Nothing on this panel is at a fixed NDC, because the margins above move:
+
+- `place_full_range_labels()` gives the CMS block the **same offsets from the
+  frame's top-left corner that `CMS_LABEL_POS` gives the square paper panels**
+  — the x offset divided by the stretch so it stays the same physical inset,
+  the y offset not — so the two figure families carry an identical block. The
+  `SR` / final-state / fit-stage lines form ONE left-aligned block
+  (`channelAlign = 13`, all three flush on a single vertical) over the region
+  **left of the first handover guide**, the below-Z part of the spectrum they
+  describe, starting at the same height as the CMS block. The fit-stage line
+  clears **both** caption rows (`caption_top - 2*CHANNEL_SIZE -
+  FULL_RANGE_STAGE_GAP`); clearing only the first overlaps them. It is set at
+  `FULL_RANGE_STAGE_SIZE` (0.045), between the mA-window panels'
+  `REGION_LABEL_SIZE` and the `CHANNEL_SIZE` caption above it — on the
+  published panel it is the only text naming the fit.
+- The luminosity header is re-anchored to the ink, not the advance:
+  `TLatex` right-aligns on the advance width, and the trailing `)` has a right
+  side bearing that left the ink 6 px of 900 short of the axis. The shift is
+  `LUMI_RIGHT_BEARING` (0.20) of the header's text height, converted from pad
+  height to canvas width. Measured result: 0 px.
+- `place_full_range_legend()` anchors the legend off the RIGHTMOST guide with
+  `FULL_RANGE_LEGEND_CLEARANCE`. The guides span the full frame height, so a
+  fixed box gets a dashed line drawn through it.
+- `hide_top_ratio_label()` drops the `3` at the top of `[0, 3]`, which the
+  ratio pad's ZERO top margin would otherwise cut in half exactly like the
+  upper pad's origin label.
+
+`--mode regions` is the older split into the three mA windows, kept for
+diagnostics; its nine panels were archived to
+`results/plots/paper/BackUps/V5/` on 2026-09-03.
+
 All three default to `--signal-source interp-signal` (the V4 production
 arm) and resolve every path through `srspaths`. The legend is drawn
 inside each panel, in two columns, with the signal entry carrying the
 exact mass point; `--standalone-legend` instead publishes it once as its
 own panel. `plotPaperPostfitSummary.py` reads the fine-mass caches
 written by the postfit-summary step, so run that first.
+
+The **SR** panels carry the eps_B = 20% ParticleNet working point as a red
+dashed vertical line in both pads (`draw_threshold_overlay`, styled like
+`plotParticleNetScore.py`'s so the line means the same thing in both). It is
+**recomputed per panel, not read from `fits/pnet/MHc*/threshold_wp.json`**:
+the frozen WP is per (channel, run period), and four of them are summed into
+one All/Combined panel — at MHc130_MA90 they span 0.5712 to 0.6221, so no
+stored number is this figure's line. `background_efficiency_threshold()`
+takes the score above which 20% of the panel's OWN total background lies,
+on the cache's fine 200-bin grid before the adaptive rebinning and
+interpolated inside the crossing bin, so the line never snaps to a drawn bin
+edge. Same quantity `measPnetThresholds.py` defines (identical process list;
+the cached hists already carry each category's mass window and `bg_weights`)
+evaluated on the union rather than on one category. Values:
+MHc160_MA85 0.5222, MHc130_MA90 0.6164, MHc100_MA95 0.5849 — each closes on
+eps_B = 0.200000. The TTZ CR panels get no line, matching
+`threshold_for_plot()`, which returns `None` there.
+
+All three set `hideOriginYLabel = HIDE_ORIGIN_Y_LABEL` (defined in
+`plotPaperLRModified.py`), a `ComparisonCanvas` config hook.
+`cmsstyle.cmsDiCanvas` leaves the upper pad a 1.5% bottom margin while
+scaling its y-label size up by `H_ref/Hup` (0.04 -> 0.058), so the label on
+the axis origin is more than half a glyph taller than the margin and the pad
+edge **cut the "0" in half** in every two-pad panel. The hook drops that one
+label (`TAxis::ChangeLabel(1, -1, 0)`, guarded on the axis minimum actually
+being 0 so it can never hide a real value). **Do not "fix" this by widening
+the upper pad's bottom margin** — it un-clips the glyph but opens a white
+strip between the two frames, which is worse; the ratio pad's own axis starts
+immediately below and carries the reader past the origin anyway.
+
+Pad geometry is identical across the three sets and unchanged from cmsstyle's
+default: canvas 696x732, pad split at y = 0.3132, pad1 margins L/R/T/B
+0.15/0.05/0.0805/0.015, pad2 0.15/0.05/0/0.365. What does differ between them
+is the ratio range — `[0.5, 1.5]` on the LR panels, `[0.0, 3.5]` on the
+postfit ones — which changes the label ladder just below the boundary.
+
+**Figures are not portable between hosts.** The same code on this workstation
+writes a 539 x 567 pt canvas (frame right edge at 512.10 pt); the committed
+KNU-built figures are 526 x 567 (edge at 499.81). Nothing in the configs
+causes it — the difference survives dropping every config key — so it is the
+local ROOT/cmsstyle build. Consequence: **regenerate the whole figure set in
+one environment**, or a paper laid out from a mix will have panels of two
+different widths.
+
+**CMS block and luminosity, aligned with TriLepton 2026-09-03**
+(`TriLepton/docs/PaperPlotting.md`):
+
+- The in-frame CMS block is placed by the figure, not by cmsstyle, whose
+  hardcoded 3.5%-of-frame offset puts the text on the top-left ticks at
+  this panel size. `CMS_LABEL_POS = (0.20, 0.865)` / `CMS_LABEL_SIZE =
+  0.070` and the caption below it, `CHANNEL_POS = (0.20, 0.665)` /
+  `CHANNEL_SIZE = 0.063`, live in `plotPaperLRModified.py` and are
+  imported by `plotPaperPostfitSummary.py`; the shared machinery is
+  `BaseCanvas._configure_cms_label()` in `Common/Tools/plotter.py`, which
+  restores cmsstyle's globals so the override cannot leak into the next
+  canvas. `plotPaperTemplates.py` keeps `iPos=0` (CMS **outside** the
+  frame) — the tick collision is an in-frame problem only — but imports
+  the same `CHANNEL_POS[0]` / `CHANNEL_SIZE`, so the region tag and the
+  final state are drawn identically in all three sets; only its
+  `CHANNEL_POS_Y` is local (0.80, the top of the frame, since no CMS
+  block sits above it inside the frame), and the `Pre-fit` / `sigma_sig`
+  lines hang off that block rather than carrying their own literals.
+- `plotPaperTemplates.py` sizes its axis on `data_maximum()` — imported
+  from `plotPaperLRModified`, so both sets scale on the same quantity —
+  **not** `TH1::GetMaximum()`. The panels draw Poisson error bars, and a
+  low-count bin's bar runs far above its marker (Run3/SR1E2Mu: 7.2 over a
+  5-event marker), which is what used to collide with the caption block.
+  Because the tallest bar is then what `Y_HEADROOM = 1.8` scales, its top
+  always lands at 1/1.8 = 0.556 of the frame and the clearance below the
+  `sigma_sig` line is a fixed 0.088 of the frame in every panel — an
+  invariant of the constant, not a per-panel tuning.
+- Every V4 plotter now quotes the **rounded per-period** luminosities
+  from `LumiInfo` — `138 fb^-1 (13 TeV) + 62 fb^-1 (13.6 TeV)`, what CMS
+  quotes for a single period — not `LumiInfoExact`'s `137.6 / 62.4`. The
+  swap covers all eleven: `plotPaper{LRModified,Templates,PostfitSummary}`,
+  `plotLimits{,2D,Ratios}`, `plotBreakdown`, `plotGoFPValues`, `plotLEE`,
+  `plotPostfitSummary`, `plotParticleNetScore`. `LumiInfoExact` stays in
+  `plotter.py` for frozen V3 only; nothing in V4 may reintroduce it.
 
 ### 11. Template-point artifact bundle
 

@@ -21,7 +21,7 @@ import cmsstyle as CMS
 import srspaths
 import interpolation_config
 from interpolation_config import masspoint_name
-from plotter import LumiInfo, LumiInfoExact, EnergyInfo, get_CoM_energy
+from plotter import LumiInfo, EnergyInfo, get_CoM_energy
 
 ROOT.gROOT.SetBatch(True)
 
@@ -86,7 +86,7 @@ def read_pvalue(path, floor):
 def set_lumi_header(era):
     """Luminosity header shared with plotLimits.py / plotLimits2D.py.
 
-    Un-rounded per-period luminosities from LumiInfoExact, each run period
+    Rounded per-period luminosities from LumiInfo, each run period
     quoted with its own energy, no "Run2,"-style prefix. cmsstyle renders
     "<cms_lumi> (<cms_energy>)", so for All only the Run3 energy can live in
     SetEnergy and the whole Run2 term is baked into the run label.
@@ -94,12 +94,12 @@ def set_lumi_header(era):
     CMS.ResetAdditionalInfo()
     if era == "All":
         CMS.SetLumi(None, run=(
-            f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} "
+            f"{LumiInfo['Run2']:g} fb^{{#minus1}} "
             f"({EnergyInfo['Run2']:g} TeV) + "
-            f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}"))
+            f"{LumiInfo['Run3']:g} fb^{{#minus1}}"))
         CMS.SetEnergy(0, unit=f"{EnergyInfo['Run3']:g} TeV")
     elif era in ("Run2", "Run3"):
-        CMS.SetLumi(None, run=f"{LumiInfoExact[era]:g} fb^{{#minus1}}")
+        CMS.SetLumi(None, run=f"{LumiInfo[era]:g} fb^{{#minus1}}")
         CMS.SetEnergy(EnergyInfo[era])
     else:
         CMS.SetLumi(LumiInfo[era], run=era)

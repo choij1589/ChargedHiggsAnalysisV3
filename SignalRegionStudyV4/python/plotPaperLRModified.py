@@ -19,7 +19,7 @@ WORKDIR = Path(os.environ.get("WORKDIR", MODULE_DIR.parent))
 sys.path.insert(0, str(WORKDIR / "Common" / "Tools"))
 sys.path.insert(0, str(MODULE_DIR / "python"))
 from plotter import (ComparisonCanvas, EnergyInfo,  # noqa: E402
-                     LumiInfoExact, PALETTE_LONG)
+                     LumiInfo, PALETTE_LONG)
 import cmsstyle as CMS  # noqa: E402
 import srspaths  # noqa: E402
 
@@ -81,8 +81,52 @@ SIGNAL_FILL_ALPHA = 0.0
 SIGNAL_LEGEND_OPT = "L"
 SIGNAL_LABEL = "Signal"
 
+# ParticleNet working point drawn on the SR panels. The production WP is
+# eps_B = 20%, but the frozen values in fits/pnet/MHc*/threshold_wp.json are
+# per (channel, run period) -- FOUR different cuts are summed into this one
+# All/Combined panel (e.g. MHc130_MA90: 0.5712 to 0.6221) -- so no stored
+# number is the line for this figure. It is recomputed on the panel's own
+# total background instead: the score above which EFF_B_TARGET of the plotted
+# background lies. That is the same quantity measPnetThresholds.py defines --
+# identical process list, and the cached hists already carry the per-category
+# mass window and bg_weights -- evaluated on the union of the four categories
+# rather than on one of them.
+EFF_B_TARGET = 0.20
+# Style follows plotParticleNetScore.draw_threshold_overlay, so the line means
+# the same thing in the diagnostic score plots and in the paper panel.
+THRESHOLD_COLOR = ROOT.kRed + 1
+THRESHOLD_LINE_STYLE = 7
+THRESHOLD_LINE_WIDTH = 3
+THRESHOLD_LABEL = f"#varepsilon_{{B}} = {EFF_B_TARGET:.0%} cut"
+
+# CMS block. cmsstyle hardcodes the in-frame offsets of "CMS"/"Preliminary" at
+# 3.5% of the frame from its top-left corner, which at this panel size puts the
+# text on the axis ticks; supplying cmsPosX/cmsPosY hands the block to
+# BaseCanvas._configure_cms_label() instead. Same placement and size as the
+# TriLepton paper plots (TriLepton/docs/PaperPlotting.md), so the two figure
+# families carry an identical CMS block.
+CMS_LABEL_POS = (0.20, 0.865)
+CMS_LABEL_SIZE = 0.070
+# Channel/region caption, directly below the CMS block.
+CHANNEL_POS = (0.20, 0.665)
+CHANNEL_SIZE = 0.063
+# cmsDiCanvas' 0.015 upper-pad bottom margin is smaller than half that pad's
+# scaled y-label, so the "0" at the axis origin is cut in half. Widening the
+# margin opens a white strip between the frames, so the label is dropped
+# instead. Shared by all three paper scripts.
+HIDE_ORIGIN_Y_LABEL = True
+
+# In-plot legend, in the top-right corner. Sitting 0.04 below the frame top
+# rather than against it: the eps_B entry added a fifth row, and the block read
+# top-heavy pushed all the way up. The bottom edge still clears the tallest
+# drawn point by ~0.05 of the frame -- Y_HEADROOM puts that point at 1/1.9 =
+# 0.53 of the frame, and this box starts above it -- so nothing is covered.
+LEGEND_BOX = (0.43, 0.54, 0.97, 0.86)
+LEGEND_TEXT_SIZE = 0.028
+LEGEND_COLUMNS = 2
+
 # Headroom above the stack for the in-frame CMS block, the channel text and
-# the two-row legend beneath them.
+# the legend beneath them.
 Y_HEADROOM = 1.9
 # Mass point moves to the top right, where the in-plot legend used to sit.
 MASS_LABEL_POS = (0.90, 0.80)
@@ -317,6 +361,36 @@ def central_backgrounds(hists, edges):
     return grouped
 
 
+def background_efficiency_threshold(total_bkg, eff=EFF_B_TARGET):
+    """Score above which a fraction `eff` of `total_bkg` lies.
+
+    Evaluated on the cache's own fine binning, BEFORE the adaptive rebinning,
+    and interpolated linearly inside the crossing bin -- the working point is a
+    property of the selection, not of the display binning, so the line must not
+    snap to a drawn bin edge.
+    """
+    if not 0.0 < eff < 1.0:
+        raise ValueError(f"background efficiency must be in (0, 1), got {eff}")
+
+    n_bins = total_bkg.GetNbinsX()
+    integral = total_bkg.Integral(1, n_bins)
+    if integral <= 0.0:
+        raise RuntimeError("total background is empty; cannot locate a working point")
+
+    target = eff * integral
+    running = 0.0
+    axis = total_bkg.GetXaxis()
+    for ibin in range(n_bins, 0, -1):
+        content = total_bkg.GetBinContent(ibin)
+        if running + content >= target:
+            low, up = axis.GetBinLowEdge(ibin), axis.GetBinUpEdge(ibin)
+            # Fraction of this bin that still has to be given away to the
+            # high side; content > 0 is guaranteed by the test above.
+            return up - (target - running) / content * (up - low)
+        running += content
+    raise RuntimeError(f"no score retains {eff:.0%} of the background")
+
+
 def total_background(hists):
     total = clone_sum(hists, ORIGINAL_BKGS, "total_bkg")
     if total is None:
@@ -422,6 +496,11 @@ def build_plot_objects(region, masspoint, base_width=BASE_WIDTH):
 
     total_bkg = total_background(hists)
     edges = build_adaptive_edges(total_bkg, base_width)
+    # SR only: the TTZ CR has no working point of its own (loadScores does not
+    # even apply the mass window there), so plotParticleNetScore draws no line
+    # on it either.
+    threshold = (background_efficiency_threshold(total_bkg)
+                 if region == "SR" else None)
 
     data = rebin_with_edges(hists["data_obs"], edges, "data_obs")
     data.SetTitle("Data")
@@ -439,7 +518,7 @@ def build_plot_objects(region, masspoint, base_width=BASE_WIDTH):
         signal.SetTitle("signal")
         signals["signal"] = signal
 
-    return data, bkgs, signals, edges
+    return data, bkgs, signals, edges, threshold
 
 
 def stack_maximum(bkgs):
@@ -483,12 +562,12 @@ def build_config(region, edges, draw_legend=False, y_range=None):
     return {
         "era": "All",
         # Per-energy luminosities, CMS style for multi-energy combinations:
-        # "138 fb^-1 (13 TeV) + 62.4 fb^-1 (13.6 TeV)". cmsstyle appends the
+        # "138 fb^-1 (13 TeV) + 62 fb^-1 (13.6 TeV)". cmsstyle appends the
         # CoM in parentheses, so the Run3 energy is carried by "CoM" and the
         # Run2 term is baked into "run_label".
         "CoM": f"{EnergyInfo['Run3']:g} TeV",
-        "run_label": (f"{LumiInfoExact['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
-                      f"{LumiInfoExact['Run3']:g} fb^{{#minus1}}"),
+        "run_label": (f"{LumiInfo['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
+                      f"{LumiInfo['Run3']:g} fb^{{#minus1}}"),
         "xTitle": "Modified LR Score",
         "yTitle": "Events",
         "rTitle": RATIO_LABEL,
@@ -503,12 +582,18 @@ def build_config(region, edges, draw_legend=False, y_range=None):
         "maxDigits": 3,
         "overflow": False,
         "iPos": 11,
+        # The figure places the CMS block itself; see CMS_LABEL_POS.
+        "cmsPosX": CMS_LABEL_POS[0],
+        "cmsPosY": CMS_LABEL_POS[1],
+        "cmsLabelSize": CMS_LABEL_SIZE,
+        "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
         # Two columns in the top-right corner, clearing the in-frame CMS
         # block on the left. The signal entry carries the mass point, so it
-        # is the widest cell and takes the right column's last row.
-        "legend": (0.43, 0.58, 0.97, 0.90),
-        "legendTextSize": 0.028,
-        "legendColumns": 2,
+        # is the widest cell and takes the right column's second-to-last row,
+        # with the working-point line under it.
+        "legend": LEGEND_BOX,
+        "legendTextSize": LEGEND_TEXT_SIZE,
+        "legendColumns": LEGEND_COLUMNS,
         # In-plot by default; --standalone-legend publishes it as its own panel.
         "drawLegend": draw_legend,
         "colors": [BKG_COLORS[name] for name in BKG_ORDER],
@@ -517,10 +602,10 @@ def build_config(region, edges, draw_legend=False, y_range=None):
         "signalColors": [SIGNAL_COLOR],
         "channel": channel_label,
         "region": region_label,
-        # iPos=11 puts "CMS"/"Preliminary" inside the frame, so the channel
-        # block starts lower to clear them.
-        "channelPosY": 0.72,
-        "channelPosX": 0.22,
+        # Directly below the self-placed CMS block.
+        "channelPosX": CHANNEL_POS[0],
+        "channelPosY": CHANNEL_POS[1],
+        "channelSize": CHANNEL_SIZE,
         "chi2_test": False,
         "normalize_chi2": False,
     }
@@ -546,6 +631,63 @@ def draw_integrated_signal(plotter, signals, masspoint, draw_legend=False):
     if draw_legend:
         plotter.leg.Draw()
     plotter.canv.cd(1).RedrawAxis()
+
+
+def pad_legend_to_last_column(plotter):
+    """Blank out cells so the NEXT entry lands in the legend's last column.
+
+    TLegend fills row-major, so with the eight standard entries (data, five
+    background groups, Stat.+Syst., signal) filling four full rows, a ninth
+    would open a new row on the LEFT. The working-point line belongs on the
+    right, under the signal it qualifies, so the left cell of that row is
+    filled with an empty entry first. Written against GetNColumns() rather
+    than the literal 2 so it still holds if the legend is ever re-laid out.
+    """
+    columns = plotter.leg.GetNColumns()
+    if columns <= 1:
+        return
+    while plotter.leg.GetListOfPrimitives().GetSize() % columns != columns - 1:
+        # A null object with no draw option renders as an empty cell.
+        plotter.leg.AddEntry(0, "", "")
+
+
+def draw_threshold_overlay(plotter, threshold):
+    """Vertical eps_B = 20% marker in both pads, plus its legend entry.
+
+    Mirrors plotParticleNetScore.draw_threshold_overlay, including the stop at
+    half the axis maximum: at Y_HEADROOM = 1.9 that is just above the tallest
+    stack point, which keeps the line clear of the in-plot legend it would
+    otherwise cross (the legend spans x = 0.43 to 0.97, and the working point
+    sits inside that range).
+    """
+    if threshold is None:
+        return
+
+    lines = []
+    plotter.canv.cd(1)
+    frame = CMS.GetCmsCanvasHist(plotter.canv.cd(1))
+    line_up = ROOT.TLine(threshold, frame.GetMinimum(),
+                         threshold, 0.5 * frame.GetMaximum())
+    line_up.SetLineColor(THRESHOLD_COLOR)
+    line_up.SetLineStyle(THRESHOLD_LINE_STYLE)
+    line_up.SetLineWidth(THRESHOLD_LINE_WIDTH)
+    line_up.Draw("SAME")
+    lines.append(line_up)
+    pad_legend_to_last_column(plotter)
+    plotter.leg.AddEntry(line_up, THRESHOLD_LABEL, "L")
+    plotter.canv.cd(1).RedrawAxis()
+
+    plotter.canv.cd(2)
+    rmin, rmax = plotter.config.get("rRange", [0.5, 1.5])
+    line_down = ROOT.TLine(threshold, rmin, threshold, rmax)
+    line_down.SetLineColor(THRESHOLD_COLOR)
+    line_down.SetLineStyle(THRESHOLD_LINE_STYLE)
+    line_down.SetLineWidth(THRESHOLD_LINE_WIDTH)
+    line_down.Draw("SAME")
+    lines.append(line_down)
+    plotter.canv.cd(2).RedrawAxis()
+
+    plotter._threshold_lines = lines  # keep alive until the canvas is written
 
 
 def offset_ndc_by_points(pad, x_ndc, y_ndc, dx_pt, dy_pt):
@@ -623,6 +765,16 @@ def build_legend_proxies(with_signal=True, prefix=LEGEND_KEY):
         signal.SetMarkerSize(0)
         entries.append((signal, SIGNAL_LABEL, SIGNAL_LEGEND_OPT))
 
+        # SR only, matching draw_threshold_overlay: the CR panels carry no
+        # working-point line, so the no-signal panel must not advertise one.
+        cut = new_proxy("threshold")
+        cut.SetLineColor(THRESHOLD_COLOR)
+        cut.SetLineStyle(THRESHOLD_LINE_STYLE)
+        cut.SetLineWidth(THRESHOLD_LINE_WIDTH)
+        cut.SetFillStyle(0)
+        cut.SetMarkerSize(0)
+        entries.append((cut, THRESHOLD_LABEL, "L"))
+
     return entries, proxies
 
 
@@ -658,7 +810,8 @@ def render_paper_legend(output_root, with_signal=True):
 
 
 def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH, draw_legend=False):
-    data, bkgs, signals, edges = build_plot_objects(region, masspoint, base_width)
+    data, bkgs, signals, edges, threshold = build_plot_objects(
+        region, masspoint, base_width)
     config = build_config(region, edges, draw_legend=draw_legend,
                           y_range=build_y_range(data, bkgs, signals))
 
@@ -670,8 +823,11 @@ def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH, draw_l
     if signals:
         draw_integrated_signal(plotter, signals, masspoint, draw_legend=draw_legend)
     plotter.drawPadDown()
+    # After the signal, so the legend reads ... Stat.+Syst., signal, cut; and
+    # after drawPadDown, which is what creates the ratio pad the line needs.
+    draw_threshold_overlay(plotter, threshold)
     plotter.canv.SaveAs(str(out_path))
-    return out_path, edges
+    return out_path, edges, threshold
 
 
 def main():
@@ -696,14 +852,17 @@ def main():
 
     for region in selected_regions:
         for masspoint in selected:
-            out_path, edges = draw_masspoint(region, masspoint, output_root,
-                                             args.base_width,
-                                             draw_legend=not args.standalone_legend)
+            out_path, edges, threshold = draw_masspoint(
+                region, masspoint, output_root, args.base_width,
+                draw_legend=not args.standalone_legend)
             logging.info("Wrote %s", out_path)
             logging.info(
                 "Adaptive edges for %s/%s (%d bins): %s",
                 region, masspoint, len(edges) - 1, edges
             )
+            if threshold is not None:
+                logging.info("eps_B = %.0f%% working point for %s/%s: %.4f",
+                             100 * EFF_B_TARGET, region, masspoint, threshold)
 
 
 if __name__ == "__main__":
