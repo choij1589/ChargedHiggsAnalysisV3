@@ -690,6 +690,24 @@ shape effect (ratio 1.015).
 
 Every other point closes inside the assigned band.
 
+### 13. Supplementary plots
+
+**Group seed + members.** Every signal template of one interp-signal group
+drawn on the group's shared background: per Run × Channel category of the
+seed's All/Combined target, the validation stack (backgrounds + data +
+Data/Pred.) with each member's signal overlaid, seed in black.
+
+```bash
+python3 python/plotGroupSignalTemplates.py --masspoint MHc130_MA90 --method ParticleNet
+```
+
+`--masspoint` must be a group SEED (a member is a hard error). The shared
+background is checked, not assumed: every member's background components and
+`data_obs` must equal the seed's bin by bin. Outputs go to
+`templates/{seed}/{method}/interp-signal/All/Combined/validation/group_signals/{category}/group_signals.{png,pdf}`
+plus `summary.json` (per-member signal yields) — a subdir of its own because
+`validateRunPeriodTemplates.py` rmtree's the per-category validation dirs.
+
 ## Configuration
 
 - `configs/masspoints.json` — keys `baseline`, `particlenet`, `limits` only.
