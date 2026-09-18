@@ -586,6 +586,8 @@ def build_config(region, edges, draw_legend=False, y_range=None):
         "cmsPosX": CMS_LABEL_POS[0],
         "cmsPosY": CMS_LABEL_POS[1],
         "cmsLabelSize": CMS_LABEL_SIZE,
+        # Published paper figures drop "Preliminary"; only "CMS" is drawn.
+        "extraText": "",
         "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
         # Two columns in the top-right corner, clearing the in-frame CMS
         # block on the left. The signal entry carries the mass point, so it

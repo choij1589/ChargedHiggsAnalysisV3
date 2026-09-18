@@ -44,10 +44,13 @@ supplies `cmsPosX`/`cmsPosY`, cmsstyle is told to draw neither string and
 `_draw_cms_label()` draws both, restoring cmsstyle's globals afterwards so the
 override cannot leak into the next canvas in the same process.
 
+`build_config()` sets `extraText = ""`, so only "CMS" is drawn — these are
+published-paper figures, not a preliminary result.
+
 | | value |
 |---|---|
 | `CMS_LABEL_POS` | `(0.20, 0.865)` |
-| `CMS_LABEL_SIZE` | `0.070` ("Preliminary" follows at 0.76x, as in cmsstyle) |
+| `CMS_LABEL_SIZE` | `0.070` |
 | `CHANNEL_POS` | `(0.20, 0.665)` |
 | `CHANNEL_SIZE` | `0.063` |
 

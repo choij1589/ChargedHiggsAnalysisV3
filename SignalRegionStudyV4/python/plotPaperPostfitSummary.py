@@ -102,6 +102,13 @@ FULL_RANGE_CANVAS_SIZE = (1600, 900)
 # drawn over the full frame height and would otherwise run through the box.
 FULL_RANGE_LEGEND = (0.70, 0.54, 0.985, 0.86)
 FULL_RANGE_LEGEND_CLEARANCE = 0.035
+# TLegend centres each entry's text within its row rather than hanging it off
+# the box's Y2NDC, so the "Data"/"Nonprompt" row sits below the box's own top
+# edge. Measured against the rendered PDF text bounding boxes (pdftotext
+# -bbox): with the caption's top at FULL_RANGE_LEGEND[3], "SR" sits 6.61 pt
+# above "Data"'s glyph top; converting with the same px/pt scale used for
+# the caption's earlier point-nudge (0.00913 NDC <-> 2.126 pt) gives this drop.
+FULL_RANGE_LEGEND_TEXT_TOP_DROP = 0.00913 / 2.126 * 6.61
 # Label placement on this panel is derived from the pad margins rather than
 # fixed, because resize_canvas() rescales those for 16:9. Insets are measured
 # from the frame's top-left corner.
@@ -358,6 +365,8 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high,
         "cmsPosX": CMS_LABEL_POS[0],
         "cmsPosY": CMS_LABEL_POS[1],
         "cmsLabelSize": CMS_LABEL_SIZE,
+        # Published paper figures drop "Preliminary"; only "CMS" is drawn.
+        "extraText": "",
         "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
         # Two columns: data + 5 background groups + Stat.+Syst. fill four rows.
         # The right edge stops short of the frame so the longest label
@@ -518,13 +527,14 @@ def place_full_range_labels(plotter, x_range, boundaries):
     plotter._cms_label["posY"] = frame_top - inset_y
 
     # SR / final state / fit stage: one left-aligned block over the below-Z
-    # part of the spectrum, starting at the same height as the CMS block so the
-    # two read as one row of captions.
+    # part of the spectrum. Its top matches the top of the legend's own
+    # "Data"/"Nonprompt" row text, not the legend box's outer edge, so the
+    # caption and the first legend row read as one horizontal line.
     x_min, x_max = x_range
     first_guide = min(boundaries) if boundaries else x_max
     guide_ndc = left + (first_guide - x_min) / (x_max - x_min) * span
     caption_x = 0.5 * (left + guide_ndc)
-    caption_top = frame_top - inset_y
+    caption_top = FULL_RANGE_LEGEND[3] - FULL_RANGE_LEGEND_TEXT_TOP_DROP
     plotter.config["channelPosX"] = caption_x
     plotter.config["channelPosY"] = caption_top
     plotter.config["channelAlign"] = 13   # left, top -- all three lines flush

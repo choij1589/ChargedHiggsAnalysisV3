@@ -129,7 +129,7 @@ def configure_cms_style() -> None:
         return
 
     CMS.setCMSStyle()
-    CMS.SetExtraText("Simulation Preliminary")
+    CMS.SetExtraText("Simulation")
     CMS.SetLumi(None, run="")
     CMS.SetEnergy(0, unit="13/13.6 TeV")
 

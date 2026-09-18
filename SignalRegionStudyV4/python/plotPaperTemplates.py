@@ -351,6 +351,8 @@ def build_config(era_scope, channel_scope, edges, data, bkgs, signal,
         # Single-energy header on these per-Run panels, so "CMS" stays above
         # the frame and the full frame height is available for the plot.
         "iPos": 0,
+        # Published paper figures drop "Preliminary"; only "CMS" is drawn.
+        "extraText": "",
         "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
         # Two columns: data + 5 background groups + Stat+Syst fill four rows.
         # The signal gets its own full-width line below (see draw_panel), so the

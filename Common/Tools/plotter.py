@@ -574,7 +574,7 @@ class ComparisonCanvas(BaseCanvas):
 
         # Configure CMS style
         lumiInfo, run = self._configure_cms_style(config)
-        CMS.SetExtraText("Preliminary")
+        CMS.SetExtraText(config.get("extraText", "Preliminary"))
 
         # Create canvas — single-pad when no_ratio, two-pad otherwise
         self._configure_cms_label(config)

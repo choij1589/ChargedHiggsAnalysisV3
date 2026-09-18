@@ -31,9 +31,7 @@ import interpolation_config
 import srspaths
 
 
-SIGNAL_LEGEND = [0.46, 0.40, 0.93, 0.61]
-SIGNAL_LEGEND_TEXT_SIZE = 0.028
-Y_HEADROOM = 2.6
+Y_HEADROOM = 2.0
 SEED_LINE_WIDTH = 3
 MEMBER_LINE_WIDTH = 2
 
@@ -64,11 +62,6 @@ class GroupSignalCanvas(vrt.ValidationComparisonCanvas):
         entries.append((self.systematics, self.config.get("systSrc", "Stat+Syst"), " FE2"))
         CMS.addToLegend(self.leg, *entries)
 
-        self.signal_leg = CMS.cmsLeg(*SIGNAL_LEGEND, textSize=SIGNAL_LEGEND_TEXT_SIZE, columns=2)
-        for signal in self.config["groupSignals"]:
-            self.signal_leg.AddEntry(signal["hist"], signal["label"], "L")
-        self.signal_leg.Draw()
-
         self._draw_channel_text(self.config)
         size = self.config.get("channelSize", 0.05)
         CMS.drawText(self.config["mhcLabel"], posX=self.config.get("channelPosX", 0.2),
@@ -83,6 +76,9 @@ def parse_args():
     parser.add_argument("--method", required=True, choices=["Baseline", "ParticleNet"])
     parser.add_argument("--era", default="All")
     parser.add_argument("--channel", default="Combined")
+    parser.add_argument("--show-ma", type=float, nargs="+", default=None,
+                        help="mA values of the members to draw (default: every member); "
+                             "the shared-background check always covers the whole group")
     return parser.parse_args()
 
 
@@ -135,23 +131,24 @@ def check_shared_background(seed_dir, member_dir, category, payload, member):
                                "the group does not share its background")
 
 
-def signal_colors(n_members):
+def assign_colors(signals, seed):
+    """Seed black; the other drawn members on a blue -> red ramp in mA."""
     ROOT.gStyle.SetPalette(ROOT.kRainBow)
     palette = ROOT.TColor.GetPalette()
-    n_colors = palette.GetSize()
     # Clip both ends: the dark violet start reads as the black seed line,
     # the far red end is indistinguishable from its neighbour.
-    lo, hi = int(0.05 * (n_colors - 1)), int(0.95 * (n_colors - 1))
-    return [palette[lo + int(round(i * (hi - lo) / max(n_members - 1, 1)))] for i in range(n_members)]
-
-
-def ma_label(ma, is_seed):
-    label = f"m_{{A}} = {ma:g} GeV"
-    return f"{label} (seed)" if is_seed else label
+    lo, hi = int(0.05 * (palette.GetSize() - 1)), int(0.95 * (palette.GetSize() - 1))
+    others = [s for s in signals if s["masspoint"] != seed]
+    for idx, signal in enumerate(others):
+        signal["color"] = palette[lo + int(round(idx * (hi - lo) / max(len(others) - 1, 1)))]
+    for signal in signals:
+        if signal["masspoint"] == seed:
+            signal["color"] = ROOT.kBlack
+    return signals
 
 
 def make_category_plot(seed, args, category, payload, physics_groups, seed_file, member_files,
-                       members, datacard_nuisances, output_dir):
+                       members, shown_ma, datacard_nuisances, output_dir):
     directory = seed_file.Get(category)
     if not directory:
         raise RuntimeError(f"{seed}: missing category directory {category}")
@@ -171,9 +168,8 @@ def make_category_plot(seed, args, category, payload, physics_groups, seed_file,
         raise RuntimeError(f"{seed}/{category}: no background with positive yield")
     total = vrt.total_from_hists(group_hists.values(), f"{category}_total_bkg")
 
-    ramp = signal_colors(len(members))
     signals = []
-    for idx, (ma, member) in enumerate(members):
+    for ma, member in members:
         member_dir = member_files[member].Get(category)
         if not member_dir:
             raise RuntimeError(f"{member}: missing category directory {category}")
@@ -187,8 +183,6 @@ def make_category_plot(seed, args, category, payload, physics_groups, seed_file,
             "masspoint": member,
             "mA": ma,
             "hist": hist,
-            "label": ma_label(ma, is_seed),
-            "color": ROOT.kBlack if is_seed else ramp[idx],
             "width": SEED_LINE_WIDTH if is_seed else MEMBER_LINE_WIDTH,
         })
 
@@ -217,7 +211,7 @@ def make_category_plot(seed, args, category, payload, physics_groups, seed_file,
         "legend": vrt.POSTFIT_SUMMARY_LEGEND,
         "legendColumns": 2,
         "legendTextSize": vrt.POSTFIT_SUMMARY_LEGEND_TEXT_SIZE,
-        "groupSignals": signals,
+        "groupSignals": assign_colors([s for s in signals if s["mA"] in shown_ma], seed),
     }
     plotter = GroupSignalCanvas(data_draw, group_hists, config)
     vrt.apply_prefit_uncertainty_band(plotter.systematics, directory, category, payload, datacard_nuisances)
@@ -245,6 +239,11 @@ def main():
     args = parse_args()
     seed = args.masspoint
     members = group_members(seed, args.method)
+    member_ma = {ma for ma, _ in members}
+    shown_ma = member_ma if args.show_ma is None else set(args.show_ma)
+    if not shown_ma <= member_ma:
+        raise ValueError(f"--show-ma {sorted(shown_ma - member_ma)} not in the {seed} group "
+                         f"(members: {sorted(member_ma)})")
     seed_tdir = member_template_dir(seed, seed, args.method, args.era, args.channel)
 
     categories = vrt.load_json(os.path.join(seed_tdir, "categories.json"))["categories"]
@@ -266,7 +265,7 @@ def main():
         for category, payload in categories.items():
             per_category[category] = make_category_plot(
                 seed, args, category, payload, physics_groups, seed_file, member_files,
-                members, datacard_nuisances, os.path.join(output_root, category))
+                members, shown_ma, datacard_nuisances, os.path.join(output_root, category))
             print(f"[plotGroupSignalTemplates] {category}: {per_category[category]['plot']}")
     finally:
         for f in {id(f): f for f in list(member_files.values()) + [seed_file]}.values():
@@ -280,6 +279,7 @@ def main():
             "era": args.era,
             "channel": args.channel,
             "members": [member for _, member in members],
+            "drawn": [member for ma, member in members if ma in shown_ma],
             "categories": per_category,
         }, fout, indent=2)
     print(f"[plotGroupSignalTemplates] wrote {summary_path}")

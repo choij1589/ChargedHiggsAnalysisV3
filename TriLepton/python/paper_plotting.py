@@ -250,6 +250,8 @@ def build_config(histkey, channel, options):
     config["iPos"] = 11
     config["cmsPosX"], config["cmsPosY"] = CMS_LABEL_POS
     config["cmsLabelSize"] = CMS_LABEL_SIZE
+    # Published paper figures drop "Preliminary"; only the "CMS" mark is drawn.
+    config["extraText"] = ""
     config["legend"] = BKG_LEGEND
     config["legendTextSize"] = BKG_LEGEND_TEXT_SIZE
     config["signalLegend"] = SIGNAL_LEGEND

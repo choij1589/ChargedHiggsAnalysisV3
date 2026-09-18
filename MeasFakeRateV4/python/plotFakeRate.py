@@ -34,12 +34,9 @@ PALETTE = [
 # frame (iPos=11), but cmsstyle hardcodes its in-frame offset at 3.5% of the
 # frame from the top-left corner, which puts the text on the axis ticks. So
 # cmsstyle is told to draw neither string and draw_cms_label() places the block
-# itself, "CMS" over "Preliminary" as in the paper figures.
+# itself -- just "CMS", since these are published-paper figures.
 CMS_LABEL_POS = (0.145, 0.875)
 CMS_LABEL_SIZE = 0.058
-# "Preliminary" follows at 0.76x the size, 1.2 sizes below, as in cmsstyle.
-CMS_EXTRA_SIZE_SCALE = 0.76
-CMS_EXTRA_OFFSET_SCALE = 1.2
 
 # The three eta curves all sit below 0.6 while the axis runs to 1, so the whole
 # top-right quadrant is free: the legend takes it at paper text size, sitting
@@ -84,9 +81,6 @@ def draw_cms_label():
     """Draw the CMS block at CMS_LABEL_POS, top-left aligned inside the frame."""
     CMS.drawText("CMS", posX=CMS_LABEL_POS[0], posY=CMS_LABEL_POS[1],
                  font=61, align=13, size=CMS_LABEL_SIZE)
-    CMS.drawText("Preliminary", posX=CMS_LABEL_POS[0],
-                 posY=CMS_LABEL_POS[1] - CMS_EXTRA_OFFSET_SCALE * CMS_LABEL_SIZE,
-                 font=52, align=13, size=CMS_EXTRA_SIZE_SCALE * CMS_LABEL_SIZE)
 
 def plot_fakerate(h, output_path):
     """Plot fake rate histogram and save to output_path."""

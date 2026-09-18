@@ -16,9 +16,10 @@ signal models, mA interpolation). This file is the single module guide;
 - Mass points from `configs/masspoints.json` (`baseline` 78, `particlenet`
   22, `limits` curated plotting subset).
 - **Self-containment rule**: zero code references, imports, or symlinks into
-  any other SignalRegionStudy directory. The only V3 touchpoint is the
-  validation-only comparator `python/compareToV3.py` (explicit `--v3-dir`,
-  reads frozen V3 *outputs* only).
+  any other SignalRegionStudy directory. The only V3 touchpoints are the
+  validation-only comparator `python/compareToV3.py` and the supplementary
+  overlay `python/plotLimitsCompareV3.py` (both explicit `--v3-dir`, read
+  frozen V3 *outputs* only).
 
 ## Environment Rules
 
@@ -528,6 +529,12 @@ different widths.
   `CHANNEL_POS_Y` is local (0.80, the top of the frame, since no CMS
   block sits above it inside the frame), and the `Pre-fit` / `sigma_sig`
   lines hang off that block rather than carrying their own literals.
+- All three sets pass `"extraText": ""` in their `ComparisonCanvas` config
+  (`Common/Tools/plotter.py`'s `drawPadUp()` now reads
+  `config.get("extraText", "Preliminary")` instead of hardcoding it), so
+  only "CMS" is drawn — these are published-paper figures, not a
+  preliminary result. Every other `ComparisonCanvas` caller that omits the
+  key is unaffected.
 - `plotPaperTemplates.py` sizes its axis on `data_maximum()` — imported
   from `plotPaperLRModified`, so both sets scale on the same quantity —
   **not** `TH1::GetMaximum()`. The panels draw Poisson error bars, and a
@@ -695,11 +702,16 @@ Every other point closes inside the assigned band.
 **Group seed + members.** Every signal template of one interp-signal group
 drawn on the group's shared background: per Run × Channel category of the
 seed's All/Combined target, the validation stack (backgrounds + data +
-Data/Pred.) with each member's signal overlaid, seed in black.
+Data/Pred.) with each member's signal overlaid, no signal legend: the seed
+is a thicker black line, the other members a blue -> red ramp in mA.
 
 ```bash
-python3 python/plotGroupSignalTemplates.py --masspoint MHc130_MA90 --method ParticleNet
+python3 python/plotGroupSignalTemplates.py --masspoint MHc130_MA90 --method ParticleNet \
+    --show-ma 88 89 90 91 92
 ```
+
+`--show-ma` picks which members are drawn (default: all); the
+shared-background check and `summary.json` still cover the whole group.
 
 `--masspoint` must be a group SEED (a member is a hard error). The shared
 background is checked, not assumed: every member's background components and
@@ -707,6 +719,33 @@ background is checked, not assumed: every member's background components and
 `templates/{seed}/{method}/interp-signal/All/Combined/validation/group_signals/{category}/group_signals.{png,pdf}`
 plus `summary.json` (per-member signal yields) — a subdir of its own because
 `validateRunPeriodTemplates.py` rmtree's the per-category validation dirs.
+
+**V4 limits vs V3.** The Combined per-mHc Brazilian panel of `plotLimits.py`
+redrawn with SignalRegionStudyV3's frozen direct-MC limits on top: V3
+observed as filled red circles, V3 median expected as filled purple squares,
+appended to the single-column legend. The in-plot label is **`(V5)`**, the paper
+draft that quotes these limits; code, docs and filenames keep "V3". Six rows
+do not fit at the production pitch (the V3 rows reached the Z-peak band on
+ParticleNet MHc115 and MHc100). To make room, the legend is tighter (text
+0.040, row 0.052), it moves 0.07 left on the square panels, and the
+ParticleNet window guides stop just under the legend.
+
+```bash
+python3 python/plotLimitsCompareV3.py --v3-dir ../SignalRegionStudyV3 --method ParticleNet --mhc 130
+```
+
+`--v3-dir` is required with no default, as for `compareToV3.py`; only
+`{v3-dir}/results/json/{mode}/All/limits.All.Asymptotic.*.unblind.json` is
+read. Panels: Baseline MHc70–160 and ParticleNet MHc100–160, Combined only.
+The ParticleNet panel mirrors the V4 stitching, V3 ParticleNet points
+inside the window and V3 Baseline points outside, so no mA carries two V3
+markers. Axis ceiling and panel shape match the production panel (square for
+mHc ≤ 100, 900x600 above), and a V3 point above the ceiling raises. The
+panel code is a copy of `plotLimits.py`'s Combined path, because that script
+runs at module level, so keep the two in step. Output
+`results/plots/{mode}/All/limit.All.Asymptotic.{method}.interp-signal.MHc{X}.compareV3.{png,pdf}`.
+Stdout gives V4/V3 per panel; the exp0 median runs 0.98–1.04 across the 12
+panels.
 
 ## Configuration
 

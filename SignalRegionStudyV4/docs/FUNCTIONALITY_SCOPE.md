@@ -7,9 +7,10 @@ next-generation work (parametric signal models, mA interpolation).
 
 Self-containment rule: V4 has zero code references, imports, or symlinks into
 any other SignalRegionStudy directory. Everything V4 runs lives under V4.
-The single exception is `python/compareToV3.py`, a validation-only comparator
-that reads frozen V3 *output artifacts* through an explicit `--v3-dir`
-argument; it is not part of any production workflow.
+The exceptions are `python/compareToV3.py`, a validation-only comparator, and
+`python/plotLimitsCompareV3.py`, a supplementary V4-vs-V3 limit overlay. Both
+read frozen V3 *output artifacts* through an explicit `--v3-dir` argument and
+are not part of any production workflow.
 
 ## Active In V4
 
@@ -89,7 +90,8 @@ argument; it is not part of any production workflow.
   the other two, so the figure sets cannot drift apart. Output:
   `results/plots/paper/`
 - Reproduction comparison against V3 (`python/compareToV3.py`,
-  `scripts/compare_wrapper.sh`)
+  `scripts/compare_wrapper.sh`), and the V3 limit overlay on the Combined
+  per-mHc limit panels (`python/plotLimitsCompareV3.py`)
 - Methods: `Baseline` and `ParticleNet`
 - Mass points: `configs/masspoints.json` keys `baseline` (78), `particlenet`
   (22), `limits` (curated plotting subset)

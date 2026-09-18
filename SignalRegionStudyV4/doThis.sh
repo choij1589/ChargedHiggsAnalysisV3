@@ -225,6 +225,17 @@ for mode in BR xsec; do
         done
     done
 done
+# Supplementary: the Combined per-mHc panels with the frozen V3 direct-MC
+# limits overlaid as markers (validation-only; reads V3 results/json alone).
+# Same arm split as above: Baseline everywhere, ParticleNet on its trained mHc.
+for mhc in 70 85 100 115 130 145 160; do
+    python3 python/plotLimitsCompareV3.py --v3-dir ../SignalRegionStudyV3 \
+        --method Baseline --mhc $mhc
+done
+for mhc in 100 115 130 145 160; do
+    python3 python/plotLimitsCompareV3.py --v3-dir ../SignalRegionStudyV3 \
+        --method ParticleNet --mhc $mhc
+done
 
 # 5d. GoF + impacts per group seed (66-node DAG per mHc; 15 seeds):
 ./automize/interpGofImpacts.sh --all --method ParticleNet
