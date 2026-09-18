@@ -660,6 +660,33 @@ class ComparisonCanvas(BaseCanvas):
         hdf.SetMinimum(ymin)
         hdf.SetMaximum(ymax)
 
+    def data_draw_option(self):
+        """Draw option for the data points and their ratio.
+
+        With config["dataErrorX0"] the horizontal bars are dropped ("X0"), as
+        CMS style asks for equal-width bins. Variable-width bins need the bars
+        to show each bin's extent, so asking for X0 on them is a hard error.
+        """
+        if not self.config.get("dataErrorX0", False):
+            return "PE"
+        axis = self.incl.GetXaxis()
+        widths = [axis.GetBinWidth(i) for i in range(1, axis.GetNbins() + 1)]
+        if max(widths) - min(widths) > 1e-6 * max(widths):
+            raise ValueError(f"dataErrorX0 requested for {self.incl.GetName()}, "
+                             f"but its bins are not equal width: {widths}")
+        return "PE X0"
+
+    def data_legend_option(self):
+        """Legend option that reproduces the data marker as drawn.
+
+        TLegend's "PE" gives a marker with a vertical bar only, which matches
+        X0 points. Points that keep their horizontal bars get "PLE", whose "L"
+        adds the horizontal stroke, so the entry shows the same cross.
+        """
+        if self.config.get("dataErrorX0", False):
+            return "PE"
+        return "PLE"
+
     def _cd_main(self):
         """Switch to the main (upper) pad, supporting both single- and two-pad canvases."""
         if self.config.get("no_ratio", False):
@@ -672,8 +699,8 @@ class ComparisonCanvas(BaseCanvas):
         CMS.cmsObjectDraw(self.hs, "hist")
         CMS.cmsObjectDraw(self.systematics, "FE2", FillStyle=3004, LineWidth=0, FillColor=12, MarkerSize=0)
         if not self.config.get("no_ratio", False):
-            CMS.cmsObjectDraw(self.incl, "PE", MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
-            CMS.addToLegend(self.leg, (self.incl, self.incl.GetTitle(), "PE"))
+            CMS.cmsObjectDraw(self.incl, self.data_draw_option(), MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
+            CMS.addToLegend(self.leg, (self.incl, self.incl.GetTitle(), self.data_legend_option()))
         # Reverse order so legend matches visual stack (top of stack = first in legend)
         CMS.addToLegend(self.leg, *[(self.hists[name], name, "F") for name in reversed(list(self.hists.keys()))])
         CMS.addToLegend(self.leg, (self.systematics, self.config.get("systSrc", "Stat+Syst"), " FE2"))
@@ -766,7 +793,7 @@ class ComparisonCanvas(BaseCanvas):
         ref_line.SetLineWidth(2)
         ref_line.DrawLine(xmin, 1.0, xmax, 1.0)
         CMS.cmsObjectDraw(self.ratio_band, "FE2", FillStyle=3004, LineWidth=0, FillColor=12, MarkerSize=0)
-        CMS.cmsObjectDraw(self.ratio, "PE", MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
+        CMS.cmsObjectDraw(self.ratio, self.data_draw_option(), MarkerStyle=ROOT.kFullCircle, MarkerSize=1.0, MarkerColor=1)
 
         self.canv.cd(2).RedrawAxis()
 

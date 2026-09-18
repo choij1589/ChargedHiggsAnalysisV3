@@ -77,7 +77,7 @@ CHANNEL_LABELS = {
     "SR3Mu": ("SR", "#mu#mu#mu"),
 }
 # Wording matches plotPaperPostfitSummary.py so the paper's post-fit figures agree.
-STAGE_LABELS = {"prefit": "Pre-fit", "b": "B-only Post-fit", "s": "S+B Post-fit"}
+STAGE_LABELS = {"prefit": "Pre-fit", "b": "Bkg-only post-fit", "s": "S+B post-fit"}
 STAGE_FILE_TAGS = {"prefit": "prefit", "b": "postfit_b", "s": "postfit_s"}
 # Stages that may overlay the signal template: pre-fit at its nominal r=1, and
 # S+B at the fitted r -- but only when that fit returns a positive r, since a
@@ -368,6 +368,10 @@ def build_config(era_scope, channel_scope, edges, data, bkgs, signal,
         "channelSize": CHANNEL_SIZE,
         "chi2_test": False,
         "normalize_chi2": False,
+        # The outer sideband bins are wider than the inner ones, so the data
+        # keep their horizontal bars (CMS style drops them only for equal-width
+        # bins); ComparisonCanvas then draws the matching "PLE" legend cross.
+        "dataErrorX0": False,
     }
 
 

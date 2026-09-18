@@ -266,6 +266,10 @@ def build_config(histkey, channel, options):
     config["signalColors"] = [ROOT.TColor.GetColor(color) for color in options.signal_colors]
     config["systSrc"] = SYST_LABEL
     config["chi2_test"] = False
+    # Equal-width bins: CMS style drops the horizontal bars on the data points
+    # (and their ratio), matching the marker-plus-vertical-bar legend entry.
+    # Adaptive bins have unequal widths, so there the bars stay.
+    config["dataErrorX0"] = not options.adaptive_binning
     if histkey == "ZCand/mass":
         config["yHeadroom"] = options.y_headroom * CR_Y_HEADROOM_SCALE
         config["xRange"] = [81, 101]

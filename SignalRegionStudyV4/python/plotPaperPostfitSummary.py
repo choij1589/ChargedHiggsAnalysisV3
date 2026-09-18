@@ -84,7 +84,7 @@ CHANNEL_LABELS = {
 REGION_LABEL_POS = (CHANNEL_POS[0], CHANNEL_POS[1] - 2 * CHANNEL_SIZE - 0.007)
 REGION_LABEL_SIZE = 0.035
 STAGE_LABEL_GAP = 0.05  # drop from the mA range line to the fit-stage line
-FIT_STAGE_LABEL = "B-only Post-fit"
+FIT_STAGE_LABEL = "Bkg-only post-fit"
 
 # --- Full-range panel -------------------------------------------------------
 # One stitched b-only spectrum over the whole mA reach, following
@@ -368,6 +368,8 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high,
         # Published paper figures drop "Preliminary"; only "CMS" is drawn.
         "extraText": "",
         "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
+        # Equal-width mass bins: no horizontal bars on data, as CMS style asks.
+        "dataErrorX0": True,
         # Two columns: data + 5 background groups + Stat.+Syst. fill four rows.
         # The right edge stops short of the frame so the longest label
         # ("Nonprompt") clears the right-hand axis ticks.

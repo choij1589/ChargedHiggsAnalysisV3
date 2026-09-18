@@ -118,7 +118,7 @@ def plot_fakerate(h, output_path):
                           MarkerColor=PALETTE[idx], MarkerStyle=MARKER_STYLE,
                           MarkerSize=MARKER_SIZE)
         CMS.addToLegend(legend, (projections[key],
-                                 f"{abseta_bins[idx]} < {eta_label} < {abseta_bins[idx+1]}",
+                                 f"{abseta_bins[idx]:g} < {eta_label} < {abseta_bins[idx+1]:g}",
                                  "lep"))
     canvas.RedrawAxis()
     legend.Draw("same")

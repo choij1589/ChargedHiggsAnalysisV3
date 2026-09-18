@@ -741,7 +741,10 @@ def build_legend_proxies(with_signal=True, prefix=LEGEND_KEY):
     data.SetMarkerSize(1.0)
     data.SetMarkerColor(ROOT.kBlack)
     data.SetLineColor(ROOT.kBlack)
-    entries = [(data, DATA_LABEL, "PE")]
+    # The adaptive bins have unequal widths, so the data points keep their
+    # horizontal bars; "PLE" draws the same cross in the legend. Matches
+    # ComparisonCanvas.data_legend_option for the in-plot legend.
+    entries = [(data, DATA_LABEL, "PLE")]
 
     # Same order as the in-plot legend: top of the stack listed first.
     for name in reversed(BKG_ORDER):
