@@ -77,7 +77,7 @@ CHANNEL_LABELS = {
     "SR3Mu": ("SR", "#mu#mu#mu"),
 }
 # Wording matches plotPaperPostfitSummary.py so the paper's post-fit figures agree.
-STAGE_LABELS = {"prefit": "Pre-fit", "b": "Bkg-only post-fit", "s": "S+B post-fit"}
+STAGE_LABELS = {"prefit": "Pre-fit", "b": "B-only post-fit", "s": "S+B post-fit"}
 STAGE_FILE_TAGS = {"prefit": "prefit", "b": "postfit_b", "s": "postfit_s"}
 # Stages that may overlay the signal template: pre-fit at its nominal r=1, and
 # S+B at the fitted r -- but only when that fit returns a positive r, since a

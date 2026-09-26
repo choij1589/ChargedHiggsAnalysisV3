@@ -306,8 +306,8 @@ def make_canvas() -> "ROOT.TCanvas":
             1.0,
             0.0,
             1.0,
-            "Signal Efficiency",
-            "Background Efficiency",
+            "Signal efficiency",
+            "Background efficiency",
             square=True,
             iPos=11,
             extraSpace=0.0,
@@ -315,8 +315,8 @@ def make_canvas() -> "ROOT.TCanvas":
 
     canvas = ROOT.TCanvas("", "", 800, 800)
     frame = canvas.DrawFrame(0.0, 0.0, 1.0, 1.0)
-    frame.GetXaxis().SetTitle("Signal Efficiency")
-    frame.GetYaxis().SetTitle("Background Efficiency")
+    frame.GetXaxis().SetTitle("Signal efficiency")
+    frame.GetYaxis().SetTitle("Background efficiency")
     return canvas
 
 
@@ -343,7 +343,10 @@ def draw_plot_legend(signal: str, auc_summary: Dict[str, float],
     class_entries, style_entries, proxies = build_legend_proxies(
         f"paper_roc_{signal}", auc_summary
     )
-    entries = class_entries + style_entries
+    # The diagonal runs through the lower rows of the block, so its own entry,
+    # the longest line of text, goes on top, where the diagonal is well to the
+    # right of the text, and the short Test / Train rows close the block.
+    entries = style_entries[2:] + class_entries + style_entries[:2]
 
     row = PLOT_LEGEND_TEXT_SIZE * PLOT_LEGEND_ROW_SPACING
     legend = draw_legend(

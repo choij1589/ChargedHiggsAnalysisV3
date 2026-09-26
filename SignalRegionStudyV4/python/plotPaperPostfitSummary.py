@@ -84,7 +84,7 @@ CHANNEL_LABELS = {
 REGION_LABEL_POS = (CHANNEL_POS[0], CHANNEL_POS[1] - 2 * CHANNEL_SIZE - 0.007)
 REGION_LABEL_SIZE = 0.035
 STAGE_LABEL_GAP = 0.05  # drop from the mA range line to the fit-stage line
-FIT_STAGE_LABEL = "Bkg-only post-fit"
+FIT_STAGE_LABEL = "B-only post-fit"
 
 # --- Full-range panel -------------------------------------------------------
 # One stitched b-only spectrum over the whole mA reach, following
@@ -100,8 +100,13 @@ FULL_RANGE_CANVAS_SIZE = (1600, 900)
 # frame LEGEND_BOX would span half the width. Its left edge is not fixed --
 # place_full_range_legend() pushes it clear of the on-Z handover line, which is
 # drawn over the full frame height and would otherwise run through the box.
-FULL_RANGE_LEGEND = (0.70, 0.54, 0.985, 0.86)
-FULL_RANGE_LEGEND_CLEARANCE = 0.035
+FULL_RANGE_LEGEND = (0.70, 0.50, 0.945, 0.86)
+# The shared 0.030 of the square panels reads far smaller than the axis labels
+# on this wide, short upper pad, so the published panel sets its own size
+# (ARC, paper draft V6: "increase the legend size on the right side").
+FULL_RANGE_LEGEND_TEXT_SIZE = 0.040
+FULL_RANGE_LEGEND_MARGIN = 0.28
+FULL_RANGE_LEGEND_CLEARANCE = 0.02
 # TLegend centres each entry's text within its row rather than hanging it off
 # the box's Y2NDC, so the "Data"/"Nonprompt" row sits below the box's own top
 # edge. Measured against the rendered PDF text bounding boxes (pdftotext
@@ -565,6 +570,9 @@ def place_full_range_legend(plotter, boundaries, x_range):
     plotter.leg.SetX2NDC(FULL_RANGE_LEGEND[2])
     plotter.leg.SetY1NDC(FULL_RANGE_LEGEND[1])
     plotter.leg.SetY2NDC(FULL_RANGE_LEGEND[3])
+    # At the larger text size the default swatch margin lets the fill boxes
+    # run into the entry text.
+    plotter.leg.SetMargin(FULL_RANGE_LEGEND_MARGIN)
 
 
 def hide_top_ratio_label(plotter):
@@ -590,6 +598,7 @@ def draw_full_range(output_root, channel, plot_only, debug, draw_legend=True):
                           draw_legend=draw_legend)
     config["rRange"] = FULL_RANGE_RRANGE
     config["legend"] = FULL_RANGE_LEGEND
+    config["legendTextSize"] = FULL_RANGE_LEGEND_TEXT_SIZE
     logging.info("%s/full-range: x [%s, %s], y [%s, %s], backgrounds=%s",
                  channel, edges[0], edges[-1],
                  config["yRange"][0], config["yRange"][1],
