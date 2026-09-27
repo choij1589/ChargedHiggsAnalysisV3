@@ -20,6 +20,7 @@ sys.path.insert(0, str(WORKDIR / "Common" / "Tools"))
 sys.path.insert(0, str(MODULE_DIR / "python"))
 from plotter import (ComparisonCanvas, EnergyInfo,  # noqa: E402
                      LumiInfo, PALETTE_LONG)
+from HistoUtils import calculate_chi2  # noqa: E402
 import cmsstyle as CMS  # noqa: E402
 import srspaths  # noqa: E402
 
@@ -137,6 +138,22 @@ MASS_LABEL_OFFSET_PT = (-20.0, -6.0)
 # CropBox ROOT writes for this canvas; used only to size the nudge above.
 PANEL_SIZE_PT = (526.0, 567.0)
 
+# --private-work variant (TTZ CR only): non-approved data figure. The CMS logo
+# is replaced by "Private work (CMS data)" in the extra-text style (font 52,
+# 0.76 of the logo size), on one line, with the channel caption moved up
+# directly beneath it. The legend keeps its text size but its top drops below
+# the label, with tighter rows and columns so its bottom edge stays near the
+# paper layout's.
+PRIVATE_WORK_TEXT = "Private work (CMS data)"
+PRIVATE_WORK_SIZE = 0.76 * CMS_LABEL_SIZE
+PRIVATE_WORK_CHANNEL_POS = (CHANNEL_POS[0], 0.735)
+PRIVATE_WORK_LEGEND_BOX = (0.55, 0.53, 0.95, 0.79)
+# Mass point and data/prediction chi2, left-aligned under the channel caption,
+# in the column the narrowed legend leaves free.
+PRIVATE_WORK_INFO_SIZE = 0.036
+PRIVATE_WORK_INFO_STEP = 0.055
+PRIVATE_WORK_SUFFIX = "_pw"
+
 # Standalone legend panel geometry, in NDC of a canvas the size of a plot panel.
 LEGEND_KEY = "legend"
 LEGEND_PANEL_ROW_SPACING = 1.55  # row pitch in units of the text size
@@ -186,8 +203,18 @@ def parse_args():
               "(default: %(default)s). A non-default value writes into a "
               "bin<width> subdirectory, e.g. --base-width 0.02 -> SR/bin0p02/"),
     )
+    parser.add_argument(
+        "--private-work",
+        action="store_true",
+        dest="private_work",
+        help=("TTZ CR only: label 'Private work (CMS data)' and write "
+              "LR_modified_<mp>_pw.pdf"),
+    )
     parser.add_argument("--debug", action="store_true", help="enable debug logging")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.private_work and args.region not in ("all", "TTZCR"):
+        parser.error("--private-work applies to the TTZ CR only (--region TTZCR or all)")
+    return args
 
 
 def base_width_tag(base_width):
@@ -226,11 +253,11 @@ def cache_path(region, masspoint, signal_source=None):
     )) / "scores" / score_region / "histograms.root"
 
 
-def output_path(output_root, region, masspoint, subdir=""):
+def output_path(output_root, region, masspoint, subdir="", suffix=""):
     directory = output_root / region
     if subdir:
         directory = directory / subdir
-    return directory / f"{SCORE_KEY}_{masspoint}.pdf"
+    return directory / f"{SCORE_KEY}_{masspoint}{suffix}.pdf"
 
 
 def format_signal_label(masspoint):
@@ -549,7 +576,7 @@ def build_y_range(data, bkgs, signals):
     return [0.0, (y_max if y_max > 0 else 1.0) * Y_HEADROOM]
 
 
-def build_config(region, edges, draw_legend=False, y_range=None):
+def build_config(region, edges, draw_legend=False, y_range=None, private_work=False):
     if region == "SR":
         channel_label = "SR"
         region_label = "e#mu#mu + #mu#mu#mu"
@@ -593,7 +620,7 @@ def build_config(region, edges, draw_legend=False, y_range=None):
         # block on the left. The signal entry carries the mass point, so it
         # is the widest cell and takes the right column's second-to-last row,
         # with the working-point line under it.
-        "legend": LEGEND_BOX,
+        "legend": PRIVATE_WORK_LEGEND_BOX if private_work else LEGEND_BOX,
         "legendTextSize": LEGEND_TEXT_SIZE,
         "legendColumns": LEGEND_COLUMNS,
         # In-plot by default; --standalone-legend publishes it as its own panel.
@@ -605,11 +632,14 @@ def build_config(region, edges, draw_legend=False, y_range=None):
         "channel": channel_label,
         "region": region_label,
         # Directly below the self-placed CMS block.
-        "channelPosX": CHANNEL_POS[0],
-        "channelPosY": CHANNEL_POS[1],
+        "channelPosX": (PRIVATE_WORK_CHANNEL_POS if private_work else CHANNEL_POS)[0],
+        "channelPosY": (PRIVATE_WORK_CHANNEL_POS if private_work else CHANNEL_POS)[1],
         "channelSize": CHANNEL_SIZE,
         "chi2_test": False,
         "normalize_chi2": False,
+        # Private work: ComparisonCanvas draws no CMS text; the label is
+        # drawn by draw_private_work_text.
+        **({"cmsText": "", "extraText": ""} if private_work else {}),
     }
 
 
@@ -690,6 +720,33 @@ def draw_threshold_overlay(plotter, threshold):
     plotter.canv.cd(2).RedrawAxis()
 
     plotter._threshold_lines = lines  # keep alive until the canvas is written
+
+
+def draw_private_work_label(plotter, masspoint):
+    """Private-work label in place of the CMS block; mass point and chi2/ndf
+    below the channel caption.
+
+    chi2 is the same data vs. prediction test ComparisonCanvas runs with
+    chi2_test (HistoUtils.calculate_chi2 on data and the Stat.+Syst. total),
+    drawn here so its size and position follow this column.
+    """
+    plotter.canv.cd(1)
+    CMS.drawText(PRIVATE_WORK_TEXT, posX=CMS_LABEL_POS[0], posY=CMS_LABEL_POS[1],
+                 font=52, align=13, size=PRIVATE_WORK_SIZE)
+
+    chi2, ndf, p_value = calculate_chi2(plotter.incl, plotter.systematics)
+    if ndf <= 0:
+        raise RuntimeError(f"chi2 test has no degrees of freedom for {masspoint}")
+    # Baseline of the channel caption's second line ("region"), then one row per line.
+    y_text = PRIVATE_WORK_CHANNEL_POS[1] - CHANNEL_SIZE
+    for text in (format_signal_label(masspoint),
+                 f"#chi^{{2}}/ndf = {chi2 / ndf:.2f} (p = {p_value:.2f})"):
+        y_text -= PRIVATE_WORK_INFO_STEP
+        CMS.drawText(text, posX=PRIVATE_WORK_CHANNEL_POS[0], posY=y_text,
+                     font=42, align=11, size=PRIVATE_WORK_INFO_SIZE)
+    logging.info("chi2/ndf for TTZCR/%s: %.2f/%d = %.2f (p = %.3f)",
+                 masspoint, chi2, ndf, chi2 / ndf, p_value)
+    plotter.canv.cd(1).RedrawAxis()
 
 
 def offset_ndc_by_points(pad, x_ndc, y_ndc, dx_pt, dy_pt):
@@ -814,13 +871,18 @@ def render_paper_legend(output_root, with_signal=True):
     return out_path
 
 
-def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH, draw_legend=False):
+def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH, draw_legend=False,
+                   private_work=False):
+    if private_work and region != "TTZCR":
+        raise ValueError(f"--private-work is TTZ CR only, got {region}")
     data, bkgs, signals, edges, threshold = build_plot_objects(
         region, masspoint, base_width)
     config = build_config(region, edges, draw_legend=draw_legend,
-                          y_range=build_y_range(data, bkgs, signals))
+                          y_range=build_y_range(data, bkgs, signals),
+                          private_work=private_work)
 
-    out_path = output_path(output_root, region, masspoint, base_width_tag(base_width))
+    out_path = output_path(output_root, region, masspoint, base_width_tag(base_width),
+                           PRIVATE_WORK_SUFFIX if private_work else "")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     plotter = ComparisonCanvas(data, bkgs, config)
@@ -831,6 +893,8 @@ def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH, draw_l
     # After the signal, so the legend reads ... Stat.+Syst., signal, cut; and
     # after drawPadDown, which is what creates the ratio pad the line needs.
     draw_threshold_overlay(plotter, threshold)
+    if private_work:
+        draw_private_work_label(plotter, masspoint)
     plotter.canv.SaveAs(str(out_path))
     return out_path, edges, threshold
 
@@ -843,7 +907,7 @@ def main():
 
     selected = DEFAULT_MASSPOINTS if args.masspoint == "all" else (args.masspoint,)
     if args.region == "all":
-        selected_regions = REGIONS
+        selected_regions = ("TTZCR",) if args.private_work else REGIONS
     elif args.region == LEGEND_KEY:
         selected_regions = ()
     else:
@@ -851,7 +915,7 @@ def main():
     output_root = resolve_output_root(args.output_root)
 
     # Published once each: SR panels overlay a signal, the TTZ CR panels do not.
-    if args.region in ("all", LEGEND_KEY) and args.standalone_legend:
+    if args.region in ("all", LEGEND_KEY) and args.standalone_legend and not args.private_work:
         for with_signal in (True, False):
             logging.info("Wrote %s", render_paper_legend(output_root, with_signal))
 
@@ -859,7 +923,7 @@ def main():
         for masspoint in selected:
             out_path, edges, threshold = draw_masspoint(
                 region, masspoint, output_root, args.base_width,
-                draw_legend=not args.standalone_legend)
+                draw_legend=not args.standalone_legend, private_work=args.private_work)
             logging.info("Wrote %s", out_path)
             logging.info(
                 "Adaptive edges for %s/%s (%d bins): %s",

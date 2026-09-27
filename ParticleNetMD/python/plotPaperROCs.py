@@ -92,6 +92,10 @@ def parse_args() -> argparse.Namespace:
                         help="Output directory for PDFs (default: plots/paper/ROC)")
     parser.add_argument("--signals", nargs="+", default=DEFAULT_SIGNALS,
                         help="Mass points to plot")
+    parser.add_argument("--pw", action="store_true",
+                        help="Label plots 'Private work (CMS simulation)' instead of "
+                             "'CMS Simulation' and save as <signal>_PW.pdf (the legend "
+                             "panel has no CMS label and is not rewritten)")
     return parser.parse_args()
 
 
@@ -121,7 +125,7 @@ def prediction_path(input_dir: Path, channel: str, signal: str, fold: int,
     )
 
 
-def configure_cms_style() -> None:
+def configure_cms_style(private_work: bool = False) -> None:
     if not HAS_CMS_STYLE:
         ROOT.gStyle.SetOptStat(0)
         ROOT.gStyle.SetPadLeftMargin(0.12)
@@ -129,7 +133,13 @@ def configure_cms_style() -> None:
         return
 
     CMS.setCMSStyle()
-    CMS.SetExtraText("Simulation")
+    if private_work:
+        # Non-approved simulation plots: the CMS logo is replaced by this label
+        # in the logo position, with no extra text.
+        CMS.SetExtraText("")
+        CMS.SetCmsText("Private work (CMS simulation)", font=52, size=0.75 * 0.76)
+    else:
+        CMS.SetExtraText("Simulation")
     CMS.SetLumi(None, run="")
     CMS.SetEnergy(0, unit="13/13.6 TeV")
 
@@ -366,8 +376,9 @@ def draw_plot_legend(signal: str, auc_summary: Dict[str, float],
     keepalive.append(legend)
 
 
-def plot_signal(signal: str, predictions: Dict[str, np.ndarray], output_path: Path) -> Dict[str, Dict[str, float]]:
-    configure_cms_style()
+def plot_signal(signal: str, predictions: Dict[str, np.ndarray], output_path: Path,
+                private_work: bool = False) -> Dict[str, Dict[str, float]]:
+    configure_cms_style(private_work)
 
     calculator = ROCCurveCalculator()
     canvas = make_canvas()
@@ -455,8 +466,9 @@ def run(args: argparse.Namespace) -> None:
     input_dir = Path(args.input)
     output_dir = Path(args.output_dir)
 
-    configure_cms_style()
-    print(f"legend panel -> {render_legend_panel(output_dir)}")
+    configure_cms_style(args.pw)
+    if not args.pw:
+        print(f"legend panel -> {render_legend_panel(output_dir)}")
 
     for signal in args.signals:
         iteration, model_idx, _summary_path = load_best_model(
@@ -466,8 +478,9 @@ def run(args: argparse.Namespace) -> None:
             input_dir, args.channel, signal, args.fold, iteration, model_idx
         )
         predictions = load_predictions(pred_path)
-        output_path = output_dir / f"{signal}.pdf"
-        auc_summary = plot_signal(signal, predictions, output_path)
+        suffix = "_PW" if args.pw else ""
+        output_path = output_dir / f"{signal}{suffix}.pdf"
+        auc_summary = plot_signal(signal, predictions, output_path, args.pw)
         print(format_summary(signal, iteration, model_idx, output_path, auc_summary))
 
 
