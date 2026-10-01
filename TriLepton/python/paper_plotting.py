@@ -69,8 +69,15 @@ SYST_FILL_COLOR = 12
 # paper plots position and size it themselves (see BaseCanvas._configure_cms_label).
 CMS_LABEL_POS = (0.20, 0.865)
 CMS_LABEL_SIZE = 0.070
+# Thesis figures: non-approved, so "Private work (CMS data)" replaces the CMS
+# mark, in the extra-text style (font 52, 0.76 of the logo size). Unlike the CMS
+# mark it is placed by cmsstyle itself (iPos=11), not by CMS_LABEL_POS.
+PRIVATE_WORK_TEXT = "Private work (CMS data)"
 # Channel/region caption, directly below the CMS block.
 CHANNEL_POS = (0.20, 0.665)
+# With the private-work label, the caption sits under cmsstyle's iPos=11 block,
+# left-aligned with it (3.5% of the frame width in from the y axis).
+PRIVATE_WORK_CHANNEL_POS = (0.187, 0.75)
 CHANNEL_SIZE = 0.063
 # The longest caption, "Z+nonprompt CR", reaches as far as the Z peak at this
 # size, so the control regions get more headroom than the signal regions.
@@ -130,6 +137,9 @@ class PaperPlotOptions:
     draw_legends: bool = True
     legend_panel_text_size: float = 0.040
     y_headroom: float = 1.35
+    # "All" = Run2+Run3 combined (paper); "Run2"/"Run3" = one run (thesis).
+    era: str = "All"
+    private_work: bool = False
 
 
 def get_plot_era_list(era):
@@ -229,14 +239,17 @@ def get_mc_rate_uncertainties(sample, era, era_samples, xsec_rel_unc, conv_rel_u
 
 def build_config(histkey, channel, options):
     config = dict(options.hist_configs[histkey])
-    config["era"] = "All"
-    # Per-energy luminosities, CMS style for multi-energy combinations:
-    # "137.6 fb^-1 (13 TeV) + 62.4 fb^-1 (13.6 TeV)". cmsstyle appends the
-    # CoM in parentheses, so the Run3 energy is carried by "CoM" and the
-    # Run2 term is baked into "run_label".
-    config["CoM"] = f"{EnergyInfo['Run3']:g} TeV"
-    config["run_label"] = (f"{LumiInfo['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
-                           f"{LumiInfo['Run3']:g} fb^{{#minus1}}")
+    config["era"] = options.era
+    if options.era == "All":
+        # Per-energy luminosities, CMS style for multi-energy combinations:
+        # "137.6 fb^-1 (13 TeV) + 62.4 fb^-1 (13.6 TeV)". cmsstyle appends the
+        # CoM in parentheses, so the Run3 energy is carried by "CoM" and the
+        # Run2 term is baked into "run_label".
+        config["CoM"] = f"{EnergyInfo['Run3']:g} TeV"
+        config["run_label"] = (f"{LumiInfo['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
+                               f"{LumiInfo['Run3']:g} fb^{{#minus1}}")
+    else:
+        config["CoM"] = EnergyInfo[options.era]
     config["rTitle"] = "Data / Pred."
     # Enough headroom that the stack stays clear of the in-plot legends.
     config["yHeadroom"] = options.y_headroom
@@ -252,6 +265,9 @@ def build_config(histkey, channel, options):
     config["cmsLabelSize"] = CMS_LABEL_SIZE
     # Published paper figures drop "Preliminary"; only the "CMS" mark is drawn.
     config["extraText"] = ""
+    if options.private_work:
+        del config["cmsPosX"], config["cmsPosY"], config["cmsLabelSize"]
+        CMS.SetCmsText(PRIVATE_WORK_TEXT, font=52, size=0.75 * 0.76)
     config["legend"] = BKG_LEGEND
     config["legendTextSize"] = BKG_LEGEND_TEXT_SIZE
     config["signalLegend"] = SIGNAL_LEGEND
@@ -281,13 +297,17 @@ def build_config(histkey, channel, options):
         config["no_ratio"] = True
 
     config["channel"], config["region"] = CHANNEL_LABELS[channel]
-    config["channelPosX"], config["channelPosY"] = CHANNEL_POS
+    config["channelPosX"], config["channelPosY"] = (
+        PRIVATE_WORK_CHANNEL_POS if options.private_work else CHANNEL_POS)
     config["channelSize"] = CHANNEL_SIZE
     return config
 
 
 def build_output_path(channel, histkey, options):
-    return options.output_root / "All" / channel / "Central" / f"{histkey.replace('/', '_')}.pdf"
+    name = f"{histkey.replace('/', '_')}.pdf"
+    if options.private_work:
+        return options.output_root / options.era / channel / name
+    return options.output_root / options.era / channel / "Central" / name
 
 
 def build_base_edges(xmin, xmax, base_width):
@@ -339,12 +359,12 @@ def build_adaptive_edges(total_bkg, xmin, xmax, min_bkg, max_width, base_width):
 
 def load_plot_objects(channel, histkey, config, options):
     workdir = options.workdir
-    era_list = get_plot_era_list("All")
+    era_list = get_plot_era_list(options.era)
     flag, channel_flag = get_channel_flags(channel)
     kfactors, conv_sf_data, fake_norm = load_common_data(workdir)
 
     args = SimpleNamespace(
-        era="All",
+        era=options.era,
         channel=channel,
         histkey=histkey,
         exclude=None,

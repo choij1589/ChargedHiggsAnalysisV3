@@ -34,6 +34,10 @@ bash scripts/drawPlots.sh Run2 ZFake3Mu
 python python/plot.py --era 2018 --channel SR1E2Mu --histkey pair/mass
 python python/plot.py --era Run2 --channel WZ1E2Mu --histkey jets/size --exclude WZSF
 
+# Thesis (private-work) SR mass plots, Run2 and Run3 separately:
+# "Private work (CMS data)" label, PDFs in plots/PW/{Run2,Run3}/{SR1E2Mu,SR3Mu}/
+python python/plotPaperMass.py --private-work
+
 # Event yield extraction
 python python/sampleBreakdown.py --era 2018 --channel SR1E2Mu
 python python/sampleBreakdown.py --era Run2 --channel ZFake1E2Mu --onZ

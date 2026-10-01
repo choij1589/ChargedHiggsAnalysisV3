@@ -17,8 +17,8 @@ sys.path.insert(0, str(Path(WORKDIR) / "Common" / "Tools"))
 import ROOT
 
 from paper_plotting import (SIGNAL_COLORS, PaperPlotOptions,
-                            build_legend_output_path, render_paper_legend,
-                            render_paper_plot)
+                            build_legend_output_path, build_output_path,
+                            render_paper_legend, render_paper_plot)
 
 
 ROOT.gROOT.SetBatch(True)
@@ -36,6 +36,10 @@ PAPER_PLOTS = {
     "ttz-zcand": ("TTZ2E1Mu", "ZCand/mass"),
 }
 
+# Thesis (private-work) figures: the signal-region masses only, one per run.
+PRIVATE_WORK_PLOTS = ["sr1-pair", "sr3-low", "sr3-high"]
+PRIVATE_WORK_ERAS = ["Run2", "Run3"]
+
 DEFAULT_SIGNALS = ["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"]
 
 # Each plot carries its own legend, and the same legend is published separately
@@ -43,9 +47,10 @@ DEFAULT_SIGNALS = ["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"]
 LEGEND_KEY = "legend"
 
 
-def selected_plots(selection):
+def selected_plots(selection, private_work=False):
     if selection == "all":
-        return list(PAPER_PLOTS.items())
+        keys = PRIVATE_WORK_PLOTS if private_work else PAPER_PLOTS
+        return [(key, PAPER_PLOTS[key]) for key in keys]
     if selection == LEGEND_KEY:
         return []
     return [(selection, PAPER_PLOTS[selection])]
@@ -70,8 +75,9 @@ def main():
                         help="drop the in-plot legends and publish them as a standalone panel instead")
     parser.add_argument("--legend-text-size", default=0.040, type=float,
                         help="text size of the standalone legend panel")
-    parser.add_argument("--y-headroom", default=1.35, type=float,
-                        help="linear-scale y-axis multiplier above the tallest bin")
+    parser.add_argument("--y-headroom", default=None, type=float,
+                        help="linear-scale y-axis multiplier above the tallest bin "
+                             "(default: 1.35, or 1.6 with --private-work)")
     parser.add_argument("--adaptive-binning", action="store_true",
                         help="merge 2 GeV base bins using expected background only")
     parser.add_argument("--adaptive-min-bkg", default=10.0, type=float,
@@ -80,12 +86,22 @@ def main():
                         help="maximum adaptive bin width in GeV")
     parser.add_argument("--adaptive-base-width", default=2.0, type=float,
                         help="starting bin width in GeV for adaptive binning")
+    parser.add_argument("--private-work", dest="private_work", action="store_true",
+                        help="thesis version: 'Private work (CMS data)' label, SR masses split "
+                             "into Run2 and Run3, written to plots/PW/{Run}/{channel}/")
     parser.add_argument("--debug", action="store_true", help="debug mode")
     parser.add_argument("--dry-run", action="store_true",
                         help="print selected plots and output paths without rendering")
     args = parser.parse_args()
+    if args.private_work and args.plot not in ("all", *PRIVATE_WORK_PLOTS):
+        parser.error(f"--private-work only makes {', '.join(PRIVATE_WORK_PLOTS)}")
 
-    output_root = Path(args.output_root or Path(WORKDIR) / "TriLepton" / "plots" / "Paper")
+    default_root = "PW" if args.private_work else "Paper"
+    if args.y_headroom is None:
+        # The private-work label and the caption under it reach further down
+        # the frame than the CMS mark, so the thesis plots get more headroom.
+        args.y_headroom = 1.6 if args.private_work else 1.35
+    output_root = Path(args.output_root or Path(WORKDIR) / "TriLepton" / "plots" / default_root)
     with open(TRILEPTON_DIR / "configs" / "histkeys.json") as f:
         hist_configs = json.load(f)
 
@@ -107,6 +123,13 @@ def main():
         y_headroom=args.y_headroom,
     )
 
+    if args.private_work:
+        for era in PRIVATE_WORK_ERAS:
+            options.era = era
+            options.private_work = True
+            render_selected(args, options)
+        return
+
     if args.plot in ("all", LEGEND_KEY):
         # Two variants: signal regions overlay signals, control regions do not.
         for with_signals in (True, False):
@@ -116,8 +139,12 @@ def main():
             else:
                 print(f"Wrote {render_paper_legend(options, with_signals)}")
 
-    for key, (channel, histkey) in selected_plots(args.plot):
-        output_path = output_root / "All" / channel / "Central" / f"{histkey.replace('/', '_')}.pdf"
+    render_selected(args, options)
+
+
+def render_selected(args, options):
+    for key, (channel, histkey) in selected_plots(args.plot, options.private_work):
+        output_path = build_output_path(channel, histkey, options)
         if args.dry_run:
             print(f"{key}: {channel} {histkey} -> {output_path}")
             continue

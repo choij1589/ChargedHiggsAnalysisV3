@@ -92,10 +92,14 @@ def parse_args() -> argparse.Namespace:
                         help="Output directory for PDFs (default: plots/paper/ROC)")
     parser.add_argument("--signals", nargs="+", default=DEFAULT_SIGNALS,
                         help="Mass points to plot")
-    parser.add_argument("--pw", action="store_true",
-                        help="Label plots 'Private work (CMS simulation)' instead of "
-                             "'CMS Simulation' and save as <signal>_PW.pdf (the legend "
-                             "panel has no CMS label and is not rewritten)")
+    label_group = parser.add_mutually_exclusive_group()
+    label_group.add_argument("--pw", action="store_true",
+                             help="Label plots 'Private work (CMS simulation)' instead of "
+                                  "'CMS Simulation' and save as <signal>_PW.pdf (the legend "
+                                  "panel has no CMS label and is not rewritten)")
+    label_group.add_argument("--preliminary", action="store_true",
+                             help="Label plots 'CMS Simulation Preliminary' and save as "
+                                  "<signal>_Preliminary.pdf (legend panel not rewritten)")
     return parser.parse_args()
 
 
@@ -125,7 +129,19 @@ def prediction_path(input_dir: Path, channel: str, signal: str, fold: int,
     )
 
 
-def configure_cms_style(private_work: bool = False) -> None:
+def label_mode(args: argparse.Namespace) -> str:
+    if args.pw:
+        return "pw"
+    if args.preliminary:
+        return "preliminary"
+    return "paper"
+
+
+# File-name suffix per label mode; the paper version keeps the bare name.
+LABEL_SUFFIXES = {"paper": "", "pw": "_PW", "preliminary": "_Preliminary"}
+
+
+def configure_cms_style(mode: str = "paper") -> None:
     if not HAS_CMS_STYLE:
         ROOT.gStyle.SetOptStat(0)
         ROOT.gStyle.SetPadLeftMargin(0.12)
@@ -133,13 +149,14 @@ def configure_cms_style(private_work: bool = False) -> None:
         return
 
     CMS.setCMSStyle()
-    if private_work:
+    if mode == "pw":
         # Non-approved simulation plots: the CMS logo is replaced by this label
         # in the logo position, with no extra text.
         CMS.SetExtraText("")
         CMS.SetCmsText("Private work (CMS simulation)", font=52, size=0.75 * 0.76)
     else:
-        CMS.SetExtraText("Simulation")
+        CMS.SetExtraText("Simulation Preliminary" if mode == "preliminary" else "Simulation")
+        CMS.SetCmsText("CMS", font=61, size=0.75)
     CMS.SetLumi(None, run="")
     CMS.SetEnergy(0, unit="13/13.6 TeV")
 
@@ -377,8 +394,8 @@ def draw_plot_legend(signal: str, auc_summary: Dict[str, float],
 
 
 def plot_signal(signal: str, predictions: Dict[str, np.ndarray], output_path: Path,
-                private_work: bool = False) -> Dict[str, Dict[str, float]]:
-    configure_cms_style(private_work)
+                mode: str = "paper") -> Dict[str, Dict[str, float]]:
+    configure_cms_style(mode)
 
     calculator = ROCCurveCalculator()
     canvas = make_canvas()
@@ -466,8 +483,9 @@ def run(args: argparse.Namespace) -> None:
     input_dir = Path(args.input)
     output_dir = Path(args.output_dir)
 
-    configure_cms_style(args.pw)
-    if not args.pw:
+    mode = label_mode(args)
+    configure_cms_style(mode)
+    if mode == "paper":
         print(f"legend panel -> {render_legend_panel(output_dir)}")
 
     for signal in args.signals:
@@ -478,9 +496,8 @@ def run(args: argparse.Namespace) -> None:
             input_dir, args.channel, signal, args.fold, iteration, model_idx
         )
         predictions = load_predictions(pred_path)
-        suffix = "_PW" if args.pw else ""
-        output_path = output_dir / f"{signal}{suffix}.pdf"
-        auc_summary = plot_signal(signal, predictions, output_path, args.pw)
+        output_path = output_dir / f"{signal}{LABEL_SUFFIXES[mode]}.pdf"
+        auc_summary = plot_signal(signal, predictions, output_path, mode)
         print(format_summary(signal, iteration, model_idx, output_path, auc_summary))
 
 
