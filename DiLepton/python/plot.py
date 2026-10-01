@@ -37,6 +37,9 @@ config["era"] = args.era
 config["rTitle"] = "Data / Pred"
 config["maxDigits"] = 3
 config["CoM"] = get_CoM_energy(args.era)
+# Equal-width bins: data points without horizontal bars (ComparisonCanvas
+# refuses this for variable-width bins).
+config["dataErrorX0"] = True
 
 # Non-approved figures with collision data: "Private work (CMS data)" replaces the
 # CMS logo, in the extra-text style (font 52, 0.76 of the logo size). Simulation-only
@@ -198,6 +201,9 @@ for sample in ST:
 BKGs = {name: hist for name, hist in temp_dict.items() if hist}
 # Sort BKGs by hist.Integral()
 BKGs = dict(sorted(BKGs.items(), key=lambda x: x[1].Integral(), reverse=True))
+# Legend labels
+BKG_LABELS = {"W": "W", "VV": "Diboson", "ST": "Single t", "TT": "t#bar{t}", "Z": "Drell-Yan"}
+BKGs = {BKG_LABELS[name]: hist for name, hist in BKGs.items()}
 
 plotter = ComparisonCanvas(data, BKGs, config)
 plotter.drawPadUp()

@@ -56,6 +56,10 @@ python python/plotMuIDEff.py --era 2018
 python python/plotEleIDEff.py --era 2018
 python python/plotDblMuLegEff.py --era 2018
 python python/plotEMuLegEff.py --era 2018 --hltpath Mu8El23
+
+# Thesis (private-work) version: multi-eta plots only, "Private work (CMS data)"
+# label, PDFs collected in plots/PW/{era}/{set}_multi_eta.pdf
+bash scripts/plotIDnTrigEff.sh 2018 --private-work
 ```
 
 ## Directory Structure

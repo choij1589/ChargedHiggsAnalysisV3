@@ -12,6 +12,8 @@ from plotter import LumiInfo, PALETTE_LONG
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--era", type=str, default="2023", help="Era")
+parser.add_argument("--private-work", default=False, action="store_true", dest="private_work",
+                    help="thesis label 'Private work (CMS data)' instead of 'CMS Preliminary'; writes only plots/PW/<era>/<set>_multi_eta.pdf")
 args = parser.parse_args()
 
 def clean_nan_values(hist, is_scale_factor=False):
@@ -59,7 +61,14 @@ else:  # 2022, 2022EE, 2023, 2023BPix
 
 CMS.SetEnergy(energy)
 CMS.SetLumi(LumiInfo[args.era], run=args.era)
-CMS.SetExtraText("Preliminary")
+# Non-approved figures with collision data: "Private work (CMS data)" replaces the
+# CMS logo, in the extra-text style (font 52, 0.76 of the logo size). The
+# luminosity header is kept.
+if args.private_work:
+    CMS.SetCmsText("Private work (CMS data)", font=52, size=0.75 * 0.76)
+    CMS.SetExtraText("")
+else:
+    CMS.SetExtraText("Preliminary")
 
 # Get histogram structure info
 n_eta_bins = h_data.GetNbinsX()
@@ -70,7 +79,122 @@ print(f"2D histogram structure: {n_eta_bins} eta bins x {n_pt_bins} pt bins")
 gap_bins = [3, 8]
 
 # Create output directory
-output_dir = f"plots/{args.era}/EleID"
+PLOT_SET = f"EleID"
+output_dir = f"plots/{args.era}/{PLOT_SET}"
+# Private work (thesis): only the multi-eta plot, collected per era as
+# plots/PW/<era>/<set>_multi_eta.pdf
+if args.private_work:
+    output_dir = f"plots/PW/{args.era}"
+LEGEND_TEXT_SIZE = 0.05
+# Smaller next to the two-line "CMS" + "Preliminary" block.
+TOP_TEXT_SIZE = 0.035 if args.private_work else 0.03
+# CMS label inside the frame, top-left, with headroom above the efficiencies.
+CMS_IPOS = 11
+EFF_YMAX = 1.2
+# What the efficiency belongs to: the HLT path with the measured leg, or the
+# ID, in bold in the free band under the CMS label. Drawn as TText so the
+# underscores stay literal.
+TOP_TEXT = "Electron ID"
+
+
+def text_width(text, size, font=42):
+    """Width of a TLatex string in NDC of the current pad (linear x axis)."""
+    latex = ROOT.TLatex(0, 0, text)
+    latex.SetTextFont(font)
+    latex.SetTextSize(size)
+    pad = ROOT.gPad
+    return latex.GetXsize() / (pad.GetX2() - pad.GetX1())
+
+
+def legend_block(labels, header, hists):
+    """Legend on the right side of the frame with its header above it.
+
+    The block is sized to its widest line and its right edge kept clear of
+    the axis ticks; more than five entries go into two columns. Vertically
+    it is centred in the free space between the bottom of the frame and the
+    lowest point of `hists` underneath it. The header is left-aligned with
+    the entry text. Entries are added by the caller.
+    """
+    pad = ROOT.gPad
+    left, right, top, bottom = (pad.GetLeftMargin(), pad.GetRightMargin(),
+                                pad.GetTopMargin(), pad.GetBottomMargin())
+    frame_w = 1 - left - right
+    frame_h = 1 - top - bottom
+    x_max = 1 - right - ROOT.gStyle.GetTickLength("Y") * frame_w - 0.015
+    y_floor = bottom + ROOT.gStyle.GetTickLength("X") * frame_h + 0.03
+
+    columns = 2 if len(labels) > 5 else 1
+    rows = math.ceil(len(labels) / columns)
+    # Two columns span most of the frame; slightly smaller text keeps them
+    # clear of the low-pT points on the left.
+    text_size = LEGEND_TEXT_SIZE if columns == 1 else 0.9 * LEGEND_TEXT_SIZE
+    row_height = 1.4 * text_size
+    marker_w = 0.05
+    col_gap = 0.02 if columns == 2 else 0.0
+    text_w = max(text_width(label, text_size) for label in labels)
+    if columns == 1:
+        text_w = max(text_w, text_width(header, text_size))
+    col_w = marker_w + text_w + col_gap
+    x2 = x_max + col_gap
+    x1 = x2 - columns * col_w
+
+    # Lowest drawn point (value minus error) under the block, in pad NDC.
+    x_lo = pad.GetX1() + x1 * (pad.GetX2() - pad.GetX1())
+    x_hi = pad.GetX1() + x_max * (pad.GetX2() - pad.GetX1())
+    lowest = None
+    for hist in hists:
+        axis = hist.GetXaxis()
+        for b in range(1, hist.GetNbinsX() + 1):
+            if hist.GetBinContent(b) <= 0:
+                continue
+            if axis.GetBinUpEdge(b) < x_lo or axis.GetBinLowEdge(b) > x_hi:
+                continue
+            low = hist.GetBinContent(b) - hist.GetBinError(b)
+            lowest = low if lowest is None else min(lowest, low)
+    if lowest is None:
+        ceiling = 1 - top - 0.1
+    else:
+        ceiling = (lowest - pad.GetY1()) / (pad.GetY2() - pad.GetY1()) - 0.04
+    block_h = rows * row_height + 0.02 + text_size
+    y1 = y_floor + max(0.0, (ceiling - y_floor - block_h) / 2)
+    y2 = y1 + rows * row_height
+
+    leg = CMS.cmsLeg(x1, y1, x2, y2, textSize=text_size, columns=columns)
+    # Marker area as a fraction of one column's width.
+    leg.SetMargin(marker_w / col_w)
+
+    header_label = ROOT.TLatex()
+    header_label.SetNDC()
+    header_label.SetTextFont(42)
+    header_label.SetTextSize(text_size)
+    header_label.DrawLatex(x1 + marker_w, y2 + 0.02, header)
+    draw_top_text()
+    return leg
+
+def draw_top_text():
+    """TOP_TEXT in the band between the CMS label and the efficiency plateau.
+
+    cmsstyle puts the iPos=11 label at 3.5% of the frame from its top-left
+    corner. The one-line private-work label leaves room directly below it;
+    "CMS" + "Preliminary" take two lines there, so the text goes top-right.
+    """
+    pad = ROOT.gPad
+    left, right, top, bottom = (pad.GetLeftMargin(), pad.GetRightMargin(),
+                                pad.GetTopMargin(), pad.GetBottomMargin())
+    label_x = left + 0.035 * (1 - left - right)
+    label_y = 1 - top - 0.035 * (1 - top - bottom)
+    top_label = ROOT.TText()
+    top_label.SetNDC()
+    top_label.SetTextFont(62)
+    top_label.SetTextSize(TOP_TEXT_SIZE)
+    if args.private_work:
+        # Below the label, whose height is 0.75 * 0.76 of the top margin.
+        top_label.SetTextAlign(13)
+        top_label.DrawText(label_x, label_y - 1.3 * 0.75 * 0.76 * top, TOP_TEXT)
+    else:
+        top_label.SetTextAlign(33)
+        top_label.DrawText(1 - right - 0.035 * (1 - left - right), label_y, TOP_TEXT)
+
 os.makedirs(output_dir, exist_ok=True)
 
 def create_eta_projections():
@@ -109,28 +233,22 @@ def create_eta_projections():
         xmin, xmax = h_data_proj.GetXaxis().GetXmin(), h_data_proj.GetXaxis().GetXmax()
         
         # Create CMS-style canvas with two pads
-        canvas = CMS.cmsDiCanvas(f"c_eta_ptbin{pt_bin}", xmin, xmax, 0.0, 1.1, 0.5, 1.5, 
-                                "#eta_{SC}", "Efficiency", "Data/MC", square=True, iPos=0, extraSpace=0)
+        canvas = CMS.cmsDiCanvas(f"c_eta_ptbin{pt_bin}", xmin, xmax, 0.0, EFF_YMAX, 0.5, 1.5, 
+                                "#eta_{SC}", "Efficiency", "Data/MC", square=True, iPos=CMS_IPOS, extraSpace=0)
         
         # Upper pad - efficiency comparison
         canvas.cd(1)
         
         # Create legend
-        leg = CMS.cmsLeg(0.7, 0.6, 0.85, 0.75, textSize=0.04, columns=1)
-        leg.AddEntry(h_data_proj, "Data", "PE")
-        leg.AddEntry(h_sim_proj, "Simulation", "PE")
+        leg = legend_block(["Data", "Simulation"], f"p_{{T}} = {pt_low:.0f}-{pt_high:.0f} GeV", [h_data_proj, h_sim_proj])
+        leg.AddEntry(h_data_proj, "Data", "PLE")
+        leg.AddEntry(h_sim_proj, "Simulation", "PLE")
         
         # Draw histograms with CMS style
         CMS.cmsDraw(h_data_proj, "PE", mcolor=ROOT.kBlack, msize=1.0, lwidth=2)
         CMS.cmsDraw(h_sim_proj, "PE", mcolor=ROOT.kRed, msize=1.0, lwidth=2)
         leg.Draw()
         
-        # Add title
-        title_label = ROOT.TLatex()
-        title_label.SetNDC()
-        title_label.SetTextFont(42)
-        title_label.SetTextSize(0.04)
-        title_label.DrawLatex(0.7, 0.55, f"p_{{T}} = {pt_low:.0f}-{pt_high:.0f} GeV")
         
         canvas.cd(1).RedrawAxis()
         
@@ -194,33 +312,26 @@ def create_pt_projections():
         # Get axis range
         xmin, xmax = h_data_proj.GetXaxis().GetXmin(), h_data_proj.GetXaxis().GetXmax()
         
-        # For Run3, limit x-axis range to 200 GeV
-        if args.era in ["2022", "2022EE", "2023", "2023BPix"]:
-            xmax = min(xmax, 200.0)
+        # Limit the pT axis to 200 GeV
+        xmax = min(xmax, 200.0)
 
         # Create CMS-style canvas with two pads
-        canvas = CMS.cmsDiCanvas(f"c_pt_etabin{eta_bin}", xmin, xmax, 0.0, 1.1, 0.5, 1.5, 
-                                "p_{T} [GeV]", "Efficiency", "Data/MC", square=True, iPos=0, extraSpace=0)
+        canvas = CMS.cmsDiCanvas(f"c_pt_etabin{eta_bin}", xmin, xmax, 0.0, EFF_YMAX, 0.5, 1.5, 
+                                "p_{T} [GeV]", "Efficiency", "Data/MC", square=True, iPos=CMS_IPOS, extraSpace=0)
         
         # Upper pad - efficiency comparison
         canvas.cd(1)
         
         # Create legend
-        leg = CMS.cmsLeg(0.7, 0.6, 0.85, 0.75, textSize=0.04, columns=1)
-        leg.AddEntry(h_data_proj, "Data", "PE")
-        leg.AddEntry(h_sim_proj, "Simulation", "PE")
+        leg = legend_block(["Data", "Simulation"], f"{eta_low:.3f} < #eta_{{SC}} < {eta_high:.3f}", [h_data_proj, h_sim_proj])
+        leg.AddEntry(h_data_proj, "Data", "PLE")
+        leg.AddEntry(h_sim_proj, "Simulation", "PLE")
         
         # Draw histograms with CMS style
         CMS.cmsDraw(h_data_proj, "PE", mcolor=ROOT.kBlack, msize=1.0, lwidth=2)
         CMS.cmsDraw(h_sim_proj, "PE", mcolor=ROOT.kRed, msize=1.0, lwidth=2)
         leg.Draw()
         
-        # Add title
-        title_label = ROOT.TLatex()
-        title_label.SetNDC()
-        title_label.SetTextFont(42)
-        title_label.SetTextSize(0.04)
-        title_label.DrawLatex(0.7, 0.55, f"{eta_low:.3f} < #eta_{{SC}} < {eta_high:.3f}")
         
         canvas.cd(1).RedrawAxis()
         
@@ -317,16 +428,16 @@ def create_eta_summary():
     xmin, xmax = h_data_eta.GetXaxis().GetXmin(), h_data_eta.GetXaxis().GetXmax()
     
     # Create CMS-style canvas with two pads
-    canvas = CMS.cmsDiCanvas("c_eta_summary", xmin, xmax, 0.0, 1.1, 0.5, 1.5, 
-                            "#eta_{SC}", "Efficiency", "Data/MC", square=True, iPos=0, extraSpace=0)
+    canvas = CMS.cmsDiCanvas("c_eta_summary", xmin, xmax, 0.0, EFF_YMAX, 0.5, 1.5, 
+                            "#eta_{SC}", "Efficiency", "Data/MC", square=True, iPos=CMS_IPOS, extraSpace=0)
     
     # Upper pad - efficiency comparison
     canvas.cd(1)
     
     # Create legend
-    leg = CMS.cmsLeg(0.7, 0.6, 0.85, 0.75, textSize=0.04, columns=1)
-    leg.AddEntry(h_data_eta, "Data", "PE")
-    leg.AddEntry(h_sim_eta, "Simulation", "PE")
+    leg = CMS.cmsLeg(0.7, 0.6, 0.85, 0.75, textSize=LEGEND_TEXT_SIZE, columns=1)
+    leg.AddEntry(h_data_eta, "Data", "PLE")
+    leg.AddEntry(h_sim_eta, "Simulation", "PLE")
     
     # Draw histograms with CMS style
     CMS.cmsDraw(h_data_eta, "PE", mcolor=ROOT.kBlack, msize=1.0, lwidth=2)
@@ -440,16 +551,15 @@ def create_pt_summary():
     # Get axis range
     xmin, xmax = h_data_pt.GetXaxis().GetXmin(), h_data_pt.GetXaxis().GetXmax()
     
-    # For Run3, limit x-axis range to 200 GeV
-    if args.era in ["2022", "2022EE", "2023", "2023BPix"]:
-        xmax = min(xmax, 200.0)
+    # Limit the pT axis to 200 GeV
+    xmax = min(xmax, 200.0)
     
     # Set minimum to 10 GeV for better visualization
     xmin = max(xmin, 10.0)    
 
     # Create CMS-style canvas with two pads (using linear scale for pt)
-    canvas = CMS.cmsDiCanvas("c_pt_summary", xmin, xmax, 0.0, 1.1, 0.5, 1.5, 
-                            "p_{T} [GeV]", "Efficiency", "Data/MC", square=True, iPos=0, extraSpace=0)
+    canvas = CMS.cmsDiCanvas("c_pt_summary", xmin, xmax, 0.0, EFF_YMAX, 0.5, 1.5, 
+                            "p_{T} [GeV]", "Efficiency", "Data/MC", square=True, iPos=CMS_IPOS, extraSpace=0)
     
     # Set linear scale for both pads
     canvas.cd(1).SetLogx(0)
@@ -459,9 +569,9 @@ def create_pt_summary():
     canvas.cd(1)
     
     # Create legend
-    leg = CMS.cmsLeg(0.7, 0.5, 0.85, 0.7, textSize=0.04, columns=1)
-    leg.AddEntry(h_data_pt, "Data", "PE")
-    leg.AddEntry(h_sim_pt, "Simulation", "PE")
+    leg = CMS.cmsLeg(0.7, 0.5, 0.85, 0.7, textSize=LEGEND_TEXT_SIZE, columns=1)
+    leg.AddEntry(h_data_pt, "Data", "PLE")
+    leg.AddEntry(h_sim_pt, "Simulation", "PLE")
     
     # Draw histograms with CMS style
     CMS.cmsDraw(h_data_pt, "PE", mcolor=ROOT.kBlack, msize=1.0, lwidth=2)
@@ -541,34 +651,27 @@ def create_multi_eta_pt_projections():
     # Get axis range
     xmin, xmax = data_projections[0].GetXaxis().GetXmin(), data_projections[0].GetXaxis().GetXmax()
 
-    # For Run3, limit x-axis range to 200 GeV
-    if args.era in ["2022", "2022EE", "2023", "2023BPix"]:
-        xmax = min(xmax, 200.0)
+    # Limit the pT axis to 200 GeV
+    xmax = min(xmax, 200.0)
 
     # Create CMS-style canvas with two pads
-    canvas = CMS.cmsDiCanvas("c_multi_eta_pt", xmin, xmax, 0.0, 1.1, 0.5, 1.5,
-                            "p_{T} [GeV]", "Efficiency", "Scale Factor", square=True, iPos=0, extraSpace=0)
+    canvas = CMS.cmsDiCanvas("c_multi_eta_pt", xmin, xmax, 0.0, EFF_YMAX, 0.5, 1.5,
+                            "p_{T} [GeV]", "Efficiency", "Scale Factor", square=True, iPos=CMS_IPOS, extraSpace=0)
 
     # Upper pad - data efficiencies for all eta bins
     canvas.cd(1)
 
     # Create legend - position in upper right to avoid data overlap
-    leg = CMS.cmsLeg(0.6, 0.1, 0.9, 0.5, textSize=0.03, columns=1)
+    leg = legend_block(eta_ranges, "Data Efficiency", data_projections)
 
     # Draw all data efficiency histograms
     for i, (hist, eta_range) in enumerate(zip(data_projections, eta_ranges)):
         color = colors[i]
         CMS.cmsDraw(hist, "PE", mcolor=color, msize=0.8, lwidth=2)
-        leg.AddEntry(hist, eta_range, "PE")
+        leg.AddEntry(hist, eta_range, "PLE")
 
     leg.Draw()
 
-    # Add title
-    title_label = ROOT.TLatex()
-    title_label.SetNDC()
-    title_label.SetTextFont(42)
-    title_label.SetTextSize(0.04)
-    title_label.DrawLatex(0.65, 0.52, "Data Efficiency")
 
     canvas.cd(1).RedrawAxis()
 
@@ -590,7 +693,10 @@ def create_multi_eta_pt_projections():
     canvas.cd(2).RedrawAxis()
 
     # Save canvas
-    canvas.SaveAs(f"{output_dir}/eff_vs_pt_multi_eta.png")
+    if args.private_work:
+        canvas.SaveAs(f"{output_dir}/{PLOT_SET}_multi_eta.pdf")
+    else:
+        canvas.SaveAs(f"{output_dir}/eff_vs_pt_multi_eta.png")
 
 def create_multi_eta_summary():
     """Create eta summary showing data efficiencies for all eta bins in upper panel, scale factors in lower panel"""
@@ -669,14 +775,14 @@ def create_multi_eta_summary():
     xmin, xmax = h_data.GetXaxis().GetXmin(), h_data.GetXaxis().GetXmax()
 
     # Create CMS-style canvas with two pads
-    canvas = CMS.cmsDiCanvas("c_multi_eta_summary", xmin, xmax, 0.0, 1.1, 0.5, 1.5,
-                            "#eta_{SC}", "Efficiency", "Scale Factor", square=True, iPos=0, extraSpace=0)
+    canvas = CMS.cmsDiCanvas("c_multi_eta_summary", xmin, xmax, 0.0, EFF_YMAX, 0.5, 1.5,
+                            "#eta_{SC}", "Efficiency", "Scale Factor", square=True, iPos=CMS_IPOS, extraSpace=0)
 
     # Upper pad - data efficiencies for all eta bins
     canvas.cd(1)
 
     # Create legend - position in upper right to avoid data overlap
-    leg = CMS.cmsLeg(0.55, 0.72, 0.90, 0.88, textSize=0.03, columns=1)
+    leg = CMS.cmsLeg(0.55, 0.72, 0.90, 0.88, textSize=LEGEND_TEXT_SIZE, columns=1)
 
     # Draw all data efficiency histograms
     for i, (hist, eta_range) in enumerate(zip(data_hists, eta_ranges)):
@@ -684,7 +790,7 @@ def create_multi_eta_summary():
         eta_center = hist.GetBinCenter(1)
         # Draw as single points at eta center
         CMS.cmsDraw(hist, "PE", mcolor=color, msize=1.2, lwidth=2)
-        leg.AddEntry(hist, eta_range, "PE")
+        leg.AddEntry(hist, eta_range, "PLE")
 
     leg.Draw()
 
@@ -718,8 +824,9 @@ def create_multi_eta_summary():
     canvas.SaveAs(f"{output_dir}/eff_vs_eta_multi_summary.png")
 
 # Create the projections and summary plots
-create_eta_projections()
-create_pt_projections()
+if not args.private_work:
+    create_eta_projections()
+    create_pt_projections()
 #create_eta_summary()
 #create_pt_summary()
 
