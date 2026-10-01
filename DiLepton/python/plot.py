@@ -6,7 +6,8 @@ import json
 import ROOT
 import cmsstyle as CMS
 from math import pow, sqrt
-from plotter import ComparisonCanvas, get_era_list, get_CoM_energy, LumiInfo, EnergyInfo
+from plotter import (ComparisonCanvas, get_era_list, get_CoM_energy, LumiInfo, EnergyInfo,
+                     PALETTE_LONG)
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
                         calculate_systematics, sum_histograms, load_era_configs,
                         merge_systematics, get_sample_lists)
@@ -38,6 +39,9 @@ with open("configs/histkeys.json") as f:
 config["era"] = args.era
 config["rTitle"] = "Obs. / Pred."
 config["systSrc"] = "Stat.+Syst."
+# Legend box and text size shared with the TriLepton paper-style figures.
+config["legend"] = (0.650, 0.545, 0.970, 0.870)
+config["legendTextSize"] = 0.036
 config["maxDigits"] = 3
 if args.era == "All":
     # Per-energy luminosities, CMS style for multi-energy combinations (as in the
@@ -90,6 +94,7 @@ if args.private_work:
     config["channel"], config["region"] = PW_CHANNEL_LABELS[args.channel]
     config["channelPosY"] = 0.75
     config["channelPosX"] = 0.22
+    config["channelSize"] = 0.063   # same as the TriLepton captions
 
 # Load configurations
 ERA_SAMPLES, ERA_SYSTEMATICS = load_era_configs(args, era_list)
@@ -209,13 +214,27 @@ for sample in ST:
     if not sample in HISTs.keys(): continue
     add_hist("ST", HISTs[sample], temp_dict)
 
-# filter out none historgrams from temp_dict
-BKGs = {name: hist for name, hist in temp_dict.items() if hist}
-# Sort BKGs by hist.Integral()
-BKGs = dict(sorted(BKGs.items(), key=lambda x: x[1].Integral(), reverse=True))
-# Legend labels
+# Fixed stack order (bottom to top) and colours, mirroring the TriLepton figures:
+# the dominant background (Drell-Yan / Nonprompt) on top in blue, top quark pairs
+# (ttbar / ttX) in red, Diboson in orange, the two small ones in grey and purple.
+BKG_ORDER = ["ST", "W", "VV", "TT", "Z"]
+BKG_COLORS = {
+    "Z": PALETTE_LONG[0],
+    "VV": PALETTE_LONG[1],
+    "TT": PALETTE_LONG[2],
+    "W": PALETTE_LONG[3],
+    "ST": PALETTE_LONG[4],
+}
 BKG_LABELS = {"W": "W", "VV": "Diboson", "ST": "Single t", "TT": "t#bar{t}", "Z": "Drell-Yan"}
-BKGs = {BKG_LABELS[name]: hist for name, hist in BKGs.items()}
+# Keyed by legend label, with colours collected alongside so they stay aligned
+# with the categories that actually survived.
+BKGs = {}
+config["colors"] = []
+for name in BKG_ORDER:
+    if temp_dict[name] is None:
+        continue
+    BKGs[BKG_LABELS[name]] = temp_dict[name]
+    config["colors"].append(BKG_COLORS[name])
 
 plotter = ComparisonCanvas(data, BKGs, config)
 plotter.drawPadUp()

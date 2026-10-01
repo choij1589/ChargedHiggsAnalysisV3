@@ -76,8 +76,8 @@ PRIVATE_WORK_TEXT = "Private work (CMS data)"
 # Channel/region caption, directly below the CMS block.
 CHANNEL_POS = (0.20, 0.665)
 # With the private-work label, the caption sits under cmsstyle's iPos=11 block,
-# left-aligned with it (3.5% of the frame width in from the y axis).
-PRIVATE_WORK_CHANNEL_POS = (0.187, 0.75)
+# at the same position as the DiLepton control-region caption.
+PRIVATE_WORK_CHANNEL_POS = (0.22, 0.75)
 # Multiplicities: the overflow is folded into the last bin, and the axis is
 # labelled at integers only.
 PRIVATE_WORK_X_RANGES = {
