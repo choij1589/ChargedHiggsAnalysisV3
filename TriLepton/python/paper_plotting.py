@@ -78,6 +78,12 @@ CHANNEL_POS = (0.20, 0.665)
 # With the private-work label, the caption sits under cmsstyle's iPos=11 block,
 # left-aligned with it (3.5% of the frame width in from the y axis).
 PRIVATE_WORK_CHANNEL_POS = (0.187, 0.75)
+# Multiplicities: the overflow is folded into the last bin, and the axis is
+# labelled at integers only.
+PRIVATE_WORK_X_RANGES = {
+    "jets/size": [0, 8],
+    "bjets/size": [0, 5],
+}
 CHANNEL_SIZE = 0.063
 # The longest caption, "Z+nonprompt CR", reaches as far as the Z peak at this
 # size, so the control regions get more headroom than the signal regions.
@@ -93,6 +99,20 @@ BKG_LEGEND_TEXT_SIZE = 0.036
 SIGNAL_LEGEND = (0.650, 0.270, 0.970, 0.515)
 SIGNAL_LEGEND_TEXT_SIZE = 0.034
 SIGNAL_LEGEND_HEADER = "(m_{H^{+}}, m_{A}) [GeV]"
+# Eta distributions are flat, so the right-hand column is not free below the
+# background key: the signal key, same size as in the mass plots, moves to the
+# left of the background key with their bottoms aligned, and the axis gets more
+# headroom to keep the distribution under both.
+# Horizontal offset of the signal key from sitting flush against the background
+# key (negative = further left).
+PRIVATE_WORK_ETA_SIGNAL_SHIFT = 0.07
+PRIVATE_WORK_ETA_SIGNAL_LEGEND = (
+    BKG_LEGEND[0] - (SIGNAL_LEGEND[2] - SIGNAL_LEGEND[0]) + PRIVATE_WORK_ETA_SIGNAL_SHIFT,
+    BKG_LEGEND[1],
+    BKG_LEGEND[0] + PRIVATE_WORK_ETA_SIGNAL_SHIFT,
+    BKG_LEGEND[1] + (SIGNAL_LEGEND[3] - SIGNAL_LEGEND[1]),
+)
+PRIVATE_WORK_ETA_HEADROOM_SCALE = 1.4
 
 # Standalone legend panel, published alongside the plots: slides lay the figures
 # out without their own legends, and it is also what a 2x2 paper layout would
@@ -250,7 +270,7 @@ def build_config(histkey, channel, options):
                                f"{LumiInfo['Run3']:g} fb^{{#minus1}}")
     else:
         config["CoM"] = EnergyInfo[options.era]
-    config["rTitle"] = "Data / Pred."
+    config["rTitle"] = "Obs. / Pred."
     # Enough headroom that the stack stays clear of the in-plot legends.
     config["yHeadroom"] = options.y_headroom
     # Signal regions are statistics-limited over most of the mass range, so the
@@ -268,6 +288,8 @@ def build_config(histkey, channel, options):
     if options.private_work:
         del config["cmsPosX"], config["cmsPosY"], config["cmsLabelSize"]
         CMS.SetCmsText(PRIVATE_WORK_TEXT, font=52, size=0.75 * 0.76)
+        if histkey in PRIVATE_WORK_X_RANGES:
+            config["xRange"] = PRIVATE_WORK_X_RANGES[histkey]
     config["legend"] = BKG_LEGEND
     config["legendTextSize"] = BKG_LEGEND_TEXT_SIZE
     config["signalLegend"] = SIGNAL_LEGEND
@@ -300,6 +322,9 @@ def build_config(histkey, channel, options):
     config["channelPosX"], config["channelPosY"] = (
         PRIVATE_WORK_CHANNEL_POS if options.private_work else CHANNEL_POS)
     config["channelSize"] = CHANNEL_SIZE
+    if options.private_work and histkey.endswith("/eta"):
+        config["signalLegend"] = PRIVATE_WORK_ETA_SIGNAL_LEGEND
+        config["yHeadroom"] = options.y_headroom * PRIVATE_WORK_ETA_HEADROOM_SCALE
     return config
 
 
@@ -679,6 +704,21 @@ def render_paper_legend(options, with_signals=True):
     return output_path
 
 
+def set_integer_x_axis(canvas, config):
+    """One tick per integer, with no minor ticks and no re-optimisation by ROOT,
+    on every pad that carries the x axis."""
+    xmin, xmax = config["xRange"][0], config["xRange"][-1]
+    pads = [canvas] if config.get("no_ratio") else [canvas.cd(1), canvas.cd(2)]
+    for pad in pads:
+        # RedrawAxis leaves "hframe_copy" frames in the pad, and they draw the
+        # axis too, so every frame gets the divisions.
+        for obj in pad.GetListOfPrimitives():
+            if obj.InheritsFrom("TH1") and obj.GetName().startswith("hframe"):
+                obj.GetXaxis().SetNdivisions(int(xmax - xmin), False)
+        pad.Modified()
+        pad.Update()
+
+
 def render_paper_plot(channel, histkey, options):
     config = build_config(histkey, channel, options)
     data, bkgs, signals, total_syst = load_plot_objects(channel, histkey, config, options)
@@ -692,6 +732,8 @@ def render_paper_plot(channel, histkey, options):
     if signals:
         plotter.drawSignals(signals)
     plotter.drawPadDown()
+    if options.private_work and histkey in PRIVATE_WORK_X_RANGES:
+        set_integer_x_axis(plotter.canv, config)
     plotter.canv.SaveAs(str(output_path))
 
     return output_path, adaptive_edges

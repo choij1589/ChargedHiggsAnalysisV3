@@ -185,7 +185,7 @@ def build_config(args, hist_configs):
     config = dict(hist_configs[args.histkey])
     config["era"] = args.era
     config["CoM"] = get_plot_com_energy(args.era)
-    config["rTitle"] = "Data / Pred"
+    config["rTitle"] = "Obs. / Pred."
     config["maxDigits"] = 3
     config["blind"] = args.blind
     config["overflow"] = True

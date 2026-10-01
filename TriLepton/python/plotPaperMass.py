@@ -35,10 +35,27 @@ PAPER_PLOTS = {
     "wz3-zcand": ("WZ3Mu", "ZCand/mass"),
     "ttz-zcand": ("TTZ2E1Mu", "ZCand/mass"),
 }
+# Thesis-only kinematics, drawn with the same style as the masses. Leptons are
+# stored per flavour, so eμμ's three leptons are e1, mu1, mu2.
+COMMON_KINEMATICS = ["jets/1/pt", "jets/1/eta", "jets/2/pt", "jets/2/eta",
+                     "bjets/1/pt", "bjets/1/eta", "jets/size", "bjets/size", "METv/pt"]
+PRIVATE_WORK_KINEMATICS = {
+    "sr1": ("SR1E2Mu", ["electrons/1/pt", "electrons/1/eta", "muons/1/pt", "muons/1/eta",
+                        "muons/2/pt", "muons/2/eta", *COMMON_KINEMATICS]),
+    "sr3": ("SR3Mu", ["muons/1/pt", "muons/1/eta", "muons/2/pt", "muons/2/eta",
+                      "muons/3/pt", "muons/3/eta", *COMMON_KINEMATICS]),
+}
+# Keys like "sr1-jets-1-pt".
+PRIVATE_WORK_EXTRA_PLOTS = {
+    f"{prefix}-{histkey.replace('/', '-')}": (channel, histkey)
+    for prefix, (channel, histkeys) in PRIVATE_WORK_KINEMATICS.items()
+    for histkey in histkeys
+}
 
-# Thesis (private-work) figures: the signal-region masses only, one per run.
-PRIVATE_WORK_PLOTS = ["sr1-pair", "sr3-low", "sr3-high"]
-PRIVATE_WORK_ERAS = ["Run2", "Run3"]
+# Thesis (private-work) figures: the signal-region masses plus kinematics, per
+# run and combined.
+PRIVATE_WORK_PLOTS = ["sr1-pair", "sr3-low", "sr3-high", *PRIVATE_WORK_EXTRA_PLOTS]
+PRIVATE_WORK_ERAS = ["Run2", "Run3", "All"]
 
 DEFAULT_SIGNALS = ["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"]
 
@@ -48,12 +65,13 @@ LEGEND_KEY = "legend"
 
 
 def selected_plots(selection, private_work=False):
+    plots = {**PAPER_PLOTS, **PRIVATE_WORK_EXTRA_PLOTS}
     if selection == "all":
         keys = PRIVATE_WORK_PLOTS if private_work else PAPER_PLOTS
-        return [(key, PAPER_PLOTS[key]) for key in keys]
+        return [(key, plots[key]) for key in keys]
     if selection == LEGEND_KEY:
         return []
-    return [(selection, PAPER_PLOTS[selection])]
+    return [(selection, plots[selection])]
 
 
 def main():
@@ -62,7 +80,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Produce isolated Run 2+3 paper PDF plots for selected mass distributions."
     )
-    parser.add_argument("--plot", choices=["all", LEGEND_KEY, *PAPER_PLOTS.keys()], default="all",
+    parser.add_argument("--plot", choices=["all", LEGEND_KEY, *PAPER_PLOTS.keys(),
+                                                *PRIVATE_WORK_EXTRA_PLOTS.keys()], default="all",
                         help="which paper plot to produce ('legend' = shared legend panel only)")
     parser.add_argument("--output-root", default=None,
                         help="base output directory (default: $WORKDIR/TriLepton/plots/Paper)")
@@ -88,13 +107,16 @@ def main():
                         help="starting bin width in GeV for adaptive binning")
     parser.add_argument("--private-work", dest="private_work", action="store_true",
                         help="thesis version: 'Private work (CMS data)' label, SR masses split "
-                             "into Run2 and Run3, written to plots/PW/{Run}/{channel}/")
+                             "+ kinematics for Run2, Run3 and combined (All), written to "
+                             "plots/PW/{Run2,Run3,All}/{channel}/")
     parser.add_argument("--debug", action="store_true", help="debug mode")
     parser.add_argument("--dry-run", action="store_true",
                         help="print selected plots and output paths without rendering")
     args = parser.parse_args()
     if args.private_work and args.plot not in ("all", *PRIVATE_WORK_PLOTS):
         parser.error(f"--private-work only makes {', '.join(PRIVATE_WORK_PLOTS)}")
+    if not args.private_work and args.plot in PRIVATE_WORK_EXTRA_PLOTS:
+        parser.error(f"--plot {args.plot} is a thesis plot; add --private-work")
 
     default_root = "PW" if args.private_work else "Paper"
     if args.y_headroom is None:

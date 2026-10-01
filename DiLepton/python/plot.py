@@ -6,7 +6,7 @@ import json
 import ROOT
 import cmsstyle as CMS
 from math import pow, sqrt
-from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
+from plotter import ComparisonCanvas, get_era_list, get_CoM_energy, LumiInfo, EnergyInfo
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
                         calculate_systematics, sum_histograms, load_era_configs,
                         merge_systematics, get_sample_lists)
@@ -23,6 +23,8 @@ parser.add_argument("--private-work", default=False, action="store_true", dest="
 args = parser.parse_args()
 if args.private_work and args.exclude:
     parser.error("--private-work makes central plots only; drop --exclude")
+if args.era == "All" and not args.private_work:
+    parser.error("--era All (Run2+Run3 combined) is only available with --private-work")
 
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
@@ -34,9 +36,17 @@ missing_logger = setup_missing_histogram_logging(args)
 with open("configs/histkeys.json") as f:
     config = json.load(f)[args.histkey]
 config["era"] = args.era
-config["rTitle"] = "Data / Pred"
+config["rTitle"] = "Obs. / Pred."
+config["systSrc"] = "Stat.+Syst."
 config["maxDigits"] = 3
-config["CoM"] = get_CoM_energy(args.era)
+if args.era == "All":
+    # Per-energy luminosities, CMS style for multi-energy combinations (as in the
+    # TriLepton paper figures): cmsstyle appends the Run3 CoM in parentheses.
+    config["CoM"] = f"{EnergyInfo['Run3']:g} TeV"
+    config["run_label"] = (f"{LumiInfo['Run2']:g} fb^{{#minus1}} ({EnergyInfo['Run2']:g} TeV) + "
+                           f"{LumiInfo['Run3']:g} fb^{{#minus1}}")
+else:
+    config["CoM"] = get_CoM_energy(args.era)
 # Equal-width bins: data points without horizontal bars (ComparisonCanvas
 # refuses this for variable-width bins).
 config["dataErrorX0"] = True
@@ -51,12 +61,14 @@ if args.private_work:
 
 #### Configurations
 # Get era list for merging
-era_list = get_era_list(args.era)
+era_list = get_era_list("Run2") + get_era_list("Run3") if args.era == "All" else get_era_list(args.era)
 
 if args.era in ["2016preVFP", "2016postVFP", "2017", "2018", "Run2"]:
     RUN = "Run2"
 elif args.era in ["2022", "2022EE", "2023", "2023BPix", "Run3"]:
     RUN = "Run3"
+elif args.era == "All":
+    RUN = "All"
 else:
     raise ValueError(f"Invalid era: {args.era}")
 
@@ -89,7 +101,7 @@ W, Z, TT, ST, VV = MC_CATEGORIES["W"], MC_CATEGORIES["Z"], MC_CATEGORIES["TT"], 
 
 histname = args.histkey.replace('/', '_')
 if args.private_work:
-    OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/PW/{histname}.pdf"
+    OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/PW/{args.era}/{args.channel}/{histname}.pdf"
 elif args.exclude:
     OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/No{args.exclude}/{histname}.png"
 else:

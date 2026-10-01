@@ -29,7 +29,7 @@ missing_logger = setup_missing_histogram_logging(args)
 with open("configs/histkeys.json") as f:
     config = json.load(f)[args.histkey]
 config["era"] = args.era
-config["rTitle"] = "Data / Pred"
+config["rTitle"] = "Obs. / Pred."
 config["maxDigits"] = 3
 config["CoM"] = get_CoM_energy(args.era)
 

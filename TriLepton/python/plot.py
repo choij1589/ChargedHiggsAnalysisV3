@@ -107,7 +107,7 @@ def get_plot_com_energy(era):
 
 config["era"] = args.era
 config["CoM"] = get_plot_com_energy(args.era)
-config["rTitle"] = "Data / Pred"
+config["rTitle"] = "Obs. / Pred."
 config["maxDigits"] = 3
 config["blind"] = args.blind  # Pass blind flag to ComparisonCanvas
 config["overflow"] = True  # Accumulate overflow into last visible bin
