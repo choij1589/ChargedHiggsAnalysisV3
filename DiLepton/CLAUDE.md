@@ -103,7 +103,7 @@ Main analysis script for data-MC comparison.
 - **Input:** `$WORKDIR/SKNanoOutput/DiLepton/RunDiMu_RunSyst/` and `RunEMu_RunSyst/`
 - **Features:** Loads histograms across multiple eras, computes bin-by-bin systematic envelopes, optional `--exclude` for studying specific systematics
 - **Output:** `plots/{era}/{channel}/[Central|No{Systematic}]/`
-- **Arguments:** `--era`, `--channel`, `--histkey`, `--exclude`, `--debug`
+- **Arguments:** `--era`, `--channel`, `--histkey`, `--exclude`, `--debug`, `--private-work` (thesis label "Private work (CMS data)", writes `*_PW.png`)
 
 ### plotBtagSF.py
 Extracts and plots b-tagging efficiency scale factors.

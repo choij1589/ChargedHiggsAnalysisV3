@@ -4,6 +4,7 @@ import argparse
 import logging
 import json
 import ROOT
+import cmsstyle as CMS
 from math import pow, sqrt
 from plotter import ComparisonCanvas, get_era_list, get_CoM_energy
 from HistoUtils import (setup_missing_histogram_logging, load_histogram,
@@ -17,6 +18,8 @@ parser.add_argument("--channel", required=True, type=str, help="channel")
 parser.add_argument("--histkey", required=True, type=str, help="histkey")
 parser.add_argument("--exclude", default=None, type=str, help="exclude weight")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
+parser.add_argument("--private-work", default=False, action="store_true", dest="private_work",
+                    help="thesis label 'Private work (CMS data)' instead of 'CMS Preliminary'; writes <histkey>_PW.png")
 args = parser.parse_args()
 
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
@@ -32,6 +35,14 @@ config["era"] = args.era
 config["rTitle"] = "Data / Pred"
 config["maxDigits"] = 3
 config["CoM"] = get_CoM_energy(args.era)
+
+# Non-approved figures with collision data: "Private work (CMS data)" replaces the
+# CMS logo, in the extra-text style (font 52, 0.76 of the logo size). Simulation-only
+# figures would say "(CMS simulation)" instead. The luminosity header is kept.
+PRIVATE_WORK_TEXT = "Private work (CMS data)"
+if args.private_work:
+    CMS.SetCmsText(PRIVATE_WORK_TEXT, font=52, size=0.75 * 0.76)
+    config["extraText"] = ""
 
 #### Configurations
 # Get era list for merging
@@ -65,6 +76,9 @@ if args.exclude:
     OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/No{args.exclude}/{args.histkey.replace('/', '_')}.png"
 else:
     OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/Central/{args.histkey.replace('/', '_')}.png"
+
+if args.private_work:
+    OUTPUTPATH = OUTPUTPATH.replace(".png", "_PW.png")
 
 os.makedirs(os.path.dirname(OUTPUTPATH), exist_ok=True)
 
