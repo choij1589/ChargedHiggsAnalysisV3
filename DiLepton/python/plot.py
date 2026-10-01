@@ -19,8 +19,10 @@ parser.add_argument("--histkey", required=True, type=str, help="histkey")
 parser.add_argument("--exclude", default=None, type=str, help="exclude weight")
 parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 parser.add_argument("--private-work", default=False, action="store_true", dest="private_work",
-                    help="thesis label 'Private work (CMS data)' instead of 'CMS Preliminary'; writes <histkey>_PW.png")
+                    help="thesis label 'Private work (CMS data)' instead of 'CMS Preliminary'; writes PW/<histkey>.pdf (central only)")
 args = parser.parse_args()
+if args.private_work and args.exclude:
+    parser.error("--private-work makes central plots only; drop --exclude")
 
 logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
@@ -64,6 +66,16 @@ elif args.channel == "EMU":
 else:
     raise ValueError(f"Invalid channel: {args.channel}")
 
+# Private work: TriLepton-style caption, bold region over the lepton flavours.
+PW_CHANNEL_LABELS = {
+    "DIMU": ("DiLepton CR", "#mu#mu"),
+    "EMU":  ("DiLepton CR", "e#mu"),
+}
+if args.private_work:
+    config["channel"], config["region"] = PW_CHANNEL_LABELS[args.channel]
+    config["channelPosY"] = 0.75
+    config["channelPosX"] = 0.22
+
 # Load configurations
 ERA_SAMPLES, ERA_SYSTEMATICS = load_era_configs(args, era_list)
 DATAPERIODs, MC_CATEGORIES, MCList = get_sample_lists(ERA_SAMPLES, ["W", "Z", "TT", "ST", "VV"])
@@ -72,13 +84,13 @@ SYSTs = merge_systematics(ERA_SYSTEMATICS)
 # Unpack MC categories for backward compatibility
 W, Z, TT, ST, VV = MC_CATEGORIES["W"], MC_CATEGORIES["Z"], MC_CATEGORIES["TT"], MC_CATEGORIES["ST"], MC_CATEGORIES["VV"]
 
-if args.exclude:
-    OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/No{args.exclude}/{args.histkey.replace('/', '_')}.png"
-else:
-    OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/Central/{args.histkey.replace('/', '_')}.png"
-
+histname = args.histkey.replace('/', '_')
 if args.private_work:
-    OUTPUTPATH = OUTPUTPATH.replace(".png", "_PW.png")
+    OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/PW/{histname}.pdf"
+elif args.exclude:
+    OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/No{args.exclude}/{histname}.png"
+else:
+    OUTPUTPATH = f"{WORKDIR}/DiLepton/plots/{args.era}/{args.channel}/Central/{histname}.png"
 
 os.makedirs(os.path.dirname(OUTPUTPATH), exist_ok=True)
 

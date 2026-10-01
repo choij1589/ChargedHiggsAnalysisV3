@@ -1,14 +1,16 @@
 #!/bin/bash
 ERA=$1
 CHANNEL=$2
+EXTRA_ARGS=${3:-}   # optional, e.g. "--private-work"
 export PATH="${PWD}/python:${PATH}"
 export ERA
 export CHANNEL
+export EXTRA_ARGS
 
 draw_plot() {
     local histkey=$1
     local exclude=$2
-    plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --exclude "$exclude"
+    plot.py --era "$ERA" --channel "$CHANNEL" --histkey "$histkey" --exclude "$exclude" ${EXTRA_ARGS}
 }
 
 if [[ $CHANNEL == "EMU" ]]; then
@@ -28,6 +30,7 @@ if [[ $CHANNEL == "EMU" ]]; then
         "nPVsGood"
     )
     exclude=("" "L1Prefire" "PileupReweight" "MuonIDSF" "ElectronIDSF"  "EMuTrigSF" "BtagSF_HFcorr")
+    [[ " ${EXTRA_ARGS} " == *" --private-work "* ]] && exclude=("")   # PW: central only
     export -f draw_plot
     parallel -j 12 draw_plot ::: "${histkeys[@]}" ::: "${exclude[@]}"
 elif [[ $CHANNEL == "DIMU" ]]; then
@@ -48,6 +51,7 @@ elif [[ $CHANNEL == "DIMU" ]]; then
         "nPVsGood"
     )
     exclude=("" "L1Prefire" "PileupReweight" "MuonIDSF" "DblMuTrigSF")
+    [[ " ${EXTRA_ARGS} " == *" --private-work "* ]] && exclude=("")   # PW: central only
     export -f draw_plot
     parallel -j 12 draw_plot ::: "${histkeys[@]}" ::: "${exclude[@]}"
 fi
