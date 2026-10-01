@@ -86,7 +86,7 @@ and `DiLepton/python/plot.py --private-work`. **Reference outputs:**
 
 - `CMS.SetCmsText` is global state. Reset it to `CMS.SetCmsText("CMS", font=61, size=0.75)` in non-PW modes, as `ParticleNetMD/python/plotPaperROCs.py` does with `configure_cms_style`.
 - Thesis figures use PW. ParticleNetMD spells the flag `--pw`. New scripts should use `--private-work`.
-- The PW, preliminary and WIP labels are never used for the "CMS" mark, which stays "CMS" (font 61).
+- iPos=11 placement is for the PW label only. The "CMS" mark in `--paper` keeps the custom `cmsPosX/Y` position.
 
 ### Shared layout (all modes; `ComparisonCanvas` config keys)
 
