@@ -88,19 +88,27 @@ def parse_args() -> argparse.Namespace:
                         help="Training channel to read (default: Combined)")
     parser.add_argument("--fold", type=int, default=4,
                         help="Fold directory number to read (default: 4)")
-    parser.add_argument("--output-dir", default="plots/paper/ROC",
-                        help="Output directory for PDFs (default: plots/paper/ROC)")
+    parser.add_argument("--output-dir", default=None,
+                        help="Output directory for PDFs (default: plots/paper/ROC, "
+                             "or plots/PW/ROC with --private-work)")
     parser.add_argument("--signals", nargs="+", default=DEFAULT_SIGNALS,
                         help="Mass points to plot")
     label_group = parser.add_mutually_exclusive_group()
-    label_group.add_argument("--pw", action="store_true",
+    label_group.add_argument("--private-work", action="store_true", dest="private_work",
                              help="Label plots 'Private work (CMS simulation)' instead of "
-                                  "'CMS Simulation' and save as <signal>_PW.pdf (the legend "
+                                  "'CMS Simulation' and save as plots/PW/ROC/<signal>.pdf (the legend "
                                   "panel has no CMS label and is not rewritten)")
     label_group.add_argument("--preliminary", action="store_true",
                              help="Label plots 'CMS Simulation Preliminary' and save as "
-                                  "<signal>_Preliminary.pdf (legend panel not rewritten)")
-    return parser.parse_args()
+                                  "<signal>_preliminary.pdf (legend panel not rewritten)")
+    args = parser.parse_args()
+    if args.output_dir is None:
+        args.output_dir = "plots/PW/ROC" if args.private_work else "plots/paper/ROC"
+    # PW files carry no suffix, so in the paper directory they would replace
+    # the paper figures.
+    if args.private_work and Path(args.output_dir).resolve() == Path("plots/paper/ROC").resolve():
+        parser.error("--private-work would overwrite the paper ROC PDFs in plots/paper/ROC")
+    return args
 
 
 def load_best_model(input_dir: Path, channel: str, signal: str, fold: int) -> Tuple[int, int, Path]:
@@ -130,15 +138,16 @@ def prediction_path(input_dir: Path, channel: str, signal: str, fold: int,
 
 
 def label_mode(args: argparse.Namespace) -> str:
-    if args.pw:
+    if args.private_work:
         return "pw"
     if args.preliminary:
         return "preliminary"
     return "paper"
 
 
-# File-name suffix per label mode; the paper version keeps the bare name.
-LABEL_SUFFIXES = {"paper": "", "pw": "_PW", "preliminary": "_Preliminary"}
+# File-name suffix per label mode; the paper version keeps the bare name, and so
+# does private work, which has a directory of its own (plots/PW/ROC).
+LABEL_SUFFIXES = {"paper": "", "pw": "", "preliminary": "_preliminary"}
 
 
 def configure_cms_style(mode: str = "paper") -> None:

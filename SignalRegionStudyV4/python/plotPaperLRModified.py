@@ -22,6 +22,7 @@ from plotter import (ComparisonCanvas, EnergyInfo,  # noqa: E402
                      LumiInfo, PALETTE_LONG)
 from HistoUtils import calculate_chi2  # noqa: E402
 import cmsstyle as CMS  # noqa: E402
+import interpolation_config  # noqa: E402
 import srspaths  # noqa: E402
 
 
@@ -33,6 +34,19 @@ SCORE_KEY = "LR_modified"
 # sibling paper scripts read it so all three stay on one source.
 SIGNAL_SOURCE = "interp-signal"
 DEFAULT_MASSPOINTS = ("MHc160_MA85", "MHc130_MA90", "MHc100_MA95")
+# --masspoint value for every ParticleNet net: the group seeds of
+# configs/pnet_grid.json, i.e. the trained mA = 85/90/95 at each trained mHc.
+PNET_SEEDS_KEY = "pnet-seeds"
+
+
+def pnet_seed_masspoints():
+    """Seed mass points of the ParticleNet scan, ordered by (mHc, mA)."""
+    seeds = []
+    for key, entry in srspaths.pnet_grid_config()["grids"].items():
+        mhc = int(key.replace("MHc", ""))
+        seeds.extend(interpolation_config.masspoint_name(grp["seed"], mhc)
+                     for grp in entry["groups"])
+    return tuple(sorted(seeds, key=srspaths.masspoint_mhc_ma))
 REGIONS = ("SR", "TTZCR")
 ORIGINAL_BKGS = ("nonprompt", "WZ", "ZZ", "ttW", "ttZ", "ttH", "tZq", "conversion", "others")
 GROUP_MAP = {
@@ -138,21 +152,52 @@ MASS_LABEL_OFFSET_PT = (-20.0, -6.0)
 # CropBox ROOT writes for this canvas; used only to size the nudge above.
 PANEL_SIZE_PT = (526.0, 567.0)
 
-# --private-work variant (TTZ CR only): non-approved data figure. The CMS logo
-# is replaced by "Private work (CMS data)" in the extra-text style (font 52,
-# 0.76 of the logo size), on one line, with the channel caption moved up
-# directly beneath it. The legend keeps its text size but its top drops below
-# the label, with tighter rows and columns so its bottom edge stays near the
-# paper layout's.
+# --preliminary variant: the paper SR panel with "Preliminary" under "CMS",
+# written next to the paper PDF with a suffix.
+PRELIMINARY_TEXT = "Preliminary"
+PRELIMINARY_SUFFIX = "_preliminary"
+# The extra-text line takes the room the paper layout leaves between "CMS" and
+# the caption, so the caption moves down by about one such line.
+PRELIMINARY_CHANNEL_POS = (CHANNEL_POS[0], CHANNEL_POS[1] - 0.05)
+
+# --private-work (thesis) variant: non-approved data figures, Run2+Run3
+# combined like the paper ones. Same panel as the paper figures (two-column in-plot legend,
+# headroom) except for the label: "Private work (CMS data)" in the extra-text
+# style, placed by cmsstyle at iPos=11, with the caption beneath it as in the
+# TriLepton / DiLepton PW plots.
 PRIVATE_WORK_TEXT = "Private work (CMS data)"
-PRIVATE_WORK_SIZE = 0.76 * CMS_LABEL_SIZE
-PRIVATE_WORK_CHANNEL_POS = (CHANNEL_POS[0], 0.735)
-PRIVATE_WORK_LEGEND_BOX = (0.55, 0.53, 0.95, 0.79)
-# Mass point and data/prediction chi2, left-aligned under the channel caption,
-# in the column the narrowed legend leaves free.
-PRIVATE_WORK_INFO_SIZE = 0.036
-PRIVATE_WORK_INFO_STEP = 0.055
-PRIVATE_WORK_SUFFIX = "_pw"
+PRIVATE_WORK_OUTPUT_ROOT = f"results/plots/PW/{SCORE_KEY}"
+# Paper and --preliminary panels; the other paper figure sets keep their own
+# directories under results/plots/paper/.
+PAPER_OUTPUT_ROOT = f"results/plots/paper/{SCORE_KEY}"
+PRIVATE_WORK_RATIO_LABEL = "Obs. / Pred."
+PRIVATE_WORK_CHANNEL_POS = (0.22, 0.75)
+# The paper legend, lowered a little further from the label line.
+PRIVATE_WORK_LEGEND_SHIFT = -0.02
+PRIVATE_WORK_LEGEND_BOX = (LEGEND_BOX[0], LEGEND_BOX[1] + PRIVATE_WORK_LEGEND_SHIFT,
+                           LEGEND_BOX[2], LEGEND_BOX[3] + PRIVATE_WORK_LEGEND_SHIFT)
+# Legend rows: the SR legend fills 5 rows (data, five backgrounds, Stat.+Syst.,
+# signal, padding cell, cut); the TTZ CR one 4 (no signal, no cut). The TTZ CR
+# box keeps the SR top edge and row pitch, so the entries are the same size in
+# both, and loses the unused row at the bottom.
+PRIVATE_WORK_SR_LEGEND_ROWS = 5
+PRIVATE_WORK_TTZCR_LEGEND_ROWS = 4
+PRIVATE_WORK_LEGEND_ROW_PITCH = (
+    (PRIVATE_WORK_LEGEND_BOX[3] - PRIVATE_WORK_LEGEND_BOX[1]) / PRIVATE_WORK_SR_LEGEND_ROWS)
+# Without the long signal entry the TTZ CR columns can sit closer: the box is
+# narrowed (TLegend splits its width evenly between columns) to
+# PRIVATE_WORK_TTZCR_LEGEND_WIDTH, then moved right by PRIVATE_WORK_TTZCR_LEGEND_SHIFT.
+PRIVATE_WORK_TTZCR_LEGEND_WIDTH = 0.42
+PRIVATE_WORK_TTZCR_LEGEND_SHIFT = 0.05
+PRIVATE_WORK_TTZCR_LEGEND_BOX = (
+    PRIVATE_WORK_LEGEND_BOX[0] + PRIVATE_WORK_TTZCR_LEGEND_SHIFT,
+    PRIVATE_WORK_LEGEND_BOX[3] - PRIVATE_WORK_TTZCR_LEGEND_ROWS * PRIVATE_WORK_LEGEND_ROW_PITCH,
+    PRIVATE_WORK_LEGEND_BOX[0] + PRIVATE_WORK_TTZCR_LEGEND_SHIFT + PRIVATE_WORK_TTZCR_LEGEND_WIDTH,
+    PRIVATE_WORK_LEGEND_BOX[3])
+# TTZ CR: the panel has no signal, so the mass point of the net and the
+# data/prediction chi2 are written directly under the legend, on its row pitch
+# and left-aligned on its left edge.
+PRIVATE_WORK_INFO_SIZE = 0.038
 
 # Standalone legend panel geometry, in NDC of a canvas the size of a plot panel.
 LEGEND_KEY = "legend"
@@ -168,9 +213,11 @@ def parse_args():
     )
     parser.add_argument(
         "--masspoint",
-        choices=("all", *DEFAULT_MASSPOINTS),
+        choices=("all", PNET_SEEDS_KEY,
+                 *dict.fromkeys((*DEFAULT_MASSPOINTS, *pnet_seed_masspoints()))),
         default="all",
-        help="mass point to plot, or all three",
+        help=("mass point to plot; 'all' = the three paper points, "
+              f"'{PNET_SEEDS_KEY}' = every ParticleNet net (group seed)"),
     )
     parser.add_argument(
         "--region",
@@ -187,8 +234,9 @@ def parse_args():
     )
     parser.add_argument(
         "--output-root",
-        default="results/plots/paper",
-        help="base output directory, relative to SignalRegionStudyV4 unless absolute",
+        default=None,
+        help=("base output directory, relative to SignalRegionStudyV4 unless absolute "
+              "(default: results/plots/paper/LR_modified, or results/plots/PW/LR_modified with --private-work)"),
     )
     parser.add_argument(
         "--signal-source", dest="signal_source", default="interp-signal",
@@ -203,17 +251,36 @@ def parse_args():
               "(default: %(default)s). A non-default value writes into a "
               "bin<width> subdirectory, e.g. --base-width 0.02 -> SR/bin0p02/"),
     )
-    parser.add_argument(
+    label_group = parser.add_mutually_exclusive_group()
+    label_group.add_argument(
         "--private-work",
         action="store_true",
         dest="private_work",
-        help=("TTZ CR only: label 'Private work (CMS data)' and write "
-              "LR_modified_<mp>_pw.pdf"),
+        help=("thesis label 'Private work (CMS data)'; writes "
+              "<output-root>/{SR,TTZCR}/LR_modified_<mp>.pdf"),
+    )
+    label_group.add_argument(
+        "--preliminary",
+        action="store_true",
+        help=("paper panel with 'CMS Preliminary', SR and the three paper mass "
+              f"points only; writes <output-root>/SR/LR_modified_<mp>{PRELIMINARY_SUFFIX}.pdf"),
     )
     parser.add_argument("--debug", action="store_true", help="enable debug logging")
     args = parser.parse_args()
-    if args.private_work and args.region not in ("all", "TTZCR"):
-        parser.error("--private-work applies to the TTZ CR only (--region TTZCR or all)")
+    # The paper (and --preliminary) set is the SR alone; the TTZ CR panels are
+    # private work only.
+    if not args.private_work and args.region == "TTZCR":
+        parser.error("the TTZ CR panels are made with --private-work only")
+    if args.preliminary:
+        if args.masspoint not in ("all", *DEFAULT_MASSPOINTS):
+            parser.error("--preliminary is made for the three paper mass points only")
+        if args.standalone_legend:
+            parser.error("--preliminary draws its legend in the plot; drop --standalone-legend")
+    if args.private_work and (args.region == LEGEND_KEY or args.standalone_legend):
+        parser.error("--private-work draws its legends in the plots; drop "
+                     f"--standalone-legend / --region {LEGEND_KEY}")
+    if args.output_root is None:
+        args.output_root = PRIVATE_WORK_OUTPUT_ROOT if args.private_work else PAPER_OUTPUT_ROOT
     return args
 
 
@@ -576,7 +643,8 @@ def build_y_range(data, bkgs, signals):
     return [0.0, (y_max if y_max > 0 else 1.0) * Y_HEADROOM]
 
 
-def build_config(region, edges, draw_legend=False, y_range=None, private_work=False):
+def build_config(region, edges, draw_legend=False, y_range=None, private_work=False,
+                 preliminary=False):
     if region == "SR":
         channel_label = "SR"
         region_label = "e#mu#mu + #mu#mu#mu"
@@ -586,7 +654,13 @@ def build_config(region, edges, draw_legend=False, y_range=None, private_work=Fa
     else:
         raise ValueError(f"Unsupported region: {region}")
 
-    return {
+    if private_work:
+        channel_pos = PRIVATE_WORK_CHANNEL_POS
+    elif preliminary:
+        channel_pos = PRELIMINARY_CHANNEL_POS
+    else:
+        channel_pos = CHANNEL_POS
+    config = {
         "era": "All",
         # Per-energy luminosities, CMS style for multi-energy combinations:
         # "138 fb^-1 (13 TeV) + 62 fb^-1 (13.6 TeV)". cmsstyle appends the
@@ -614,13 +688,15 @@ def build_config(region, edges, draw_legend=False, y_range=None, private_work=Fa
         "cmsPosY": CMS_LABEL_POS[1],
         "cmsLabelSize": CMS_LABEL_SIZE,
         # Published paper figures drop "Preliminary"; only "CMS" is drawn.
-        "extraText": "",
+        # --preliminary puts it back, under "CMS" (plotter.draw_cms_label).
+        "extraText": PRELIMINARY_TEXT if preliminary else "",
         "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
         # Two columns in the top-right corner, clearing the in-frame CMS
         # block on the left. The signal entry carries the mass point, so it
         # is the widest cell and takes the right column's second-to-last row,
         # with the working-point line under it.
-        "legend": PRIVATE_WORK_LEGEND_BOX if private_work else LEGEND_BOX,
+        "legend": ((PRIVATE_WORK_TTZCR_LEGEND_BOX if region == "TTZCR" else PRIVATE_WORK_LEGEND_BOX)
+                   if private_work else LEGEND_BOX),
         "legendTextSize": LEGEND_TEXT_SIZE,
         "legendColumns": LEGEND_COLUMNS,
         # In-plot by default; --standalone-legend publishes it as its own panel.
@@ -632,15 +708,24 @@ def build_config(region, edges, draw_legend=False, y_range=None, private_work=Fa
         "channel": channel_label,
         "region": region_label,
         # Directly below the self-placed CMS block.
-        "channelPosX": (PRIVATE_WORK_CHANNEL_POS if private_work else CHANNEL_POS)[0],
-        "channelPosY": (PRIVATE_WORK_CHANNEL_POS if private_work else CHANNEL_POS)[1],
+        "channelPosX": channel_pos[0],
+        "channelPosY": channel_pos[1],
         "channelSize": CHANNEL_SIZE,
         "chi2_test": False,
         "normalize_chi2": False,
-        # Private work: ComparisonCanvas draws no CMS text; the label is
-        # drawn by draw_private_work_text.
-        **({"cmsText": "", "extraText": ""} if private_work else {}),
     }
+
+    # cmsstyle's label text is global state: set it for every panel, so one
+    # mode can never leak into the other.
+    if private_work:
+        # cmsstyle places the label itself (iPos=11), so the paper's custom
+        # CMS-block position is dropped.
+        del config["cmsPosX"], config["cmsPosY"], config["cmsLabelSize"]
+        CMS.SetCmsText(PRIVATE_WORK_TEXT, font=52, size=0.75 * 0.76)
+        config["rTitle"] = PRIVATE_WORK_RATIO_LABEL
+    else:
+        CMS.SetCmsText("CMS", font=61, size=0.75)
+    return config
 
 
 def draw_integrated_signal(plotter, signals, masspoint, draw_legend=False):
@@ -722,28 +807,32 @@ def draw_threshold_overlay(plotter, threshold):
     plotter._threshold_lines = lines  # keep alive until the canvas is written
 
 
-def draw_private_work_label(plotter, masspoint):
-    """Private-work label in place of the CMS block; mass point and chi2/ndf
-    below the channel caption.
+def draw_private_work_info(plotter, masspoint):
+    """TTZ CR private work: mass point of the net and chi2/ndf below the legend.
 
     chi2 is the same data vs. prediction test ComparisonCanvas runs with
     chi2_test (HistoUtils.calculate_chi2 on data and the Stat.+Syst. total),
     drawn here so its size and position follow this column.
     """
     plotter.canv.cd(1)
-    CMS.drawText(PRIVATE_WORK_TEXT, posX=CMS_LABEL_POS[0], posY=CMS_LABEL_POS[1],
-                 font=52, align=13, size=PRIVATE_WORK_SIZE)
 
     chi2, ndf, p_value = calculate_chi2(plotter.incl, plotter.systematics)
     if ndf <= 0:
         raise RuntimeError(f"chi2 test has no degrees of freedom for {masspoint}")
-    # Baseline of the channel caption's second line ("region"), then one row per line.
-    y_text = PRIVATE_WORK_CHANNEL_POS[1] - CHANNEL_SIZE
-    for text in (format_signal_label(masspoint),
-                 f"#chi^{{2}}/ndf = {chi2 / ndf:.2f} (p = {p_value:.2f})"):
-        y_text -= PRIVATE_WORK_INFO_STEP
-        CMS.drawText(text, posX=PRIVATE_WORK_CHANNEL_POS[0], posY=y_text,
-                     font=42, align=11, size=PRIVATE_WORK_INFO_SIZE)
+    lines = (format_signal_label(masspoint),
+             f"#chi^{{2}}/ndf = {chi2 / ndf:.2f} (p = {p_value:.2f})")
+    # Left edge of the legend's symbols: TLegend centres each symbol in the
+    # first `margin` of its column and draws a fill box 0.35 of that margin to
+    # either side of the centre (TLegend::PaintPrimitives).
+    x1, _, x2, _ = PRIVATE_WORK_TTZCR_LEGEND_BOX
+    column_width = (x2 - x1) / plotter.leg.GetNColumns()
+    x_text = x1 + (0.5 - 0.35) * plotter.leg.GetMargin() * column_width
+    # Rows continue the legend's: centred one and two pitches below its last row.
+    y_text = PRIVATE_WORK_TTZCR_LEGEND_BOX[1] + 0.5 * PRIVATE_WORK_LEGEND_ROW_PITCH
+    for text in lines:
+        y_text -= PRIVATE_WORK_LEGEND_ROW_PITCH
+        CMS.drawText(text, posX=x_text, posY=y_text,
+                     font=42, align=12, size=PRIVATE_WORK_INFO_SIZE)
     logging.info("chi2/ndf for TTZCR/%s: %.2f/%d = %.2f (p = %.3f)",
                  masspoint, chi2, ndf, chi2 / ndf, p_value)
     plotter.canv.cd(1).RedrawAxis()
@@ -872,17 +961,15 @@ def render_paper_legend(output_root, with_signal=True):
 
 
 def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH, draw_legend=False,
-                   private_work=False):
-    if private_work and region != "TTZCR":
-        raise ValueError(f"--private-work is TTZ CR only, got {region}")
+                   private_work=False, preliminary=False):
     data, bkgs, signals, edges, threshold = build_plot_objects(
         region, masspoint, base_width)
     config = build_config(region, edges, draw_legend=draw_legend,
                           y_range=build_y_range(data, bkgs, signals),
-                          private_work=private_work)
+                          private_work=private_work, preliminary=preliminary)
 
     out_path = output_path(output_root, region, masspoint, base_width_tag(base_width),
-                           PRIVATE_WORK_SUFFIX if private_work else "")
+                           PRELIMINARY_SUFFIX if preliminary else "")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     plotter = ComparisonCanvas(data, bkgs, config)
@@ -893,8 +980,8 @@ def draw_masspoint(region, masspoint, output_root, base_width=BASE_WIDTH, draw_l
     # After the signal, so the legend reads ... Stat.+Syst., signal, cut; and
     # after drawPadDown, which is what creates the ratio pad the line needs.
     draw_threshold_overlay(plotter, threshold)
-    if private_work:
-        draw_private_work_label(plotter, masspoint)
+    if private_work and region == "TTZCR":
+        draw_private_work_info(plotter, masspoint)
     plotter.canv.SaveAs(str(out_path))
     return out_path, edges, threshold
 
@@ -905,25 +992,30 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO, format="%(levelname)s - %(message)s")
     SIGNAL_SOURCE = args.signal_source
 
-    selected = DEFAULT_MASSPOINTS if args.masspoint == "all" else (args.masspoint,)
+    if args.masspoint == "all":
+        selected = DEFAULT_MASSPOINTS
+    elif args.masspoint == PNET_SEEDS_KEY:
+        selected = pnet_seed_masspoints()
+    else:
+        selected = (args.masspoint,)
     if args.region == "all":
-        selected_regions = ("TTZCR",) if args.private_work else REGIONS
+        selected_regions = REGIONS if args.private_work else ("SR",)
     elif args.region == LEGEND_KEY:
         selected_regions = ()
     else:
         selected_regions = (args.region,)
     output_root = resolve_output_root(args.output_root)
 
-    # Published once each: SR panels overlay a signal, the TTZ CR panels do not.
-    if args.region in ("all", LEGEND_KEY) and args.standalone_legend and not args.private_work:
-        for with_signal in (True, False):
-            logging.info("Wrote %s", render_paper_legend(output_root, with_signal))
+    # The paper set is SR only, so only the signal-region legend panel is needed.
+    if args.region in ("all", LEGEND_KEY) and args.standalone_legend:
+        logging.info("Wrote %s", render_paper_legend(output_root, with_signal=True))
 
     for region in selected_regions:
         for masspoint in selected:
             out_path, edges, threshold = draw_masspoint(
                 region, masspoint, output_root, args.base_width,
-                draw_legend=not args.standalone_legend, private_work=args.private_work)
+                draw_legend=not args.standalone_legend, private_work=args.private_work,
+                preliminary=args.preliminary)
             logging.info("Wrote %s", out_path)
             logging.info(
                 "Adaptive edges for %s/%s (%d bins): %s",

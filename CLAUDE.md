@@ -80,12 +80,12 @@ and `DiLepton/python/plot.py --private-work`. **Reference outputs:**
 | Flag | Label | Output |
 |------|-------|--------|
 | `--paper` (default) | "CMS", no extra text, custom position `cmsPosX/Y = (0.20, 0.865)`, `cmsLabelSize = 0.070` | `plots/Paper/...` |
-| `--preliminary` | "CMS" + "Preliminary" ("Simulation Preliminary" for MC-only) | `*_Preliminary` / `plots/Preliminary/...` |
+| `--preliminary` | "CMS" + "Preliminary" ("Simulation Preliminary" for MC-only) | `*_preliminary` / `plots/Preliminary/...` |
 | `--private-work` | "Private work (CMS data)" (MC-only: "(CMS simulation)"), set with `CMS.SetCmsText(text, font=52, size=0.75*0.76)`, `extraText = ""`, placed by cmsstyle at iPos=11 (drop `cmsPos*`) | `plots/PW/{Run2,Run3,All}/{channel}/*.pdf` |
 | `--wip` | "CMS" + "Work in progress" ("Simulation Work in progress" for MC-only) | `*_WIP` / `plots/WIP/...` |
 
 - `CMS.SetCmsText` is global state. Reset it to `CMS.SetCmsText("CMS", font=61, size=0.75)` in non-PW modes, as `ParticleNetMD/python/plotPaperROCs.py` does with `configure_cms_style`.
-- Thesis figures use PW. ParticleNetMD spells the flag `--pw`. New scripts should use `--private-work`.
+- Thesis figures use PW. Every script spells the flag `--private-work`.
 - iPos=11 placement is for the PW label only. The "CMS" mark in `--paper` keeps the custom `cmsPosX/Y` position.
 
 ### Shared layout (all modes; `ComparisonCanvas` config keys)

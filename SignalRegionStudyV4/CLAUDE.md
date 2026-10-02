@@ -399,7 +399,15 @@ three sharing one set of wording/colour/legend constants defined in
 cannot drift apart). Output root `results/plots/paper/`.
 
 ```bash
-python3 python/plotPaperLRModified.py --region all --masspoint all
+python3 python/plotPaperLRModified.py --masspoint all   # SR only -> results/plots/paper/LR_modified/SR/
+# Preliminary version of the three SR panels ("CMS" + "Preliminary", caption
+# lowered by one line) -> results/plots/paper/LR_modified/SR/LR_modified_<mp>_preliminary.pdf
+python3 python/plotPaperLRModified.py --preliminary
+# Thesis (private-work) LR panels, SR + TTZ CR, Run2+Run3 combined: paper
+# layout (two-column legend) with the iPos=11 PW label and caption
+# -> results/plots/PW/LR_modified/{SR,TTZCR}/; --masspoint pnet-seeds draws all
+# 15 nets (the pnet_grid.json group seeds) instead of the three paper points
+python3 python/plotPaperLRModified.py --private-work [--masspoint pnet-seeds]
 python3 python/plotPaperTemplates.py --masspoint MHc130_MA90 --method ParticleNet
 python3 python/plotPaperPostfitSummary.py            # mHc160, ParticleNet, b-only
 ```
@@ -482,8 +490,9 @@ edge. Same quantity `measPnetThresholds.py` defines (identical process list;
 the cached hists already carry each category's mass window and `bg_weights`)
 evaluated on the union rather than on one category. Values:
 MHc160_MA85 0.5222, MHc130_MA90 0.6164, MHc100_MA95 0.5849 — each closes on
-eps_B = 0.200000. The TTZ CR panels get no line, matching
-`threshold_for_plot()`, which returns `None` there.
+eps_B = 0.200000. The paper set has no TTZ CR panels (2026-10-02); the
+private-work TTZ CR panels get no line, matching `threshold_for_plot()`,
+which returns `None` there.
 
 All three set `hideOriginYLabel = HIDE_ORIGIN_Y_LABEL` (defined in
 `plotPaperLRModified.py`), a `ComparisonCanvas` config hook.
