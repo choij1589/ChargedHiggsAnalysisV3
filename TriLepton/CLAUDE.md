@@ -38,8 +38,12 @@ python python/plot.py --era Run2 --channel WZ1E2Mu --histkey jets/size --exclude
 # (CMS data)" label, PDFs in plots/PW/{Run2,Run3,All}/{channel}/:
 #  - SR1E2Mu/SR3Mu: masses, the three leptons' pT/eta, j1/j2 and b1 pT/eta, N_j,
 #    N_b and pTmiss
-#  - ZG1E2Mu/ZG3Mu: Z-candidate mass and l_conv pT/eta, after ConvSF and before
-#    it (ConvSF excluded, as plot.py --exclude ConvSF) in {channel}/NoConvSF/
+#  - ZG1E2Mu/ZG3Mu: Z-candidate mass (= m(3l) in these CRs) and l_conv pT/eta,
+#    after ConvSF and before it (ConvSF excluded, as plot.py --exclude ConvSF)
+#    in {channel}/NoConvSF/
+#  - WZ1E2Mu/WZ3Mu: Z-candidate mass, leading-jet pT and N_j, after WZNjetsSF and
+#    before it in {channel}/NoWZSF/ (_RunNoWZSF inputs, WZNjetsSF variation
+#    dropped); Run3 and All only, since the SF is Run3 only
 python python/plotPaperMass.py --private-work
 
 # Preliminary ("CMS Preliminary") versions of the paper CR masses, written next

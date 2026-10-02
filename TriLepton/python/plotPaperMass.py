@@ -45,10 +45,13 @@ PRIVATE_WORK_KINEMATICS = {
     "sr3": ("SR3Mu", ["muons/1/pt", "muons/1/eta", "muons/2/pt", "muons/2/eta",
                       "muons/3/pt", "muons/3/eta", *COMMON_KINEMATICS]),
 }
-# Control regions: the paper Z-candidate mass plus the conversion lepton.
+# Control regions: the paper Z-candidate mass plus the conversion lepton (Z+gamma)
+# or the leading jet and the jet multiplicity (WZ).
 PRIVATE_WORK_CR_KINEMATICS = {
     "zg1": ("ZG1E2Mu", ["convLep/pt", "convLep/eta"]),
     "zg3": ("ZG3Mu", ["convLep/pt", "convLep/eta"]),
+    "wz1": ("WZ1E2Mu", ["jets/1/pt", "jets/size"]),
+    "wz3": ("WZ3Mu", ["jets/1/pt", "jets/size"]),
 }
 # Keys like "sr1-jets-1-pt", "zg1-convLep-pt".
 PRIVATE_WORK_EXTRA_PLOTS = {
@@ -59,11 +62,15 @@ PRIVATE_WORK_EXTRA_PLOTS = {
 }
 
 # Thesis (private-work) figures, per run and combined: the signal-region masses
-# plus kinematics, and the Z+gamma control regions.
+# plus kinematics, and the Z+gamma and WZ control regions.
 PRIVATE_WORK_PLOTS = ["sr1-pair", "sr3-low", "sr3-high", "zg1-zcand", "zg3-zcand",
-                      *PRIVATE_WORK_EXTRA_PLOTS]
-# Channels drawn both after (default) and before the ConvSF normalization.
+                      "wz1-zcand", "wz3-zcand", *PRIVATE_WORK_EXTRA_PLOTS]
+# Channels drawn both after (default) and before the ConvSF normalization, or
+# the WZNjetsSF reweighting. WZNjetsSF is Run3 only, so the Run2 "before" plot
+# would be the default one again and is not drawn.
 CONV_SF_CHANNELS = ("ZG1E2Mu", "ZG3Mu")
+WZ_SF_CHANNELS = ("WZ1E2Mu", "WZ3Mu")
+WZ_SF_ERAS = ("Run3", "All")
 PRIVATE_WORK_ERAS = ["Run2", "Run3", "All"]
 # Preliminary (CMS Preliminary) versions of the paper control-region masses.
 PRELIMINARY_PLOTS = [key for key, (channel, _) in PAPER_PLOTS.items()
@@ -126,7 +133,9 @@ def main():
     label_group.add_argument("--private-work", dest="private_work", action="store_true",
                         help="thesis version: 'Private work (CMS data)' label, SR masses split "
                              "+ kinematics and the Z+gamma CRs (mass, l_conv pT/eta, "
-                             "after and before ConvSF -> NoConvSF/) for Run2, Run3 and "
+                             "after and before ConvSF -> NoConvSF/), the WZ CRs (mass, "
+                             "leading-jet pT, N_j; before WZNjetsSF -> NoWZSF/ for Run3 and All) "
+                             "for Run2, Run3 and "
                              "combined (All), written to plots/PW/{Run2,Run3,All}/{channel}/")
     label_group.add_argument("--preliminary", action="store_true",
                              help="paper layout with 'CMS Preliminary', control regions only, "
@@ -194,10 +203,14 @@ def main():
 def render_selected(args, options):
     for key, (channel, histkey) in selected_plots(args.plot, options.private_work,
                                                   options.preliminary):
-        conv_sf_variants = ((True, False) if options.private_work and channel in CONV_SF_CHANNELS
-                            else (True,))
-        for conv_sf in conv_sf_variants:
-            options.conv_sf = conv_sf
+        # (conv_sf, wz_sf): the default, then the one reweighting switched off.
+        variants = [(True, True)]
+        if options.private_work and channel in CONV_SF_CHANNELS:
+            variants.append((False, True))
+        if options.private_work and channel in WZ_SF_CHANNELS and options.era in WZ_SF_ERAS:
+            variants.append((True, False))
+        for conv_sf, wz_sf in variants:
+            options.conv_sf, options.wz_sf = conv_sf, wz_sf
             output_path = build_output_path(channel, histkey, options)
             if args.dry_run:
                 print(f"{key}: {channel} {histkey} -> {output_path}")
@@ -207,7 +220,7 @@ def render_selected(args, options):
             print(f"Wrote {rendered_path}")
             if adaptive_edges:
                 print(f"Adaptive edges ({len(adaptive_edges) - 1} bins): {adaptive_edges}")
-        options.conv_sf = True
+        options.conv_sf = options.wz_sf = True
 
 
 if __name__ == "__main__":

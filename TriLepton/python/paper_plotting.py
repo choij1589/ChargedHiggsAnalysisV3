@@ -94,6 +94,10 @@ CHANNEL_SIZE = 0.063
 # The longest caption, "Z+nonprompt CR", reaches as far as the Z peak at this
 # size, so the control regions get more headroom than the signal regions.
 CR_Y_HEADROOM_SCALE = 1.2
+ZG_ZCAND_TITLES = {
+    "ZG1E2Mu": "m(e#mu#mu) [GeV]",
+    "ZG3Mu": "m(#mu#mu#mu) [GeV]",
+}
 
 # In-plot legends, both in the right-hand column: data and backgrounds on top,
 # signal mass points below. That column covers the top end of the mass range,
@@ -171,6 +175,10 @@ class PaperPlotOptions:
     # False draws the conversion background before the ConvSF normalization
     # (plot.py --exclude ConvSF), into a NoConvSF/ subdirectory.
     conv_sf: bool = True
+    # False draws WZ before the WZNjetsSF reweighting (plot.py --exclude WZSF): the
+    # _RunNoWZSF inputs, without the WZNjetsSF variation (as sampleBreakdown.py
+    # --exclude WZSF), into a NoWZSF/ subdirectory. The SF is Run3 only.
+    wz_sf: bool = True
 
 
 def get_plot_era_list(era):
@@ -325,6 +333,10 @@ def build_config(histkey, channel, options):
         config["yTitle"] = "Events"
         if channel == "TTZ2E1Mu":
             config["xTitle"] = "m(e^{+}e^{-}) [GeV]"
+        # In the Z+gamma CRs the Z candidate is all three leptons (Z -> ll gamma,
+        # the photon converted): PromptAnalyzer fills and cuts on m(3l).
+        elif channel in ZG_ZCAND_TITLES:
+            config["xTitle"] = ZG_ZCAND_TITLES[channel]
         config["overflow"] = False
     if options.blind:
         config["no_ratio"] = True
@@ -337,6 +349,11 @@ def build_config(histkey, channel, options):
     else:
         config["channelPosX"], config["channelPosY"] = CHANNEL_POS
     config["channelSize"] = CHANNEL_SIZE
+    # Control regions get the extra headroom in every thesis plot, not only the
+    # Z-candidate mass: their captions are the longest, and the falling pT spectra
+    # peak in the first bin, right under them.
+    if options.private_work and not channel.startswith("SR") and histkey != "ZCand/mass":
+        config["yHeadroom"] = options.y_headroom * CR_Y_HEADROOM_SCALE
     if options.private_work and histkey.endswith("/eta"):
         config["signalLegend"] = PRIVATE_WORK_ETA_SIGNAL_LEGEND
         config["yHeadroom"] = options.y_headroom * PRIVATE_WORK_ETA_HEADROOM_SCALE
@@ -346,9 +363,13 @@ def build_config(histkey, channel, options):
 def build_output_path(channel, histkey, options):
     suffix = PRELIMINARY_SUFFIX if options.preliminary else ""
     name = f"{histkey.replace('/', '_')}{suffix}.pdf"
+    if not options.conv_sf and not options.wz_sf:
+        raise ValueError("draw one reweighting off at a time")
     variant = "Central" if options.conv_sf else "NoConvSF"
+    if not options.wz_sf:
+        variant = "NoWZSF"
     if options.private_work:
-        if not options.conv_sf:
+        if variant != "Central":
             return options.output_root / options.era / channel / variant / name
         return options.output_root / options.era / channel / name
     return options.output_root / options.era / channel / variant / name
@@ -462,14 +483,19 @@ def load_plot_objects(channel, histkey, config, options):
             + era_samples[era]["diboson"]
             + era_samples[era]["others"]
         )
+        era_systs = era_systematics[era]
+        if not options.wz_sf:
+            era_systs = {k: v for k, v in era_systs.items() if k != "WZNjetsSF"}
         for sample in all_era_samples:
-            file_path = build_sknanoutput_path(workdir, channel, flag, era, sample, run_syst=True)
+            no_wzsf = not options.wz_sf and "WZTo3LNu" in sample and get_run_period(era) == "Run3"
+            file_path = build_sknanoutput_path(workdir, channel, flag, era, sample, run_syst=True,
+                                               no_wzsf=no_wzsf)
             hist_path = f"{channel}/Central/{histkey}"
             hist = load_histogram(file_path, hist_path, era, missing_logger)
             if hist:
                 clip_negative_bins(hist)
                 variations = load_systematic_variations(file_path, channel, histkey,
-                                                        era_systematics[era], era,
+                                                        era_systs, era,
                                                         missing_logger, clip=True)
 
                 # Scale central and variations together, K-factor before ConvSF
@@ -739,6 +765,28 @@ def set_integer_x_axis(canvas, config):
         pad.Update()
 
 
+def control_region_y_range(data, total, config):
+    """[0, headroom x the tallest of prediction (+ its error) and data (+ its
+    error)], over the displayed x range only, on the binning that is drawn
+    (ComparisonCanvas applies the config's rebin later, so it is applied to
+    copies here)."""
+    xmin, xmax = config["xRange"]
+    y_max = 0.0
+    for hist in (data, total):
+        hist = hist.Clone(f"{hist.GetName()}_yrange")
+        hist.SetDirectory(0)
+        if config.get("rebin"):
+            hist.Rebin(config["rebin"])
+        axis = hist.GetXaxis()
+        first = max(1, axis.FindFixBin(xmin + 1e-9))
+        last = min(hist.GetNbinsX(), axis.FindFixBin(xmax - 1e-9))
+        y_max = max(y_max, *(hist.GetBinContent(i) + hist.GetBinError(i)
+                             for i in range(first, last + 1)))
+    if y_max <= 0:
+        raise RuntimeError("empty control-region plot")
+    return [0.0, y_max * config["yHeadroom"]]
+
+
 def render_paper_plot(channel, histkey, options):
     config = build_config(histkey, channel, options)
     data, bkgs, signals, total_syst = load_plot_objects(channel, histkey, config, options)
@@ -746,6 +794,12 @@ def render_paper_plot(channel, histkey, options):
 
     output_path = build_output_path(channel, histkey, options)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if options.private_work and not channel.startswith("SR"):
+        # ComparisonCanvas sizes the axis on the prediction alone; in the
+        # higher-statistics control regions a data point above it would reach the
+        # caption, so the tallest data bar counts as well.
+        config["yRange"] = control_region_y_range(data, total_syst, config)
 
     plotter = ComparisonCanvas(data, bkgs, config, total_syst=total_syst)
     plotter.drawPadUp()
