@@ -45,17 +45,29 @@ PRIVATE_WORK_KINEMATICS = {
     "sr3": ("SR3Mu", ["muons/1/pt", "muons/1/eta", "muons/2/pt", "muons/2/eta",
                       "muons/3/pt", "muons/3/eta", *COMMON_KINEMATICS]),
 }
-# Keys like "sr1-jets-1-pt".
+# Control regions: the paper Z-candidate mass plus the conversion lepton.
+PRIVATE_WORK_CR_KINEMATICS = {
+    "zg1": ("ZG1E2Mu", ["convLep/pt", "convLep/eta"]),
+    "zg3": ("ZG3Mu", ["convLep/pt", "convLep/eta"]),
+}
+# Keys like "sr1-jets-1-pt", "zg1-convLep-pt".
 PRIVATE_WORK_EXTRA_PLOTS = {
     f"{prefix}-{histkey.replace('/', '-')}": (channel, histkey)
-    for prefix, (channel, histkeys) in PRIVATE_WORK_KINEMATICS.items()
+    for kinematics in (PRIVATE_WORK_KINEMATICS, PRIVATE_WORK_CR_KINEMATICS)
+    for prefix, (channel, histkeys) in kinematics.items()
     for histkey in histkeys
 }
 
-# Thesis (private-work) figures: the signal-region masses plus kinematics, per
-# run and combined.
-PRIVATE_WORK_PLOTS = ["sr1-pair", "sr3-low", "sr3-high", *PRIVATE_WORK_EXTRA_PLOTS]
+# Thesis (private-work) figures, per run and combined: the signal-region masses
+# plus kinematics, and the Z+gamma control regions.
+PRIVATE_WORK_PLOTS = ["sr1-pair", "sr3-low", "sr3-high", "zg1-zcand", "zg3-zcand",
+                      *PRIVATE_WORK_EXTRA_PLOTS]
+# Channels drawn both after (default) and before the ConvSF normalization.
+CONV_SF_CHANNELS = ("ZG1E2Mu", "ZG3Mu")
 PRIVATE_WORK_ERAS = ["Run2", "Run3", "All"]
+# Preliminary (CMS Preliminary) versions of the paper control-region masses.
+PRELIMINARY_PLOTS = [key for key, (channel, _) in PAPER_PLOTS.items()
+                     if not channel.startswith("SR")]
 
 DEFAULT_SIGNALS = ["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"]
 
@@ -64,10 +76,15 @@ DEFAULT_SIGNALS = ["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"]
 LEGEND_KEY = "legend"
 
 
-def selected_plots(selection, private_work=False):
+def selected_plots(selection, private_work=False, preliminary=False):
     plots = {**PAPER_PLOTS, **PRIVATE_WORK_EXTRA_PLOTS}
     if selection == "all":
-        keys = PRIVATE_WORK_PLOTS if private_work else PAPER_PLOTS
+        if private_work:
+            keys = PRIVATE_WORK_PLOTS
+        elif preliminary:
+            keys = PRELIMINARY_PLOTS
+        else:
+            keys = PAPER_PLOTS
         return [(key, plots[key]) for key in keys]
     if selection == LEGEND_KEY:
         return []
@@ -105,16 +122,25 @@ def main():
                         help="maximum adaptive bin width in GeV")
     parser.add_argument("--adaptive-base-width", default=2.0, type=float,
                         help="starting bin width in GeV for adaptive binning")
-    parser.add_argument("--private-work", dest="private_work", action="store_true",
+    label_group = parser.add_mutually_exclusive_group()
+    label_group.add_argument("--private-work", dest="private_work", action="store_true",
                         help="thesis version: 'Private work (CMS data)' label, SR masses split "
-                             "+ kinematics for Run2, Run3 and combined (All), written to "
-                             "plots/PW/{Run2,Run3,All}/{channel}/")
+                             "+ kinematics and the Z+gamma CRs (mass, l_conv pT/eta, "
+                             "after and before ConvSF -> NoConvSF/) for Run2, Run3 and "
+                             "combined (All), written to plots/PW/{Run2,Run3,All}/{channel}/")
+    label_group.add_argument("--preliminary", action="store_true",
+                             help="paper layout with 'CMS Preliminary', control regions only, "
+                                  "written next to the paper PDF as <histkey>_preliminary.pdf")
     parser.add_argument("--debug", action="store_true", help="debug mode")
     parser.add_argument("--dry-run", action="store_true",
                         help="print selected plots and output paths without rendering")
     args = parser.parse_args()
     if args.private_work and args.plot not in ("all", *PRIVATE_WORK_PLOTS):
         parser.error(f"--private-work only makes {', '.join(PRIVATE_WORK_PLOTS)}")
+    if args.preliminary and args.plot not in ("all", *PRELIMINARY_PLOTS):
+        parser.error(f"--preliminary only makes {', '.join(PRELIMINARY_PLOTS)}")
+    if args.preliminary and not args.legends:
+        parser.error("--preliminary draws its legends in the plots; drop --no-legends")
     if not args.private_work and args.plot in PRIVATE_WORK_EXTRA_PLOTS:
         parser.error(f"--plot {args.plot} is a thesis plot; add --private-work")
 
@@ -143,6 +169,7 @@ def main():
         draw_legends=args.legends,
         legend_panel_text_size=args.legend_text_size,
         y_headroom=args.y_headroom,
+        preliminary=args.preliminary,
     )
 
     if args.private_work:
@@ -152,7 +179,7 @@ def main():
             render_selected(args, options)
         return
 
-    if args.plot in ("all", LEGEND_KEY):
+    if args.plot in ("all", LEGEND_KEY) and not args.preliminary:
         # Two variants: signal regions overlay signals, control regions do not.
         for with_signals in (True, False):
             if args.dry_run:
@@ -165,16 +192,22 @@ def main():
 
 
 def render_selected(args, options):
-    for key, (channel, histkey) in selected_plots(args.plot, options.private_work):
-        output_path = build_output_path(channel, histkey, options)
-        if args.dry_run:
-            print(f"{key}: {channel} {histkey} -> {output_path}")
-            continue
+    for key, (channel, histkey) in selected_plots(args.plot, options.private_work,
+                                                  options.preliminary):
+        conv_sf_variants = ((True, False) if options.private_work and channel in CONV_SF_CHANNELS
+                            else (True,))
+        for conv_sf in conv_sf_variants:
+            options.conv_sf = conv_sf
+            output_path = build_output_path(channel, histkey, options)
+            if args.dry_run:
+                print(f"{key}: {channel} {histkey} -> {output_path}")
+                continue
 
-        rendered_path, adaptive_edges = render_paper_plot(channel, histkey, options)
-        print(f"Wrote {rendered_path}")
-        if adaptive_edges:
-            print(f"Adaptive edges ({len(adaptive_edges) - 1} bins): {adaptive_edges}")
+            rendered_path, adaptive_edges = render_paper_plot(channel, histkey, options)
+            print(f"Wrote {rendered_path}")
+            if adaptive_edges:
+                print(f"Adaptive edges ({len(adaptive_edges) - 1} bins): {adaptive_edges}")
+        options.conv_sf = True
 
 
 if __name__ == "__main__":

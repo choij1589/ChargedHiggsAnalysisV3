@@ -75,6 +75,12 @@ CMS_LABEL_SIZE = 0.070
 PRIVATE_WORK_TEXT = "Private work (CMS data)"
 # Channel/region caption, directly below the CMS block.
 CHANNEL_POS = (0.20, 0.665)
+# Preliminary figures: "Preliminary" goes under "CMS" (plotter.draw_cms_label)
+# and takes the room left above the caption, so the caption moves down by
+# about one such line. Same as SignalRegionStudyV4/python/plotPaperLRModified.py.
+PRELIMINARY_TEXT = "Preliminary"
+PRELIMINARY_SUFFIX = "_preliminary"
+PRELIMINARY_CHANNEL_POS = (CHANNEL_POS[0], CHANNEL_POS[1] - 0.05)
 # With the private-work label, the caption sits under cmsstyle's iPos=11 block,
 # at the same position as the DiLepton control-region caption.
 PRIVATE_WORK_CHANNEL_POS = (0.22, 0.75)
@@ -160,6 +166,11 @@ class PaperPlotOptions:
     # "All" = Run2+Run3 combined (paper); "Run2"/"Run3" = one run (thesis).
     era: str = "All"
     private_work: bool = False
+    # Paper layout with "CMS Preliminary"; written next to the paper PDF.
+    preliminary: bool = False
+    # False draws the conversion background before the ConvSF normalization
+    # (plot.py --exclude ConvSF), into a NoConvSF/ subdirectory.
+    conv_sf: bool = True
 
 
 def get_plot_era_list(era):
@@ -284,7 +295,7 @@ def build_config(histkey, channel, options):
     config["cmsPosX"], config["cmsPosY"] = CMS_LABEL_POS
     config["cmsLabelSize"] = CMS_LABEL_SIZE
     # Published paper figures drop "Preliminary"; only the "CMS" mark is drawn.
-    config["extraText"] = ""
+    config["extraText"] = PRELIMINARY_TEXT if options.preliminary else ""
     if options.private_work:
         del config["cmsPosX"], config["cmsPosY"], config["cmsLabelSize"]
         CMS.SetCmsText(PRIVATE_WORK_TEXT, font=52, size=0.75 * 0.76)
@@ -319,8 +330,12 @@ def build_config(histkey, channel, options):
         config["no_ratio"] = True
 
     config["channel"], config["region"] = CHANNEL_LABELS[channel]
-    config["channelPosX"], config["channelPosY"] = (
-        PRIVATE_WORK_CHANNEL_POS if options.private_work else CHANNEL_POS)
+    if options.private_work:
+        config["channelPosX"], config["channelPosY"] = PRIVATE_WORK_CHANNEL_POS
+    elif options.preliminary:
+        config["channelPosX"], config["channelPosY"] = PRELIMINARY_CHANNEL_POS
+    else:
+        config["channelPosX"], config["channelPosY"] = CHANNEL_POS
     config["channelSize"] = CHANNEL_SIZE
     if options.private_work and histkey.endswith("/eta"):
         config["signalLegend"] = PRIVATE_WORK_ETA_SIGNAL_LEGEND
@@ -329,10 +344,14 @@ def build_config(histkey, channel, options):
 
 
 def build_output_path(channel, histkey, options):
-    name = f"{histkey.replace('/', '_')}.pdf"
+    suffix = PRELIMINARY_SUFFIX if options.preliminary else ""
+    name = f"{histkey.replace('/', '_')}{suffix}.pdf"
+    variant = "Central" if options.conv_sf else "NoConvSF"
     if options.private_work:
+        if not options.conv_sf:
+            return options.output_root / options.era / channel / variant / name
         return options.output_root / options.era / channel / name
-    return options.output_root / options.era / channel / "Central" / name
+    return options.output_root / options.era / channel / variant / name
 
 
 def build_base_edges(xmin, xmax, base_width):
@@ -457,7 +476,8 @@ def load_plot_objects(channel, histkey, config, options):
                 kfactor, xsec_rel_unc = get_kfactor_info(sample, get_run_period(era), kfactors)
                 scale_with_variations(hist, variations, kfactor)
                 conv_scale, conv_rel_unc = get_conv_scale_factor(
-                    sample, era, era_samples, channel_flag, conv_sf_data)
+                    sample, era, era_samples, channel_flag, conv_sf_data,
+                    exclude=None if options.conv_sf else "ConvSF")
                 scale_with_variations(hist, variations, conv_scale)
 
                 rate_uncs = get_mc_rate_uncertainties(sample, era, era_samples,

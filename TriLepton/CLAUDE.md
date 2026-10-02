@@ -34,10 +34,17 @@ bash scripts/drawPlots.sh Run2 ZFake3Mu
 python python/plot.py --era 2018 --channel SR1E2Mu --histkey pair/mass
 python python/plot.py --era Run2 --channel WZ1E2Mu --histkey jets/size --exclude WZSF
 
-# Thesis (private-work) SR plots for Run2, Run3 and combined (All): masses, the
-# three leptons' pT/eta, j1/j2 and b1 pT/eta, N_j, N_b and pTmiss in both channels;
-# "Private work (CMS data)" label, PDFs in plots/PW/{Run2,Run3,All}/{SR1E2Mu,SR3Mu}/
+# Thesis (private-work) plots for Run2, Run3 and combined (All), "Private work
+# (CMS data)" label, PDFs in plots/PW/{Run2,Run3,All}/{channel}/:
+#  - SR1E2Mu/SR3Mu: masses, the three leptons' pT/eta, j1/j2 and b1 pT/eta, N_j,
+#    N_b and pTmiss
+#  - ZG1E2Mu/ZG3Mu: Z-candidate mass and l_conv pT/eta, after ConvSF and before
+#    it (ConvSF excluded, as plot.py --exclude ConvSF) in {channel}/NoConvSF/
 python python/plotPaperMass.py --private-work
+
+# Preliminary ("CMS Preliminary") versions of the paper CR masses, written next
+# to the paper PDFs as plots/Paper/All/{CR}/Central/ZCand_mass_preliminary.pdf
+python python/plotPaperMass.py --preliminary
 
 # Event yield extraction
 python python/sampleBreakdown.py --era 2018 --channel SR1E2Mu
