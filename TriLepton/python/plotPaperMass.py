@@ -45,9 +45,14 @@ PRIVATE_WORK_KINEMATICS = {
     "sr3": ("SR3Mu", ["muons/1/pt", "muons/1/eta", "muons/2/pt", "muons/2/eta",
                       "muons/3/pt", "muons/3/eta", *COMMON_KINEMATICS]),
 }
-# Control regions: the paper Z-candidate mass plus the conversion lepton (Z+gamma)
-# or the leading jet and the jet multiplicity (WZ).
+# Control regions: the paper Z-candidate mass plus the conversion lepton (Z+gamma),
+# the fake-lepton candidate (Z+nonprompt), the leading jet and the jet
+# multiplicity (WZ), or the leptons, the leading jet, N_j, N_b and pTmiss (ttZ).
 PRIVATE_WORK_CR_KINEMATICS = {
+    "ttz": ("TTZ2E1Mu", ["muons/1/pt", "electrons/1/pt", "jets/1/pt", "jets/1/eta",
+                         "jets/1/phi", "jets/size", "bjets/size", "METv/pt"]),
+    "zfake1": ("ZFake1E2Mu", ["nonprompt/pt", "nonprompt/eta"]),
+    "zfake3": ("ZFake3Mu", ["nonprompt/pt", "nonprompt/eta"]),
     "zg1": ("ZG1E2Mu", ["convLep/pt", "convLep/eta"]),
     "zg3": ("ZG3Mu", ["convLep/pt", "convLep/eta"]),
     "wz1": ("WZ1E2Mu", ["jets/1/pt", "jets/size"]),
@@ -62,9 +67,10 @@ PRIVATE_WORK_EXTRA_PLOTS = {
 }
 
 # Thesis (private-work) figures, per run and combined: the signal-region masses
-# plus kinematics, and the Z+gamma and WZ control regions.
-PRIVATE_WORK_PLOTS = ["sr1-pair", "sr3-low", "sr3-high", "zg1-zcand", "zg3-zcand",
-                      "wz1-zcand", "wz3-zcand", *PRIVATE_WORK_EXTRA_PLOTS]
+# plus kinematics, and the Z+nonprompt, Z+gamma and WZ control regions.
+PRIVATE_WORK_PLOTS = ["sr1-pair", "sr3-low", "sr3-high", "zfake1-zcand", "zfake3-zcand",
+                      "zg1-zcand", "zg3-zcand", "wz1-zcand", "wz3-zcand", "ttz-zcand",
+                      *PRIVATE_WORK_EXTRA_PLOTS]
 # Channels drawn both after (default) and before the ConvSF normalization, or
 # the WZNjetsSF reweighting. WZNjetsSF is Run3 only, so the Run2 "before" plot
 # would be the default one again and is not drawn.
@@ -132,9 +138,10 @@ def main():
     label_group = parser.add_mutually_exclusive_group()
     label_group.add_argument("--private-work", dest="private_work", action="store_true",
                         help="thesis version: 'Private work (CMS data)' label, SR masses split "
-                             "+ kinematics and the Z+gamma CRs (mass, l_conv pT/eta, "
+                             "+ kinematics, the Z+nonprompt CRs (mass, l_fake pT/eta), the Z+gamma CRs (mass, l_conv pT/eta, "
                              "after and before ConvSF -> NoConvSF/), the WZ CRs (mass, "
                              "leading-jet pT, N_j; before WZNjetsSF -> NoWZSF/ for Run3 and All) "
+                             "the ttZ CR (mass, mu/e1/j1 pT, j1 eta/phi, N_j, N_b, pTmiss) "
                              "for Run2, Run3 and "
                              "combined (All), written to plots/PW/{Run2,Run3,All}/{channel}/")
     label_group.add_argument("--preliminary", action="store_true",

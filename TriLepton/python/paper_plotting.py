@@ -94,6 +94,13 @@ CHANNEL_SIZE = 0.063
 # The longest caption, "Z+nonprompt CR", reaches as far as the Z peak at this
 # size, so the control regions get more headroom than the signal regions.
 CR_Y_HEADROOM_SCALE = 1.2
+# Thesis plots: one bin width per quantity in every region -- lepton and jet pT
+# in 10 GeV, their eta in 0.2. The rebin factor is derived from the filled
+# binning (render_paper_plot), so the width is what is stated here.
+PRIVATE_WORK_BIN_WIDTHS = (
+    (re.compile(r"^((electrons|muons|jets|bjets)/\d+|nonprompt|convLep)/pt$"), 10.0),
+    (re.compile(r"^((electrons|muons|jets|bjets)/\d+|nonprompt|convLep)/eta$"), 0.2),
+)
 ZG_ZCAND_TITLES = {
     "ZG1E2Mu": "m(e#mu#mu) [GeV]",
     "ZG3Mu": "m(#mu#mu#mu) [GeV]",
@@ -765,14 +772,35 @@ def set_integer_x_axis(canvas, config):
         pad.Update()
 
 
-def control_region_y_range(data, total, config):
-    """[0, headroom x the tallest of prediction (+ its error) and data (+ its
-    error)], over the displayed x range only, on the binning that is drawn
-    (ComparisonCanvas applies the config's rebin later, so it is applied to
-    copies here)."""
+def private_work_bin_width(histkey):
+    """Target bin width of a thesis plot, or None to keep histkeys.json's rebin."""
+    for pattern, width in PRIVATE_WORK_BIN_WIDTHS:
+        if pattern.match(histkey):
+            return width
+    return None
+
+
+def set_rebin_to_width(config, hist, width):
+    """Rebin factor that turns the filled binning of `hist` into `width`."""
+    axis = hist.GetXaxis()
+    native = (axis.GetXmax() - axis.GetXmin()) / axis.GetNbins()
+    factor = round(width / native)
+    if factor < 1 or abs(factor * native - width) > 1e-6 * width:
+        raise ValueError(f"{hist.GetName()}: bin width {width} is not a multiple of "
+                         f"the filled {native:g}")
+    if hist.GetNbinsX() % factor:
+        raise ValueError(f"{hist.GetName()}: {hist.GetNbinsX()} bins do not split into {factor}s")
+    config["rebin"] = factor
+
+
+def data_inclusive_y_range(data, total, config, signals=None):
+    """[0, headroom x the tallest of prediction (+ its error), data (+ its
+    error) and any signal], over the displayed x range only, on the binning that
+    is drawn (ComparisonCanvas applies the config's rebin later, so it is applied
+    to copies here)."""
     xmin, xmax = config["xRange"]
     y_max = 0.0
-    for hist in (data, total):
+    for hist in (data, total, *(signals or {}).values()):
         hist = hist.Clone(f"{hist.GetName()}_yrange")
         hist.SetDirectory(0)
         if config.get("rebin"):
@@ -790,16 +818,21 @@ def control_region_y_range(data, total, config):
 def render_paper_plot(channel, histkey, options):
     config = build_config(histkey, channel, options)
     data, bkgs, signals, total_syst = load_plot_objects(channel, histkey, config, options)
+    width = private_work_bin_width(histkey) if options.private_work else None
+    if width is not None:
+        set_rebin_to_width(config, data, width)
     adaptive_edges = apply_adaptive_binning(config, bkgs, options, histkey)
 
     output_path = build_output_path(channel, histkey, options)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if options.private_work and not channel.startswith("SR"):
-        # ComparisonCanvas sizes the axis on the prediction alone; in the
-        # higher-statistics control regions a data point above it would reach the
-        # caption, so the tallest data bar counts as well.
-        config["yRange"] = control_region_y_range(data, total_syst, config)
+    # ComparisonCanvas sizes the axis on the prediction alone, so a data point
+    # above it can reach the caption. Thesis plots therefore count the tallest
+    # data bar too: all control-region plots, and the signal-region lepton and
+    # jet pT/eta (left-peaked spectra under the caption). The signal-region masses
+    # keep the published layout.
+    if options.private_work and (not channel.startswith("SR") or width is not None):
+        config["yRange"] = data_inclusive_y_range(data, total_syst, config, signals)
 
     plotter = ComparisonCanvas(data, bkgs, config, total_syst=total_syst)
     plotter.drawPadUp()
