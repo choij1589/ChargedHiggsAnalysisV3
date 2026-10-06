@@ -109,7 +109,7 @@ def _save(canv, outdir, name):
 
 
 def _save_both(canv, outdir, name):
-    """PNG + PDF, the results/plots convention (plotBreakdown.py)."""
+    """PNG + PDF, the plots/ convention (plotBreakdown.py)."""
     os.makedirs(outdir, exist_ok=True)
     base = os.path.join(outdir, name)
     canv.SaveAs(f"{base}.png")

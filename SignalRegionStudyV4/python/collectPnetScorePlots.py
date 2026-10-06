@@ -8,7 +8,7 @@ region emitted by the per-channel jobs:
 
     templates/{seed}/ParticleNet/interp-signal/{era}/{channel}/scores/
         {region}/LR_modified.png
- -> results/plots/scores/{seed}/LR_modified_{era}_{channel}[_TTZ2E1Mu].png
+ -> plots/scores/{seed}/LR_modified_{era}_{channel}[_TTZ2E1Mu].png
 
   python3 python/collectPnetScorePlots.py [--eras Run2 Run3 All]
 """
@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--eras", nargs="+", default=ERAS)
     parser.add_argument("--output-dir",
                         default=os.path.join(srspaths.module_dir(),
-                                             "results", "plots", "scores"))
+                                             "plots", "scores"))
     args = parser.parse_args()
 
     n_copied, missing = 0, []

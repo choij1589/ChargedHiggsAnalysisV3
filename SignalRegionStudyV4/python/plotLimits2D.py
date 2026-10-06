@@ -364,7 +364,7 @@ _ch_suffix = "" if args.channel == "Combined" else f".{args.channel}"
 _source_infix = ("" if args.signal_source == "mc-signal"
                  else f".{args.signal_source}")
 _style_infix = ".smooth" if args.interpolate_mhc else ""
-output_base = (f"results/plots/{args.mode}/{args.era}/limit2D.{args.era}"
+output_base = (f"plots/{args.mode}/{args.era}/limit2D.{args.era}"
                f"{_ch_suffix}.{args.limit_type}."
                f"{srspaths.method_segment(args.method, args.blind)}"
                f"{_source_infix}{_style_infix}.{args.quantity}")

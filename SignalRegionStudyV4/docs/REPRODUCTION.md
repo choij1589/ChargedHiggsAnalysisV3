@@ -185,9 +185,9 @@ comparable. The `--mode` help strings of `collectLimits`/`plotLimits`/
 Regenerated: the six `results/json/xsec/All/*.interp-signal.json`
 (All x {Combined, SR1E2Mu, SR3Mu} x {Baseline, ParticleNet}; 2467/2467
 Baseline and 150/150 ParticleNet points parsed on every collect) and all
-126 files under `results/plots/xsec/`, with the `doThis.sh` Step 2 / Step
+126 files under `plots/xsec/`, with the `doThis.sh` Step 2 / Step
 5 invocations. Gates: **A** the 150 files under `results/json/BR/` and
-`results/plots/BR/` are checksum-identical; **B** every one of the 47 106
+`plots/BR/` are checksum-identical; **B** every one of the 47 106
 regenerated xsec values is bit-exactly twice its pre-fix value, with
 identical key sets; **C** xsec/BR = 2 x 833.9e3 = 1.6678e6 fb to 1.3 ulp
 (max relative deviation 2.8e-16, the two branches rounding in different

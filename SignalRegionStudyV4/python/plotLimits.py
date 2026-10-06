@@ -776,7 +776,7 @@ elif args.compare_mhc:
 else:
     _mode_suffix = f".MHc{args.mhc if args.mhc is not None else 160}"
 
-output_base = (f"results/plots/{args.mode}/{args.era}/limit.{args.era}"
+output_base = (f"plots/{args.mode}/{args.era}/limit.{args.era}"
                f"{_ch_suffix}.{args.limit_type}.{args.method}"
                f"{_source_infix}{_mode_suffix}")
 os.makedirs(os.path.dirname(output_base), exist_ok=True)

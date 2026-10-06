@@ -144,7 +144,7 @@ def parse_args():
                         default="interp-signal",
                         choices=("mc-signal", "interp-signal"),
                         help="template signal source (V4 production: interp-signal)")
-    parser.add_argument("--output-root", default="results/plots/paper/templates",
+    parser.add_argument("--output-root", default="plots/Paper/templates",
                         help="base output directory, relative to SignalRegionStudyV4 "
                              "unless absolute")
     parser.add_argument("--ratio-max", type=float, default=3.5,

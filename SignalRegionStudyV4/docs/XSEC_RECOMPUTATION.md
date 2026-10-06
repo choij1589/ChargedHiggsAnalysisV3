@@ -60,11 +60,11 @@ Eq. (sigma_sig) identity, and update the `--mode` help string
    files exist today). Mirror the exact file set currently present —
    check `docs/REPRODUCTION.md` and the collectLimits/plot command
    history there for the invocations used in production.
-2. Regenerate every plot under `results/plots/xsec/` with
+2. Regenerate every plot under `plots/xsec/` with
    `plotLimits.py` and `plotLimits2D.py` (per-mHc 1D panels used by the
    AN main text and per-channel appendix figures, plus the 2D maps).
    The y/z-axis labels already say [fb] and stay unchanged.
-3. Leave `results/json/BR/` and `results/plots/BR/` strictly untouched.
+3. Leave `results/json/BR/` and `plots/BR/` strictly untouched.
 
 ## Gates (fail loudly)
 

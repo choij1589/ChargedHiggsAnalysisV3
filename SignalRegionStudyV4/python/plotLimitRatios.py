@@ -120,7 +120,7 @@ leg = CMS.cmsLeg(0.65, 0.90 - 0.05 * len(graphs), 0.90, 0.90, textSize=0.035)
 for mhc, g in graphs:
     leg.AddEntry(g, f"m_{{H^{{+}}}} = {mhc} GeV", "lp")
 
-output_base = (f"results/plots/BR/{args.era}/limit_ratio.{args.era}{_ch_suffix}"
+output_base = (f"plots/BR/{args.era}/limit_ratio.{args.era}{_ch_suffix}"
                f".{args.limit_type}{_source_infix}")
 canv.SaveAs(f"{output_base}.png")
 canv.SaveAs(f"{output_base}.pdf")

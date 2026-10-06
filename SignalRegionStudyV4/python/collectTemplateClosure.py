@@ -8,7 +8,7 @@ same rule collectPnetScorePlots.py applies to the LR panels:
     templates/{mp}/{method}/interp-signal/{era}/{channel}/closure/
         closure.{channel}_{era}.{png,pdf}
       ->
-    results/plots/closure/{method}/{masspoint}/closure.{channel}_{era}.{png,pdf}
+    plots/closure/{method}/{masspoint}/closure.{channel}_{era}.{png,pdf}
 
 Scope is the mass points that have MC -- configs/masspoints.json 'baseline'
 (78) and 'particlenet' (17) -- times {Run2, Run3} x {SR1E2Mu, SR3Mu}.
@@ -77,7 +77,7 @@ def main():
     parser.add_argument("--channels", nargs="+", default=CHANNELS)
     parser.add_argument("--output-dir",
                         default=os.path.join(srspaths.module_dir(),
-                                             "results", "plots", "closure"))
+                                             "plots", "closure"))
     args = parser.parse_args()
 
     if args.point:

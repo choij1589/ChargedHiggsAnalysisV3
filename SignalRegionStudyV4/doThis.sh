@@ -249,14 +249,14 @@ python3 python/plotGoFPValues.py --all
 #     (V3 coverage: {Run2,Run3,All} x {SR1E2Mu,SR3Mu,Combined} per seed,
 #     TTZ2E1Mu CR auto-emitted by the per-channel jobs; 27 nodes per mHc):
 ./automize/pnetScorePlots.sh --all
-python3 python/collectPnetScorePlots.py   # LR_modified -> results/plots/scores/
+python3 python/collectPnetScorePlots.py   # LR_modified -> plots/scores/
 
 # 5f. FitDiagnostics + prefit/postfit + pulls per GROUP SEED, both arms
 #     (members share the seed's backgrounds bitwise, so seeds carry the
 #     fit validation; All/Combined, V3 convention; 3 nodes per seed):
 ./automize/interpFitDiag.sh --all --method ParticleNet    # 15 seeds, 45 nodes
 ./automize/interpFitDiag.sh --all                         # Baseline: 572 seeds, 1716 nodes
-# Stitched per-mHc summary panels -> results/plots/postfit_summary/.
+# Stitched per-mHc summary panels -> plots/postfit_summary/.
 # The summary stitches EVERY group seed of the study (Baseline: 64 at mHc70
 # to 95 at mHc160; ParticleNet: those 3 on top), not just the seeds of the
 # mc_points -- that earlier restriction left the panel mostly empty.
@@ -289,7 +289,7 @@ python3 python/collectPnetScorePlots.py   # LR_modified -> results/plots/scores/
 # Vector PDFs in the publication style, ported from V3 2026-08-18. Wording,
 # colours and legend geometry are defined once in plotPaperLRModified.py and
 # imported by the other two, so the figure sets cannot drift apart. All three
-# default to --signal-source interp-signal. Output: results/plots/paper/.
+# default to --signal-source interp-signal. Output: plots/Paper/.
 #
 # Light enough for the login node: the LR panels read the cached score
 # histograms plotParticleNetScore.py leaves under templates/.../scores/, and
@@ -364,7 +364,7 @@ python3 python/collectSignificance.py --template-points $SIG_POINTS
 # cannot resolve the crossing. That and the shared best-fit snapshot are the
 # two departures from V3 -- which never actually ran this study at all.
 python3 python/collectBreakdown.py --template-points
-python3 python/plotBreakdown.py            # -> results/plots/breakdown/
+python3 python/plotBreakdown.py            # -> plots/breakdown/
 # collectBreakdown recomputes the components with the same spline
 # plot1DScan.py uses, so the JSON and the panel cannot disagree; a negative
 # quadrature subtraction is recorded as null, never zero. docs/BREAKDOWN.md.
@@ -383,7 +383,7 @@ python3 python/plotBreakdown.py            # -> results/plots/breakdown/
 # mc_points of the two grids, x {Run2,Run3} x {SR1E2Mu,SR3Mu}.
 ./automize/templateClosure.sh --method Baseline        # 312 nodes, ~1 min each
 ./automize/templateClosure.sh --method ParticleNet     #  68 nodes
-python3 python/collectTemplateClosure.py               # -> results/plots/closure/
+python3 python/collectTemplateClosure.py               # -> plots/closure/
 # These points are IN-SAMPLE (the surfaces were fitted using them), so this is
 # a production-model closure; closure/interpolation/loo/ stays the
 # out-of-sample statement. CLAUDE.md section 12.
@@ -422,7 +422,7 @@ python3 python/collectSignificance.py --grid --pnet-grid
 # not a trials count and the toy recipe would cost ~68,000 CPU-h. Scope is
 # frozen at the mA scan ALONE, per (arm, channel, mHc) column.
 python3 python/estimateLEE.py              # -> results/json/lee.All.interp-signal.json
-python3 python/plotLEE.py --all            # -> results/plots/lee/
+python3 python/plotLEE.py --all            # -> plots/lee/
 # --statistic bandpull runs the whole thing off the limit JSONs instead, with
 # no Significance fits at all; it is the cross-check, ~0.3 sigma noisier.
 # Method, results and caveats: docs/LEE.md.

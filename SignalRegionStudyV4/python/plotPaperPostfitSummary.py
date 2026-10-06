@@ -88,7 +88,7 @@ FIT_STAGE_LABEL = "B-only post-fit"
 
 # --- Full-range panel -------------------------------------------------------
 # One stitched b-only spectrum over the whole mA reach, following
-# results/plots/postfit_summary/mHc160/ParticleNet/
+# plots/postfit_summary/mHc160/ParticleNet/
 # postfit_summary.mHc160.All.{channel}.ParticleNet.postfit_b.unblind.pdf and
 # redrawn in the paper style. This is the published postfit figure; the three
 # mA windows (REGIONS, --mode regions) are kept for diagnostics.
@@ -133,7 +133,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Create paper b-only postfit summary PDFs for mHc=160."
     )
-    parser.add_argument("--output-root", default="results/plots/paper/Postfit")
+    parser.add_argument("--output-root", default="plots/Paper/Postfit")
     parser.add_argument("--mode", choices=("full-range", "regions"),
                         default="full-range",
                         help="'full-range' is the published panel: one stitched "

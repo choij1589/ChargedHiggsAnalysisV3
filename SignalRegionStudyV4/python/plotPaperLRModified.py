@@ -166,10 +166,10 @@ PRELIMINARY_CHANNEL_POS = (CHANNEL_POS[0], CHANNEL_POS[1] - 0.05)
 # style, placed by cmsstyle at iPos=11, with the caption beneath it as in the
 # TriLepton / DiLepton PW plots.
 PRIVATE_WORK_TEXT = "Private work (CMS data)"
-PRIVATE_WORK_OUTPUT_ROOT = f"results/plots/PW/{SCORE_KEY}"
+PRIVATE_WORK_OUTPUT_ROOT = f"plots/PW/{SCORE_KEY}"
 # Paper and --preliminary panels; the other paper figure sets keep their own
-# directories under results/plots/paper/.
-PAPER_OUTPUT_ROOT = f"results/plots/paper/{SCORE_KEY}"
+# directories under plots/Paper/.
+PAPER_OUTPUT_ROOT = f"plots/Paper/{SCORE_KEY}"
 PRIVATE_WORK_RATIO_LABEL = "Obs. / Pred."
 PRIVATE_WORK_CHANNEL_POS = (0.22, 0.75)
 # The paper legend, lowered a little further from the label line.
@@ -236,7 +236,7 @@ def parse_args():
         "--output-root",
         default=None,
         help=("base output directory, relative to SignalRegionStudyV4 unless absolute "
-              "(default: results/plots/paper/LR_modified, or results/plots/PW/LR_modified with --private-work)"),
+              "(default: plots/Paper/LR_modified, or plots/PW/LR_modified with --private-work)"),
     )
     parser.add_argument(
         "--signal-source", dest="signal_source", default="interp-signal",

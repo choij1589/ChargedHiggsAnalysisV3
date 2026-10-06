@@ -79,7 +79,7 @@ def load_curves(args):
 
 
 def base_name(kind, args, method, mhc):
-    outdir = os.path.join(srspaths.module_dir(), "results", "plots", "lee")
+    outdir = os.path.join(srspaths.module_dir(), "plots", "lee")
     os.makedirs(outdir, exist_ok=True)
     stat = "" if args.statistic == "significance" else "bandpull."
     return os.path.join(outdir, f"{kind}.{args.era}.{method}.{stat}"

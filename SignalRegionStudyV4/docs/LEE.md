@@ -9,7 +9,7 @@ over 5 mHc, each at All × {Combined, SR1E2Mu, SR3Mu}.
 
 Source of record: `results/json/lee.All.interp-signal.json`, written by
 `python/estimateLEE.py` from `results/json/significance.All.interp-signal.json`.
-Diagnostic panels: `results/plots/lee/`.
+Diagnostic panels: `plots/lee/`.
 
 ---
 

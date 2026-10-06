@@ -339,7 +339,7 @@ All numbers reproducible from the committed artifacts
 - **Score distributions** (2026-08-15): 135/135 nodes — every seed at
   {Run2, Run3, All} x {SR1E2Mu, SR3Mu, Combined} with the TTZ2E1Mu CR,
   8 panels each, cut/window/weights from the frozen WP; LR_modified
-  panels collected to `results/plots/scores/` (225 files).
+  panels collected to `plots/scores/` (225 files).
 - **FitDiagnostics + prefit/postfit + pulls** (2026-08-15, both arms at
   group seeds, All/Combined): ParticleNet 45/45 and Baseline 1716/1716
   nodes — 587 fitDiagnostics roots, 26 415 prefit/postfit pngs (45 per
@@ -348,7 +348,7 @@ All numbers reproducible from the committed artifacts
   --signal-source interp-signal`, DCB from the param_signal sidecar)
   closes on the shapes.root normalization at 2e-16. Stitched per-mHc
   summaries (`plotPostfitSummary.py`, V3 port) in
-  `results/plots/postfit_summary/`.
+  `plots/postfit_summary/`.
 
 ## Known limitations
 

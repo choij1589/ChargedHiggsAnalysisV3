@@ -208,7 +208,7 @@ def plot_mhc(mhc, args):
     # longer specific to either; single-method runs keep it. Keyed on the
     # REQUEST, not on `overlay`, so mHc 70 and 85 -- which have no
     # ParticleNet grid -- are named like the rest of the campaign.
-    outdir = "results/plots/gof"
+    outdir = "plots/gof"
     os.makedirs(outdir, exist_ok=True)
     method_token = "" if both_arms else f"{args.method}."
     base = (f"{outdir}/pvalue.{args.era}.{method_token}"

@@ -271,7 +271,7 @@ python3 python/plotGoFPValues.py --all        # p-value vs mA per mHc
 
 Outputs under the seed's target dir: `combine_output/gof/{gof.json,
 gof_plot.png}` and `combine_output/impacts_obs/{impacts.pdf,
-impacts_filtered.pdf}`; summaries in `results/plots/gof/`. The gate:
+impacts_filtered.pdf}`; summaries in `plots/gof/`. The gate:
 every DAG STATUS 0, p-values populated (floor 0.5/ntoys), no `prop_bin`
 in the filtered impacts.
 

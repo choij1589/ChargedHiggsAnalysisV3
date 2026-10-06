@@ -61,7 +61,7 @@ def parse_args():
                         help="Postfit variant to draw")
     parser.add_argument("--bin-width", type=float, default=1.0,
                         help="Summary bin width in GeV")
-    parser.add_argument("--output-dir", default="results/plots/postfit_summary")
+    parser.add_argument("--output-dir", default="plots/postfit_summary")
     parser.add_argument("--signal-line", choices=["none", "median"], default="none",
                         help="Overlay a signal template line; 'median' uses the available mass point nearest the median mA")
     parser.add_argument("--signal-mass", nargs="+", type=int, default=list(SIGNAL_REGION_MAS),

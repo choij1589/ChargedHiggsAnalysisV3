@@ -239,7 +239,7 @@ def main():
     components = nuisanceGroups.component_names(config)
     labels = nuisanceGroups.component_labels(config)
     outdir = args.outdir or os.path.join(
-        srspaths.module_dir(), "results", "plots", "breakdown")
+        srspaths.module_dir(), "plots", "breakdown")
     draw(record, args.era, args.channel, components, labels, outdir)
 
 

@@ -80,7 +80,7 @@ are not part of any production workflow.
   against the signal MC filled onto the SAME production adaptive binning,
   at the 78 Baseline / 17 ParticleNet mass points that have MC, with the
   full `CMS_interp_*` up/down band drawn separately from the MC
-  statistical error. Promoted to `results/plots/closure/`
+  statistical error. Promoted to `plots/closure/`
 - Paper figures, ported from V3 2026-08-18 (`python/plotPaperLRModified.py`
   — SR and TTZ CR LR_modified panels plus the standalone legend;
   `python/plotPaperTemplates.py` — prefit/B-only/S+B mass templates per
@@ -88,7 +88,7 @@ are not part of any production workflow.
   summary in the three paper mA regions). Wording, colours and legend
   machinery are defined once in `plotPaperLRModified.py` and imported by
   the other two, so the figure sets cannot drift apart. Output:
-  `results/plots/paper/`
+  `plots/Paper/`
 - Reproduction comparison against V3 (`python/compareToV3.py`,
   `scripts/compare_wrapper.sh`), and the V3 limit overlay on the Combined
   per-mHc limit panels (`python/plotLimitsCompareV3.py`)

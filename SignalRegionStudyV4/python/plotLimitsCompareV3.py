@@ -373,7 +373,7 @@ print(f"{args.method} MHc{args.mhc}: {len(v3_points)} V3 points"
       f"obs median {statistics.median(ratio['obs']):.3f} "
       f"[{min(ratio['obs']):.3f}, {max(ratio['obs']):.3f}]")
 
-output_base = (f"results/plots/{args.mode}/{ERA}/limit.{ERA}.Asymptotic."
+output_base = (f"plots/{args.mode}/{ERA}/limit.{ERA}.Asymptotic."
                f"{args.method}.interp-signal.MHc{args.mhc}.compareV3")
 os.makedirs(os.path.dirname(output_base), exist_ok=True)
 canv.SaveAs(f"{output_base}.png")

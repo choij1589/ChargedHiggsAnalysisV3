@@ -3,9 +3,9 @@
 "Preliminary" and --compare-mhc (paper figures never draw that overlay).
 
 Kept as a separate script rather than a flag on plotLimits.py so the two
-output trees never collide -- plotLimits.py's results/plots/{mode}/{era}/
+output trees never collide -- plotLimits.py's plots/{mode}/{era}/
 stays the internal/preliminary version, this one writes under
-results/plots/paper/Limits/, the same convention plotPaperLRModified.py,
+plots/Paper/Limits/, the same convention plotPaperLRModified.py,
 plotPaperTemplates.py and plotPaperPostfitSummary.py use. Every remaining
 option and layout constant matches plotLimits.py's Brazilian-panel path.
 Differences from plotLimits.py: no "Preliminary"; always reads the
@@ -859,7 +859,7 @@ def draw_combined_mhc_grid():
     y_title.DrawLatex(COMBINE_Y_TITLE_X, top_frame_top, COMBINE_Y_TITLE)
     keepalive.append(y_title)
 
-    output_base = (f"results/plots/paper/Limits/{args.mode}/{args.era}/"
+    output_base = (f"plots/Paper/Limits/{args.mode}/{args.era}/"
                   f"limit.{args.era}{_ch_suffix}.combineMHc")
     os.makedirs(os.path.dirname(output_base), exist_ok=True)
     canv.SaveAs(f"{output_base}.pdf")
@@ -1074,13 +1074,13 @@ else:
 _mode_suffix = (f".MHc{args.mhc}" if args.mhc is not None
                else f".MHc{160}" if args.method == "Baseline" else "")
 
-# Under results/plots/paper/ -- the tree every plotPaper*.py script writes to
+# Under plots/Paper/ -- the tree every plotPaper*.py script writes to
 # (plotPaperLRModified.py, plotPaperTemplates.py, plotPaperPostfitSummary.py)
-# -- rather than plotLimits.py's results/plots/{mode}/{era}/, so the two
+# -- rather than plotLimits.py's plots/{mode}/{era}/, so the two
 # scripts' outputs never collide. "Asymptotic" and the source infix are
 # dropped from the name (unlike the INPUT path above): both are fixed, so
 # encoding them here would only be noise.
-output_base = (f"results/plots/paper/Limits/{args.mode}/{args.era}/limit.{args.era}"
+output_base = (f"plots/Paper/Limits/{args.mode}/{args.era}/limit.{args.era}"
                f"{_ch_suffix}.{args.method}{_mode_suffix}")
 os.makedirs(os.path.dirname(output_base), exist_ok=True)
 

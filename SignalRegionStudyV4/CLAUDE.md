@@ -45,6 +45,9 @@ samples/{era}/{channel}/{masspoint}/         ParticleNet per-masspoint dirs (sco
                                              NoHistMode skims; incl. TTZ2E1Mu)
 templates/{masspoint}/{method}/{era}/{channel}/
 results/json/{BR,xsec}/{era}/limits.{era}[.{channel}].Asymptotic.{method}.json
+plots/                                       every plot (not under results/): {BR,xsec}/ limits,
+                                             Paper/ paper + preliminary, PW/ thesis,
+                                             breakdown/ closure/ gof/ lee/ postfit_summary/ scores/
 results/templates/{method}/{masspoint}/      promoted diagnostics of the curated template
                                              points: gof/ impacts/ pulls/ mass/ scores/
 fits/MHc{X}/                                 mA-interpolation fit artifacts (dcb_fits, polynomials,
@@ -184,7 +187,7 @@ the quoted points:
 ./automize/significance.sh --pnet-grid     #  150 x 3
 python3 python/collectSignificance.py --grid --pnet-grid
 python3 python/estimateLEE.py              # -> results/json/lee.{era}.{source}.json
-python3 python/plotLEE.py --all            # -> results/plots/lee/
+python3 python/plotLEE.py --all            # -> plots/lee/
 ```
 
 **Asymptotic (Gross-Vitells), not V3's toys**, and that follows from the
@@ -218,7 +221,7 @@ backgrounds bitwise) via `./automize/interpFitDiag.sh --all
 [--method ParticleNet]`; `plotPostfitMass.py --signal-source interp-signal`
 refills the parametric signal from the `param_signal` DCB sidecar.
 Stitched per-mHc panels: `./automize/postfitSummary.sh --all` then
-`--all --method ParticleNet` → `results/plots/postfit_summary/`. The
+`--all --method ParticleNet` → `plots/postfit_summary/`. The
 summary stitches EVERY group seed of the study (Baseline 64-95,
 ParticleNet those 3 on top); building a seed's fine-mass hists is the
 whole cost and is per-seed independent, so the DAG fans it out
@@ -293,7 +296,7 @@ Interp arm: `--signal-source interp-signal` reads the per-mHc
 shared-scores dirs and the frozen eps_B=20% WP — driver
 `./automize/pnetScorePlots.sh --all` (every seed x {Run2,Run3,All} x
 {SR1E2Mu,SR3Mu,Combined} + TTZ2E1Mu CR), collector
-`python3 python/collectPnetScorePlots.py` → `results/plots/scores/`.
+`python3 python/collectPnetScorePlots.py` → `plots/scores/`.
 
 ### 9. Collect and plot limits
 
@@ -396,16 +399,16 @@ live in `automize/dag_lib.sh`; mass-point arrays come from
 Ported from V3 2026-08-18. Vector PDFs in the publication style, all
 three sharing one set of wording/colour/legend constants defined in
 `plotPaperLRModified.py` (the other two import them, so the figure sets
-cannot drift apart). Output root `results/plots/paper/`.
+cannot drift apart). Output root `plots/Paper/`.
 
 ```bash
-python3 python/plotPaperLRModified.py --masspoint all   # SR only -> results/plots/paper/LR_modified/SR/
+python3 python/plotPaperLRModified.py --masspoint all   # SR only -> plots/Paper/LR_modified/SR/
 # Preliminary version of the three SR panels ("CMS" + "Preliminary", caption
-# lowered by one line) -> results/plots/paper/LR_modified/SR/LR_modified_<mp>_preliminary.pdf
+# lowered by one line) -> plots/Paper/LR_modified/SR/LR_modified_<mp>_preliminary.pdf
 python3 python/plotPaperLRModified.py --preliminary
 # Thesis (private-work) LR panels, SR + TTZ CR, Run2+Run3 combined: paper
 # layout (two-column legend) with the iPos=11 PW label and caption
-# -> results/plots/PW/LR_modified/{SR,TTZCR}/; --masspoint pnet-seeds draws all
+# -> plots/PW/LR_modified/{SR,TTZCR}/; --masspoint pnet-seeds draws all
 # 15 nets (the pnet_grid.json group seeds) instead of the three paper points
 python3 python/plotPaperLRModified.py --private-work [--masspoint pnet-seeds]
 python3 python/plotPaperTemplates.py --masspoint MHc130_MA90 --method ParticleNet
@@ -415,9 +418,9 @@ python3 python/plotPaperPostfitSummary.py            # mHc160, ParticleNet, b-on
 `plotPaperPostfitSummary.py` has two modes. **`--mode full-range` (default)**
 is the published panel — ONE stitched b-only spectrum over the whole mA reach
 for `Combined` (e-mu-mu + mu-mu-mu), written to
-`results/plots/paper/Postfit/postfit_b_only.pdf` (a single channel carries a
+`plots/Paper/Postfit/postfit_b_only.pdf` (a single channel carries a
 filename token, `Combined` does not). It follows
-`results/plots/postfit_summary/mHc160/ParticleNet/postfit_summary.mHc160.All.
+`plots/postfit_summary/mHc160/ParticleNet/postfit_summary.mHc160.All.
 Combined.ParticleNet.postfit_b.unblind.pdf`: same content and the same two
 dashed verticals marking where the panel hands over between the Baseline and
 ParticleNet arms, redrawn in the paper style. Specifics: 16:9 canvas
@@ -467,7 +470,7 @@ Nothing on this panel is at a fixed NDC, because the margins above move:
 
 `--mode regions` is the older split into the three mA windows, kept for
 diagnostics; its nine panels were archived to
-`results/plots/paper/BackUps/V5/` on 2026-09-03.
+`plots/Paper/BackUps/V5/` on 2026-09-03.
 
 All three default to `--signal-source interp-signal` (the V4 production
 arm) and resolve every path through `srspaths`. The legend is drawn
@@ -595,7 +598,7 @@ that comparison, drawn on the **final production adaptive binning**:
 ```bash
 ./automize/templateClosure.sh --method Baseline        # 78 pts x 4 cats = 312 nodes
 ./automize/templateClosure.sh --method ParticleNet     # 17 pts x 4 cats =  68
-python3 python/collectTemplateClosure.py               # -> results/plots/closure/
+python3 python/collectTemplateClosure.py               # -> plots/closure/
 ```
 
 Scope is `configs/masspoints.json` `baseline` (78) and `particlenet` (17)
@@ -668,7 +671,7 @@ node. Use it for styling changes; the numbers are recomputed from the
 cached histograms and the JSON's metadata fields carry over from the full
 run that wrote the cache.
 `collectTemplateClosure.py` promotes the figures only, to
-`results/plots/closure/{method}/{masspoint}/`, and exits 1 listing every
+`plots/closure/{method}/{masspoint}/`, and exits 1 listing every
 missing source.
 
 **Campaign result (2026-08-19, 380 categories, all nodes clean).**
@@ -752,7 +755,7 @@ markers. Axis ceiling and panel shape match the production panel (square for
 mHc ≤ 100, 900x600 above), and a V3 point above the ceiling raises. The
 panel code is a copy of `plotLimits.py`'s Combined path, because that script
 runs at module level, so keep the two in step. Output
-`results/plots/{mode}/All/limit.All.Asymptotic.{method}.interp-signal.MHc{X}.compareV3.{png,pdf}`.
+`plots/{mode}/All/limit.All.Asymptotic.{method}.interp-signal.MHc{X}.compareV3.{png,pdf}`.
 Stdout gives V4/V3 per panel; the exp0 median runs 0.98–1.04 across the 12
 panels.
 
