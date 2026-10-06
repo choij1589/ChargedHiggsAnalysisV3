@@ -48,6 +48,13 @@ python python/measFakeRate.py --era 2018 --measure electron --isTT    # TT MC
 # Step 3: Plot fake rates
 python python/plotFakeRate.py --era 2018 --measure electron
 
+# Paper figures of the data fake rate, {electron, muon} for 2018 (paper and
+# preliminary) or every era (private work); --era / --measure override it.
+# Same plot, only the label differs:
+python python/plotPaperFakeRate.py                  # "CMS" -> plots/Paper/fakerate_{measure}_{era}.pdf
+python python/plotPaperFakeRate.py --preliminary    # "CMS Preliminary" (PAS) -> plots/Paper/fakerate_{measure}_{era}_preliminary.pdf
+python python/plotPaperFakeRate.py --private-work   # "Private work (CMS data)" (thesis) -> plots/PW/fakerate_{measure}_{era}.pdf
+
 # Step 4: Validation plots
 python python/plotValidation.py --era 2018 --measure electron
 
@@ -80,6 +87,7 @@ MeasFakeRateV4/
 │   ├── parseIntegral.py            # ROOT histograms → JSON integrals
 │   ├── measFakeRate.py             # Core fake rate calculation (data + MC modes)
 │   ├── plotFakeRate.py             # 2D fake rate histogram → 1D projections
+│   ├── plotPaperFakeRate.py        # Paper / preliminary / private-work fake rate PDFs
 │   ├── plotValidation.py           # Data vs MC comparison plots
 │   ├── plotClosure.py              # Closure test with chi-squared validation
 │   └── plotSystematics.py          # Systematic uncertainty plots per eta bin
@@ -172,6 +180,7 @@ Histogram structure: `{ptcorr_bin}/{region}/{trig_prefix}/{wp}/{syst}/{histname}
 MeasFakeRateV4/results/{era}/JSON/{measure}/    # Intermediate integrals
 MeasFakeRateV4/results/{era}/ROOT/{measure}/    # 2D fake rate histograms
 MeasFakeRateV4/plots/{era}/{measure}/           # Validation plots
+MeasFakeRateV4/plots/{Paper,PW}/fakerate_{measure}_{era}[_preliminary].pdf  # plotPaperFakeRate.py
 ```
 
 ## Key Differences from MeasFakeRateV3
