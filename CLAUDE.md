@@ -94,7 +94,8 @@ and `DiLepton/python/plot.py --private-work`. **Reference outputs:**
   - Per-run luminosity from `LumiInfo`/`EnergyInfo`.
   - For Run2+Run3 (`--era All`), set `CoM = "<Run3> TeV"` and `run_label = "<L2> fb^{#minus1} (<E2> TeV) + <L3> fb^{#minus1}"`.
 - **Ratio:**
-  - `rTitle = "Obs. / Pred."`.
+  - `rTitle = "Obs. / Pred."` for PW, `"Data / Pred."` for the paper and preliminary
+    (TriLepton `paper_plotting.py`).
   - The uncertainty band is labelled `systSrc = "Stat.+Syst."` (hatch 3004, colour 12).
 - **Data points:** `dataErrorX0 = True` for equal-width bins, with `maxDigits = 3`.
 - **Legend (data + backgrounds):**

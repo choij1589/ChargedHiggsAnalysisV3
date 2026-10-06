@@ -50,8 +50,10 @@ python python/plot.py --era Run2 --channel WZ1E2Mu --histkey jets/size --exclude
 #  in paper_plotting.py); the rest keeps configs/histkeys.json's rebin.
 python python/plotPaperMass.py --private-work
 
-# Preliminary ("CMS Preliminary") versions of the paper CR masses, written next
-# to the paper PDFs as plots/Paper/All/{CR}/Central/ZCand_mass_preliminary.pdf
+# Preliminary ("CMS Preliminary", for the PAS) versions of the paper SR and CR
+# masses, written next to the paper PDFs as <histkey>_preliminary.pdf, e.g.
+# plots/Paper/All/SR3Mu/Central/pair_lowM_mass_preliminary.pdf and
+# plots/Paper/All/{CR}/Central/ZCand_mass_preliminary.pdf
 python python/plotPaperMass.py --preliminary
 
 # Event yield extraction

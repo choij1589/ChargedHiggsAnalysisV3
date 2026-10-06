@@ -29,11 +29,15 @@ PAPER_PLOTS = {
     "sr3-high": ("SR3Mu", "pair_highM/mass"),
     "zfake1-zcand": ("ZFake1E2Mu", "ZCand/mass"),
     "zfake3-zcand": ("ZFake3Mu", "ZCand/mass"),
+    "ttz-zcand": ("TTZ2E1Mu", "ZCand/mass"),
+}
+# The Z+gamma and WZ control-region masses are thesis-only: the paper and PAS do
+# not show them.
+PRIVATE_WORK_MASS_PLOTS = {
     "zg1-zcand": ("ZG1E2Mu", "ZCand/mass"),
     "zg3-zcand": ("ZG3Mu", "ZCand/mass"),
     "wz1-zcand": ("WZ1E2Mu", "ZCand/mass"),
     "wz3-zcand": ("WZ3Mu", "ZCand/mass"),
-    "ttz-zcand": ("TTZ2E1Mu", "ZCand/mass"),
 }
 # Thesis-only kinematics, drawn with the same style as the masses. Leptons are
 # stored per flavour, so eμμ's three leptons are e1, mu1, mu2.
@@ -65,6 +69,8 @@ PRIVATE_WORK_EXTRA_PLOTS = {
     for prefix, (channel, histkeys) in kinematics.items()
     for histkey in histkeys
 }
+# Every plot that only the thesis makes.
+PRIVATE_WORK_ONLY_PLOTS = {**PRIVATE_WORK_MASS_PLOTS, **PRIVATE_WORK_EXTRA_PLOTS}
 
 # Thesis (private-work) figures, per run and combined: the signal-region masses
 # plus kinematics, and the Z+nonprompt, Z+gamma and WZ control regions.
@@ -78,9 +84,8 @@ CONV_SF_CHANNELS = ("ZG1E2Mu", "ZG3Mu")
 WZ_SF_CHANNELS = ("WZ1E2Mu", "WZ3Mu")
 WZ_SF_ERAS = ("Run3", "All")
 PRIVATE_WORK_ERAS = ["Run2", "Run3", "All"]
-# Preliminary (CMS Preliminary) versions of the paper control-region masses.
-PRELIMINARY_PLOTS = [key for key, (channel, _) in PAPER_PLOTS.items()
-                     if not channel.startswith("SR")]
+# Preliminary (CMS Preliminary) versions of the paper masses, for the PAS.
+PRELIMINARY_PLOTS = list(PAPER_PLOTS)
 
 DEFAULT_SIGNALS = ["MHc70_MA15", "MHc100_MA60", "MHc130_MA90", "MHc160_MA155"]
 
@@ -90,7 +95,7 @@ LEGEND_KEY = "legend"
 
 
 def selected_plots(selection, private_work=False, preliminary=False):
-    plots = {**PAPER_PLOTS, **PRIVATE_WORK_EXTRA_PLOTS}
+    plots = {**PAPER_PLOTS, **PRIVATE_WORK_ONLY_PLOTS}
     if selection == "all":
         if private_work:
             keys = PRIVATE_WORK_PLOTS
@@ -111,7 +116,7 @@ def main():
         description="Produce isolated Run 2+3 paper PDF plots for selected mass distributions."
     )
     parser.add_argument("--plot", choices=["all", LEGEND_KEY, *PAPER_PLOTS.keys(),
-                                                *PRIVATE_WORK_EXTRA_PLOTS.keys()], default="all",
+                                                *PRIVATE_WORK_ONLY_PLOTS.keys()], default="all",
                         help="which paper plot to produce ('legend' = shared legend panel only)")
     parser.add_argument("--output-root", default=None,
                         help="base output directory (default: $WORKDIR/TriLepton/plots/Paper)")
@@ -145,7 +150,7 @@ def main():
                              "for Run2, Run3 and "
                              "combined (All), written to plots/PW/{Run2,Run3,All}/{channel}/")
     label_group.add_argument("--preliminary", action="store_true",
-                             help="paper layout with 'CMS Preliminary', control regions only, "
+                             help="paper layout with 'CMS Preliminary', signal- and control-region masses, "
                                   "written next to the paper PDF as <histkey>_preliminary.pdf")
     parser.add_argument("--debug", action="store_true", help="debug mode")
     parser.add_argument("--dry-run", action="store_true",
@@ -157,7 +162,7 @@ def main():
         parser.error(f"--preliminary only makes {', '.join(PRELIMINARY_PLOTS)}")
     if args.preliminary and not args.legends:
         parser.error("--preliminary draws its legends in the plots; drop --no-legends")
-    if not args.private_work and args.plot in PRIVATE_WORK_EXTRA_PLOTS:
+    if not args.private_work and args.plot in PRIVATE_WORK_ONLY_PLOTS:
         parser.error(f"--plot {args.plot} is a thesis plot; add --private-work")
 
     default_root = "PW" if args.private_work else "Paper"

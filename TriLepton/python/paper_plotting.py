@@ -59,6 +59,10 @@ BKG_LABELS = {
 SIGNAL_LINE_WIDTH = 3
 SIGNAL_COLORS = ["#d81b60", "#2ca02c", "#000000", "#0099b4"]
 DATA_LABEL = "Data"
+# Ratio-pad title: the paper (and preliminary) figures say "Data", the thesis
+# figures keep "Obs.".
+PAPER_RATIO_TITLE = "Data / Pred."
+PRIVATE_WORK_RATIO_TITLE = "Obs. / Pred."
 SYST_LABEL = "Stat.+Syst."
 # Uncertainty band style, mirrored from ComparisonCanvas.drawPadUp so the shared
 # legend panel shows the same hatching as the plots.
@@ -296,7 +300,7 @@ def build_config(histkey, channel, options):
                                f"{LumiInfo['Run3']:g} fb^{{#minus1}}")
     else:
         config["CoM"] = EnergyInfo[options.era]
-    config["rTitle"] = "Obs. / Pred."
+    config["rTitle"] = PRIVATE_WORK_RATIO_TITLE if options.private_work else PAPER_RATIO_TITLE
     # Enough headroom that the stack stays clear of the in-plot legends.
     config["yHeadroom"] = options.y_headroom
     # Signal regions are statistics-limited over most of the mass range, so the

@@ -5,7 +5,7 @@ in the paper and in slides. The plotting itself lives in `python/paper_plotting.
 the entry point only picks which figures to make.
 
 ```bash
-python python/plotPaperMass.py                    # all 10 plots + both legend panels
+python python/plotPaperMass.py                    # all 6 plots + both legend panels
 python python/plotPaperMass.py --plot sr1-pair    # one figure
 python python/plotPaperMass.py --plot legend      # the standalone legend panels only
 python python/plotPaperMass.py --dry-run          # print the output paths, render nothing
@@ -21,9 +21,10 @@ plots/Paper/All/legend.pdf             # shared legend, with the signal block
 plots/Paper/All/legend_nosignal.pdf    # shared legend, control-region variant
 ```
 
-Ten figures: `SR1E2Mu/pair_mass`, `SR3Mu/pair_lowM_mass`, `SR3Mu/pair_highM_mass`,
-and `ZCand_mass` for `ZFake1E2Mu`, `ZFake3Mu`, `ZG1E2Mu`, `ZG3Mu`, `WZ1E2Mu`,
-`WZ3Mu`, `TTZ2E1Mu`.
+Six figures: `SR1E2Mu/pair_mass`, `SR3Mu/pair_lowM_mass`, `SR3Mu/pair_highM_mass`,
+and `ZCand_mass` for `ZFake1E2Mu`, `ZFake3Mu`, `TTZ2E1Mu`. The Z+gamma
+(`ZG1E2Mu`, `ZG3Mu`) and WZ (`WZ1E2Mu`, `WZ3Mu`) control-region masses are
+thesis-only and drawn by `--private-work` alone.
 
 The legend panels are written on every `--plot all` run. Each plot already carries
 its own legend, so the panels exist for layouts that drop them — slides, and the
@@ -45,7 +46,10 @@ supplies `cmsPosX`/`cmsPosY`, cmsstyle is told to draw neither string and
 override cannot leak into the next canvas in the same process.
 
 `build_config()` sets `extraText = ""`, so only "CMS" is drawn — these are
-published-paper figures, not a preliminary result.
+published-paper figures, not a preliminary result. With `--preliminary` (PAS
+figures, every mass plot) it is "Preliminary" instead, drawn under "CMS", and the
+caption moves down to `PRELIMINARY_CHANNEL_POS = (0.20, 0.615)`; the output is
+`<histkey>_preliminary.pdf` next to the paper PDF.
 
 | | value |
 |---|---|
