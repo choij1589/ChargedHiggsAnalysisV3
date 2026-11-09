@@ -3,9 +3,11 @@
 #
 # What it profiles: python/profileKernels.py, one process training one model the way a GA worker does,
 # on a small cached slice of the data. ncu replays every kernel many times and serializes launches, so the
-# GA itself (16 processes, ~6 M launches) is out of reach. Only kernels inside the driver's "ncu_measure"
-# NVTX range are profiled (warm-up epochs are skipped), and each kernel gets its own ncu invocation:
-# one combined filter with a launch count would never reach the later kernels.
+# GA itself (16 processes, ~6 M launches) is out of reach. Only kernels between the driver's
+# cudaProfilerStart/Stop are profiled (--profile-from-start off: the measured epochs, warm-up skipped, on
+# every thread, so the backward kernels that autograd launches from its own thread are included; an NVTX
+# filter would miss them), and each kernel gets its own ncu invocation: one combined filter with a launch
+# count would never reach the later kernels.
 #
 # Kernel regexes match the full demangled name (--kernel-name-base demangled). Defaults are the top kernels
 # by GPU time in the nsys run (docs/PROFILE.md, section 5.8).
@@ -46,7 +48,7 @@ COUNT=${COUNT:-8}
 SET=${SET:-full}
 CLOCK=${CLOCK:-base}
 # Default output folder is tagged with the layer width: cuBLAS picks GEMM kernels per matrix shape,
-# so the kernel set differs between widths (e.g. cutlass_80_simt_sgemm only appears at --nNodes 256)
+# so kernel shapes and possibly the kernel set differ between widths
 NNODES=128
 for ((i = 0; i < ${#DRIVER_ARGS[@]}; i++)); do
     case "${DRIVER_ARGS[$i]}" in
@@ -111,9 +113,9 @@ profile_one() {
     local TAG
     TAG=$(echo "$K" | tr -c 'A-Za-z0-9_\n' '_')
     local LOG="$OUT/run_${TAG}.log" REP="$OUT/ncu_${TAG}"
-    echo "[ncu] ${K}: up to ${COUNT} launches inside ncu_measure, set=${SET}, clock-control=${CLOCK}"
+    echo "[ncu] ${K}: up to ${COUNT} launches in the measured epoch(s), set=${SET}, clock-control=${CLOCK}"
     set +e
-    "$NCU_BIN" --nvtx --nvtx-include "ncu_measure/" \
+    "$NCU_BIN" --profile-from-start off \
         --kernel-name-base demangled --kernel-name "regex:${K}" --launch-count "$COUNT" \
         --set "$SET" --metrics "$M" --clock-control "$CLOCK" --force-overwrite -o "$REP" \
         python "$(command -v profileKernels.py)" --signal "$SIGNAL" --channel "$CHANNEL" "${DRIVER_ARGS[@]}" \
@@ -131,9 +133,9 @@ profile_one() {
         return 1
     fi
     if grep -q "No kernels were profiled" "$LOG"; then
-        echo "[ncu] ${K}: no kernel matched inside ncu_measure. The kernel set depends on the shapes: cuBLAS"
-        echo "      picks GEMM kernels per width (e.g. cutlass_80_simt_sgemm only at --nNodes 256). Check the"
-        echo "      regex against an nsys kernel list of the driver with the same options."
+        echo "[ncu] ${K}: no kernel matched in the measured epoch(s). cuBLAS picks GEMM kernels per matrix"
+        echo "      shape and GPU model, so check the regex against an nsys kernel list of the driver with the"
+        echo "      same options on the same kind of node."
         return 1
     fi
     [ -e "${REP}.ncu-rep" ] || { echo "[ncu] ${K}: no report produced; see $LOG"; return 1; }

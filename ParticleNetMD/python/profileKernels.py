@@ -8,10 +8,13 @@ batch size from the GA config) on a small cached slice of the data, in two NVTX-
     ncu_warmup   warm-up epochs: CUDA context, allocator growth, cuBLAS heuristics, first kNN
     ncu_measure  the epochs to profile
 
-Profile only the measured phase with
-    ncu --nvtx --nvtx-include "ncu_measure/" --kernel-name-base demangled --kernel-name regex:<k> ...
-(scripts/ncuKernels.sh does this per kernel). The marker names contain no '/': ncu reads '/' as
-the separator between nested ranges, so ranges like 'train/forward' cannot be used as filters.
+The measured phase is also bracketed by cudaProfilerStart/Stop (torch.cuda.profiler.start/stop).
+Profile it with
+    ncu --profile-from-start off --kernel-name-base demangled --kernel-name regex:<k> ...
+(scripts/ncuKernels.sh does this per kernel). Do NOT use the NVTX range as the ncu filter: NVTX
+ranges are per thread, and autograd launches all backward kernels (e.g. the cutlass weight-gradient
+GEMM, batch_norm_backward) from its own thread, outside the main thread's ranges. The profiler
+start/stop window applies to every thread of the process. The NVTX markers remain for nsys.
 
 Usage:
     profileKernels.py --signal MHc130_MA90 --channel Combined --pilot [--prepare-only]
@@ -68,9 +71,11 @@ def main():
 
     start = time.time()
     nvtx.range_push("ncu_measure")
+    torch.cuda.profiler.start()          # cudaProfilerStart: ncu --profile-from-start off begins here
     for _ in range(args.measure_epochs):
         run_epoch(s, args.phase)
     torch.cuda.synchronize()
+    torch.cuda.profiler.stop()
     nvtx.range_pop()
     print(f"[profileKernels] measured phase: {time.time() - start:.1f} s")
     return 0

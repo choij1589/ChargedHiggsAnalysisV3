@@ -320,27 +320,32 @@ KERNELS='knn_kernel' COUNT=4 ./scripts/ncuKernels.sh MHc130_MA90 Combined --pilo
   `train_epoch_disco` / `evaluate_disco`, GA batch size) on a cached slice (2,048 events per class and fold:
   16 train + 16 valid batches; `profiling/cache/`, git-ignored, built once outside ncu with `--prepare-only`).
   Phases are NVTX-marked `ncu_warmup` (1 epoch: allocator, cuBLAS heuristics, first kNN) and `ncu_measure`
-  (`--measure-epochs`, `--phase train|valid|both`). The setup is shared with `findSyncSites.py`
+  (`--measure-epochs`, `--phase train|valid|both`); the measured phase is also bracketed by
+  `cudaProfilerStart/Stop` (`torch.cuda.profiler.start/stop`). The setup is shared with `findSyncSites.py`
   (`python/lib/ProfileSetup.py`); hyperparameters via `--nNodes --optimizer --scheduler --initLR --weight-decay`.
 - **Launcher** `scripts/ncuKernels.sh <signal> <channel> [driver options]`: one ncu run per kernel regex
   (`KERNELS`, default `cutlass_80_simt_sgemm|knn_kernel|ampere_sgemm_32x128_tn|reduce_kernel|batch_norm_collect_statistics`,
-  matched against the full demangled name), `--nvtx --nvtx-include "ncu_measure/"`, `COUNT=8` launches,
+  matched against the full demangled name), `--profile-from-start off`, `COUNT=8` launches,
   `SET=full`, an explicit `--metrics` list (launch shape, occupancy limits, waves per SM, SM / memory / DRAM
   throughput, FMA pipe, cache hit rates, warp-stall reasons), `CLOCK=base|none`. Output in
   `profiling/ncu/<signal>_<channel>/`: `ncu_<k>.ncu-rep` (git-ignored), `details_<k>.txt`, `metrics_<k>.csv`,
   `run_<k>.log`, plus a printed list of the (kernel, grid) shapes measured. Refuses login nodes (`FORCE=1`).
-- **NVTX filter names must not contain `/`**: ncu reads `/` as the separator of nested push/pop ranges, so
-  `--nvtx-include "ncu_measure/train/forward/"` matches nothing (it looks for `forward` inside `train`). The
-  `ncu_measure/` filter matches every kernel nested inside, at any depth (tested).
+- **Do not select the measured phase with an NVTX filter.** NVTX ranges are per thread, and autograd launches
+  every backward kernel from its own thread (`pt_autograd_0`): in the nsys GA run, 100% of
+  `cutlass_80_simt_sgemm` and `batch_norm_backward_*` launches and 46% of `reduce_kernel` launches came from
+  that thread. The first ncu runs used `--nvtx --nvtx-include "ncu_measure/"` and therefore never saw the
+  cutlass GEMM and measured only forward `reduce_kernel` launches. `--profile-from-start off` with
+  `cudaProfilerStart/Stop` covers every thread of the process. (Also: ncu reads `/` in an NVTX filter as range
+  nesting, so names like `train/forward` cannot be used as filters at all.)
 - **Counters on Perlmutter**: `RmProfilingAdminOnly` is 0, but the DCGM host engine (`nv-hostengine`) holds
   them ("a driver resource was unavailable"; seen on the login node). On a GPU node, `DCGM_PAUSE=1` runs
   `dcgmi profile --pause` / `--resume`; this affects every job on the node.
 - ncu locks clocks to base by default, so absolute times differ from nsys (boost clocks, 16-way sharing): compare
   ratios, or use `CLOCK=none`. Do not run ncu on the GPU of a running nsys/perf job; a separate node is fine.
-- The kernel set depends on the model width: cuBLAS picks GEMM kernels per matrix shape.
-  `cutlass_80_simt_sgemm` (17% of GPU time in the GA, from the `nNodes=256` workers) does not run at the
-  driver's default `--nNodes 128`; profile it with `--nNodes 256`. The default output folder is tagged with the
-  width (`profiling/ncu/<signal>_<channel>_n<nNodes>/`).
+- cuBLAS picks GEMM kernels per matrix shape **and GPU model**: on the compute nodes, GA workers of every width
+  (96-256) launch `cutlass_80_simt_sgemm`, while on the login node's A100 (80 GB PCIe) the driver uses it only
+  at `nNodes=256`. Check kernel names with nsys on the same kind of node. The default output folder is tagged
+  with the width (`profiling/ncu/<signal>_<channel>_n<nNodes>/`).
 
 ### 6.1 Results (`nNodes=128`, base clocks, 8 launches per kernel)
 
@@ -349,9 +354,49 @@ KERNELS='knn_kernel' COUNT=4 ./scripts/ncuKernels.sh MHc130_MA90 Combined --pilo
 | `knn_kernel` | 306 µs | 14 x 256 | 0.03 | 11.8% | 0.8% | `long_scoreboard` 18.6 |
 | `ampere_sgemm_32x128_tn` | 59 µs (17-74) | 112-264 x 256 | 0.26-0.61 | 25.5% | 26.8% (FMA pipe 34%) | `long_scoreboard` 8.7 |
 | `batch_norm_collect_statistics_channels_last` | 14.6 µs | 56-132 x 512 | 0.26-0.61 | 30.6% | 20.1% (DRAM 14%) | `long_scoreboard` 3.0 |
-| `reduce_kernel` (`max<long>`, `sum<long>`) | 6.9 µs | 1 x 512 | 0.00 | 23.8% | 0.1% | `imc_miss` 8.5 |
+| `reduce_kernel` (`max<long>`, `sum<long>`) | 6.9 µs | 1 x 512 | 0.00 | 23.9% | 0.1% | `imc_miss` 8.6 |
+| `cutlass_80_simt_sgemm` (`128x32_nt`, `32x128_nt`, `128x32_nn`; backward) | 13.8 µs | 104-216 x 128 | 0.36 | 9.3% | 49% (FMA pipe 59%) | none significant |
+| `batch_norm_backward_{reduce,elemt}_channels_last` | 10.2 µs | 4-56 x 512 | 0.03 | 24.1% | 1.5% | `long_scoreboard` 15.6 |
 
 Medians; stalls in warps per issued instruction. Files: `profiling/ncu/MHc130_MA90_Combined_n128/`.
+`knn_kernel`, `ampere_sgemm_32x128_tn` and `batch_norm_collect_statistics` were measured with the NVTX filter;
+they run 100% on the main thread, so those results are complete. The last three rows use
+`--profile-from-start off`.
+
+- `COUNT=8` takes the **first** 8 matching launches of the measured epoch, i.e. the start of the first batch:
+  all 8 `reduce_kernel` launches are forward-pass `max` / `sum` reductions, although 46% of `reduce_kernel`
+  launches in the GA are backward. Use a larger `COUNT` to reach later launches.
+- **The 17% "cutlass" share of GA GPU time is one GEMM shape at `nNodes=256`.** Per variant and width in the nsys
+  run: `32x128_8x5_nt` at width 256: 17,766 launches, median 367 µs, p90 1.94 ms, grid (16, 1, 54); every
+  variant at widths 96-192: 8.7-12 µs per launch. Measure it with
+  `KERNELS='cutlass_80_simt_sgemm_32x128' COUNT=16 ./scripts/ncuKernels.sh MHc130_MA90 Combined --pilot --nNodes 256`.
+- At width 128, cutlass is the best-used kernel measured (49% of SM capacity, FMA pipe 59%, no dominant stall),
+  but each launch lasts ~14 µs; `batch_norm_backward` is as small as its forward counterpart.
+
+### 6.2 The heavy cutlass GEMM at `nNodes=256`
+
+`KERNELS='cutlass_80_simt_sgemm_32x128' COUNT=16 ./scripts/ncuKernels.sh MHc130_MA90 Combined --pilot --nNodes 256`
+(files: `profiling/ncu/MHc130_MA90_Combined_n256/`). 14 of the 16 launches are the heavy shape, 2 are small
+launches of the same variant (17 µs, grid (2, 1, 105)). Medians over all 16:
+
+| Metric | `cutlass_80_simt_sgemm_32x128_8x5_nt_align1`, width 256 |
+|--------|-------------------------------------------------------|
+| Duration | 411 µs (nsys in the GA: 367 µs median at boost clocks; p90 1.94 ms from time-slicing) |
+| Grid x block | 848-864 x 128 (grid z = 53-54): 2.6 waves per SM |
+| Registers per thread | 152: at most 3 blocks per SM (register and shared-memory limits both 3) |
+| Achieved occupancy | 17% (~11 of 64 warps per SM) |
+| SM throughput / FMA pipe | 16% / 18% |
+| DRAM throughput | 2% (17 MB read per launch, L2 hit rate 74%) |
+| Top stall | `barrier` 7.2 warps per issue, then `long_scoreboard` 2.1 |
+
+- The only measured kernel with more than one wave, and the most expensive kernel of the GA (17% of GPU time,
+  all from the width-256 workers), yet it uses ~16-18% of the SMs' compute: 152 registers per thread allow
+  only 12 warps per SM, and they mostly wait at block-wide barriers. DRAM bandwidth is not the limit.
+- Grid z = 53-54 suggests split-K over the long reduction dimension of this backward weight-gradient GEMM
+  (presumably the number of edges), consistent with the barrier stalls; the matrix shapes were not checked.
+- It is an FP32 SIMT kernel: the Tensor Cores are idle. Allowing TF32
+  (`torch.backends.cuda.matmul.allow_tf32 = True`) is the one setting that could plausibly change this kernel
+  measurably; not tested, and it changes numerical precision.
 
 - **No kernel fills the A100**: every launch is below one wave (0.00-0.61 waves per SM on 108 SMs).
 - **`knn_kernel`** (torch_cluster, ~11% of GPU time in the GA) launches 14 blocks of 256 threads, one thread per
