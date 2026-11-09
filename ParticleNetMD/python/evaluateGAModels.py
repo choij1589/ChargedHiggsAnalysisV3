@@ -49,7 +49,7 @@ def _make_shared_batch(data_list):
 
 
 def _load_eval_shared_datasets(config, signal_full, channel, bg_groups, WORKDIR, pilot):
-    """Load and share train + test datasets. Pilot caps: 8000 events/fold/class."""
+    """Load and share train + test datasets. Folds/caps come from the loaded GA config."""
     from DynamicDatasetLoader import DynamicDatasetLoader
     dataset_root = f"{WORKDIR}/ParticleNetMD/dataset"
     loader = DynamicDatasetLoader(dataset_root=dataset_root)
@@ -64,8 +64,9 @@ def _load_eval_shared_datasets(config, signal_full, channel, bg_groups, WORKDIR,
         for group, samples in bg_groups.items()
     }
 
-    max_events = 8000 if pilot else train_params.get('max_events_per_fold_per_class')
-    train_folds = [train_params['train_folds'][0]] if pilot else train_params['train_folds']
+    # Caller loads GAConfig.pilot.json in pilot mode, so no pilot overrides here
+    max_events = train_params.get('max_events_per_fold_per_class')
+    train_folds = train_params['train_folds']
     test_folds = overfitting_config.get('test_folds', [4])
 
     train_data = loader.load_multiclass_with_subsampling(
@@ -415,7 +416,7 @@ if __name__ == "__main__":
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
 
-    config = load_ga_config()
+    config = load_ga_config(pilot=args.pilot)
     WORKDIR = os.environ.get("WORKDIR")
     if not WORKDIR:
         raise EnvironmentError("WORKDIR not set. Run 'source setup.sh'")

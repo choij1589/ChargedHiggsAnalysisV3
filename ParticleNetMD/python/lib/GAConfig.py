@@ -374,8 +374,18 @@ class GAConfigLoader:
         return "\n".join(lines)
 
 
-def load_ga_config(config_path: str = None) -> GAConfigLoader:
-    """Factory function to load GA configuration."""
+def load_ga_config(config_path: str = None, pilot: bool = False) -> GAConfigLoader:
+    """Factory function to load GA configuration.
+
+    Args:
+        config_path: Explicit config path. Cannot be combined with pilot.
+        pilot: Load configs/GAConfig.pilot.json instead of configs/GAConfig.json.
+    """
+    if pilot:
+        if config_path is not None:
+            raise ValueError("load_ga_config: pass either config_path or pilot=True, not both")
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(script_dir, '..', '..', 'configs', 'GAConfig.pilot.json')
     return GAConfigLoader(config_path)
 
 

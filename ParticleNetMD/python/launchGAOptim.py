@@ -37,7 +37,7 @@ def parse_arguments():
     parser.add_argument("--signal", required=True, type=str, help="Signal mass point (e.g., MHc130_MA100)")
     parser.add_argument("--channel", required=True, type=str, help="Channel (Run1E2Mu, Run3Mu, Combined)")
     parser.add_argument("--device", default="cuda", type=str, help="Device (cpu or cuda:X)")
-    parser.add_argument("--pilot", action="store_true", default=False, help="Use pilot datasets")
+    parser.add_argument("--pilot", action="store_true", default=False, help="Pilot run: load configs/GAConfig.pilot.json, write to .../pilot/")
     parser.add_argument("--debug", action="store_true", default=False, help="Debug mode")
     parser.add_argument("--resume-from", type=int, default=None, metavar="N",
                         help="Resume GA from iteration N (retrains iter N onward, preserves 0..N-1)")
@@ -137,16 +137,12 @@ def run_training_population(config, args, population, iteration, base_dir):
 
     manager = SharedDatasetManager()
 
-    # Pilot mode: single fold, capped event counts, 10 epochs
+    # Folds and event caps come from the loaded config (GAConfig.pilot.json in pilot mode)
+    use_train_folds = train_params['train_folds']
+    max_train_events = train_params.get('max_events_per_fold_per_class')
+    max_valid_events = train_params.get('max_events_per_fold_per_class')
     if args.pilot:
-        use_train_folds = [train_params['train_folds'][0]]
-        max_train_events = 8000
-        max_valid_events = 2000
         logging.info(f"PILOT MODE: train_folds={use_train_folds} | caps: train={max_train_events} valid={max_valid_events}")
-    else:
-        use_train_folds = train_params['train_folds']
-        max_train_events = train_params.get('max_events_per_fold_per_class')
-        max_valid_events = train_params.get('max_events_per_fold_per_class')
 
     # Load datasets into shared memory (ONE TIME ONLY!)
     train_data_list, valid_data_list = manager.prepare_shared_datasets(
@@ -298,12 +294,13 @@ def main():
 
     if args.pilot:
         logging.info("=" * 60)
-        logging.info("PILOT MODE ENABLED - Using pilot datasets")
+        logging.info("PILOT MODE ENABLED - Using configs/GAConfig.pilot.json")
         logging.info("=" * 60)
 
     # Load configuration and setup
     logging.info("Loading GA configuration for ParticleNetMD...")
-    config = load_ga_config()
+    config = load_ga_config(pilot=args.pilot)
+    logging.info(f"Config file: {os.path.abspath(config.config_path)}")
     print("\n" + config.summary())
 
     base_dir = setup_output_directory(config, args)

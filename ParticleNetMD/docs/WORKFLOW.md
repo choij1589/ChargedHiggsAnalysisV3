@@ -211,7 +211,7 @@ For full documentation see [`docs/STEP3_HYPERPARAM.md`](STEP3_HYPERPARAM.md).
     --config MHc130_MA90:Run1E2Mu,MHc130_MA90:Run3Mu \
     --device cuda:0,cuda:1
 
-# Pilot run (single fold, 8000/2000 event caps, 10 epochs — completes in <5 min)
+# Pilot run (settings from configs/GAConfig.pilot.json; outputs under .../pilot/)
 ./scripts/launchGAOptim.sh --signal MHc130_MA90 --channel Combined \
     --device cuda:0 --pilot
 

@@ -14,6 +14,22 @@
 # Usage (Format 3 - backward compatible):
 #   ./scripts/launchGAOptim.sh <signal> <channel> <device> [--pilot] [--debug]
 #   Example: ./scripts/launchGAOptim.sh MHc130_MA100 Run1E2Mu cuda:0 --pilot
+#
+# Profiling (any format): add --perf to wrap each job in `perf record -F 99 -g` with
+# PYTHONPERFSUPPORT=1 (Python 3.12+), so Python function names appear in the stacks.
+# Spawned workers inherit the env var, and perf follows child processes by default.
+#   Outputs: profiling/perf/GA_<signal>_<channel>.{perf.data,folded,svg}
+#   FlameGraph scripts: $FLAMEGRAPH_DIR (default: ./FlameGraph,
+#   git clone https://github.com/brendangregg/FlameGraph)
+#   The flamegraph is built at the end of the run on the same node, because perf script
+#   needs the /tmp/perf-<pid>.map files that Python writes there.
+#
+# Or add --py-spy (mutually exclusive with --perf) to wrap each job in
+# `py-spy record --subprocesses --native`. py-spy reads the interpreter state directly,
+# so Python frames are resolved without frame pointers, and --native adds the C/C++
+# frames (torch, CUDA) below them. Raw folded stacks are rendered with flamegraph.pl.
+#   Outputs: profiling/py-spy/GA_<signal>_<channel>.{folded,svg}
+#   Sampling rate: $PYSPY_RATE samples/s per process (default 100)
 
 print_usage() {
     echo "Error: Missing or invalid arguments"
@@ -31,6 +47,19 @@ print_usage() {
     echo "Usage (Format 3 - backward compatible):"
     echo "  $0 <signal> <channel> <device> [--pilot] [--debug]"
     echo "  Example: $0 MHc130_MA100 Run1E2Mu cuda:0 --pilot"
+    echo ""
+    echo "Profiling: add --perf to any format (perf record + PYTHONPERFSUPPORT=1, flamegraph in profiling/perf/)"
+    echo "       or: add --py-spy to any format (py-spy record --subprocesses --native, flamegraph in profiling/py-spy/)"
+}
+
+PROFILER=""   # "", "perf" or "py-spy"
+
+set_profiler() {
+    if [ -n "$PROFILER" ] && [ "$PROFILER" != "$1" ]; then
+        echo "Error: --perf and --py-spy are mutually exclusive"
+        exit 1
+    fi
+    PROFILER="$1"
 }
 
 # Detect if using old positional syntax or new flag syntax
@@ -40,7 +69,14 @@ if [[ "$1" != --* ]]; then
     CHANNELS=$2
     DEVICES=$3
     shift 3
-    EXTRA_FLAGS=("$@")
+    EXTRA_FLAGS=()
+    for flag in "$@"; do
+        case "$flag" in
+            --perf)   set_profiler perf ;;
+            --py-spy) set_profiler py-spy ;;
+            *)        EXTRA_FLAGS+=("$flag") ;;
+        esac
+    done
     USE_CONFIG_MODE=false
 else
     # Format 1 or 2: New flag-based syntax
@@ -76,6 +112,14 @@ else
                 ;;
             --pilot|--debug)
                 EXTRA_FLAGS+=("$1")
+                shift
+                ;;
+            --perf)
+                set_profiler perf
+                shift
+                ;;
+            --py-spy)
+                set_profiler py-spy
                 shift
                 ;;
             *)
@@ -192,6 +236,37 @@ fi
 # Create logs directory if it doesn't exist
 mkdir -p logs
 
+# Profiling setup: fail fast before launching hours of training
+FLAMEGRAPH_DIR="${FLAMEGRAPH_DIR:-${PWD}/FlameGraph}"
+PYSPY_RATE="${PYSPY_RATE:-100}"
+if [ -n "$PROFILER" ]; then
+    if ! command -v "$PROFILER" > /dev/null 2>&1; then
+        echo "Error: --${PROFILER} requested but '${PROFILER}' is not in PATH"
+        exit 1
+    fi
+    if [ ! -x "${FLAMEGRAPH_DIR}/flamegraph.pl" ]; then
+        echo "Error: FlameGraph scripts not found in ${FLAMEGRAPH_DIR}"
+        echo "  git clone https://github.com/brendangregg/FlameGraph  (or set FLAMEGRAPH_DIR)"
+        exit 1
+    fi
+    mkdir -p "profiling/${PROFILER}"
+fi
+if [ "$PROFILER" = perf ]; then
+    if ! python -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)'; then
+        echo "Error: PYTHONPERFSUPPORT needs Python >= 3.12, found $(python -V 2>&1)"
+        exit 1
+    fi
+    if [ ! -x "${FLAMEGRAPH_DIR}/stackcollapse-perf.pl" ]; then
+        echo "Error: ${FLAMEGRAPH_DIR}/stackcollapse-perf.pl not found"
+        exit 1
+    fi
+    export PYTHONPERFSUPPORT=1
+fi
+if [ "$PROFILER" = py-spy ] && ! [[ "$PYSPY_RATE" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: PYSPY_RATE must be a positive integer, got '${PYSPY_RATE}'"
+    exit 1
+fi
+
 # Setup trap to kill all background jobs on script interruption (Ctrl+C, SIGTERM, etc.)
 cleanup() {
     echo ""
@@ -242,9 +317,23 @@ for i in "${!SIGNAL_ARRAY[@]}"; do
     echo "[$((i+1))/${NUM_JOBS}] Signal: ${SIGNAL}, Channel: ${CHANNEL}, Device: ${DEVICE}"
     echo "        Log: ${LOGFILE}"
 
-    # Launch GA optimization
-    launchGAOptim.py --signal "$SIGNAL" --channel "$CHANNEL" --device "$DEVICE" "${EXTRA_FLAGS[@]}" \
-        > "$LOGFILE" 2>&1 &
+    # Launch GA optimization (optionally under a profiler)
+    GA_CMD=(python "$(command -v launchGAOptim.py)" --signal "$SIGNAL" --channel "$CHANNEL" --device "$DEVICE" "${EXTRA_FLAGS[@]}")
+    STEM="profiling/${PROFILER}/GA_${SIGNAL}_${CHANNEL}"
+    case "$PROFILER" in
+        perf)
+            echo "        perf: ${STEM}.perf.data"
+            perf record -F 99 -g -o "${STEM}.perf.data" -- "${GA_CMD[@]}" > "$LOGFILE" 2>&1 &
+            ;;
+        py-spy)
+            echo "        py-spy: ${STEM}.folded (${PYSPY_RATE} samples/s)"
+            py-spy record --subprocesses --native --rate "$PYSPY_RATE" --format raw \
+                -o "${STEM}.folded" -- "${GA_CMD[@]}" > "$LOGFILE" 2>&1 &
+            ;;
+        *)
+            "${GA_CMD[@]}" > "$LOGFILE" 2>&1 &
+            ;;
+    esac
 
     PIDS+=($!)
 
@@ -273,6 +362,52 @@ for i in "${!PIDS[@]}"; do
         echo "SUCCESS: ${SIGNAL}/${CHANNEL} (PID ${PID}) completed"
     fi
 done
+
+# Build flamegraphs now, on this node, while /tmp/perf-<pid>.map still exists.
+# Also done for failed jobs: a partial profile is often what explains the failure.
+if [ "$PROFILER" = perf ]; then
+    echo "=========================================="
+    echo "Building flamegraphs (profiling/perf/)"
+    echo "=========================================="
+    for i in "${!SIGNAL_ARRAY[@]}"; do
+        STEM="profiling/perf/GA_${SIGNAL_ARRAY[$i]}_${CHANNEL_ARRAY[$i]}"
+        if [ ! -s "${STEM}.perf.data" ]; then
+            echo "ERROR: ${STEM}.perf.data missing or empty"
+            FAILED=$((FAILED + 1))
+            continue
+        fi
+        if perf script -i "${STEM}.perf.data" 2> "${STEM}.perf_script.log" \
+                | "${FLAMEGRAPH_DIR}/stackcollapse-perf.pl" > "${STEM}.folded" \
+            && "${FLAMEGRAPH_DIR}/flamegraph.pl" "${STEM}.folded" > "${STEM}.svg"; then
+            echo "  ${STEM}.svg"
+        else
+            echo "ERROR: flamegraph build failed for ${STEM} (see ${STEM}.perf_script.log)"
+            FAILED=$((FAILED + 1))
+        fi
+    done
+fi
+
+# py-spy already wrote folded stacks; render them the same way as the perf ones
+if [ "$PROFILER" = py-spy ]; then
+    echo "=========================================="
+    echo "Building flamegraphs (profiling/py-spy/)"
+    echo "=========================================="
+    for i in "${!SIGNAL_ARRAY[@]}"; do
+        STEM="profiling/py-spy/GA_${SIGNAL_ARRAY[$i]}_${CHANNEL_ARRAY[$i]}"
+        if [ ! -s "${STEM}.folded" ]; then
+            echo "ERROR: ${STEM}.folded missing or empty (see the job log)"
+            FAILED=$((FAILED + 1))
+            continue
+        fi
+        if "${FLAMEGRAPH_DIR}/flamegraph.pl" --title "py-spy: GA_${SIGNAL_ARRAY[$i]}_${CHANNEL_ARRAY[$i]}" \
+                "${STEM}.folded" > "${STEM}.svg"; then
+            echo "  ${STEM}.svg"
+        else
+            echo "ERROR: flamegraph build failed for ${STEM}"
+            FAILED=$((FAILED + 1))
+        fi
+    done
+fi
 
 echo "=========================================="
 if [ $FAILED -ne 0 ]; then

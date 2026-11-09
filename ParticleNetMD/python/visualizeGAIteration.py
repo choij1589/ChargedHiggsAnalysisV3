@@ -2075,7 +2075,7 @@ def main():
     args = parser.parse_args()
 
     # Load configuration and derive fold from config
-    config = load_ga_config()
+    config = load_ga_config(pilot=args.pilot)
     overfitting_config = config.get_overfitting_config()
     test_folds = overfitting_config.get('test_folds', [4])
     fold = test_folds[0]

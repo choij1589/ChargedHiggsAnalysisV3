@@ -376,9 +376,7 @@ def train_worker(worker_id, population_hyperparams, train_data_list, valid_data_
     summary_writer.metrics['valid_disco_term'] = []
 
     # Training loop
-    max_epochs = 10 if args_dict.get('pilot') else train_params['max_epochs']
-    if args_dict.get('pilot'):
-        logging.info(f"PILOT MODE: max_epochs capped to {max_epochs}")
+    max_epochs = train_params['max_epochs']
     logging.info(f"Starting training for up to {max_epochs} epochs...")
 
     for epoch in range(max_epochs):

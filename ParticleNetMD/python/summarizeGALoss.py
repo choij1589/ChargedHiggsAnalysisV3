@@ -550,7 +550,7 @@ def main():
 
     # Derive fold from config
     from GAConfig import load_ga_config
-    _config = load_ga_config()
+    _config = load_ga_config(pilot=args.pilot)
     test_folds = _config.get_overfitting_config().get('test_folds', [4])
     fold = test_folds[0]
 
