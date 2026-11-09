@@ -305,24 +305,64 @@ The GA population is not seeded (`GATools.randomGeneration`), so each run trains
 move by a few percent between runs, and the window catches different epochs. The sync sites and counts depend on
 the code path only. For before/after comparisons, seed the GA or pin the hyperparameters.
 
-## 6. Next: Nsight Compute (ncu)
+## 6. Nsight Compute (ncu)
 
 ncu replays each kernel many times and serializes launches, so it profiles a small single-process driver, not the
-GA. Plan (lessons from `cms-madgraph4gpu-integration/.../docs/REPORT.md`, section 9, and `ncu_gridpack.sh`):
+GA (lessons from `cms-madgraph4gpu-integration/.../docs/REPORT.md`, section 9, and its `ncu_gridpack.sh`).
 
-1. Take the top kernels by GPU time from the nsys `cuda_gpu_kern_sum.csv` (section 5.8):
-   `cutlass_80_simt_sgemm_32x128`, `knn_kernel`, `ampere_sgemm_32x128_tn`, the two `reduce_kernel` variants and
-   the `batch_norm_*` kernels.
-2. A driver (`python/profileKernels.py`) trains one model with fixed hyperparameters on a small slice of the pilot
-   data at batch size 512, for a fixed number of steps, with the NVTX ranges above.
-3. One `ncu` invocation per kernel (`--kernel-name regex:`, `--launch-skip` past the warm-up steps,
-   `--launch-count 8`, optionally `--nvtx --nvtx-include`), with an explicit `--metrics` list (launch shape,
-   occupancy and its limits, waves per SM, SM / memory / DRAM throughput, cache hit rates, warp-stall reasons),
-   writing to `profiling/ncu/`; check the grid sizes actually measured.
-4. Perlmutter specifics: if ncu reports "a driver resource was unavailable", the DCGM host engine holds the
-   counters: `dcgmi profile --pause` before and `--resume` after (node-wide; only on a node you have to
-   yourself). ncu locks clocks to base by default, so compare ratios, or use `--clock-control none`.
-   Do not run ncu on the GPU of a running nsys/perf job: it serializes and replays kernels and fixes the clocks
-   for every process on that GPU. A separate node can run it at the same time.
-5. Expected: small grids that cannot fill the 108 SMs, low achieved occupancy, latency-bound kernels — which
-   would explain why 16 concurrent models on one GPU give ~9.5× the throughput of one.
+```bash
+# on a GPU node you have to yourself (DCGM_PAUSE pauses DCGM profiling node-wide, resumed on exit)
+DCGM_PAUSE=1 ./scripts/ncuKernels.sh MHc130_MA90 Combined --pilot
+KERNELS='knn_kernel' COUNT=4 ./scripts/ncuKernels.sh MHc130_MA90 Combined --pilot --nNodes 256
+```
+
+- **Driver** `python/profileKernels.py`: trains one model the way a GA worker does (the real
+  `train_epoch_disco` / `evaluate_disco`, GA batch size) on a cached slice (2,048 events per class and fold:
+  16 train + 16 valid batches; `profiling/cache/`, git-ignored, built once outside ncu with `--prepare-only`).
+  Phases are NVTX-marked `ncu_warmup` (1 epoch: allocator, cuBLAS heuristics, first kNN) and `ncu_measure`
+  (`--measure-epochs`, `--phase train|valid|both`). The setup is shared with `findSyncSites.py`
+  (`python/lib/ProfileSetup.py`); hyperparameters via `--nNodes --optimizer --scheduler --initLR --weight-decay`.
+- **Launcher** `scripts/ncuKernels.sh <signal> <channel> [driver options]`: one ncu run per kernel regex
+  (`KERNELS`, default `cutlass_80_simt_sgemm|knn_kernel|ampere_sgemm_32x128_tn|reduce_kernel|batch_norm_collect_statistics`,
+  matched against the full demangled name), `--nvtx --nvtx-include "ncu_measure/"`, `COUNT=8` launches,
+  `SET=full`, an explicit `--metrics` list (launch shape, occupancy limits, waves per SM, SM / memory / DRAM
+  throughput, FMA pipe, cache hit rates, warp-stall reasons), `CLOCK=base|none`. Output in
+  `profiling/ncu/<signal>_<channel>/`: `ncu_<k>.ncu-rep` (git-ignored), `details_<k>.txt`, `metrics_<k>.csv`,
+  `run_<k>.log`, plus a printed list of the (kernel, grid) shapes measured. Refuses login nodes (`FORCE=1`).
+- **NVTX filter names must not contain `/`**: ncu reads `/` as the separator of nested push/pop ranges, so
+  `--nvtx-include "ncu_measure/train/forward/"` matches nothing (it looks for `forward` inside `train`). The
+  `ncu_measure/` filter matches every kernel nested inside, at any depth (tested).
+- **Counters on Perlmutter**: `RmProfilingAdminOnly` is 0, but the DCGM host engine (`nv-hostengine`) holds
+  them ("a driver resource was unavailable"; seen on the login node). On a GPU node, `DCGM_PAUSE=1` runs
+  `dcgmi profile --pause` / `--resume`; this affects every job on the node.
+- ncu locks clocks to base by default, so absolute times differ from nsys (boost clocks, 16-way sharing): compare
+  ratios, or use `CLOCK=none`. Do not run ncu on the GPU of a running nsys/perf job; a separate node is fine.
+- The kernel set depends on the model width: cuBLAS picks GEMM kernels per matrix shape.
+  `cutlass_80_simt_sgemm` (17% of GPU time in the GA, from the `nNodes=256` workers) does not run at the
+  driver's default `--nNodes 128`; profile it with `--nNodes 256`. The default output folder is tagged with the
+  width (`profiling/ncu/<signal>_<channel>_n<nNodes>/`).
+
+### 6.1 Results (`nNodes=128`, base clocks, 8 launches per kernel)
+
+| Kernel | Duration | Grid x block | Waves/SM | Achieved occupancy | SM throughput | Top stall |
+|--------|---------|--------------|----------|--------------------|---------------|-----------|
+| `knn_kernel` | 306 µs | 14 x 256 | 0.03 | 11.8% | 0.8% | `long_scoreboard` 18.6 |
+| `ampere_sgemm_32x128_tn` | 59 µs (17-74) | 112-264 x 256 | 0.26-0.61 | 25.5% | 26.8% (FMA pipe 34%) | `long_scoreboard` 8.7 |
+| `batch_norm_collect_statistics_channels_last` | 14.6 µs | 56-132 x 512 | 0.26-0.61 | 30.6% | 20.1% (DRAM 14%) | `long_scoreboard` 3.0 |
+| `reduce_kernel` (`max<long>`, `sum<long>`) | 6.9 µs | 1 x 512 | 0.00 | 23.8% | 0.1% | `imc_miss` 8.5 |
+
+Medians; stalls in warps per issued instruction. Files: `profiling/ncu/MHc130_MA90_Combined_n128/`.
+
+- **No kernel fills the A100**: every launch is below one wave (0.00-0.61 waves per SM on 108 SMs).
+- **`knn_kernel`** (torch_cluster, ~11% of GPU time in the GA) launches 14 blocks of 256 threads, one thread per
+  node of the batch (~3,600 nodes for 512 graphs), each looping over its graph's nodes: 14 of 108 SMs busy,
+  0.8% SM throughput, stalled on memory loads despite a 98% L1 hit rate. ncu measures 306 µs at base clocks
+  (nsys: 375 µs median under 16-way sharing).
+- **`reduce_kernel`** launches are 1-block `max` / `sum` reductions over `long`: the GPU side of the hidden
+  syncs of section 5.9 (`int(batch.max())` in torch_cluster / PyG, `valid.sum() > 1` in the DisCo loss).
+- The GEMMs are the only kernels doing substantial work (~25-35% of SM capacity), still under one wave.
+- **Why 16 concurrent models give ~9.5x the throughput of one**: without MPS, kernels of different processes
+  time-slice and never run at the same time, so the gain fills **temporal** gaps (each worker is mostly busy on
+  the CPU: batch assembly, launches, syncs). The **spatial** gaps remain: a running kernel uses a small fraction
+  of the SMs, which the ~55% "busy" of section 5.8 does not show. MPS (kernels of different processes running
+  side by side) would target those; not tested.

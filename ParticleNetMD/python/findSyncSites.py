@@ -29,17 +29,11 @@ import csv
 import logging
 import traceback
 import warnings
-from collections import Counter, defaultdict
+from collections import Counter
 
 import torch
 
-from GAConfig import load_ga_config
-from DynamicDatasetLoader import DynamicDatasetLoader
-from SharedDatasetManager import SharedDatasetManager
-from SharedWorkerUtils import make_dataloader_from_batch
-from MultiClassModels import create_multiclass_model
-from WeightedLoss import DiScoWeightedLoss
-from trainWorker import train_epoch_disco, evaluate_disco, create_optimizer, create_scheduler
+from ProfileSetup import add_setup_arguments, build_training_setup, run_train_epoch, run_valid_epoch
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # ParticleNetMD/
 TORCH_DIR = os.path.dirname(torch.__file__)
@@ -47,18 +41,7 @@ TORCH_DIR = os.path.dirname(torch.__file__)
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Find GPU->CPU sync sites in GA training, by source line")
-    parser.add_argument("--signal", required=True, help="Signal mass point, e.g. MHc130_MA90")
-    parser.add_argument("--channel", default="Combined", help="Run1E2Mu, Run3Mu or Combined")
-    parser.add_argument("--pilot", action="store_true", help="Use configs/GAConfig.pilot.json")
-    parser.add_argument("--device", default="cuda:0")
-    parser.add_argument("--events-per-class", type=int, default=2048,
-                        help="Events per class and fold for the slice (default 2048 -> 16 batches of 512)")
-    parser.add_argument("--nNodes", type=int, default=128)
-    parser.add_argument("--optimizer", default="Adam", choices=["Adam", "RMSprop", "Adadelta"])
-    parser.add_argument("--scheduler", default="ExponentialLR",
-                        choices=["StepLR", "ExponentialLR", "CyclicLR", "ReduceLROnPlateau"])
-    parser.add_argument("--initLR", type=float, default=1e-3)
-    parser.add_argument("--weight-decay", type=float, default=1e-4)
+    add_setup_arguments(parser)
     parser.add_argument("--output", default=None, help="CSV path (default: profiling/syncs/sync_sites_<sig>_<ch>.csv)")
     return parser.parse_args()
 
@@ -87,47 +70,16 @@ def classify(stack):
 def main():
     args = parse_arguments()
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
-    if not torch.cuda.is_available():
-        raise RuntimeError("findSyncSites.py needs a GPU")
-    WORKDIR = os.environ.get("WORKDIR")
-    if not WORKDIR:
-        raise EnvironmentError("WORKDIR not set. Run 'source setup.sh'")
-
-    config = load_ga_config(pilot=args.pilot)
-    dataset_config, train_params = config.get_dataset_config(), config.get_training_parameters()
-    groups = {g: [dataset_config["background_prefix"] + s for s in samples]
-              for g, samples in config.get_background_groups().items()}
-    loader = DynamicDatasetLoader(dataset_root=f"{WORKDIR}/ParticleNetMD/dataset")
-    splits = loader.load_multiclass_splits(
-        dataset_config["signal_prefix"] + args.signal, groups, args.channel,
-        {"train": ([train_params["train_folds"][0]], args.events_per_class),
-         "valid": (train_params["valid_folds"], args.events_per_class)},
-        balance_weights=train_params.get("balance_weights", True))
-    manager = SharedDatasetManager()
-    train_loader = make_dataloader_from_batch(manager._move_to_shared_memory(splits["train"], "train"),
-                                              train_params["batch_size"], shuffle=True)
-    valid_loader = make_dataloader_from_batch(manager._move_to_shared_memory(splits["valid"], "valid"),
-                                              train_params["batch_size"], shuffle=False)
-    n_train, n_valid = len(train_loader), len(valid_loader)
-
-    device = torch.device(args.device)
-    num_classes = 1 + len(groups)
-    model = create_multiclass_model(model_type=config.get_model_config()["default_model"],
-                                    num_node_features=9, num_graph_features=8, num_classes=num_classes,
-                                    num_hidden=args.nNodes, dropout_p=train_params["dropout_p"]).to(device)
-    optimizer = create_optimizer(model, args.optimizer, args.initLR, args.weight_decay)
-    scheduler = create_scheduler(optimizer, args.scheduler, args.optimizer, args.initLR)
-    plateau = args.scheduler == "ReduceLROnPlateau"
-    loss_fn = DiScoWeightedLoss(disco_lambda=config.get_disco_parameters()["disco_lambda"])
-    phi = train_params.get("augment_phi_rotation", True)
+    setup = build_training_setup(args)
+    n_train, n_valid = len(setup.train_loader), len(setup.valid_loader)
 
     phase = {"name": "warm-up"}
 
     def one_epoch():
         phase["name"] = "train"
-        train_epoch_disco(model, train_loader, optimizer, scheduler, loss_fn, device, plateau, num_classes, phi)
+        run_train_epoch(setup)
         phase["name"] = "valid"
-        evaluate_disco(model, valid_loader, loss_fn, device, num_classes)
+        run_valid_epoch(setup)
 
     one_epoch()                                   # warm-up: allocator, cuBLAS heuristics, first kNN
     torch.cuda.synchronize()
