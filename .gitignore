@@ -64,4 +64,8 @@ SKFlatOutput
 **/profiling/**/*.perf.data.old
 # per-thread flame-chart inputs are ~300 MB per run; rebuild them with python/perfFlameChart.py
 **/profiling/**/*.flamechart/*.folded
+# nsys raw captures/reports (GBs); the summary CSVs are tracked
+**/profiling/**/*.nsys-rep
+**/profiling/**/*.qdstrm
+**/profiling/**/*.sqlite
 ParticleNetMD/FlameGraph/

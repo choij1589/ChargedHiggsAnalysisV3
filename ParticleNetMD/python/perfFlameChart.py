@@ -120,7 +120,8 @@ def build_thread_timelines(samples, interval_us):
         th = threads.get(key)
         if th is None:
             th = threads[key] = {"pid": pid, "tid": tid, "comm": comm, "start": t_us,
-                                 "last": t_us, "last_stack": None, "segments": [], "oncpu": 0.0}
+                                 "last": t_us, "last_stack": None, "segments": [], "oncpu": 0.0,
+                                 "cuda": False}
         else:
             # The previous sample stands for at most one interval of CPU time; the rest of
             # the gap until this sample is time the thread spent off the CPU.
@@ -133,6 +134,9 @@ def build_thread_timelines(samples, interval_us):
         th["comm"] = comm  # threads are renamed after start (python -> pt_main_thread)
         th["last"] = t_us
         th["last_stack"] = ";".join(stack) if stack else "[no stack]"
+        # A thread that ever samples inside the CUDA driver/runtime belongs to a training worker
+        if not th["cuda"] and ("libcuda" in th["last_stack"] or "libcudart" in th["last_stack"]):
+            th["cuda"] = True
     for th in threads.values():
         append_segment(th["segments"], th["last_stack"], interval_us)
         th["oncpu"] += interval_us
@@ -260,16 +264,30 @@ def render_timeline(threads, svg_path, title, width=1500, target_bins=420):
     out.append(f'<text class="t2 small" x="{width - summary_w - pad_r + 12}" y="{top - 12}">'
                f'share of lifetime · share of CPU time</text>\n')
 
-    # Mark the first worker start (spawn)
-    if len(kept) > 1:
-        x = x_of((kept[1]["start"] - run_start) / 1e6)
+    # Row roles: the earliest process is the parent; processes that used CUDA are training
+    # workers; any other process (e.g. the dataset-loading pool) is a loader.
+    labels, n_worker, n_loader = [], 0, 0
+    for lane, th in enumerate(kept):
+        if lane == 0:
+            labels.append("parent")
+        elif th["cuda"]:
+            labels.append(f"worker {n_worker}")
+            n_worker += 1
+        else:
+            labels.append(f"loader {n_loader}")
+            n_loader += 1
+
+    # Mark the first training-worker start (spawn)
+    first_worker = next((th for th, lab in zip(kept, labels) if lab.startswith("worker")), None)
+    if first_worker is not None:
+        x = x_of((first_worker["start"] - run_start) / 1e6)
         out.append(f'<line class="mark" x1="{x:.1f}" y1="{top - 22}" x2="{x:.1f}" y2="{lanes_bottom + 4}"/>'
                    f'<text class="t2 small" x="{x + 4:.1f}" y="{top - 14}">first worker starts</text>\n')
 
     for lane, th in enumerate(kept):
         y0 = top + lane * (lane_h + lane_gap)
         base = y0 + lane_h
-        label = "parent" if lane == 0 else f"worker {lane - 1}"
+        label = labels[lane]
         out.append(f'<text class="t1" x="{label_w - 10}" y="{y0 + 11}" text-anchor="end">{label}</text>'
                    f'<text class="t3 small" x="{label_w - 10}" y="{y0 + 23}" text-anchor="end">'
                    f'pid {th["pid"]}</text>\n')

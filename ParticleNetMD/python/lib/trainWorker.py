@@ -13,8 +13,10 @@ Key features for ParticleNetMD:
 
 import os
 import json
+import time
 import logging
 import torch
+from torch.cuda import nvtx
 
 # Set PyTorch threads for worker processes
 torch.set_num_threads(1)
@@ -84,17 +86,27 @@ def train_epoch_disco(model, loader, optimizer, scheduler, loss_fn, device, use_
     all_labels = []
     all_weights = []
 
-    for batch in loader:
-        batch = batch.to(device)
+    batch_iter = iter(loader)
+    while True:
+        # NVTX ranges label each phase on an nsys timeline; near-zero cost without a profiler
+        with nvtx.range("train/collate"):
+            batch = next(batch_iter, None)
+        if batch is None:
+            break
+        nvtx.range_push("train/batch")
+        with nvtx.range("train/to_device"):
+            batch = batch.to(device)
 
         # Apply phi rotation augmentation (training only)
         if augment_phi_rotation:
-            batch.x = apply_phi_rotation(batch.x, batch.batch, device)
+            with nvtx.range("train/phi_rotation"):
+                batch.x = apply_phi_rotation(batch.x, batch.batch, device)
 
         optimizer.zero_grad()
 
         # Forward pass
-        logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
+        with nvtx.range("train/forward"):
+            logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
 
         # Get tensors for DisCo loss
         weights = batch.weight
@@ -102,10 +114,13 @@ def train_epoch_disco(model, loader, optimizer, scheduler, loss_fn, device, use_
         mass2 = batch.mass2.squeeze()
 
         # Compute DisCo loss
-        loss = loss_fn(logits, batch.y, weights, mass1, mass2)
+        with nvtx.range("train/loss"):
+            loss = loss_fn(logits, batch.y, weights, mass1, mass2)
 
-        loss.backward()
-        optimizer.step()
+        with nvtx.range("train/backward"):
+            loss.backward()
+        with nvtx.range("train/optimizer_step"):
+            optimizer.step()
 
         # Track losses
         loss_accumulator.append(loss.detach())
@@ -117,23 +132,26 @@ def train_epoch_disco(model, loader, optimizer, scheduler, loss_fn, device, use_
         all_predictions.append(pred.detach())
         all_labels.append(batch.y)
         all_weights.append(weights)
+        nvtx.range_pop()
 
     # Scheduler step
-    total_loss = torch.stack(loss_accumulator).sum().item()
+    with nvtx.range("train/epoch_end_sync"):
+        total_loss = torch.stack(loss_accumulator).sum().item()
     if use_plateau_scheduler:
         scheduler.step(total_loss)
     else:
         scheduler.step()
 
     # Calculate group-balanced accuracy
-    all_predictions = torch.cat(all_predictions).cpu()
-    all_labels = torch.cat(all_labels).cpu()
-    all_weights = torch.cat(all_weights).cpu()
+    with nvtx.range("train/accuracy"):
+        all_predictions = torch.cat(all_predictions).cpu()
+        all_labels = torch.cat(all_labels).cpu()
+        all_weights = torch.cat(all_weights).cpu()
 
-    accuracy = calculate_group_balanced_accuracy(
-        all_predictions, all_labels, all_weights,
-        use_groups=True, num_classes=num_classes
-    )
+        accuracy = calculate_group_balanced_accuracy(
+            all_predictions, all_labels, all_weights,
+            use_groups=True, num_classes=num_classes
+        )
 
     # Average losses
     avg_loss = total_loss / len(loader)
@@ -168,10 +186,12 @@ def evaluate_disco(model, loader, loss_fn, device, num_classes):
 
     with torch.no_grad():
         for batch in loader:
-            batch = batch.to(device)
+            with nvtx.range("valid/to_device"):
+                batch = batch.to(device)
 
             # Forward pass
-            logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
+            with nvtx.range("valid/forward"):
+                logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
 
             # Get tensors for DisCo loss
             weights = batch.weight
@@ -179,7 +199,8 @@ def evaluate_disco(model, loader, loss_fn, device, num_classes):
             mass2 = batch.mass2.squeeze()
 
             # Compute DisCo loss
-            loss = loss_fn(logits, batch.y, weights, mass1, mass2)
+            with nvtx.range("valid/loss"):
+                loss = loss_fn(logits, batch.y, weights, mass1, mass2)
 
             # Track losses (detach to free GPU memory)
             loss_accumulator.append(loss.detach())
@@ -299,6 +320,8 @@ def train_worker(worker_id, population_hyperparams, train_data_list, valid_data_
         format=f'[Worker {worker_id}] %(asctime)s - %(levelname)s - %(message)s'
     )
 
+    worker_start = time.time()
+
     # Get hyperparameters for this specific worker
     hyperparams = population_hyperparams[worker_id]
 
@@ -316,6 +339,9 @@ def train_worker(worker_id, population_hyperparams, train_data_list, valid_data_
 
     logging.info(f"DisCo lambda: {disco_params['disco_lambda']} (fixed, not optimized)")
     logging.info(f"Number of classes: {num_classes}")
+
+    # Setup phase (DataLoaders, CUDA context, model) as one NVTX range
+    nvtx.range_push(f"worker {worker_id} setup")
 
     # Create DataLoaders from shared Batch objects (NO UNBATCHING!)
     logging.info(f"Creating DataLoaders from shared Batch (no unbatching)...")
@@ -374,23 +400,29 @@ def train_worker(worker_id, population_hyperparams, train_data_list, valid_data_
     summary_writer.metrics['valid_ce_loss'] = []
     summary_writer.metrics['train_disco_term'] = []
     summary_writer.metrics['valid_disco_term'] = []
+    nvtx.range_pop()  # worker setup
+    logging.info(f"[PROFILE] worker {worker_id} setup: {time.time() - worker_start:.1f} s")
+    train_start = time.time()
 
     # Training loop
     max_epochs = train_params['max_epochs']
     logging.info(f"Starting training for up to {max_epochs} epochs...")
 
     for epoch in range(max_epochs):
+        nvtx.range_push(f"worker {worker_id} epoch {epoch}")
         # Train
-        train_loss, train_acc, train_decomposed = train_epoch_disco(
-            model, train_loader, optimizer, scheduler, loss_fn,
-            device, use_plateau_scheduler, num_classes,
-            args_dict.get('augment_phi_rotation', True)
-        )
+        with nvtx.range("train"):
+            train_loss, train_acc, train_decomposed = train_epoch_disco(
+                model, train_loader, optimizer, scheduler, loss_fn,
+                device, use_plateau_scheduler, num_classes,
+                args_dict.get('augment_phi_rotation', True)
+            )
 
         # Evaluate
-        valid_loss, valid_acc, valid_decomposed = evaluate_disco(
-            model, valid_loader, loss_fn, device, num_classes
-        )
+        with nvtx.range("validate"):
+            valid_loss, valid_acc, valid_decomposed = evaluate_disco(
+                model, valid_loader, loss_fn, device, num_classes
+            )
 
         # Log metrics
         summary_writer.log_metrics(epoch, train_loss, valid_loss, train_acc, valid_acc)
@@ -402,7 +434,9 @@ def train_worker(worker_id, population_hyperparams, train_data_list, valid_data_
         summary_writer.metrics['valid_disco_term'].append(valid_decomposed['disco_term'])
 
         # Early stopping check
-        early_stopper(valid_loss, model)
+        with nvtx.range("early_stop_checkpoint"):
+            early_stopper(valid_loss, model)
+        nvtx.range_pop()
 
         if epoch % 10 == 0 or early_stopper.early_stop:
             logging.info(f"Epoch {epoch}: train_loss={train_loss:.4f}, valid_loss={valid_loss:.4f}, "
@@ -414,14 +448,17 @@ def train_worker(worker_id, population_hyperparams, train_data_list, valid_data_
             logging.info(f"Early stopping triggered at epoch {epoch}")
             break
 
-    # Load best model
-    checkpoint = torch.load(checkpoint_path, weights_only=True)
-    model.load_state_dict(checkpoint['model_state_dict'])
+    logging.info(f"[PROFILE] worker {worker_id} training: {time.time() - train_start:.1f} s "
+                 f"({epoch + 1} epochs)")
 
-    # Final evaluation
-    final_valid_loss, final_valid_acc, final_decomposed = evaluate_disco(
-        model, valid_loader, loss_fn, device, num_classes
-    )
+    # Load best model and run the final evaluation
+    with nvtx.range(f"worker {worker_id} final_eval"):
+        checkpoint = torch.load(checkpoint_path, weights_only=True)
+        model.load_state_dict(checkpoint['model_state_dict'])
+
+        final_valid_loss, final_valid_acc, final_decomposed = evaluate_disco(
+            model, valid_loader, loss_fn, device, num_classes
+        )
     logging.info(f"Final validation: loss={final_valid_loss:.4f}, acc={final_valid_acc:.4f}")
     logging.info(f"  CE={final_decomposed['ce_loss']:.4f}, DisCo={final_decomposed['disco_term']:.4f}")
 

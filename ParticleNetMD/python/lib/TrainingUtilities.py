@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Tuple, Any
 
 import torch
 import torch.nn.functional as F
+from torch.cuda import nvtx
 
 
 def apply_phi_rotation(batch_x, batch_indices, device):
@@ -35,7 +36,8 @@ def apply_phi_rotation(batch_x, batch_indices, device):
     Returns:
         Rotated batch_x tensor (new tensor, original unchanged)
     """
-    num_graphs = batch_indices.max().item() + 1
+    with nvtx.range("phi_rotation/item_sync"):  # GPU->CPU sync once per batch
+        num_graphs = batch_indices.max().item() + 1
 
     # Generate random phi angles per graph: uniform in [0, 2π)
     phi = torch.rand(num_graphs, device=device) * 2 * math.pi

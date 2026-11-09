@@ -31,6 +31,17 @@
 # frames (torch, CUDA) below them. Raw folded stacks are rendered with flamegraph.pl.
 #   Outputs: profiling/py-spy/GA_<signal>_<channel>.{folded,svg}
 #   Sampling rate: $PYSPY_RATE samples/s per process (default 100)
+#
+# Or add --nsys to wrap each job in `nsys profile --trace=cuda,nvtx` (GPU timeline; no CPU
+# sampling, context switches or OS-runtime tracing; perf covers the CPU side).
+# Spawned workers are followed automatically; NVTX ranges from trainWorker.py label the
+# training phases (train/forward, train/backward, loss/item_sync, ...).
+#   Outputs: profiling/nsys/GA_<signal>_<channel>.nsys-rep   (open in the Nsight Systems GUI)
+#            profiling/nsys/GA_<signal>_<channel>_<report>.csv (nsys stats summaries)
+#   nsys binary: $NSYS_BIN, else nsys in PATH, else $WORKDIR/../tools/nsight_root/target-linux-x64/nsys
+#   Window: $NSYS_DELAY / $NSYS_DURATION seconds (default 0 = whole run; the app keeps
+#   running after the window). $NSYS_EXTRA_ARGS is appended to nsys profile, e.g.
+#   NSYS_EXTRA_ARGS="--gpu-metrics-devices=cuda-visible"
 
 print_usage() {
     echo "Error: Missing or invalid arguments"
@@ -51,13 +62,14 @@ print_usage() {
     echo ""
     echo "Profiling: add --perf to any format (perf record + PYTHONPERFSUPPORT=1, flamegraph in profiling/perf/)"
     echo "       or: add --py-spy to any format (py-spy record --subprocesses --native, flamegraph in profiling/py-spy/)"
+    echo "       or: add --nsys to any format (nsys profile with CUDA + NVTX traces, in profiling/nsys/)"
 }
 
-PROFILER=""   # "", "perf" or "py-spy"
+PROFILER=""   # "", "perf", "py-spy" or "nsys"
 
 set_profiler() {
     if [ -n "$PROFILER" ] && [ "$PROFILER" != "$1" ]; then
-        echo "Error: --perf and --py-spy are mutually exclusive"
+        echo "Error: --perf, --py-spy and --nsys are mutually exclusive"
         exit 1
     fi
     PROFILER="$1"
@@ -75,6 +87,7 @@ if [[ "$1" != --* ]]; then
         case "$flag" in
             --perf)   set_profiler perf ;;
             --py-spy) set_profiler py-spy ;;
+            --nsys)   set_profiler nsys ;;
             *)        EXTRA_FLAGS+=("$flag") ;;
         esac
     done
@@ -121,6 +134,10 @@ else
                 ;;
             --py-spy)
                 set_profiler py-spy
+                shift
+                ;;
+            --nsys)
+                set_profiler nsys
                 shift
                 ;;
             *)
@@ -240,7 +257,44 @@ mkdir -p logs
 # Profiling setup: fail fast before launching hours of training
 FLAMEGRAPH_DIR="${FLAMEGRAPH_DIR:-${PWD}/FlameGraph}"
 PYSPY_RATE="${PYSPY_RATE:-100}"
-if [ -n "$PROFILER" ]; then
+NSYS_DELAY="${NSYS_DELAY:-0}"
+NSYS_DURATION="${NSYS_DURATION:-0}"
+NSYS_EXTRA_ARGS="${NSYS_EXTRA_ARGS:-}"
+if [ "$PROFILER" = nsys ]; then
+    if [ -z "${NSYS_BIN:-}" ]; then
+        if command -v nsys > /dev/null 2>&1; then
+            NSYS_BIN="$(command -v nsys)"
+        else
+            NSYS_BIN="${WORKDIR:-}/../tools/nsight_root/target-linux-x64/nsys"
+        fi
+    fi
+    if [ ! -x "$NSYS_BIN" ]; then
+        echo "Error: --nsys requested but nsys not found at '${NSYS_BIN}'"
+        echo "  set NSYS_BIN, put nsys in PATH, or source setup.sh so \$WORKDIR/../tools is used"
+        exit 1
+    fi
+    # A collector-only nsys (no host-linux-x64/) writes .qdstrm instead of .nsys-rep;
+    # QdstrmImporter converts it. Prefer the one next to NSYS_BIN, else the nsys in PATH
+    # (module load cudatoolkit), else $NSYS_IMPORTER.
+    if [ -z "${NSYS_IMPORTER:-}" ]; then
+        for cand in "$(dirname "$NSYS_BIN")/../host-linux-x64/QdstrmImporter" \
+                    "$(dirname "$(readlink -f "$(command -v nsys 2>/dev/null || echo /nonexistent)")")/../host-linux-x64/QdstrmImporter"; do
+            if [ -x "$cand" ]; then NSYS_IMPORTER="$cand"; break; fi
+        done
+    fi
+    if [ -z "${NSYS_IMPORTER:-}" ] || [ ! -x "$NSYS_IMPORTER" ]; then
+        echo "Error: no QdstrmImporter found to turn the nsys capture into a .nsys-rep"
+        echo "  run 'module load cudatoolkit' first, or set NSYS_IMPORTER"
+        exit 1
+    fi
+    for v in NSYS_DELAY NSYS_DURATION; do
+        if ! [[ "${!v}" =~ ^[0-9]+$ ]]; then
+            echo "Error: ${v} must be a non-negative integer (seconds), got '${!v}'"
+            exit 1
+        fi
+    done
+    mkdir -p profiling/nsys
+elif [ -n "$PROFILER" ]; then
     if ! command -v "$PROFILER" > /dev/null 2>&1; then
         echo "Error: --${PROFILER} requested but '${PROFILER}' is not in PATH"
         exit 1
@@ -331,6 +385,17 @@ for i in "${!SIGNAL_ARRAY[@]}"; do
             py-spy record --subprocesses --native --rate "$PYSPY_RATE" --format raw \
                 -o "${STEM}.folded" -- "${GA_CMD[@]}" > "$LOGFILE" 2>&1 &
             ;;
+        nsys)
+            # --kill=none: when a --duration window ends, keep training instead of SIGTERM
+            NSYS_CMD=("$NSYS_BIN" profile --trace=cuda,nvtx --sample=none --cpuctxsw=none
+                      --cuda-memory-usage=false --kill=none --force-overwrite=true -o "${STEM}")
+            [ "$NSYS_DELAY" -gt 0 ] && NSYS_CMD+=(--delay="$NSYS_DELAY")
+            [ "$NSYS_DURATION" -gt 0 ] && NSYS_CMD+=(--duration="$NSYS_DURATION")
+            # shellcheck disable=SC2206  # intentional word splitting of user-supplied extra args
+            [ -n "$NSYS_EXTRA_ARGS" ] && NSYS_CMD+=($NSYS_EXTRA_ARGS)
+            echo "        nsys: ${STEM}.nsys-rep (delay ${NSYS_DELAY} s, duration ${NSYS_DURATION} s; 0 = whole run)"
+            "${NSYS_CMD[@]}" -- "${GA_CMD[@]}" > "$LOGFILE" 2>&1 &
+            ;;
         *)
             "${GA_CMD[@]}" > "$LOGFILE" 2>&1 &
             ;;
@@ -389,6 +454,37 @@ if [ "$PROFILER" = perf ]; then
         if ! FLAMEGRAPH_DIR="$FLAMEGRAPH_DIR" python "$(command -v perfFlameChart.py)" \
                 --perf-data "${STEM}.perf.data"; then
             echo "ERROR: flame chart build failed for ${STEM}"
+            FAILED=$((FAILED + 1))
+        fi
+    done
+fi
+
+# nsys: summary tables next to the report (the .nsys-rep itself is for the Nsight GUI)
+if [ "$PROFILER" = nsys ]; then
+    echo "=========================================="
+    echo "Building nsys summaries (profiling/nsys/)"
+    echo "=========================================="
+    NSYS_REPORTS="nvtx_sum,nvtx_gpu_proj_sum,cuda_gpu_kern_sum,cuda_gpu_mem_time_sum,cuda_api_sum"
+    for i in "${!SIGNAL_ARRAY[@]}"; do
+        STEM="profiling/nsys/GA_${SIGNAL_ARRAY[$i]}_${CHANNEL_ARRAY[$i]}"
+        if [ ! -s "${STEM}.nsys-rep" ] && [ -s "${STEM}.qdstrm" ]; then
+            echo "  converting ${STEM}.qdstrm with ${NSYS_IMPORTER}"
+            if "$NSYS_IMPORTER" -i "${STEM}.qdstrm" -o "${STEM}.nsys-rep" > "${STEM}.import.log" 2>&1; then
+                rm -f "${STEM}.qdstrm"
+            else
+                echo "ERROR: QdstrmImporter failed for ${STEM} (see ${STEM}.import.log)"
+            fi
+        fi
+        if [ ! -s "${STEM}.nsys-rep" ]; then
+            echo "ERROR: ${STEM}.nsys-rep missing or empty (see the job log)"
+            FAILED=$((FAILED + 1))
+            continue
+        fi
+        if "$NSYS_BIN" stats --report "$NSYS_REPORTS" --format csv --force-export=true \
+                --output "${STEM}" "${STEM}.nsys-rep" > "${STEM}.stats.log" 2>&1; then
+            echo "  ${STEM}_<report>.csv  (${NSYS_REPORTS})"
+        else
+            echo "ERROR: nsys stats failed for ${STEM} (see ${STEM}.stats.log)"
             FAILED=$((FAILED + 1))
         fi
     done

@@ -12,6 +12,7 @@ Key features for ParticleNetMD:
 """
 
 import os
+import time
 import logging
 import torch
 import torch.multiprocessing as mp
@@ -87,55 +88,43 @@ class SharedDatasetManager:
 
         self.logger.info("=" * 60)
         self.logger.info("Loading datasets into shared memory...")
+        prep_start = time.time()
         self.logger.info(f"Signal: {signal_sample}")
         self.logger.info(f"Channel: {channel}")
         self.logger.info(f"Pilot mode: {pilot}")
         self.logger.info("=" * 60)
 
-        # Load training data
-        train_data_list = loader.load_multiclass_with_subsampling(
-            signal_sample=signal_sample,
-            background_groups=background_groups,
-            channel=channel,
-            fold_list=train_folds,
-
-            max_events_per_fold=max_events_per_fold,
-            balance_weights=balance_weights,
-            random_state=random_state
-        )
-
-        # Load validation data (may use a separate cap from train)
+        # Load train + valid (+ test) with one process pool: all (class, fold) tasks run
+        # concurrently; each split is balanced and shuffled on its own (same result as
+        # loading the splits one after another).
         valid_max = max_valid_events_per_fold if max_valid_events_per_fold is not None else max_events_per_fold
-        valid_data_list = loader.load_multiclass_with_subsampling(
+        splits = {"train": (train_folds, max_events_per_fold), "valid": (valid_folds, valid_max)}
+        if test_folds is not None:
+            splits["test"] = (test_folds, max_events_per_fold)
+        loaded = loader.load_multiclass_splits(
             signal_sample=signal_sample,
             background_groups=background_groups,
             channel=channel,
-            fold_list=valid_folds,
-
-            max_events_per_fold=valid_max,
+            splits=splits,
             balance_weights=balance_weights,
             random_state=random_state
         )
+        train_data_list, valid_data_list = loaded["train"], loaded["valid"]
 
         # Move all tensors to shared memory
+        share_start = time.time()
         self.logger.info("Moving tensors to shared memory...")
         train_shared = self._move_to_shared_memory(train_data_list, "train")
         valid_shared = self._move_to_shared_memory(valid_data_list, "valid")
 
+        self.logger.info(f"[PROFILE] move to shared memory: {time.time() - share_start:.1f} s")
+        self.logger.info(f"[PROFILE] prepare shared datasets (total): {time.time() - prep_start:.1f} s")
         self.logger.info(f"Shared memory preparation complete!")
         self.logger.info(f"Train dataset: {train_shared.num_graphs} events")
         self.logger.info(f"Valid dataset: {valid_shared.num_graphs} events")
 
         if test_folds is not None:
-            test_data_list = loader.load_multiclass_with_subsampling(
-                signal_sample=signal_sample,
-                background_groups=background_groups,
-                channel=channel,
-                fold_list=test_folds,
-                max_events_per_fold=max_events_per_fold,
-                balance_weights=balance_weights,
-                random_state=random_state
-            )
+            test_data_list = loaded["test"]
             test_shared = self._move_to_shared_memory(test_data_list, "test")
             self.logger.info(f"Test dataset: {test_shared.num_graphs} events")
             self.logger.info("=" * 60)

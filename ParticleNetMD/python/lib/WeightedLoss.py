@@ -12,6 +12,7 @@ classifier output from di-muon mass.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.cuda import nvtx
 import logging
 
 class WeightedCrossEntropyLoss(nn.Module):
@@ -210,11 +211,12 @@ class DiScoWeightedLoss(nn.Module):
             ce_mean = ce_loss.sum() / torch.abs(weight).sum().clamp(min=1e-8)
             total_loss = ce_mean + self.disco_lambda * disco_term
 
-            # Store decomposed losses for tracking
-            self.last_ce_loss = ce_mean.item()
-            self.last_disco_term = disco_term.item()
-            self.last_disco1 = disco1.item() if isinstance(disco1, torch.Tensor) else disco1
-            self.last_disco2 = disco2.item() if isinstance(disco2, torch.Tensor) else disco2
+            # Store decomposed losses for tracking (4 GPU->CPU syncs per call)
+            with nvtx.range("loss/item_sync"):
+                self.last_ce_loss = ce_mean.item()
+                self.last_disco_term = disco_term.item()
+                self.last_disco1 = disco1.item() if isinstance(disco1, torch.Tensor) else disco1
+                self.last_disco2 = disco2.item() if isinstance(disco2, torch.Tensor) else disco2
 
             return total_loss
         elif self.reduction == 'sum':

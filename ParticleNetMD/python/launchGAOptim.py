@@ -15,12 +15,16 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 import shutil
+import time
 import logging
 import argparse
 import random
 import json
 import torch
+import multiprocessing
+import multiprocessing.forkserver
 import torch.multiprocessing as mp
+from torch.cuda import nvtx
 
 from GAConfig import load_ga_config
 from GATools import GeneticModule
@@ -41,6 +45,11 @@ def parse_arguments():
     parser.add_argument("--debug", action="store_true", default=False, help="Debug mode")
     parser.add_argument("--resume-from", type=int, default=None, metavar="N",
                         help="Resume GA from iteration N (retrains iter N onward, preserves 0..N-1)")
+    parser.add_argument("--start-method", choices=["forkserver", "spawn"], default="forkserver",
+                        help="How worker processes are started (default: forkserver). 'spawn' re-imports "
+                             "torch/PyG/ROOT in every worker, one worker after another (~45 s each on "
+                             "Perlmutter GPU nodes); 'forkserver' imports them once in a server process "
+                             "and forks each worker from it.")
     return parser.parse_args()
 
 
@@ -112,6 +121,7 @@ def run_training_population(config, args, population, iteration, base_dir):
 
     logging.info("=" * 60)
     logging.info("Loading datasets into shared memory")
+    load_start = time.time()
     logging.info("=" * 60)
 
     # Get configurations
@@ -145,6 +155,7 @@ def run_training_population(config, args, population, iteration, base_dir):
         logging.info(f"PILOT MODE: train_folds={use_train_folds} | caps: train={max_train_events} valid={max_valid_events}")
 
     # Load datasets into shared memory (ONE TIME ONLY!)
+    nvtx.range_push(f"iter {iteration} load datasets")
     train_data_list, valid_data_list = manager.prepare_shared_datasets(
         loader=loader,
         signal_sample=signal_full,
@@ -158,10 +169,12 @@ def run_training_population(config, args, population, iteration, base_dir):
         balance_weights=train_params.get('balance_weights', True),
         random_state=42
     )
+    nvtx.range_pop()
 
     # Display memory usage statistics
     memory_stats = manager.get_memory_usage()
     logging.info(f"Shared memory usage: {memory_stats['total_gb']:.2f} GB")
+    logging.info(f"[PROFILE] iter {iteration} dataset loading: {time.time() - load_start:.1f} s")
 
     # Prepare arguments for workers (including disco_lambda)
     overfitting_config = config.get_overfitting_config()
@@ -196,20 +209,30 @@ def run_training_population(config, args, population, iteration, base_dir):
         }
         population_hyperparams.append(hyperparams)
 
-    # Set multiprocessing start method
+    # Set multiprocessing start method (only affects code that uses the global default;
+    # the workers below use args.start_method explicitly)
     setup_spawn_method()
 
-    logging.info(f"[Iter {iteration}] Spawning {len(population)} worker processes...")
+    logging.info(f"[Iter {iteration}] Spawning {len(population)} worker processes "
+                 f"(start method: {args.start_method})...")
+    train_start = time.time()
 
-    # Launch workers using multiprocessing.spawn
+    # Launch workers. torch's start_processes starts them one by one and each start()
+    # waits until the child has imported the main module; with forkserver that import
+    # already happened once in the server, so every start is quick.
     try:
-        mp.spawn(
+        nvtx.range_push(f"iter {iteration} spawn + train {len(population)} workers")
+        mp.start_processes(
             train_worker,
             args=(population_hyperparams, train_data_list, valid_data_list, args_dict, config),
             nprocs=len(population),
-            join=True  # Wait for all processes to complete
+            join=True,  # Wait for all processes to complete
+            start_method=args.start_method,
         )
+        nvtx.range_pop()
         logging.info(f"[Iter {iteration}] All {len(population)} workers completed")
+        logging.info(f"[PROFILE] iter {iteration} spawn + train {len(population)} workers: "
+                     f"{time.time() - train_start:.1f} s")
     except Exception as e:
         logging.error(f"Error during parallel training: {e}")
         raise
@@ -283,14 +306,41 @@ def regenerate_models(ga_module, count):
     return [{'chromosome': random.choice(ga_module.pool), 'fitness': None} for _ in range(count)]
 
 
+# Everything this script imports (and so every worker needs): torch, PyG and, through
+# evaluateGAModels -> OverfittingDetector, ROOT
+FORKSERVER_PRELOAD = ["torch", "torch_geometric", "GAConfig", "GATools", "evaluateGAModels",
+                      "SharedDatasetManager", "DynamicDatasetLoader", "trainWorker", "SharedWorkerUtils"]
+
+
+def start_forkserver():
+    """Start the forkserver now, with this script preloaded, so its one-time import of
+    torch/PyG/ROOT overlaps with dataset loading instead of delaying the first worker.
+
+    The server is a fresh interpreter (not a fork of this process), so it neither holds
+    the loaded datasets nor a CUDA context; workers forked from it inherit only imports.
+
+    Modules are preloaded by name: in Python 3.12, preloading "__main__" is silently
+    skipped (forkserver asks for 'main_path' but spawn provides 'init_main_from_path').
+    Each worker still runs this script's top level, but every import there is then a
+    cache hit.
+    """
+    multiprocessing.set_forkserver_preload(FORKSERVER_PRELOAD)
+    multiprocessing.forkserver.ensure_running()
+    logging.info(f"Forkserver started, preloading {', '.join(FORKSERVER_PRELOAD)}")
+
+
 def main():
     """Main GA optimization workflow with DisCo loss."""
     args = parse_arguments()
+    run_start = time.time()
 
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
+
+    if args.start_method == "forkserver":
+        start_forkserver()
 
     if args.pilot:
         logging.info("=" * 60)
@@ -399,6 +449,7 @@ def main():
     best = ga_module.bestChromosome()
     logging.info("=" * 60)
     logging.info("GA OPTIMIZATION COMPLETE")
+    logging.info(f"[PROFILE] total GA run: {time.time() - run_start:.1f} s")
     logging.info("=" * 60)
     logging.info(f"Best configuration found: {best}")
     logging.info(f"Best fitness: {best['fitness']:.6f}")
