@@ -314,6 +314,7 @@ Some scripts also create `results/`, `plots/`, or validation subdirectories as n
 - `docs/STEP1_PREPROCESSING.md`: data preparation, augmentation, validation.
 - `docs/STEP2-DECORRELATION.md`: lambda/decorrelation workflow.
 - `docs/STEP3_HYPERPARAM.md`: GA optimization details.
+- `docs/PROFILE.md`: profiling the GA (perf / nsys / ncu options of `launchGAOptim.sh`), results and pitfalls.
 - `docs/ModelComparison.md`: five-model comparison workflow and canonical ParticleNet configuration.
 - `docs/ParametricPN.md`: mass-parametrized ParticleNetMD study (mHc = 100/130/160) and findings.
 - `docs/BOARD.md`: project task/status notes.

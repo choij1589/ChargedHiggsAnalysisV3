@@ -485,8 +485,13 @@ if [ "$PROFILER" = nsys ]; then
             FAILED=$((FAILED + 1))
             continue
         fi
-        if "$NSYS_BIN" stats --report "$NSYS_REPORTS" --format csv --force-export=true \
-                --output "${STEM}" "${STEM}.nsys-rep" > "${STEM}.stats.log" 2>&1; then
+        # Export to SQLite, drop the NVTX ranges cut by the recording window (end < start),
+        # then build the summaries from the cleaned SQLite
+        if "$NSYS_BIN" export --type sqlite --force-overwrite true -o "${STEM}.sqlite" "${STEM}.nsys-rep" \
+                > "${STEM}.stats.log" 2>&1 \
+            && python "$(command -v nsysFixRanges.py)" "${STEM}.sqlite" >> "${STEM}.stats.log" 2>&1 \
+            && "$NSYS_BIN" stats --report "$NSYS_REPORTS" --format csv --force-overwrite=true \
+                --output "${STEM}" "${STEM}.sqlite" >> "${STEM}.stats.log" 2>&1; then
             echo "  ${STEM}_<report>.csv  (${NSYS_REPORTS})"
         else
             echo "ERROR: nsys stats failed for ${STEM} (see ${STEM}.stats.log)"

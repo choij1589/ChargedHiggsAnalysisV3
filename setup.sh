@@ -30,7 +30,7 @@ else
     source $HOME/miniconda3/bin/activate
     conda activate Nano
     export NSYS_BIN=/opt/nvidia/hpc_sdk/Linux_x86_64/26.5/profilers/13.2/Nsight_Systems/bin/nsys
-    export NSYS_DELAY=1400
+    export NSYS_DELAY=1000
     export NSYS_DURATION=120
 fi
 echo "@@@@ WORKDIR: $WORKDIR"
