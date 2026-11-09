@@ -367,7 +367,9 @@ for i in "${!SIGNAL_ARRAY[@]}"; do
     SIGNAL="${SIGNAL_ARRAY[$i]}"
     CHANNEL="${CHANNEL_ARRAY[$i]}"
     DEVICE="${DEVICE_ARRAY[$i]}"
-    LOGFILE="logs/GA_${SIGNAL}_${CHANNEL}.log"
+    # Tag the log with the profiler (e.g. GA_<sig>_<ch>.nsys.log) so profiled runs do not
+    # overwrite each other's or the plain run's log
+    LOGFILE="logs/GA_${SIGNAL}_${CHANNEL}${PROFILER:+.${PROFILER}}.log"
 
     echo "[$((i+1))/${NUM_JOBS}] Signal: ${SIGNAL}, Channel: ${CHANNEL}, Device: ${DEVICE}"
     echo "        Log: ${LOGFILE}"
@@ -386,6 +388,9 @@ for i in "${!SIGNAL_ARRAY[@]}"; do
                 -o "${STEM}.folded" -- "${GA_CMD[@]}" > "$LOGFILE" 2>&1 &
             ;;
         nsys)
+            # nsys does not trace CUDA in processes forked without exec (forkserver workers),
+            # so profile with spawn-started workers (slower, staggered start, but traced)
+            GA_CMD+=(--start-method spawn)
             # --kill=none: when a --duration window ends, keep training instead of SIGTERM
             NSYS_CMD=("$NSYS_BIN" profile --trace=cuda,nvtx --sample=none --cpuctxsw=none
                       --cuda-memory-usage=false --kill=none --force-overwrite=true -o "${STEM}")

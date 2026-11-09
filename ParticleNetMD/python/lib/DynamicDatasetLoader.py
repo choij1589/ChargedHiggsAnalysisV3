@@ -16,7 +16,7 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Process-pool helpers for parallel (class, fold) loading.
 # Unpickling lists of PyG Data objects holds the GIL, so threads do not help;
-# each (class, fold) task runs in its own spawned process instead.
+# each (class, fold) task runs in its own process (forkserver) instead.
 # ---------------------------------------------------------------------------
 _WORKER_LOG = []
 
@@ -450,7 +450,10 @@ class DynamicDatasetLoader:
         gc_was_enabled = gc.isenabled()
         gc.disable()
         try:
-            with ProcessPoolExecutor(max_workers=num_workers, mp_context=mp.get_context("spawn"),
+            # forkserver: if the caller started a preloaded forkserver (launchGAOptim.py does),
+            # loaders are forked from it without re-importing torch/PyG/ROOT; otherwise the
+            # server starts bare and this behaves like spawn. Loaders never use CUDA.
+            with ProcessPoolExecutor(max_workers=num_workers, mp_context=mp.get_context("forkserver"),
                                      initializer=_init_load_worker, initargs=(list(sys.path),)) as pool:
                 for blob, records in pool.map(_run_class_fold_task,
                                               [self.dataset_root] * len(tasks), tasks):

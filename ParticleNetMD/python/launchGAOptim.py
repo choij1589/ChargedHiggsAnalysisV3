@@ -49,7 +49,7 @@ def parse_arguments():
                         help="How worker processes are started (default: forkserver). 'spawn' re-imports "
                              "torch/PyG/ROOT in every worker, one worker after another (~45 s each on "
                              "Perlmutter GPU nodes); 'forkserver' imports them once in a server process "
-                             "and forks each worker from it.")
+                             "(python/lib/forkserverPreload.py) and forks each worker from it.")
     return parser.parse_args()
 
 
@@ -306,10 +306,9 @@ def regenerate_models(ga_module, count):
     return [{'chromosome': random.choice(ga_module.pool), 'fitness': None} for _ in range(count)]
 
 
-# Everything this script imports (and so every worker needs): torch, PyG and, through
-# evaluateGAModels -> OverfittingDetector, ROOT
-FORKSERVER_PRELOAD = ["torch", "torch_geometric", "GAConfig", "GATools", "evaluateGAModels",
-                      "SharedDatasetManager", "DynamicDatasetLoader", "trainWorker", "SharedWorkerUtils"]
+# forkserverPreload imports everything this script needs (torch, PyG, ROOT, analysis
+# modules) without initializing CUDA; see its docstring
+FORKSERVER_PRELOAD = ["forkserverPreload"]
 
 
 def start_forkserver():

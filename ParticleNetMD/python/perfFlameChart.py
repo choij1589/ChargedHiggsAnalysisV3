@@ -11,7 +11,7 @@ Usage:
     perfFlameChart.py --perf-data profiling/perf/GA_MHc130_MA90_Combined.perf.data
 
 Outputs (next to the perf.data file unless --outdir is given):
-    <stem>.flamechart/<pid>_<tid>_<comm>.{folded,svg}   one chart per kept thread
+    <stem>.flamechart/<pid>_<tid>_<comm>.{folded,svg}   one chart per process (main thread)
     <stem>.flamechart/index.tsv                       thread table (start, duration, on-CPU)
     <stem>.flamechart/timeline.svg                    all processes on one time axis, by activity
 
@@ -48,6 +48,7 @@ GC_RE = re.compile(r"^(gc_collect|deduce_unreachable|visit_reachable|visit_decre
 PY_RE = re.compile(r"^(_?Py|_Py|py::)|dealloc|vectorcall|frame|take_gil|drop_gil|method_get|^object_|"
                    r"initialize_locals|^func_|dict|PyTraceBack|^tuple|^list_|^long_|^unicode")
 TORCH_RE = re.compile(r"c10::|at::|torch::|THP")
+GPU_WORK_RE = re.compile(r"cuLaunchKernel|cudaLaunchKernel|cuStreamSynchronize|cuMemcpy|cudaMemcpy")
 HEADER_RE = re.compile(r"^(?P<comm>.+?)\s+(?P<pid>\d+)/(?P<tid>\d+)\s+(?P<time>\d+\.\d+):")
 
 
@@ -61,8 +62,8 @@ def parse_arguments():
                         help="Directory with flamegraph.pl (default: $FLAMEGRAPH_DIR or ./FlameGraph)")
     parser.add_argument("--freq", type=float, default=99.0,
                         help="Sampling frequency used in perf record -F (default: 99)")
-    parser.add_argument("--min-oncpu-sec", type=float, default=60.0,
-                        help="Skip threads with less on-CPU time than this (default: 60 s)")
+    parser.add_argument("--min-oncpu-sec", type=float, default=10.0,
+                        help="Skip threads with less on-CPU time than this (default: 10 s; short-lived loader processes use ~30-60 s)")
     parser.add_argument("--width", type=int, default=1800, help="SVG width in pixels (default: 1800)")
     return parser.parse_args()
 
@@ -134,8 +135,10 @@ def build_thread_timelines(samples, interval_us):
         th["comm"] = comm  # threads are renamed after start (python -> pt_main_thread)
         th["last"] = t_us
         th["last_stack"] = ";".join(stack) if stack else "[no stack]"
-        # A thread that ever samples inside the CUDA driver/runtime belongs to a training worker
-        if not th["cuda"] and ("libcuda" in th["last_stack"] or "libcudart" in th["last_stack"]):
+        # A thread that ever launches/syncs/copies GPU work belongs to a training worker.
+        # (Merely loading libcuda is not enough: importing torch_geometric initializes the
+        # CUDA driver even in the dataset-loading processes.)
+        if not th["cuda"] and GPU_WORK_RE.search(th["last_stack"]):
             th["cuda"] = True
     for th in threads.values():
         append_segment(th["segments"], th["last_stack"], interval_us)
@@ -264,7 +267,7 @@ def render_timeline(threads, svg_path, title, width=1500, target_bins=420):
     out.append(f'<text class="t2 small" x="{width - summary_w - pad_r + 12}" y="{top - 12}">'
                f'share of lifetime · share of CPU time</text>\n')
 
-    # Row roles: the earliest process is the parent; processes that used CUDA are training
+    # Row roles: the earliest process is the parent; processes that ran GPU work are training
     # workers; any other process (e.g. the dataset-loading pool) is a loader.
     labels, n_worker, n_loader = [], 0, 0
     for lane, th in enumerate(kept):
@@ -367,7 +370,9 @@ def main():
     for th in sorted(threads.values(), key=lambda x: (x["start"], x["tid"])):
         duration = th["last"] - th["start"] + 1e6 / args.freq
         oncpu_sec = th["oncpu"] / 1e6
-        if oncpu_sec < args.min_oncpu_sec:
+        # One chart per process: main threads only (helper threads such as pt_autograd_*
+        # carry a few % of the CPU time and would just add noise)
+        if th["tid"] != th["pid"] or oncpu_sec < args.min_oncpu_sec:
             continue
         comm_safe = re.sub(r"[^A-Za-z0-9_.-]", "_", th["comm"])
         name = f"{th['pid']}_{th['tid']}_{comm_safe}"
@@ -388,7 +393,7 @@ def main():
         print(f"  {svg_path}")
 
     if not rows:
-        raise RuntimeError(f"No thread has more than {args.min_oncpu_sec} s on-CPU time")
+        raise RuntimeError(f"No process main thread has more than {args.min_oncpu_sec} s on-CPU time")
     index_path = os.path.join(outdir, "index.tsv")
     with open(index_path, "w") as f:
         f.write("thread\tstart_offset_s\tduration_s\toncpu_s\toncpu_fraction\n")
