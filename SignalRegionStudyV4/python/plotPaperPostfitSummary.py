@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Produce paper-style b-only postfit mA summary plots from cached hists."""
+"""Produce paper-style b-only postfit mA summary plots from cached hists.
+
+--preliminary writes the published full-range panel with "CMS Preliminary"
+(PAS) next to the paper PDF, as postfit_b_only_preliminary.pdf.
+"""
 
 import argparse
 import ctypes
@@ -19,8 +23,8 @@ import plotPostfitSummary as summary
 # only the labels are shared, not the standalone-legend machinery.
 from plotPaperLRModified import (BKG_LABELS, CHANNEL_POS, CHANNEL_SIZE,  # noqa: E402
                                  CMS_LABEL_POS, CMS_LABEL_SIZE, DATA_LABEL,
-                                 HIDE_ORIGIN_Y_LABEL,
-                                 SIGNAL_SOURCE,
+                                 HIDE_ORIGIN_Y_LABEL, PRELIMINARY_SUFFIX,
+                                 PRELIMINARY_TEXT, SIGNAL_SOURCE,
                                  LEGEND_KEY, MASS_LABEL_OFFSET_PT,
                                  MASS_LABEL_POS, MASS_LABEL_SIZE, RATIO_LABEL,
                                  SYST_LABEL, Y_HEADROOM, offset_ndc_by_points,
@@ -152,8 +156,16 @@ def parse_args():
                         help="publish the legend as its own panel instead of "
                              f"drawing it in each plot (the '{LEGEND_KEY}' "
                              "panel; pre-2026-08-18 layout)")
+    parser.add_argument("--preliminary", action="store_true",
+                        help="full-range panel with 'CMS Preliminary' (PAS), written next "
+                             f"to the paper PDF as {FULL_RANGE_STEM}{PRELIMINARY_SUFFIX}.pdf")
     parser.add_argument("--debug", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.preliminary and args.mode != "full-range":
+        parser.error("--preliminary is made for the published --mode full-range panel only")
+    if args.preliminary and args.standalone_legend:
+        parser.error("--preliminary draws its legend in the plot; drop --standalone-legend")
+    return args
 
 
 def resolve_output_root(path):
@@ -342,7 +354,7 @@ def visible_y_range(data, backgrounds, x_min, x_max):
 
 
 def build_config(channel, edges, data, backgrounds, display_low, display_high,
-                 draw_legend=False):
+                 draw_legend=False, preliminary=False):
     channel_label, region_label = CHANNEL_LABELS[channel]
     x_min = edges[0] if display_low is None else display_low
     x_max = edges[-1] if display_high is None else display_high
@@ -371,7 +383,8 @@ def build_config(channel, edges, data, backgrounds, display_low, display_high,
         "cmsPosY": CMS_LABEL_POS[1],
         "cmsLabelSize": CMS_LABEL_SIZE,
         # Published paper figures drop "Preliminary"; only "CMS" is drawn.
-        "extraText": "",
+        # --preliminary puts it back, under "CMS" (plotter.draw_cms_label).
+        "extraText": PRELIMINARY_TEXT if preliminary else "",
         "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
         # Equal-width mass bins: no horizontal bars on data, as CMS style asks.
         "dataErrorX0": True,
@@ -455,10 +468,11 @@ def output_path(output_root, channel, region_name):
     return output_root / f"postfit_b_mHc{MHC}_{channel}_{region_name}.pdf"
 
 
-def full_range_output_path(output_root, channel):
+def full_range_output_path(output_root, channel, preliminary=False):
     """Combined carries no filename token, as everywhere else in the module."""
     token = "" if channel == "Combined" else f"_{channel}"
-    return output_root / f"{FULL_RANGE_STEM}{token}.pdf"
+    suffix = PRELIMINARY_SUFFIX if preliminary else ""
+    return output_root / f"{FULL_RANGE_STEM}{token}{suffix}.pdf"
 
 
 def build_full_range_content(results):
@@ -588,14 +602,15 @@ def hide_top_ratio_label(plotter):
     axis.ChangeLabel(-1, -1, 0.0)
 
 
-def draw_full_range(output_root, channel, plot_only, debug, draw_legend=True):
+def draw_full_range(output_root, channel, plot_only, debug, draw_legend=True,
+                    preliminary=False):
     results = load_channel_results(channel, plot_only, debug)
     logging.info("%s: loaded %d cached masspoints", channel, len(results))
 
     data, backgrounds, edges = build_full_range_content(results)
     config = build_config(channel, edges, data, backgrounds,
                           FULL_RANGE_XRANGE[0], FULL_RANGE_XRANGE[1],
-                          draw_legend=draw_legend)
+                          draw_legend=draw_legend, preliminary=preliminary)
     config["rRange"] = FULL_RANGE_RRANGE
     config["legend"] = FULL_RANGE_LEGEND
     config["legendTextSize"] = FULL_RANGE_LEGEND_TEXT_SIZE
@@ -604,7 +619,7 @@ def draw_full_range(output_root, channel, plot_only, debug, draw_legend=True):
                  config["yRange"][0], config["yRange"][1],
                  ", ".join(backgrounds.keys()))
 
-    out_path = full_range_output_path(output_root, channel)
+    out_path = full_range_output_path(output_root, channel, preliminary)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     plotter = ComparisonCanvas(data.Clone(f"data_{channel}_full"), {
@@ -700,7 +715,8 @@ def main():
     for channel in channels:
         if args.mode == "full-range":
             draw_full_range(output_root, channel, plot_only, args.debug,
-                            draw_legend=not args.standalone_legend)
+                            draw_legend=not args.standalone_legend,
+                            preliminary=args.preliminary)
         else:
             draw_channel(output_root, channel, plot_only, args.debug,
                          draw_legend=not args.standalone_legend)

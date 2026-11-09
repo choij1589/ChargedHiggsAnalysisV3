@@ -13,7 +13,11 @@ folders -- no sample-tree refill and no fine-mass cache is involved.
 
 Usage:
     python3 python/plotPaperTemplates.py --masspoint MHc130_MA90
+    python3 python/plotPaperTemplates.py --masspoint MHc130_MA90 --preliminary
     python3 python/plotPaperTemplates.py --masspoint all
+
+--preliminary writes the same panels with "CMS Preliminary" (PAS) next to the
+paper PDFs, as <name>_preliminary.pdf.
 """
 import argparse
 import logging
@@ -41,7 +45,8 @@ from plotPaperLRModified import (BKG_LABELS, CHANNEL_POS,  # noqa: E402
                                  CHANNEL_SIZE, DATA_LABEL, data_maximum,
                                  RATIO_LABEL, SIGNAL_LEGEND_OPT,
                                  SIGNAL_LINE_WIDTH, SYST_LABEL,
-                                 HIDE_ORIGIN_Y_LABEL)
+                                 HIDE_ORIGIN_Y_LABEL, PRELIMINARY_SUFFIX,
+                                 PRELIMINARY_TEXT)
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(0)
@@ -151,6 +156,9 @@ def parse_args():
                         help="upper edge of the Data/Pred pad. Points and error bars "
                              "above this are clipped; pass 5.0 to contain every one "
                              "of the unblinded templates (default: 3.5)")
+    parser.add_argument("--preliminary", action="store_true",
+                        help="'CMS Preliminary' (PAS), written next to the paper PDF as "
+                             f"<name>{PRELIMINARY_SUFFIX}.pdf")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
@@ -323,7 +331,7 @@ def stack_maximum(bkgs):
 
 
 def build_config(era_scope, channel_scope, edges, data, bkgs, signal,
-                 show_signal, ratio_max):
+                 show_signal, ratio_max, preliminary=False):
     channel_label, region_label = CHANNEL_LABELS[channel_scope]
     # data_maximum(), not GetMaximum(): the panel draws Poisson error bars, and
     # a low-count bin's bar reaches far above its marker -- at Run3/SR1E2Mu the
@@ -352,7 +360,8 @@ def build_config(era_scope, channel_scope, edges, data, bkgs, signal,
         # the frame and the full frame height is available for the plot.
         "iPos": 0,
         # Published paper figures drop "Preliminary"; only "CMS" is drawn.
-        "extraText": "",
+        # --preliminary puts it back, after "CMS" on the header line (iPos=0).
+        "extraText": PRELIMINARY_TEXT if preliminary else "",
         "hideOriginYLabel": HIDE_ORIGIN_Y_LABEL,
         # Two columns: data + 5 background groups + Stat+Syst fill four rows.
         # The signal gets its own full-width line below (see draw_panel), so the
@@ -377,13 +386,13 @@ def build_config(era_scope, channel_scope, edges, data, bkgs, signal,
 
 def draw_panel(out_path, era_scope, channel_scope, fit_stage,
                edges, data, bkgs, signal, uncertainty, masspoint, ratio_max=5.0,
-               best_fit_r=None):
+               best_fit_r=None, preliminary=False):
     # A positive integral is exactly the r > 0 condition on the S+B panel, and
     # is always true pre-fit.
     show_signal = (fit_stage in SIGNAL_STAGES and signal is not None
                    and signal.Integral() > 0.0)
     config = build_config(era_scope, channel_scope, edges, data, bkgs, signal,
-                          show_signal, ratio_max)
+                          show_signal, ratio_max, preliminary)
     plotter = ComparisonCanvas(data, bkgs, config)
 
     # FitDiagnostics stores the correlated total-background uncertainty; adopt it
@@ -437,7 +446,8 @@ def draw_panel(out_path, era_scope, channel_scope, fit_stage,
     return plotter
 
 
-def draw_masspoint(masspoint, method, signal_source, output_root, ratio_max, debug):
+def draw_masspoint(masspoint, method, signal_source, output_root, ratio_max, debug,
+                   preliminary=False):
     setup_module(masspoint, method, signal_source, debug)
     metadata = pfm.load_run_period_metadata()
     if not metadata:
@@ -474,11 +484,12 @@ def draw_masspoint(masspoint, method, signal_source, output_root, ratio_max, deb
                     edges, data, bkgs, signal, uncertainty = build_content(
                         fitdiag, shapes_file, metadata, category, fit_stage)
                     merged = merge_backgrounds(bkgs, f"{category}_{fit_stage}")
+                    suffix = PRELIMINARY_SUFFIX if preliminary else ""
                     out_path = (out_dir / f"{STAGE_FILE_TAGS[fit_stage]}_mass_"
-                                          f"{era_scope}_{channel_scope}.pdf")
+                                          f"{era_scope}_{channel_scope}{suffix}.pdf")
                     draw_panel(out_path, era_scope, channel_scope, fit_stage,
                                edges, data, merged, signal, uncertainty, masspoint,
-                               ratio_max, best_fit_r)
+                               ratio_max, best_fit_r, preliminary)
                     logging.info(
                         "%s: data=%.0f  bkg=%.2f  signal=%.2f  (%d bins) -> %s",
                         f"{category}/{fit_stage}", data.Integral(),
@@ -504,7 +515,8 @@ def main():
     total = 0
     for masspoint in masspoints:
         total += len(draw_masspoint(masspoint, args.method, args.signal_source,
-                                    output_root, args.ratio_max, args.debug))
+                                    output_root, args.ratio_max, args.debug,
+                                    args.preliminary))
     logging.info("Done. Wrote %d PDFs under %s", total, output_root)
 
 

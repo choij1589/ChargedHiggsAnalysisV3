@@ -316,6 +316,30 @@ python3 python/plotPaperPostfitSummary.py
 # range and fit stage into the left-hand text block; --standalone-legend
 # restores the shared legend panel.
 
+# 6d. Limits: the paper figure is the combined-mHc grid alone, BR and xsec
+#     -> paper/Limits/{BR,xsec}/All/limit.All.combineMHc.pdf:
+python3 python/plotPaperLimit.py --era All --combine-mhc --mode BR
+python3 python/plotPaperLimit.py --era All --combine-mhc --mode xsec
+
+# 6e. Preliminary (PAS) versions of 6a-6d, "CMS Preliminary", next to the
+#     paper PDFs as <name>_preliminary.pdf:
+python3 python/plotPaperLRModified.py --preliminary
+python3 python/plotPaperTemplates.py --masspoint MHc130_MA90 --method ParticleNet --preliminary
+python3 python/plotPaperPostfitSummary.py --preliminary
+python3 python/plotPaperLimit.py --era All --combine-mhc --mode BR --preliminary
+python3 python/plotPaperLimit.py --era All --combine-mhc --mode xsec --preliminary
+
+# 6f. Thesis (private-work) per-mHc limit panels, BR and xsec, Baseline at
+#     mHc70-160 and ParticleNet at mHc100-160 -> plots/PW/Limits/{BR,xsec}/All/:
+for mode in BR xsec; do
+    for mhc in 70 85 100 115 130 145 160; do
+        python3 python/plotPaperLimit.py --era All --method Baseline --mhc "$mhc" --mode "$mode" --private-work
+    done
+    for mhc in 100 115 130 145 160; do
+        python3 python/plotPaperLimit.py --era All --method ParticleNet --mhc "$mhc" --mode "$mode" --private-work
+    done
+done
+
 # ---------------------------------------------------------------------------
 # Step 7: observed significance + template-point artifact bundle
 # ---------------------------------------------------------------------------

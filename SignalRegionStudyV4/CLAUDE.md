@@ -413,6 +413,24 @@ python3 python/plotPaperLRModified.py --preliminary
 python3 python/plotPaperLRModified.py --private-work [--masspoint pnet-seeds]
 python3 python/plotPaperTemplates.py --masspoint MHc130_MA90 --method ParticleNet
 python3 python/plotPaperPostfitSummary.py            # mHc160, ParticleNet, b-only
+# Limits: the paper figure is the combined-mHc grid alone (BR and xsec)
+# -> plots/Paper/Limits/{BR,xsec}/All/limit.All.combineMHc.pdf
+python3 python/plotPaperLimit.py --era All --combine-mhc --mode BR
+python3 python/plotPaperLimit.py --era All --combine-mhc --mode xsec
+
+# Preliminary (PAS) versions, "CMS Preliminary", written next to the paper PDF
+# as <name>_preliminary.pdf. Templates and the limit grid keep CMS above the
+# frame, so "Preliminary" follows it on the header line; the postfit panel has
+# it in the frame, under "CMS". --preliminary on plotPaperLimit.py needs
+# --combine-mhc, and on plotPaperPostfitSummary.py the default --mode full-range.
+python3 python/plotPaperTemplates.py --masspoint MHc130_MA90 --method ParticleNet --preliminary
+python3 python/plotPaperPostfitSummary.py --preliminary
+python3 python/plotPaperLimit.py --era All --combine-mhc --mode BR --preliminary
+python3 python/plotPaperLimit.py --era All --combine-mhc --mode xsec --preliminary
+# Thesis-only per-mHc limit panels ("Private work (CMS data)", cmsstyle iPos=11),
+# Baseline mHc70-160 / ParticleNet mHc100-160, BR and xsec
+# -> plots/PW/Limits/{BR,xsec}/All/limit.All.{method}.MHc{X}.pdf (doThis.sh 6f)
+python3 python/plotPaperLimit.py --era All --method Baseline --mhc 70 --mode BR --private-work
 ```
 
 `plotPaperPostfitSummary.py` has two modes. **`--mode full-range` (default)**
@@ -541,7 +559,7 @@ different widths.
   `CHANNEL_POS_Y` is local (0.80, the top of the frame, since no CMS
   block sits above it inside the frame), and the `Pre-fit` / `sigma_sig`
   lines hang off that block rather than carrying their own literals.
-- All three sets pass `"extraText": ""` in their `ComparisonCanvas` config
+- All three sets pass `"extraText": ""` (`"Preliminary"` with `--preliminary`) in their `ComparisonCanvas` config
   (`Common/Tools/plotter.py`'s `drawPadUp()` now reads
   `config.get("extraText", "Preliminary")` instead of hardcoding it), so
   only "CMS" is drawn — these are published-paper figures, not a

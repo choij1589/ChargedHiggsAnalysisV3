@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Paper-style limit plots: the Brazilian-panel path of plotLimits.py, minus
 "Preliminary" and --compare-mhc (paper figures never draw that overlay).
+The paper (and PAS) limit figure is the --combine-mhc grid alone; with
+--preliminary it carries "CMS Preliminary" and is written next to the paper PDF
+as limit.All.combineMHc_preliminary.pdf. The per-mHc panels are thesis-only:
+--private-work draws them with "Private work (CMS data)" into
+plots/PW/Limits/{mode}/{era}/.
 
 Kept as a separate script rather than a flag on plotLimits.py so the two
 output trees never collide -- plotLimits.py's plots/{mode}/{era}/
@@ -29,7 +34,8 @@ from plotter import (LumiInfo, EnergyInfo, get_CoM_energy,
 # Paper style is defined once in plotPaperLRModified.py and imported by every
 # figure that has to match it, so the CMS block cannot drift between the limit
 # curves and the paper panels.
-from plotPaperLRModified import CMS_LABEL_POS, CMS_LABEL_SIZE
+from plotPaperLRModified import (CMS_LABEL_POS, CMS_LABEL_SIZE, PRELIMINARY_SUFFIX,
+                                 PRELIMINARY_TEXT, PRIVATE_WORK_TEXT)
 
 ROOT.gROOT.SetBatch(ROOT.kTRUE)
 
@@ -80,7 +86,20 @@ parser.add_argument("--combine-mhc", dest="combine_mhc", action="store_true",
                          "header and one shared legend for the whole grid instead "
                          "of seven repeated ones. Ignores --method/--mhc/"
                          "--stack_baseline/--panels-per-row.")
+_label_group = parser.add_mutually_exclusive_group()
+_label_group.add_argument("--preliminary", action="store_true",
+                          help="--combine-mhc grid with 'CMS Preliminary' (PAS), written next "
+                               f"to the paper PDF as limit.<era>.combineMHc{PRELIMINARY_SUFFIX}.pdf")
+_label_group.add_argument("--private-work", dest="private_work", action="store_true",
+                          help="thesis version of the per-mHc panels: 'Private work (CMS data)' "
+                               "placed by cmsstyle (iPos=11), written to "
+                               "plots/PW/Limits/{mode}/{era}/")
 args = parser.parse_args()
+if args.preliminary and not args.combine_mhc:
+    parser.error("--preliminary is made for the --combine-mhc grid only (the paper figure)")
+if args.private_work and args.combine_mhc:
+    parser.error("--private-work is made for the per-mHc panels; the grid is the paper figure")
+_output_suffix = PRELIMINARY_SUFFIX if args.preliminary else ""
 
 if not args.combine_mhc and args.method is None:
     parser.error("--method is required unless --combine-mhc is given")
@@ -158,6 +177,10 @@ def create_graphs(limits_dict):
 # globals, which configure_cms_label() blanks again before every canvas).
 CMS.SetExtraText("")
 CMS.ResetAdditionalInfo()
+if args.private_work:
+    # Thesis figures: non-approved, so "Private work (CMS data)" replaces the
+    # CMS mark in the extra-text style, and cmsstyle places it (iPos=11).
+    CMS.SetCmsText(PRIVATE_WORK_TEXT, font=52, size=0.75 * 0.76)
 
 # Luminosity header follows the paper convention shared with plotPaperPostfitSummary.py,
 # plotPaperLRModified.py and plotPaperTemplates.py: rounded per-period luminosities from
@@ -203,6 +226,9 @@ _CMS_LABEL_CONFIG = {
     # Published paper figures drop "Preliminary"; only "CMS" is drawn.
     "extraText": "",
 }
+if args.private_work:
+    # No cmsPos*: configure_cms_label() then leaves the label to cmsstyle.
+    _CMS_LABEL_CONFIG = {}
 
 # Information text: channel + mHc, stacked in two lines. The x position
 # matches the CMS block (both share the frame's left inset) and the block's
@@ -215,6 +241,10 @@ _CMS_LABEL_CONFIG = {
 _INFO_SIZE_CHANNEL = 0.045
 _INFO_SIZE_MHC = _INFO_SIZE_CHANNEL
 _INFO_ROW = 0.050
+# --private-work: the caption is at the legend's text size (the legend
+# constant is defined below; the two are asserted equal there), and sits 0.02
+# further right than the label so it clears the y-axis ticks.
+_PRIVATE_WORK_INFO_SHIFT_X = 0.02
 
 # Legend: one column in the top-right, sized against the caption block on the
 # left rather than cmsstyle's default -- at 0.035 it read small next to a 0.063
@@ -230,10 +260,17 @@ _WIDTH_STRETCH = 3.0 / args.panels_per_row
 _PANEL_WIDTH = int(round(_PANEL_HEIGHT * _WIDTH_STRETCH))
 
 _LEGEND_TEXT_SIZE = 0.045
+if args.private_work and not (_INFO_SIZE_CHANNEL == _INFO_SIZE_MHC == _LEGEND_TEXT_SIZE):
+    raise ValueError("--private-work: the caption must match the legend's text size")
 _LEGEND_ROW = 0.062
 _LEGEND_X1 = 0.56
 _LEGEND_X2 = 0.95
 _LEGEND_Y2 = 0.90
+# --private-work: the label sits on the legend's first row and, on the square
+# panel, runs up to the "Observed" marker, so the legend (and the info block
+# anchored to its bottom) drops below it.
+if args.private_work:
+    _LEGEND_Y2 -= 0.03
 
 
 # TLegend centres each entry's text within its row rather than hanging it
@@ -276,9 +313,14 @@ def _shape_panel(canv, cms_state, legend_bottom):
     """
     info_bottom = legend_bottom
     info_top = info_bottom + _INFO_ROW
+    # --private-work: cmsstyle drew the label itself, so the info block lines up
+    # on that TLatex instead of on the self-placed CMS block.
+    pw_label = None if cms_state is not None else _private_work_label(canv)
+    label_x = cms_state["posX"] if cms_state is not None else pw_label.GetX()
+    info_shift = _PRIVATE_WORK_INFO_SHIFT_X if args.private_work else 0.0
 
     if _WIDTH_STRETCH == 1.0:
-        return ((cms_state["posX"], info_top), (cms_state["posX"], info_bottom),
+        return ((label_x + info_shift, info_top), (label_x + info_shift, info_bottom),
                 (_LEGEND_X1, _LEGEND_X2))
 
     left0, right0 = canv.GetLeftMargin(), canv.GetRightMargin()
@@ -295,15 +337,28 @@ def _shape_panel(canv, cms_state, legend_bottom):
     # anchored to the old right margin.
     reanchor_lumi_header(canv, _PANEL_WIDTH, _PANEL_HEIGHT)
 
-    cms_state["posX"] = left + (cms_state["posX"] - left0) / _WIDTH_STRETCH
+    # Same physical inset from the frame as on the square panel.
+    label_x = left + (label_x - left0) / _WIDTH_STRETCH
+    if cms_state is not None:
+        cms_state["posX"] = label_x
+    else:
+        pw_label.SetX(label_x)
     legend_x2 = 1.0 - right
     legend_x1 = legend_x2 - (_LEGEND_X2 - _LEGEND_X1) / _WIDTH_STRETCH
 
     canv.Modified()
     canv.Update()
-    return ((cms_state["posX"], info_top),
-            (cms_state["posX"], info_bottom),
+    return ((label_x + info_shift, info_top),
+            (label_x + info_shift, info_bottom),
             (legend_x1, legend_x2))
+
+
+def _private_work_label(canv):
+    """The "Private work (CMS data)" TLatex cmsstyle's CMS_lumi() drew on canv."""
+    for primitive in canv.GetListOfPrimitives():
+        if isinstance(primitive, ROOT.TLatex) and primitive.GetTitle() == PRIVATE_WORK_TEXT:
+            return primitive
+    raise RuntimeError(f"'{PRIVATE_WORK_TEXT}' label not found on the canvas")
 
 
 def _ymax_from(limits_dict):
@@ -788,6 +843,24 @@ def draw_combined_mhc_grid():
     cms_label.SetTextAlign(11)
     cms_label.DrawLatex(header_left, COMBINE_HEADER_Y, "CMS")
     keepalive.append(cms_label)
+    if args.preliminary:
+        # Out-of-frame header: "Preliminary" follows "CMS" on the same line, in
+        # the extra-text style (font 52, 0.76 of the CMS size), one space apart.
+        extra_label = ROOT.TLatex()
+        extra_label.SetNDC(True)
+        extra_label.SetTextFont(52)
+        extra_label.SetTextSize(0.76 * COMBINE_CMS_SIZE)
+        extra_label.SetTextAlign(11)
+        # GetXsize() is in canvas-HEIGHT units (see the legend sizing above).
+        aspect = COMBINE_CANVAS_SIZE[1] / COMBINE_CANVAS_SIZE[0]
+        cms_probe = ROOT.TLatex(0.0, 0.0, "CMS")
+        cms_probe.SetTextFont(61)
+        cms_probe.SetTextSize(COMBINE_CMS_SIZE)
+        space = 0.25 * COMBINE_CMS_SIZE
+        extra_label.DrawLatex(header_left + (cms_probe.GetXsize() + space) * aspect,
+                              COMBINE_HEADER_Y,
+                              PRELIMINARY_TEXT)
+        keepalive.append(extra_label)
 
     # The channel belongs with the legend, not with CMS: the top-right corner
     # has a whole empty band under the legend (beside the mHc85 row), and
@@ -860,7 +933,7 @@ def draw_combined_mhc_grid():
     keepalive.append(y_title)
 
     output_base = (f"plots/Paper/Limits/{args.mode}/{args.era}/"
-                  f"limit.{args.era}{_ch_suffix}.combineMHc")
+                  f"limit.{args.era}{_ch_suffix}.combineMHc{_output_suffix}")
     os.makedirs(os.path.dirname(output_base), exist_ok=True)
     canv.SaveAs(f"{output_base}.pdf")
     print(f"Created combined-mHc grid ({len(COMBINE_MHC_VALUES)} panels) -> {output_base}.pdf")
@@ -1080,7 +1153,8 @@ _mode_suffix = (f".MHc{args.mhc}" if args.mhc is not None
 # scripts' outputs never collide. "Asymptotic" and the source infix are
 # dropped from the name (unlike the INPUT path above): both are fixed, so
 # encoding them here would only be noise.
-output_base = (f"plots/Paper/Limits/{args.mode}/{args.era}/limit.{args.era}"
+_output_root = "PW" if args.private_work else "Paper"
+output_base = (f"plots/{_output_root}/Limits/{args.mode}/{args.era}/limit.{args.era}"
                f"{_ch_suffix}.{args.method}{_mode_suffix}")
 os.makedirs(os.path.dirname(output_base), exist_ok=True)
 
