@@ -62,4 +62,6 @@ SKFlatOutput
 # Profiling raw data (keep the .svg flamegraphs and .folded stacks)
 **/profiling/**/*.perf.data
 **/profiling/**/*.perf.data.old
+# per-thread flame-chart inputs are ~300 MB per run; rebuild them with python/perfFlameChart.py
+**/profiling/**/*.flamechart/*.folded
 ParticleNetMD/FlameGraph/

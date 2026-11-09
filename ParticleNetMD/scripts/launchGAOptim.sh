@@ -18,7 +18,8 @@
 # Profiling (any format): add --perf to wrap each job in `perf record -F 99 -g` with
 # PYTHONPERFSUPPORT=1 (Python 3.12+), so Python function names appear in the stacks.
 # Spawned workers inherit the env var, and perf follows child processes by default.
-#   Outputs: profiling/perf/GA_<signal>_<channel>.{perf.data,folded,svg}
+#   Outputs: profiling/perf/GA_<signal>_<channel>.{perf.data,folded,svg} (flame graph)
+#            profiling/perf/GA_<signal>_<channel>.flamechart/ (time-ordered flame charts per thread)
 #   FlameGraph scripts: $FLAMEGRAPH_DIR (default: ./FlameGraph,
 #   git clone https://github.com/brendangregg/FlameGraph)
 #   The flamegraph is built at the end of the run on the same node, because perf script
@@ -382,6 +383,12 @@ if [ "$PROFILER" = perf ]; then
             echo "  ${STEM}.svg"
         else
             echo "ERROR: flamegraph build failed for ${STEM} (see ${STEM}.perf_script.log)"
+            FAILED=$((FAILED + 1))
+        fi
+        # Time-ordered flame charts, one per busy thread, in ${STEM}.flamechart/
+        if ! FLAMEGRAPH_DIR="$FLAMEGRAPH_DIR" python "$(command -v perfFlameChart.py)" \
+                --perf-data "${STEM}.perf.data"; then
+            echo "ERROR: flame chart build failed for ${STEM}"
             FAILED=$((FAILED + 1))
         fi
     done
