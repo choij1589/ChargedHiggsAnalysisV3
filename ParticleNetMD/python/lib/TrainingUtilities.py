@@ -9,6 +9,7 @@ Modified from ParticleNet to support DisCo loss with mass tensors.
 """
 
 import contextlib
+import gc
 import json
 import math
 import time
@@ -185,25 +186,49 @@ def log_detailed_class_accuracies(predictions, labels, weights, use_groups, num_
 class StepProfiler:
     """Per-stage wall-clock timer for the training step (opt-in, see train_epoch).
 
-    Stages per full-size batch: collate (DataLoader fetch incl. pin_memory), to_device,
+    Stages per full-size batch: collate (DataLoader fetch, incl. pin_memory), to_device,
     augment (phi rotation), forward, loss, backward, optimizer_step. On CUDA every stage
     boundary calls torch.cuda.synchronize(), so asynchronous GPU work is attributed to
     the stage that launched it (this makes profiled epochs slightly slower).
 
-    Not counted: the first `warmup_batches` batches (CUDA/cuDNN warm-up) and any batch
-    smaller than `batch_size` (the last one of each epoch), so every sample is one full step.
-    Untimed: the per-batch bookkeeping (argmax, accumulators) and validation.
+    The fetch is further split (CPU only, no sync needed) into
+      collate_fn   time inside the loader's collate function (Batch.from_data_list),
+      fetch_other  the rest of next(): dataset indexing, sampler, pin_memory,
+      gc           time of Python garbage collections that ran during the fetch
+                   (a subset of collate_fn / fetch_other, not an extra stage),
+    and every batch records its node/edge counts. All batches are kept in `rows`
+    (save_csv); the statistics use only rows with used=True.
+
+    Not counted in the statistics: the first `warmup_batches` batches (CUDA/cuDNN
+    warm-up) and any batch smaller than `batch_size` (the last one of each epoch), so
+    every sample is one full step. Untimed: per-batch bookkeeping and validation.
     """
 
     STAGES = ("collate", "to_device", "augment", "forward", "loss", "backward", "optimizer_step")
+    # Sub-timings of the fetch (not stages): shown indented under collate in the report
+    DETAILS = ("collate_fn", "fetch_other", "gc")
+    CSV_COLUMNS = ("epoch", "batch", "used", "num_nodes", "num_edges",
+                   "collate_ms", "collate_fn_ms", "fetch_other_ms", "gc_ms",
+                   "gc_gen0", "gc_gen1", "gc_gen2",
+                   "to_device_ms", "augment_ms", "forward_ms", "loss_ms",
+                   "backward_ms", "optimizer_step_ms")
 
     def __init__(self, device, batch_size, warmup_batches=3):
         self.use_cuda = torch.device(device).type == "cuda"
         self.batch_size = batch_size
         self.warmup_batches = warmup_batches
-        self.samples = {stage: [] for stage in self.STAGES}
+        self.samples = {name: [] for name in self.STAGES + self.DETAILS}
+        self.rows = []
         self._current = {}
         self._seen = 0
+        self._epoch = -1
+        self._batch_in_epoch = 0
+        # state of the fetch currently being timed (see _gc_callback)
+        self._in_fetch = False
+        self._gc_start = 0.0
+        self._fetch_gc_s = 0.0
+        self._fetch_gc_gen = [0, 0, 0]
+        self._collate_fn_s = 0.0
 
     def _sync(self):
         if self.use_cuda:
@@ -211,7 +236,7 @@ class StepProfiler:
 
     @contextlib.contextmanager
     def time(self, stage):
-        if stage not in self.samples:
+        if stage not in self.STAGES:
             raise ValueError(f"Unknown profiling stage '{stage}'")
         self._sync()
         start = time.perf_counter()
@@ -221,58 +246,135 @@ class StepProfiler:
             self._sync()
             self._current[stage] = time.perf_counter() - start
 
+    def _gc_callback(self, phase, info):
+        """gc.callbacks hook: accumulate the duration of collections run during a fetch."""
+        if phase == "start":
+            self._gc_start = time.perf_counter()
+        elif phase == "stop" and self._in_fetch:
+            self._fetch_gc_s += time.perf_counter() - self._gc_start
+            self._fetch_gc_gen[info["generation"]] += 1
+
     def iterate(self, loader):
-        """Yield batches from `loader`, timing each fetch as the collate stage."""
-        loader_iter = iter(loader)
-        while True:
-            self._sync()
+        """Yield batches from `loader` (one epoch), timing each fetch as the collate
+        stage with its collate_fn / fetch_other / gc split."""
+        self._epoch += 1
+        self._batch_in_epoch = 0
+        original_collate = loader.collate_fn
+
+        def timed_collate(data_list):
             start = time.perf_counter()
-            try:
-                batch = next(loader_iter)
-            except StopIteration:
-                return
-            self._sync()
-            self._current = {"collate": time.perf_counter() - start}
-            yield batch
-            self._finish_batch(batch)
+            batch = original_collate(data_list)
+            self._collate_fn_s += time.perf_counter() - start
+            return batch
+
+        # DataLoader reads collate_fn when the iterator is created, so wrap it first
+        loader.collate_fn = timed_collate
+        gc.callbacks.append(self._gc_callback)
+        try:
+            loader_iter = iter(loader)
+            while True:
+                self._fetch_gc_s = 0.0
+                self._fetch_gc_gen = [0, 0, 0]
+                self._collate_fn_s = 0.0
+                self._in_fetch = True
+                start = time.perf_counter()
+                try:
+                    batch = next(loader_iter)
+                except StopIteration:
+                    return
+                finally:
+                    self._in_fetch = False
+                fetch_s = time.perf_counter() - start
+                self._current = {
+                    "collate": fetch_s,
+                    "collate_fn": self._collate_fn_s,
+                    "fetch_other": fetch_s - self._collate_fn_s,
+                    "gc": self._fetch_gc_s,
+                }
+                self._current_extra = {"num_nodes": int(batch.num_nodes),
+                                       "num_edges": int(batch.edge_index.size(1)),
+                                       "gc_gen": list(self._fetch_gc_gen)}
+                yield batch
+                self._finish_batch(batch)
+        finally:
+            gc.callbacks.remove(self._gc_callback)
+            loader.collate_fn = original_collate
 
     def _finish_batch(self, batch):
         self._seen += 1
-        if self._seen <= self.warmup_batches or batch.num_graphs != self.batch_size:
-            return
-        for stage in self.STAGES:
+        used = self._seen > self.warmup_batches and batch.num_graphs == self.batch_size
+        extra = self._current_extra
+        row = {"epoch": self._epoch, "batch": self._batch_in_epoch, "used": int(used),
+               "num_nodes": extra["num_nodes"], "num_edges": extra["num_edges"],
+               "gc_gen0": extra["gc_gen"][0], "gc_gen1": extra["gc_gen"][1],
+               "gc_gen2": extra["gc_gen"][2]}
+        for name in self.STAGES + self.DETAILS:
             # 'augment' is absent when phi-rotation augmentation is off
-            if stage in self._current:
-                self.samples[stage].append(self._current[stage])
+            if name in self._current:
+                row[f"{name}_ms"] = self._current[name] * 1e3
+                if used:
+                    self.samples[name].append(self._current[name])
+        self.rows.append(row)
+        self._batch_in_epoch += 1
+
+    @staticmethod
+    def _stats(values):
+        """n, mean/std/sem and quantiles in ms; sem = std / sqrt(n) with ddof=1."""
+        t = torch.tensor(values, dtype=torch.float64) * 1e3
+        n = len(values)
+        std = t.std().item() if n > 1 else float("nan")
+        q = torch.quantile(t, torch.tensor([0.5, 0.9, 0.99], dtype=torch.float64))
+        return {"n": n, "mean_ms": t.mean().item(), "std_ms": std,
+                "sem_ms": std / math.sqrt(n), "median_ms": q[0].item(),
+                "p90_ms": q[1].item(), "p99_ms": q[2].item(), "max_ms": t.max().item()}
 
     def summary(self):
-        """Per stage: n, mean/std/sem in ms and share of the summed stage means.
-        sem = std / sqrt(n) with the sample std (ddof=1)."""
-        stats = {}
-        for stage, values in self.samples.items():
-            if not values:
-                continue
-            t = torch.tensor(values, dtype=torch.float64) * 1e3
-            std = t.std().item() if len(values) > 1 else float("nan")
-            stats[stage] = {"n": len(values), "mean_ms": t.mean().item(),
-                            "std_ms": std, "sem_ms": std / math.sqrt(len(values))}
-        if not stats:
+        """{"stages": per stage, "details": collate_fn/fetch_other/gc,
+        "collate_trimmed_mean_ms": collate mean without the slowest 1%}."""
+        stages = {name: self._stats(v) for name, v in self.samples.items()
+                  if name in self.STAGES and v}
+        if not stages:
             raise ValueError("StepProfiler: no full-size batches were profiled "
                              "(too few batches after warm-up?)")
-        total = sum(v["mean_ms"] for v in stats.values())
-        for v in stats.values():
+        total = sum(v["mean_ms"] for v in stages.values())
+        for v in stages.values():
             v["share"] = v["mean_ms"] / total
-        return stats
+        details = {name: self._stats(self.samples[name]) for name in self.DETAILS
+                   if self.samples[name]}
+        collate = sorted(self.samples["collate"])
+        keep = collate[:max(1, int(len(collate) * 0.99))]
+        return {"stages": stages, "details": details,
+                "collate_trimmed_mean_ms": sum(keep) / len(keep) * 1e3}
+
+    def slowest(self, k=10):
+        """The k used batches with the longest fetch."""
+        used = [r for r in self.rows if r["used"]]
+        return sorted(used, key=lambda r: r["collate_ms"], reverse=True)[:k]
 
     def format_report(self):
-        stats = self.summary()
+        summary = self.summary()
+        header = (f"{'stage':<17}{'N':>6}{'mean [ms]':>11}{'± SEM':>9}{'std [ms]':>10}"
+                  f"{'p50':>8}{'p90':>8}{'p99':>8}{'max':>9}{'share':>8}")
+
+        def line(name, v, share=None):
+            tail = f"{share * 100:>7.1f}%" if share is not None else ""
+            return (f"{name:<17}{v['n']:>6}{v['mean_ms']:>11.3f}{v['sem_ms']:>9.3f}{v['std_ms']:>10.3f}"
+                    f"{v['median_ms']:>8.2f}{v['p90_ms']:>8.2f}{v['p99_ms']:>8.2f}{v['max_ms']:>9.2f}{tail}")
+
         lines = [f"STEP PROFILE (train, {self.batch_size}-event batches, "
-                 f"first {self.warmup_batches} batches and partial batches excluded)",
-                 f"{'stage':<15}{'N':>7}{'mean [ms]':>12}{'± SEM':>10}{'std [ms]':>11}{'share':>8}"]
-        for stage, v in stats.items():
-            lines.append(f"{stage:<15}{v['n']:>7}{v['mean_ms']:>12.3f}{v['sem_ms']:>10.3f}"
-                         f"{v['std_ms']:>11.3f}{v['share']*100:>7.1f}%")
-        lines.append(f"{'sum of means':<15}{'':>7}{sum(v['mean_ms'] for v in stats.values()):>12.3f}")
+                 f"first {self.warmup_batches} batches and partial batches excluded)", header]
+        for name, v in summary["stages"].items():
+            lines.append(line(name, v, v["share"]))
+            if name == "collate":
+                for sub, sv in summary["details"].items():
+                    lines.append(line("  " + sub, sv))
+        lines.append(f"{'sum of means':<17}{'':>6}{sum(v['mean_ms'] for v in summary['stages'].values()):>11.3f}")
+        lines.append(f"collate mean without the slowest 1%: {summary['collate_trimmed_mean_ms']:.3f} ms")
+        lines.append("slowest fetches (epoch, batch: total / collate_fn / fetch_other / gc [ms]; gc gen0/1/2; nodes):")
+        for r in self.slowest(10):
+            lines.append(f"  epoch {r['epoch']:>2}, batch {r['batch']:>3}: {r['collate_ms']:8.1f} / "
+                         f"{r['collate_fn_ms']:8.1f} / {r['fetch_other_ms']:8.1f} / {r['gc_ms']:7.1f}; "
+                         f"gc {r['gc_gen0']}/{r['gc_gen1']}/{r['gc_gen2']}; {r['num_nodes']} nodes")
         return "\n".join(lines)
 
     def save_json(self, path):
@@ -280,7 +382,19 @@ class StepProfiler:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             json.dump({"batch_size": self.batch_size, "warmup_batches": self.warmup_batches,
-                       "stages": self.summary()}, f, indent=2)
+                       **self.summary()}, f, indent=2)
+
+    def save_csv(self, path):
+        """All batches (warm-up and partial ones flagged used=0), one row each."""
+        import csv
+        import os
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=self.CSV_COLUMNS, restval="")
+            writer.writeheader()
+            for row in self.rows:
+                writer.writerow({k: (f"{v:.4f}" if isinstance(v, float) else v)
+                                 for k, v in row.items()})
 
 
 def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,

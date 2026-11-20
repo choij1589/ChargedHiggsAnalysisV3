@@ -288,11 +288,16 @@ class TrainingOrchestrator:
                 shutil.copy2(saved_path, summary_path)
             logging.info(f"Training summary saved to: {summary_path}")
 
-    def save_step_profile(self, path: str) -> None:
-        """Save the per-stage profile as JSON (no-op unless profile mode was on)."""
+    def save_step_profile(self, output_path: str, model_name: str) -> None:
+        """Save the per-stage summary (JSON) and the per-batch times (CSV); no-op unless
+        profile mode was on."""
         if self.step_profiler is not None:
-            self.step_profiler.save_json(path)
-            logging.info(f"Step profile saved to: {path}")
+            json_path = f"{output_path}/{model_name}_step_profile.json"
+            csv_path = f"{output_path}/{model_name}_step_times.csv"
+            self.step_profiler.save_json(json_path)
+            self.step_profiler.save_csv(csv_path)
+            logging.info(f"Step profile saved to: {json_path}")
+            logging.info(f"Per-batch step times saved to: {csv_path}")
 
     def _is_infrastructure_ready(self) -> bool:
         """Check if all training infrastructure is properly initialized."""

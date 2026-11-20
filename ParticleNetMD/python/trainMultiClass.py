@@ -358,7 +358,7 @@ def main():
 
         # 9. Save Training Summary
         orchestrator.save_training_summary(summary_path)
-        orchestrator.save_step_profile(f"{output_path}/{model_name}_step_profile.json")
+        orchestrator.save_step_profile(output_path, model_name)
 
         # 10. Save Predictions to ROOT Tree
         model = orchestrator.get_model()

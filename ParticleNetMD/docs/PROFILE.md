@@ -442,6 +442,14 @@ boundary calls `torch.cuda.synchronize()`, so GPU work is charged to the stage t
 standard error of the mean, std/√N (ddof=1), which assumes independent batches. The table is logged after the last
 epoch and saved as `<model_name>_step_profile.json`. Validation is not profiled.
 
+For the fetch, which has the heavy tail (7.2, 7.5), the profiler also records every batch (including warm-up and partial
+ones, flagged `used=0`) in `<model_name>_step_times.csv`: epoch, batch, node/edge counts, the per-stage times, and a
+split of the fetch into `collate_fn` (the loader's collate function), `fetch_other` (dataset indexing and
+`pin_memory`) and `gc` (time of Python garbage collections that ran during the fetch, with their generation counts).
+The report adds p50/p90/p99/max per stage and the ten slowest fetches. `python/plotStepProfile.py` reads the CSV and
+draws (ROOT + cmsstyle) the fetch-time histogram, fetch time against batch number and against node count, and the
+per-epoch mean/median/max, then prints how much of the total the slow batches carry and where they sit.
+
 ### 7.2 Result: the training step (512 events)
 
 | stage | N | mean [ms] | ± SEM | std [ms] | share |
@@ -459,7 +467,7 @@ epoch and saved as `<model_name>_step_profile.json`. Validation is not profiled.
   backward + optimizer) together are only 40%. The model is not the bottleneck of a single run.
 - The GPU stages are very stable (std < 2% of the mean). Collate is not: std 126 ms against a mean of 29 ms. The mean
   is carried by a heavy tail of slow fetches, so its SEM is 9% of the mean while every other stage is below 0.1%.
-  What the tail consists of is **not known** from this table (see 7.5).
+  The tail is two single batches and a slow first epoch (7.5): in steady epochs the fetch is ~21 ms, not 29 ms.
 - 53.4 ms × 235 batches ≈ 12.5 s, against 13.1 s per steady epoch in the profiled run: the rest (~0.6 s) is
   validation and the untimed per-batch bookkeeping.
 
@@ -492,17 +500,47 @@ timing only. With 10 epochs and a cap of 10,000 events it is barely above chance
   takes ~108 s because the parent unpickles the 20 results one after another, 3.3-4.9 s each (~70 s in total), and
   starts only when the first worker finishes. This matches the picture from section 5.3. The 10 s between the last
   task line and the summary line in the log is not explained.
-- **Epoch 0 is 25 s longer than the others** (38.1 s vs ~12.3 s) in both runs. Not explained.
-- **Epoch 7 is 4-5 s longer in both runs** (16.4 s and 17.7 s against 12.1-12.4 s and 13.0-13.2 s). A spike at the
-  same epoch in two runs with different loss curves is not random noise. Not explained.
+- **Epoch 0 is 25 s longer than the others** (38.1 s vs ~12.3 s) in both runs. About 16 s of it is in the fetch
+  (slow `fetch_other` for every batch, plus one full GC), see 7.5; the other ~9 s are not explained.
+- **Epoch 7 is 4-5 s longer in both runs** (16.4 s and 17.7 s against 12.1-12.4 s and 13.0-13.2 s). It is one
+  batch whose fetch contained a full garbage collection (4.7 s), see 7.5.
 - The 44 s for the ROOT tree (train 27 s, valid 9 s, test 8 s) and the 12 s to create the DataLoaders were not
   looked into.
 
-### 7.5 Open points
+### 7.5 The fetch-time distribution (third profiled run, per-batch CSV)
 
-1. **Collate:** is the 29 ms mean the tail of a few very slow fetches, a slow first epoch, or a steady cost? The
-   JSON keeps only summary statistics. Per-epoch mean/max (or a histogram) of each stage would separate "epoch 0 and
-   epoch 7" from the steady state, and would show whether the epoch-0 and epoch-7 excess is collate.
-2. The pool stays CPU-bound in the parent (section 5.3); packing the returned events into a few tensors instead of
+Source: `<model_name>_step_times.csv` of a third profiled run (profile on, same pilot config), 2337 used batches;
+`python/plotStepProfile.py` prints these numbers and draws the plots. Per-batch fetch time: mean 29.99 ms, median
+21.04 ms, max 4656 ms.
+
+| epoch | median fetch [ms] | median collate_fn | median fetch_other | max fetch [ms] | full GCs |
+|-------|------|------|------|--------|---|
+| 0 | 74.5 | 12.5 | 62.1 | 3997.8 | 1 |
+| 1-6, 8, 9 | 20.7-21.2 | 13.0-13.4 | 7.7-7.9 | 24.7-30.1 | 0 |
+| 7 | 20.9 | 13.1 | 7.8 | 4656.3 | 1 |
+
+- **Steady state is tight:** 21 ms per batch, 13 ms in `collate_fn` (the loader's `Batch.from_data_list` of 512
+  graphs) and 8 ms in `fetch_other` (dataset indexing and `pin_memory`). With the other stages (23.9 ms) that is a
+  ~45 ms step, of which the fetch is ~47%, not the 55% of 7.2. It is still the largest stage.
+- **Two single batches carry the tail:** one in epoch 0 (4.0 s) and one in epoch 7 (4.7 s). Each contained a full
+  (generation 2) garbage collection, and the GC time is essentially the whole fetch time. They are 0.1% of the
+  batches and 12.3% of the total fetch time, and the epoch-7 batch is the 4-5 s epoch-7 spike of 7.4. A generation-0
+  collection runs during every fetch (~0.3 ms) and generation 1 in half of them; only a full collection is slow.
+  A full collection walks all live objects, here the 120k+ training `Data` objects; why it runs exactly twice in 10
+  epochs was not investigated.
+- **Epoch 0 is slow for every batch** (median 74.5 ms against 21 ms) and the whole excess is in `fetch_other`
+  (62 ms against 8 ms); `collate_fn` is unchanged. So it is the `pin_memory` / indexing side, not the collate. A
+  warm-up of the pinned-memory allocator in the first epoch fits, but this was **not tested**. 234 batches × 53 ms
+  ≈ 12.5 s plus the 4 s collection accounts for ~16 s of the 25 s by which epoch 0 is longer in the first two runs;
+  this run's epoch times were not compared.
+
+### 7.6 Open points
+
+1. **GC:** the cost is two full collections of ~4 s each. Options, none applied: `gc.freeze()` after the datasets
+   are built, or `gc.disable()` during the training loop. This changes the baseline, so measure it against the
+   "profile off" log below.
+2. **Epoch 0 `fetch_other`:** test the pinned-memory hypothesis (e.g. `pin_memory=False`, or a first pass over the
+   loader before the timed epochs) and look at the remaining ~9 s of epoch 0.
+3. The pool stays CPU-bound in the parent (section 5.3); packing the returned events into a few tensors instead of
    10^4 `Data` objects per task was estimated at 0.5-1 s per task against 3.5 s now, but **not measured**.
-3. Baseline for any change: the "profile off" log (343 s wall, 12.26 s steady epoch, 108 s load).
+4. Baseline for any change: the "profile off" log (343 s wall, 12.26 s steady epoch, 108 s load).
