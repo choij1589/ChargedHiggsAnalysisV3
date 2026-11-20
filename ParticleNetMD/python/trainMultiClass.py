@@ -12,11 +12,13 @@ Key features:
 """
 
 import argparse
+import gc
 import logging
 import multiprocessing
 import multiprocessing.forkserver
 import os
 import sys
+import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 from typing import Dict, List, Tuple
 
@@ -93,6 +95,15 @@ class Config:
         self.args.pilot = False   # default; set via CLI --pilot only
         self.args.debug = system_config['debug']
         self.args.profile = system_config.get('profile', False)   # per-stage step timing
+        # DataLoader worker processes (0 = collate in the main process)
+        self.args.num_workers = system_config.get('num_workers', 0)
+        if not isinstance(self.args.num_workers, int) or self.args.num_workers < 0:
+            raise ValueError(f"system_config.num_workers must be an integer >= 0, got {self.args.num_workers!r}")
+        # gc.collect() + gc.freeze() once before training, so that full garbage collections
+        # (~4 s each in the profile) do not walk the long-lived datasets
+        self.args.gc_freeze = system_config.get('gc_freeze', False)
+        if not isinstance(self.args.gc_freeze, bool):
+            raise ValueError(f"system_config.gc_freeze must be true or false, got {self.args.gc_freeze!r}")
 
         # Output configuration
         self.args.results_dir = output_config.get('results_dir', 'LambdaSweep')
@@ -208,7 +219,8 @@ class Config:
         logging.info(f"Schedule: {self.args.scheduler}, Loss: {self.args.loss_type}")
         if self.args.loss_type == 'disco':
             logging.info(f"DisCo lambda: {self.args.disco_lambda}")
-        logging.info(f"Classes: {self.num_classes}, Device: {self.args.device}")
+        logging.info(f"Classes: {self.num_classes}, Device: {self.args.device}, "
+                     f"DataLoader workers: {self.args.num_workers}, gc.freeze: {self.args.gc_freeze}")
         logging.info(f"Batch size: {self.args.batch_size}, Max epochs: {self.args.max_epochs}")
         logging.info(f"Pilot mode: {self.args.pilot}, Balance: {self.args.balance}, "
                      f"Profile mode: {self.args.profile}")
@@ -347,6 +359,14 @@ def main():
 
         # 6. Training Infrastructure Setup
         orchestrator.setup_training_infrastructure(model_name, checkpoint_path)
+
+        # 6b. Freeze the long-lived objects (datasets, loaders, model) out of the cyclic GC
+        if config.args.gc_freeze:
+            start = time.perf_counter()
+            gc.collect()
+            gc.freeze()
+            logging.info(f"gc.collect() + gc.freeze(): {gc.get_freeze_count():,} objects frozen "
+                         f"in {time.perf_counter() - start:.1f} s")
 
         # 7. Execute Training
         logging.info("Starting training process...")

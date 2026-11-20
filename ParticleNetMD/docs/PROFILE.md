@@ -534,13 +534,86 @@ Source: `<model_name>_step_times.csv` of a third profiled run (profile on, same 
   ≈ 12.5 s plus the 4 s collection accounts for ~16 s of the 25 s by which epoch 0 is longer in the first two runs;
   this run's epoch times were not compared.
 
-### 7.6 Open points
+### 7.6 Trials: DataLoader workers and GC freeze (all profile off)
 
-1. **GC:** the cost is two full collections of ~4 s each. Options, none applied: `gc.freeze()` after the datasets
-   are built, or `gc.disable()` during the training loop. This changes the baseline, so measure it against the
-   "profile off" log below.
-2. **Epoch 0 `fetch_other`:** test the pinned-memory hypothesis (e.g. `pin_memory=False`, or a first pass over the
-   loader before the timed epochs) and look at the remaining ~9 s of epoch 0.
-3. The pool stays CPU-bound in the parent (section 5.3); packing the returned events into a few tensors instead of
-   10^4 `Data` objects per task was estimated at 0.5-1 s per task against 3.5 s now, but **not measured**.
-4. Baseline for any change: the "profile off" log (343 s wall, 12.26 s steady epoch, 108 s load).
+Goal: take the fetch (7.5) off the main process. All runs use the same pilot config, the same `MHc130_MA90` /
+`Combined` input, one run each, unseeded, on a workstation that was also used for other things during the runs. Logs:
+`profile/baseline_*.log`. Times are the per-epoch times of the epoch lines (seconds).
+
+| epoch | 0 workers | 2 workers | 4 workers | 2, persistent | 4, persistent | 2, persistent + `gc_freeze` |
+|-------|-----------|-----------|-----------|---------------|---------------|-----------------------------|
+| 0 | 38.1 | 23.9 | 13.8 | 21.5 | 11.0 | 21.3 |
+| 1 | 12.3 | 23.1 | 13.0 | 13.8 | 7.7 | 13.9 |
+| 2 | 12.3 | 17.8 | 13.3 | 8.5 | **18.7** | 8.2 |
+| 3 | 12.3 | 23.3 | 13.4 | 8.8 | 8.6 | 8.0 |
+| 4 | 12.4 | 17.9 | 13.9 | 8.6 | 7.8 | 8.2 |
+| 5 | 12.3 | 22.7 | 13.2 | 8.5 | 8.4 | 8.2 |
+| 6 | 12.1 | 23.5 | 13.3 | 9.8 | 8.2 | 8.1 |
+| 7 | 16.4 | 17.8 | 13.4 | 13.3 | 7.8 | **17.0** |
+| 8 | 12.1 | 23.0 | 13.1 | 8.9 | 8.4 | 8.2 |
+| 9 | 12.3 | 17.9 | 13.3 | 9.8 | 8.3 | 8.7 |
+| **total training** | **152.6** | 211.0 | 133.6 | 111.5 | **95.0** | 109.7 |
+| mean of epochs 1-9 | 12.7 | 20.8 | 13.3 | 10.0 | 9.3 | 9.8 |
+| wall time of the run | 343 | 413 | 335 | 296 | 288 | 319 |
+
+What each step showed:
+
+1. **2 workers, workers restarted every epoch** (the default `persistent_workers=False`): slower than no workers at
+   all (211 s vs 152.6 s). Epochs alternate between ~18 s and ~23 s, with no clear pattern; the main process was
+   idle part of the time (CPU 59-64% in the slow epochs, 81-82% in the fast ones, against ~103% without workers).
+   Epoch 0 improved (38.1 → 23.9 s).
+2. **4 workers, restarted every epoch:** flat 13.0-13.9 s per epoch, no spikes (including epoch 7), epoch 0 down to
+   13.8 s; total 133.6 s. Slightly slower per epoch than no workers (13.3 vs 12.3 s) but without the slow epoch 0.
+   That 4 workers are much faster than 2 workers in the restart-every-epoch mode is **not explained**.
+3. **Persistent workers (`persistent_workers=True`), 2 and 4 workers:** typical epoch 8-9 s (2) and 7.7-8.6 s (4),
+   against 12.3 s without workers; total 111.5 s and 95.0 s. The restart of the workers each epoch was therefore the
+   main cost in steps 1-2. 8 s is close to what the GPU stages alone need: 23.9 ms (forward + loss + backward +
+   optimizer + to_device + augment, 7.2) × 235 batches ≈ 5.6 s plus validation; the fetch seems to be hidden behind
+   them now (an inference, not measured: no profile-on run was made with workers).
+4. **`gc.collect()` + `gc.freeze()` before training** (`gc_freeze`, with 2 persistent workers): 5,942,995 objects
+   frozen, 5.0 s one-off. Typical epoch 8.0-8.2 s, total 109.7 s: about the same as without it (111.5 s). It was
+   meant to remove the 4-5 s full-GC stall of 7.5; the spike at epoch 7 is still there (17.0 s).
+
+**The stalls with workers are unexplained.** One epoch in most runs takes ~5-10 s longer than the others: epoch 7 with
+`gc_freeze` (17.0 s, CPU 65%), epoch 2 with 4 persistent workers (18.7 s, CPU 61%), epochs 7 and 1 with 2 persistent
+workers (13.3 s and 13.8 s; epoch 1 is 13.8-13.9 s in both 2-worker persistent runs, 7.7 s with 4 workers). In all of
+them the main process is idle, so it is waiting for batches. What was ruled out from the logs:
+
+- worker start: the workers persist;
+- the checkpoint save (it happens when the valid loss improves; epochs 8 and 9 improve too and take 8.2 and 8.7 s);
+- the class-accuracy printout (only epochs 0 and 9);
+- a full GC in the main process is unlikely after the freeze, and the stall changes epoch between runs, whereas the
+  0-worker spike was always at epoch 7 (and was a full GC, 7.5).
+
+A lead, **not confirmed**: when this was written the machine had 374 MB free, 24 GB used and 5.2 GB of swap in use
+(`free -m`, not at the time of the runs); the pilot process holds ~7-8 GB and each persistent worker is a fork of it.
+The load phase of the `gc_freeze` run was also slower (123 s vs 107-109 s in the other runs). If the machine was
+swapping, an idle main process would be expected. The test that was planned and **not done**: a profile-on run (per-batch
+CSV and `plotStepProfile.py`, which show whether the stalled epoch is one stalled batch or all batches slow, and
+whether any full GC ran) with `vmstat 1 > profile/vmstat.log` running alongside, to compare swap-in/out with the epoch
+timestamps.
+
+### 7.7 State of the code after these trials
+
+- `system_config.num_workers` (default 0; the pilot config sets 2). `persistent_workers` is switched on automatically
+  when `num_workers > 0` (PyTorch rejects it with 0 workers). `pin_memory=True` as before.
+- `system_config.gc_freeze` (default false; the pilot config sets true): `gc.collect()` + `gc.freeze()` just before the
+  training loop.
+- With workers, profile mode measures the wait for the next ready batch under `collate`; the `collate_fn` /
+  `fetch_other` split is not recorded (the collate runs in the workers) and `gc` covers the main process only.
+  `plotStepProfile.py` copes with the empty columns.
+- The pilot config currently has `profile: false`; the `profile on` runs of 7.2-7.5 used 0 workers.
+
+### 7.8 Open points
+
+1. **The epoch stalls with workers** (7.6): run profile on with `vmstat` alongside, or first check with more memory
+   free whether they persist. Until then the epoch-time comparisons above are single, unseeded runs. The 16.5 s
+   between 2 and 4 persistent workers (111.5 vs 95.0 s) is mostly epoch 0 (21.5 vs 11.0 s) and ~0.5 s per epoch
+   (typical epoch ~8.6 s with 2, ~8.1 s with 4); the stalls cost about the same in both (~11 s in total).
+2. **Epoch 0** is 11-21 s in the persistent runs against 12.3 s of the steady epochs without workers, so it is still
+   the longest epoch. Whether the epoch-0 `pin_memory` hypothesis of 7.5 holds was not tested.
+3. **The rest of the wall time** was not touched by any of this: the parent-side unpickling of the loader results
+   (load ~108 s; packing the returned events into a few tensors was estimated at 0.5-1 s per task against 3.5 s now,
+   **not measured**) and the 44-47 s for writing the ROOT tree.
+4. Baseline for any change: the 0-worker "profile off" log (343 s wall, 12.26 s steady epoch, 108 s load) for the
+   old behaviour, `baseline_persistent_worker4.log` (288 s wall, ~8 s epoch) for the best run so far.

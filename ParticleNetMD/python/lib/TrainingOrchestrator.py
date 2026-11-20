@@ -166,6 +166,9 @@ class TrainingOrchestrator:
             self.step_profiler = StepProfiler(self.device, self.config.args.batch_size)
             logging.warning("Profile mode: per-stage cuda.synchronize() calls make profiled "
                             "epochs slightly slower than unprofiled ones")
+            if getattr(self.config.args, 'num_workers', 0) > 0:
+                logging.warning("Profile mode with DataLoader workers: 'collate' is the time waiting "
+                                "for the next ready batch; the collate_fn / fetch_other split is not recorded")
 
         # Training loop
         for epoch in range(self.config.args.max_epochs):

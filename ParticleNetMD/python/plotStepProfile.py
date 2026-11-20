@@ -150,6 +150,9 @@ def plot_hist(data, used, out: Path) -> None:
     series = [("fetch total", data["collate_ms"][used], "black", 1),
               ("collate_fn", data["collate_fn_ms"][used], "blue", 2),
               ("fetch other (pin_memory, ...)", data["fetch_other_ms"][used], "red", 3)]
+    # collate_fn / fetch_other are empty when the loader used worker processes
+    series = [(n, v[~np.isnan(v)], c, st) for n, v, c, st in series]
+    series = [item for item in series if len(item[1])]
     positive = np.concatenate([v[v > 0] for _, v, _, _ in series])
     edges = np.logspace(np.log10(positive.min() * 0.9), np.log10(positive.max() * 1.1), 41)
     hists = []
@@ -252,9 +255,13 @@ def print_diagnosis(data, used) -> None:
         return
     epoch = data["epoch"][used][slow]
     with_gc = data["gc_gen2"][used][slow] > 0
-    in_fn = data["collate_fn_ms"][used][slow] > data["fetch_other_ms"][used][slow]
-    print(f"  of the slow batches: in epoch 0: {(epoch == 0).sum()}, with a full (gen 2) GC during the fetch: "
-          f"{with_gc.sum()}, dominated by collate_fn: {in_fn.sum()}, dominated by fetch_other: {(~in_fn).sum()}")
+    split = ~np.isnan(data["collate_fn_ms"][used][slow])
+    msg = (f"  of the slow batches: in epoch 0: {(epoch == 0).sum()}, with a full (gen 2) GC during the fetch: "
+           f"{with_gc.sum()}")
+    if split.all():
+        in_fn = data["collate_fn_ms"][used][slow] > data["fetch_other_ms"][used][slow]
+        msg += f", dominated by collate_fn: {in_fn.sum()}, dominated by fetch_other: {(~in_fn).sum()}"
+    print(msg)
     print(f"  first batch of an epoch: {(data['batch'][used][slow] == 0).sum()}; slow batches per epoch: "
           + ", ".join(f"{int(e)}:{int((epoch == e).sum())}" for e in np.unique(epoch)))
 
@@ -266,7 +273,8 @@ def print_per_epoch(data, used) -> None:
     for epoch in np.unique(data["epoch"][used]):
         m = used & (data["epoch"] == epoch)
         print(f"  epoch {int(epoch):>2}: {np.median(data['collate_ms'][m]):7.1f} / "
-              f"{np.median(data['collate_fn_ms'][m]):6.1f} / {np.median(data['fetch_other_ms'][m]):6.1f}, "
+              f"{np.nanmedian(data['collate_fn_ms'][m]) if not np.isnan(data['collate_fn_ms'][m]).all() else float('nan'):6.1f} / "
+              f"{np.nanmedian(data['fetch_other_ms'][m]) if not np.isnan(data['fetch_other_ms'][m]).all() else float('nan'):6.1f}, "
               f"max {data['collate_ms'][m].max():8.1f}, full GCs {int(data['gc_gen2'][m].sum())}, "
               f"GC {data['gc_ms'][m].sum():8.1f}")
 

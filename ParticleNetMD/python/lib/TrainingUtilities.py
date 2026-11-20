@@ -260,6 +260,10 @@ class StepProfiler:
         self._epoch += 1
         self._batch_in_epoch = 0
         original_collate = loader.collate_fn
+        # With worker processes the collate runs in the workers, so it cannot be timed from
+        # here: the fetch is then the wait for the next ready batch, and the collate_fn /
+        # fetch_other split is not recorded (gc covers the main process only)
+        split = loader.num_workers == 0
 
         def timed_collate(data_list):
             start = time.perf_counter()
@@ -267,8 +271,9 @@ class StepProfiler:
             self._collate_fn_s += time.perf_counter() - start
             return batch
 
-        # DataLoader reads collate_fn when the iterator is created, so wrap it first
-        loader.collate_fn = timed_collate
+        if split:
+            # DataLoader reads collate_fn when the iterator is created, so wrap it first
+            loader.collate_fn = timed_collate
         gc.callbacks.append(self._gc_callback)
         try:
             loader_iter = iter(loader)
@@ -285,12 +290,10 @@ class StepProfiler:
                 finally:
                     self._in_fetch = False
                 fetch_s = time.perf_counter() - start
-                self._current = {
-                    "collate": fetch_s,
-                    "collate_fn": self._collate_fn_s,
-                    "fetch_other": fetch_s - self._collate_fn_s,
-                    "gc": self._fetch_gc_s,
-                }
+                self._current = {"collate": fetch_s, "gc": self._fetch_gc_s}
+                if split:
+                    self._current["collate_fn"] = self._collate_fn_s
+                    self._current["fetch_other"] = fetch_s - self._collate_fn_s
                 self._current_extra = {"num_nodes": int(batch.num_nodes),
                                        "num_edges": int(batch.edge_index.size(1)),
                                        "gc_gen": list(self._fetch_gc_gen)}
@@ -298,7 +301,8 @@ class StepProfiler:
                 self._finish_batch(batch)
         finally:
             gc.callbacks.remove(self._gc_callback)
-            loader.collate_fn = original_collate
+            if split:
+                loader.collate_fn = original_collate
 
     def _finish_batch(self, batch):
         self._seen += 1
@@ -373,7 +377,8 @@ class StepProfiler:
         lines.append("slowest fetches (epoch, batch: total / collate_fn / fetch_other / gc [ms]; gc gen0/1/2; nodes):")
         for r in self.slowest(10):
             lines.append(f"  epoch {r['epoch']:>2}, batch {r['batch']:>3}: {r['collate_ms']:8.1f} / "
-                         f"{r['collate_fn_ms']:8.1f} / {r['fetch_other_ms']:8.1f} / {r['gc_ms']:7.1f}; "
+                         f"{r.get('collate_fn_ms', float('nan')):8.1f} / "
+                         f"{r.get('fetch_other_ms', float('nan')):8.1f} / {r['gc_ms']:7.1f}; "
                          f"gc {r['gc_gen0']}/{r['gc_gen1']}/{r['gc_gen2']}; {r['num_nodes']} nodes")
         return "\n".join(lines)
 

@@ -179,18 +179,26 @@ class DataPipeline:
         valid_dataset = GraphDataset(self.valid_data)
         test_dataset = GraphDataset(self.test_data)
 
-        # Create data loaders
+        # Create data loaders; num_workers > 0 collates batches in worker processes
+        # (system_config.num_workers, default 0 = in the main process). The workers
+        # persist across epochs; persistent_workers must be False without workers.
+        num_workers = getattr(self.config.args, 'num_workers', 0)
+        persistent = num_workers > 0
         self.train_loader = DataLoader(
-            train_dataset, batch_size=batch_size, pin_memory=True, shuffle=True
+            train_dataset, batch_size=batch_size, pin_memory=True, shuffle=True,
+            num_workers=num_workers, persistent_workers=persistent
         )
         self.valid_loader = DataLoader(
-            valid_dataset, batch_size=batch_size, pin_memory=True, shuffle=False
+            valid_dataset, batch_size=batch_size, pin_memory=True, shuffle=False,
+            num_workers=num_workers, persistent_workers=persistent
         )
         self.test_loader = DataLoader(
-            test_dataset, batch_size=batch_size, pin_memory=True, shuffle=False
+            test_dataset, batch_size=batch_size, pin_memory=True, shuffle=False,
+            num_workers=num_workers, persistent_workers=persistent
         )
 
-        logging.info(f"Created data loaders with batch size {batch_size}")
+        logging.info(f"Created data loaders with batch size {batch_size}, "
+                     f"{num_workers} worker(s) (persistent: {persistent}), pin_memory=True")
         logging.info(f"DataLoader sizes - Train: {len(train_dataset)}, "
                     f"Valid: {len(valid_dataset)}, Test: {len(test_dataset)}")
 
