@@ -87,57 +87,35 @@ class DataPipeline:
                     valid_folds = self.config.args.valid_folds
                     test_folds = self.config.args.test_folds
 
-                    # Pilot mode: single train fold, reduced event caps per class
+                    # Folds and event caps come from the config (pilot runs use
+                    # configs/SglConfig.pilot.json, which sets smaller caps)
+                    max_train = max_events
+                    max_eval  = max_events
                     if self.config.args.pilot:
-                        train_folds = [train_folds[0]]
-                        max_train = 8000
-                        max_eval  = 2000
                         logging.info(
                             f"PILOT MODE: train_folds={train_folds} valid_folds={valid_folds} "
-                            f"test_folds={test_folds} | caps: train={max_train} valid/test={max_eval}"
+                            f"test_folds={test_folds} | cap per fold per class: {max_events}"
                         )
-                    else:
-                        max_train = max_events
-                        max_eval  = max_events
 
-                    # Load training data with subsampling
-                    logging.info(f"--- Loading TRAIN data (folds {train_folds}) ---")
-                    self.train_data = self.loader.load_multiclass_with_subsampling(
+                    # Load train/valid/test with ONE process pool: all (class, fold) tasks of
+                    # all three splits run concurrently (results identical to separate loads)
+                    logging.info(f"--- Loading TRAIN (folds {train_folds}), VALID (folds {valid_folds}), "
+                                 f"TEST (folds {test_folds}) data in parallel ---")
+                    splits = self.loader.load_multiclass_splits(
                         signal_sample=self.config.signal_full_name,
                         background_groups=background_groups_full,
                         channel=self.config.args.channel,
-                        fold_list=train_folds,
-
-                        max_events_per_fold=max_train,
+                        splits={
+                            "train": (train_folds, max_train),
+                            "valid": (valid_folds, max_eval),
+                            "test": (test_folds, max_eval),
+                        },
                         balance_weights=self.config.args.balance,
-                        random_state=42
+                        random_state=42,
                     )
-
-                    # Load validation data with subsampling
-                    logging.info(f"--- Loading VALID data (folds {valid_folds}) ---")
-                    self.valid_data = self.loader.load_multiclass_with_subsampling(
-                        signal_sample=self.config.signal_full_name,
-                        background_groups=background_groups_full,
-                        channel=self.config.args.channel,
-                        fold_list=valid_folds,
-
-                        max_events_per_fold=max_eval,
-                        balance_weights=self.config.args.balance,
-                        random_state=42
-                    )
-
-                    # Load test data with subsampling
-                    logging.info(f"--- Loading TEST data (folds {test_folds}) ---")
-                    self.test_data = self.loader.load_multiclass_with_subsampling(
-                        signal_sample=self.config.signal_full_name,
-                        background_groups=background_groups_full,
-                        channel=self.config.args.channel,
-                        fold_list=test_folds,
-
-                        max_events_per_fold=max_eval,
-                        balance_weights=self.config.args.balance,
-                        random_state=42
-                    )
+                    self.train_data = splits["train"]
+                    self.valid_data = splits["valid"]
+                    self.test_data = splits["test"]
                 else:
                     # Use original path without subsampling (backward compatibility)
                     logging.info(f"--- Loading TRAIN/VALID/TEST data (fold {self.config.args.fold}) ---")

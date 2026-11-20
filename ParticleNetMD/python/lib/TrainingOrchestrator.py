@@ -297,17 +297,16 @@ class TrainingOrchestrator:
                            epoch_time: float, perf_stats: Dict[str, Any],
                            train_decomposed: Dict[str, float] = None) -> None:
         """Log epoch progress to console."""
-        logging.info(f"[EPOCH {epoch}] Train Acc: {train_acc*100:.2f}% | Train Loss: {train_loss:.4e}")
-        logging.info(f"[EPOCH {epoch}] Valid Acc: {valid_acc*100:.2f}% | Valid Loss: {valid_loss:.4e}")
-
-        # Log decomposed losses for DisCo
+        max_epochs = self.config.args.max_epochs
+        line = (f"Epoch {epoch:>3}/{max_epochs - 1} | "
+                f"train acc {train_acc*100:6.2f}% loss {train_loss:.3e} | "
+                f"valid acc {valid_acc*100:6.2f}% loss {valid_loss:.3e}")
         if train_decomposed:
-            logging.info(f"[EPOCH {epoch}] CE Loss: {train_decomposed['ce_loss']:.4e} | "
-                        f"DisCo Term: {train_decomposed['disco_term']:.4f}")
-
-        logging.info(f"[EPOCH {epoch}] Time: {epoch_time:.1f}s | "
-                    f"Memory: {perf_stats['memory_mb']:.1f}MB | "
-                    f"CPU: {perf_stats['cpu_percent']:.1f}%")
+            line += (f" | CE {train_decomposed['ce_loss']:.3e}"
+                     f" DisCo {train_decomposed['disco_term']:.4f}")
+        line += (f" | {epoch_time:5.1f}s, {perf_stats['memory_mb']:.0f} MB, "
+                 f"CPU {perf_stats['cpu_percent']:.0f}%")
+        logging.info(line)
 
     def _log_detailed_class_accuracies(self, epoch: int) -> None:
         """Log detailed per-class accuracies for monitoring."""

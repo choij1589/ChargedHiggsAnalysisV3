@@ -13,6 +13,8 @@ Key features:
 
 import argparse
 import logging
+import multiprocessing
+import multiprocessing.forkserver
 import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
@@ -232,13 +234,13 @@ def parse_arguments() -> Tuple[str, str, str, float, bool]:
 
     # Optional config file path
     parser.add_argument("--config", default=None, type=str,
-                       help="Path to configuration JSON file (default: configs/SglConfig.json)")
+                       help="Path to configuration JSON file (default: configs/SglConfig.json, or configs/SglConfig.pilot.json with --pilot)")
 
     # CLI overrides
     parser.add_argument("--disco-lambda", type=float, default=None,
                        help="Override disco_lambda from config (0.0 = no decorrelation)")
     parser.add_argument("--pilot", action="store_true", default=False,
-                       help="Override pilot mode (fast dataset caps, single train fold)")
+                       help="Pilot mode (fast dataset caps, single train fold); reads configs/SglConfig.pilot.json unless --config is given")
 
     args = parser.parse_args()
 
@@ -248,6 +250,20 @@ def parse_arguments() -> Tuple[str, str, str, float, bool]:
         raise ValueError(f"Invalid channel {args.channel}. Must be one of: {valid_channels}")
 
     return args.signal, args.channel, args.config, args.disco_lambda, args.pilot
+
+
+# forkserverPreload imports torch, PyG, ROOT and the analysis modules without
+# initializing CUDA (see its docstring); the dataset-loading pools fork from it.
+FORKSERVER_PRELOAD = ["forkserverPreload"]
+
+
+def start_forkserver():
+    """Start the forkserver now so its one-time imports overlap with config/setup work
+    and the dataset-loading workers (DynamicDatasetLoader) fork from it instead of
+    re-importing torch/PyG/ROOT in every worker (same approach as launchGAOptim.py)."""
+    multiprocessing.set_forkserver_preload(FORKSERVER_PRELOAD)
+    multiprocessing.forkserver.ensure_running()
+    logging.info(f"Forkserver started, preloading {', '.join(FORKSERVER_PRELOAD)}")
 
 
 def main():
@@ -264,7 +280,10 @@ def main():
     # 1. Parse command-line arguments
     signal, channel, config_path, disco_lambda_override, pilot_override = parse_arguments()
 
-    # 2. Load configuration from JSON
+    # 2. Load configuration from JSON (--pilot defaults to the pilot config)
+    if pilot_override and config_path is None:
+        config_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), '..', 'configs', 'SglConfig.pilot.json')
     config = Config(signal, channel, config_path)
 
     # Apply CLI overrides
@@ -275,8 +294,11 @@ def main():
     # Setup logging based on debug flag
     logging.basicConfig(
         level=logging.DEBUG if config.args.debug else logging.INFO,
-        format='%(levelname)s - %(message)s'
+        format='%(asctime)s %(levelname)-7s %(message)s',
+        datefmt='%H:%M:%S'
     )
+
+    start_forkserver()
 
     # Log comprehensive configuration
     config.log_configuration()

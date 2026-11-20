@@ -48,12 +48,16 @@ def _run_class_fold_task(dataset_root, task):
     # The cyclic GC rescans the millions of freshly unpickled objects many times
     # (~1.5x slower load); none of them form cycles, and this process exits afterwards.
     gc.disable()
+    t0 = time.time()
     try:
         data = DynamicDatasetLoader(dataset_root)._load_class_fold(**task)
+        t_load = time.time() - t0
         blob = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
     finally:
         gc.enable()
-    return blob, list(_WORKER_LOG)
+    timing = {"pid": os.getpid(), "start": t0, "end": time.time(),
+              "load_s": t_load, "dump_s": time.time() - t0 - t_load, "mb": len(blob) / 1e6}
+    return blob, list(_WORKER_LOG), timing
 
 
 def _available_cpus():
@@ -445,6 +449,7 @@ class DynamicDatasetLoader:
             return results
 
         logging.info(f"[PROFILE] load tasks: starting {len(tasks)} (class, fold) tasks with {num_workers} processes")
+        start_wall = time.time()
         results = []
         # Receiving the subsampled lists unpickles ~10^5 objects; pause the cyclic GC meanwhile
         gc_was_enabled = gc.isenabled()
@@ -455,11 +460,17 @@ class DynamicDatasetLoader:
             # server starts bare and this behaves like spawn. Loaders never use CUDA.
             with ProcessPoolExecutor(max_workers=num_workers, mp_context=mp.get_context("forkserver"),
                                      initializer=_init_load_worker, initargs=(list(sys.path),)) as pool:
-                for blob, records in pool.map(_run_class_fold_task,
-                                              [self.dataset_root] * len(tasks), tasks):
+                for task, (blob, records, timing) in zip(tasks, pool.map(
+                        _run_class_fold_task, [self.dataset_root] * len(tasks), tasks)):
                     for levelno, message in records:
                         logging.log(levelno, message)
+                    t_unpickle = time.time()
                     results.append(pickle.loads(blob))
+                    logging.info(
+                        f"[PROFILE] task {task['class_name']} fold {task['fold']}: worker "
+                        f"{timing['start'] - start_wall:+.1f}..{timing['end'] - start_wall:.1f} s "
+                        f"(load {timing['load_s']:.1f}, pickle {timing['dump_s']:.1f}, "
+                        f"{timing['mb']:.0f} MB), parent unpickle {time.time() - t_unpickle:.1f} s")
         finally:
             if gc_was_enabled:
                 gc.enable()
