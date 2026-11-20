@@ -9,7 +9,7 @@ Section 7 covers a different target: the single-model run `python/trainMultiClas
 profile on a local workstation).
 
 Tools, in the order they were used: **perf** (CPU, all processes), **py-spy** (tried and dropped),
-**nsys** (GPU timeline), **ncu** (single kernels, planned).
+**nsys** (GPU timeline), **ncu** (single kernels, section 6).
 
 ---
 
