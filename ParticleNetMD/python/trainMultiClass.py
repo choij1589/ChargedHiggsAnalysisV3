@@ -92,6 +92,7 @@ class Config:
         self.args.device = system_config['device']
         self.args.pilot = False   # default; set via CLI --pilot only
         self.args.debug = system_config['debug']
+        self.args.profile = system_config.get('profile', False)   # per-stage step timing
 
         # Output configuration
         self.args.results_dir = output_config.get('results_dir', 'LambdaSweep')
@@ -209,7 +210,8 @@ class Config:
             logging.info(f"DisCo lambda: {self.args.disco_lambda}")
         logging.info(f"Classes: {self.num_classes}, Device: {self.args.device}")
         logging.info(f"Batch size: {self.args.batch_size}, Max epochs: {self.args.max_epochs}")
-        logging.info(f"Pilot mode: {self.args.pilot}, Balance: {self.args.balance}")
+        logging.info(f"Pilot mode: {self.args.pilot}, Balance: {self.args.balance}, "
+                     f"Profile mode: {self.args.profile}")
         logging.info("=" * 60)
 
         # Log accuracy calculation method
@@ -356,6 +358,7 @@ def main():
 
         # 9. Save Training Summary
         orchestrator.save_training_summary(summary_path)
+        orchestrator.save_step_profile(f"{output_path}/{model_name}_step_profile.json")
 
         # 10. Save Predictions to ROOT Tree
         model = orchestrator.get_model()

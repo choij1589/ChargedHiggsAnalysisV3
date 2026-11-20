@@ -5,6 +5,9 @@ profiles showed, and what was changed because of them. All measurements are from
 (`configs/GAConfig.pilot.json`: 1 generation, 16 models, 10 epochs, 20,000 events per fold and class) for
 `MHc130_MA90`, channel `Combined`, on one A100 of a Perlmutter GPU node (`--gpus=1`, 64 CPUs), 2026-11-08.
 
+Section 7 covers a different target: the single-model run `python/trainMultiClass.py` (baseline and per-step
+profile on a local workstation).
+
 Tools, in the order they were used: **perf** (CPU, all processes), **py-spy** (tried and dropped),
 **nsys** (GPU timeline), **ncu** (single kernels, planned).
 
@@ -411,3 +414,95 @@ launches of the same variant (17 µs, grid (2, 1, 105)). Medians over all 16:
   the CPU: batch assembly, launches, syncs). The **spatial** gaps remain: a running kernel uses a small fraction
   of the SMs, which the ~55% "busy" of section 5.8 does not show. MPS (kernels of different processes running
   side by side) would target those; not tested.
+
+---
+
+## 7. Single-model baseline: `trainMultiClass.py`
+
+A different target from sections 1-6: one model, one process, no GA. Measured on the local workstation
+(RTX 2070 SUPER, 24 CPUs, not Perlmutter), 2026-11-20, `MHc130_MA90`, channel `Combined`.
+
+```bash
+python python/trainMultiClass.py --signal MHc130_MA90 --channel Combined --pilot 2>&1 | tee profile/baseline_profile_{off,on}.log
+```
+
+`--pilot` reads `configs/SglConfig.pilot.json` (folds 0-2 train, 3 valid, 4 test; 10,000 events per fold and class;
+10 epochs; batch size 512; DisCo λ=0.1; 3 background groups = 4 classes). Output goes to
+`profile/Combined/MHc130_MA90/pilot/` (git-ignored). Two runs: `system_config.profile` false
+(`profile/baseline_profile_off.log`) and true (`profile/baseline_profile_on.log`). The data: 120,000 train,
+40,000 valid, 40,000 test events; 235 train batches per epoch (234 full + 1 of 192 events).
+
+### 7.1 Profile mode
+
+`system_config.profile` (code default `false`) makes `train_epoch` time each stage of the training step with
+`StepProfiler` (`python/lib/TrainingUtilities.py`): `collate` (the DataLoader fetch, incl. `pin_memory`),
+`to_device`, `augment` (phi rotation), `forward`, `loss`, `backward`, `optimizer_step`. On CUDA every stage
+boundary calls `torch.cuda.synchronize()`, so GPU work is charged to the stage that launched it. Excluded: the first
+3 batches (warm-up) and the partial last batch of each epoch, so N = 10 × 234 − 3 = 2337 per stage. The error is the
+standard error of the mean, std/√N (ddof=1), which assumes independent batches. The table is logged after the last
+epoch and saved as `<model_name>_step_profile.json`. Validation is not profiled.
+
+### 7.2 Result: the training step (512 events)
+
+| stage | N | mean [ms] | ± SEM | std [ms] | share |
+|-------|---|-----------|-------|----------|-------|
+| collate | 2337 | 29.448 | 2.615 | 126.398 | 55.2% |
+| to_device | 2337 | 2.257 | 0.001 | 0.054 | 4.2% |
+| augment | 2337 | 0.322 | 0.000 | 0.008 | 0.6% |
+| forward | 2337 | 8.099 | 0.001 | 0.071 | 15.2% |
+| loss | 2337 | 1.716 | 0.001 | 0.033 | 3.2% |
+| backward | 2337 | 10.380 | 0.004 | 0.195 | 19.4% |
+| optimizer_step | 2337 | 1.150 | 0.001 | 0.035 | 2.2% |
+| **sum of means** | | **53.372** | | | |
+
+- **The DataLoader fetch (collate) is the largest stage: 55% of the step**, and the GPU stages (forward + loss +
+  backward + optimizer) together are only 40%. The model is not the bottleneck of a single run.
+- The GPU stages are very stable (std < 2% of the mean). Collate is not: std 126 ms against a mean of 29 ms. The mean
+  is carried by a heavy tail of slow fetches, so its SEM is 9% of the mean while every other stage is below 0.1%.
+  What the tail consists of is **not known** from this table (see 7.5).
+- 53.4 ms × 235 batches ≈ 12.5 s, against 13.1 s per steady epoch in the profiled run: the rest (~0.6 s) is
+  validation and the untimed per-batch bookkeeping.
+
+### 7.3 What profiling costs
+
+| | epoch 0 | steady epochs (1-9 except 7) | epoch 7 | total training time |
+|---|---------|-----------------------------|---------|---------------------|
+| profile off | 38.1 s | 12.26 s | 16.4 s | 152.6 s |
+| profile on | 37.8 s | 13.09 s | 17.7 s | 160.0 s |
+
+Profiling adds 0.83 s per steady epoch (+6.8%), i.e. ~3.5 ms per 53 ms step, and +4.8% on the whole training. Epoch 0
+is unchanged (its extra time is something else). So the synchronisation is cheap enough that the stage shares in 7.2
+can be read as the unprofiled shares to within a few percent; for the unprofiled epoch time use the "off" run.
+The two runs also end at different accuracies (test 31.15% vs 27.58%): the pilot is not seeded, so this is for
+timing only. With 10 epochs and a cap of 10,000 events it is barely above chance for 4 classes.
+
+### 7.4 Where the wall time goes (profile off, 343 s)
+
+| phase | time | share |
+|-------|------|-------|
+| load 20 (class, fold) tasks, one pool | 118 s (log: 108.0 s) | 34% |
+| balance + shuffle, 3 splits | 4 s | 1% |
+| create DataLoaders | 12 s | 3% |
+| train 10 epochs | 152.6 s | 44% |
+| final evaluation | 7 s | 2% |
+| write predictions to the ROOT tree | 44 s | 13% |
+
+- **Loading**: all 20 workers start at +3.3-3.9 s and run in parallel (the `[PROFILE] task` lines); load alone is
+  20-56 s per task (the ttX tasks, 222k events per fold, are the slowest, ending at +62 s). The pool nonetheless
+  takes ~108 s because the parent unpickles the 20 results one after another, 3.3-4.9 s each (~70 s in total), and
+  starts only when the first worker finishes. This matches the picture from section 5.3. The 10 s between the last
+  task line and the summary line in the log is not explained.
+- **Epoch 0 is 25 s longer than the others** (38.1 s vs ~12.3 s) in both runs. Not explained.
+- **Epoch 7 is 4-5 s longer in both runs** (16.4 s and 17.7 s against 12.1-12.4 s and 13.0-13.2 s). A spike at the
+  same epoch in two runs with different loss curves is not random noise. Not explained.
+- The 44 s for the ROOT tree (train 27 s, valid 9 s, test 8 s) and the 12 s to create the DataLoaders were not
+  looked into.
+
+### 7.5 Open points
+
+1. **Collate:** is the 29 ms mean the tail of a few very slow fetches, a slow first epoch, or a steady cost? The
+   JSON keeps only summary statistics. Per-epoch mean/max (or a histogram) of each stage would separate "epoch 0 and
+   epoch 7" from the steady state, and would show whether the epoch-0 and epoch-7 excess is collate.
+2. The pool stays CPU-bound in the parent (section 5.3); packing the returned events into a few tensors instead of
+   10^4 `Data` objects per task was estimated at 0.5-1 s per task against 3.5 s now, but **not measured**.
+3. Baseline for any change: the "profile off" log (343 s wall, 12.26 s steady epoch, 108 s load).

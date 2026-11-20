@@ -8,6 +8,8 @@ and group-balanced accuracy calculations for physics-aware training.
 Modified from ParticleNet to support DisCo loss with mass tensors.
 """
 
+import contextlib
+import json
 import math
 import time
 import logging
@@ -180,9 +182,110 @@ def log_detailed_class_accuracies(predictions, labels, weights, use_groups, num_
     logging.info(f"  {'OVERALL':>12}: {overall_accuracy*100:6.2f}% (group-balanced mean)")
 
 
+class StepProfiler:
+    """Per-stage wall-clock timer for the training step (opt-in, see train_epoch).
+
+    Stages per full-size batch: collate (DataLoader fetch incl. pin_memory), to_device,
+    augment (phi rotation), forward, loss, backward, optimizer_step. On CUDA every stage
+    boundary calls torch.cuda.synchronize(), so asynchronous GPU work is attributed to
+    the stage that launched it (this makes profiled epochs slightly slower).
+
+    Not counted: the first `warmup_batches` batches (CUDA/cuDNN warm-up) and any batch
+    smaller than `batch_size` (the last one of each epoch), so every sample is one full step.
+    Untimed: the per-batch bookkeeping (argmax, accumulators) and validation.
+    """
+
+    STAGES = ("collate", "to_device", "augment", "forward", "loss", "backward", "optimizer_step")
+
+    def __init__(self, device, batch_size, warmup_batches=3):
+        self.use_cuda = torch.device(device).type == "cuda"
+        self.batch_size = batch_size
+        self.warmup_batches = warmup_batches
+        self.samples = {stage: [] for stage in self.STAGES}
+        self._current = {}
+        self._seen = 0
+
+    def _sync(self):
+        if self.use_cuda:
+            torch.cuda.synchronize()
+
+    @contextlib.contextmanager
+    def time(self, stage):
+        if stage not in self.samples:
+            raise ValueError(f"Unknown profiling stage '{stage}'")
+        self._sync()
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            self._sync()
+            self._current[stage] = time.perf_counter() - start
+
+    def iterate(self, loader):
+        """Yield batches from `loader`, timing each fetch as the collate stage."""
+        loader_iter = iter(loader)
+        while True:
+            self._sync()
+            start = time.perf_counter()
+            try:
+                batch = next(loader_iter)
+            except StopIteration:
+                return
+            self._sync()
+            self._current = {"collate": time.perf_counter() - start}
+            yield batch
+            self._finish_batch(batch)
+
+    def _finish_batch(self, batch):
+        self._seen += 1
+        if self._seen <= self.warmup_batches or batch.num_graphs != self.batch_size:
+            return
+        for stage in self.STAGES:
+            # 'augment' is absent when phi-rotation augmentation is off
+            if stage in self._current:
+                self.samples[stage].append(self._current[stage])
+
+    def summary(self):
+        """Per stage: n, mean/std/sem in ms and share of the summed stage means.
+        sem = std / sqrt(n) with the sample std (ddof=1)."""
+        stats = {}
+        for stage, values in self.samples.items():
+            if not values:
+                continue
+            t = torch.tensor(values, dtype=torch.float64) * 1e3
+            std = t.std().item() if len(values) > 1 else float("nan")
+            stats[stage] = {"n": len(values), "mean_ms": t.mean().item(),
+                            "std_ms": std, "sem_ms": std / math.sqrt(len(values))}
+        if not stats:
+            raise ValueError("StepProfiler: no full-size batches were profiled "
+                             "(too few batches after warm-up?)")
+        total = sum(v["mean_ms"] for v in stats.values())
+        for v in stats.values():
+            v["share"] = v["mean_ms"] / total
+        return stats
+
+    def format_report(self):
+        stats = self.summary()
+        lines = [f"STEP PROFILE (train, {self.batch_size}-event batches, "
+                 f"first {self.warmup_batches} batches and partial batches excluded)",
+                 f"{'stage':<15}{'N':>7}{'mean [ms]':>12}{'± SEM':>10}{'std [ms]':>11}{'share':>8}"]
+        for stage, v in stats.items():
+            lines.append(f"{stage:<15}{v['n']:>7}{v['mean_ms']:>12.3f}{v['sem_ms']:>10.3f}"
+                         f"{v['std_ms']:>11.3f}{v['share']*100:>7.1f}%")
+        lines.append(f"{'sum of means':<15}{'':>7}{sum(v['mean_ms'] for v in stats.values()):>12.3f}")
+        return "\n".join(lines)
+
+    def save_json(self, path):
+        import os
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            json.dump({"batch_size": self.batch_size, "warmup_batches": self.warmup_batches,
+                       "stages": self.summary()}, f, indent=2)
+
+
 def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
                use_groups=False, num_classes=4, scheduler_type="StepLR",
-               loss_requires_mass=False, augment_phi_rotation=True):
+               loss_requires_mass=False, augment_phi_rotation=True, profiler=None):
     """
     Train model for one epoch.
 
@@ -198,6 +301,7 @@ def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
         scheduler_type: Type of scheduler for proper step handling
         loss_requires_mass: Whether loss function needs mass tensors (DisCo)
         augment_phi_rotation: Whether to apply random phi rotation augmentation
+        profiler: Optional StepProfiler; None = no timing, no extra synchronization
 
     Returns:
         Tuple of (average_loss, accuracy)
@@ -218,31 +322,38 @@ def train_epoch(model, train_loader, optimizer, scheduler, loss_fn, device,
     all_labels = []
     all_weights = []
 
-    for batch in train_loader:
-        batch = batch.to(device)
+    stage = profiler.time if profiler is not None else (lambda name: contextlib.nullcontext())
+    batches = profiler.iterate(train_loader) if profiler is not None else train_loader
+
+    for batch in batches:
+        with stage("to_device"):
+            batch = batch.to(device)
 
         # Apply phi rotation augmentation (training only)
         if augment_phi_rotation:
-            batch.x = apply_phi_rotation(batch.x, batch.batch, device)
+            with stage("augment"):
+                batch.x = apply_phi_rotation(batch.x, batch.batch, device)
 
         # Forward pass
-        optimizer.zero_grad()
-        logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
-
-        # Extract weights for loss function
-        weights = extract_weights_from_batch(batch)
+        with stage("forward"):
+            optimizer.zero_grad()
+            logits = model(batch.x, batch.edge_index, batch.graphInput, batch.batch)
 
         # Compute weighted loss (with or without mass for DisCo)
-        if loss_requires_mass:
-            mass1 = batch.mass1.squeeze()
-            mass2 = batch.mass2.squeeze()
-            loss = loss_fn(logits, batch.y, weights, mass1, mass2)
-        else:
-            loss = loss_fn(logits, batch.y, weights)
+        with stage("loss"):
+            weights = extract_weights_from_batch(batch)
+            if loss_requires_mass:
+                mass1 = batch.mass1.squeeze()
+                mass2 = batch.mass2.squeeze()
+                loss = loss_fn(logits, batch.y, weights, mass1, mass2)
+            else:
+                loss = loss_fn(logits, batch.y, weights)
 
         # Backward pass
-        loss.backward()
-        optimizer.step()
+        with stage("backward"):
+            loss.backward()
+        with stage("optimizer_step"):
+            optimizer.step()
 
         # Statistics - keep on GPU
         loss_accumulator.append(loss.detach())

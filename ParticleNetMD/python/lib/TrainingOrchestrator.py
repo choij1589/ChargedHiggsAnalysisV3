@@ -19,7 +19,7 @@ from DataPipeline import DataPipeline
 from TrainingUtilities import (
     train_epoch, evaluate_model, get_detailed_predictions,
     log_detailed_class_accuracies, PerformanceMonitor,
-    create_optimizer, create_scheduler, setup_device
+    create_optimizer, create_scheduler, setup_device, StepProfiler
 )
 from MultiClassModels import create_multiclass_model
 from WeightedLoss import create_loss_function
@@ -60,6 +60,7 @@ class TrainingOrchestrator:
         self.total_training_time = 0.0
         self.best_valid_loss = float('inf')
         self.training_history = []
+        self.step_profiler = None
 
         # DisCo loss requires mass tensors
         self.loss_requires_mass = (config.args.loss_type == 'disco')
@@ -161,6 +162,11 @@ class TrainingOrchestrator:
         logging.info("=" * 60)
         logging.info(f"Training for {self.config.args.max_epochs} epochs")
 
+        if getattr(self.config.args, 'profile', False):
+            self.step_profiler = StepProfiler(self.device, self.config.args.batch_size)
+            logging.warning("Profile mode: per-stage cuda.synchronize() calls make profiled "
+                            "epochs slightly slower than unprofiled ones")
+
         # Training loop
         for epoch in range(self.config.args.max_epochs):
             self.current_epoch = epoch
@@ -172,7 +178,8 @@ class TrainingOrchestrator:
                 self.optimizer, self.scheduler, self.loss_fn, self.device,
                 self.config.use_groups, self.config.num_classes,
                 self.config.args.scheduler, self.loss_requires_mass,
-                getattr(self.config.args, 'augment_phi_rotation', True)
+                getattr(self.config.args, 'augment_phi_rotation', True),
+                profiler=self.step_profiler
             )
 
             # Validate (returns decomposed losses for DisCo)
@@ -230,6 +237,9 @@ class TrainingOrchestrator:
                 break
 
         logging.info("Training completed!")
+        if self.step_profiler is not None:
+            for line in self.step_profiler.format_report().split("\n"):
+                logging.info(line)
         return self._get_training_summary()
 
     def evaluate_final_performance(self) -> Dict[str, Any]:
@@ -277,6 +287,12 @@ class TrainingOrchestrator:
                 import shutil
                 shutil.copy2(saved_path, summary_path)
             logging.info(f"Training summary saved to: {summary_path}")
+
+    def save_step_profile(self, path: str) -> None:
+        """Save the per-stage profile as JSON (no-op unless profile mode was on)."""
+        if self.step_profiler is not None:
+            self.step_profiler.save_json(path)
+            logging.info(f"Step profile saved to: {path}")
 
     def _is_infrastructure_ready(self) -> bool:
         """Check if all training infrastructure is properly initialized."""
